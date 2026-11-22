@@ -151,11 +151,19 @@ const bandLibrary = window.LibraryMatch ? LibraryMatch.attach({
   artist: document.getElementById('new-variant-artist'),
   host: document.getElementById('new-variant-library-match'),
   addLabel: t('Add to the songbook'),
+  band: bandId, // its own versions, never another band's
   add: async (hit) => {
-    const res = await fetch(`/api/bands/${bandId}/catalog`, {
+    const post = (variantId) => fetch(`/api/bands/${bandId}/catalog`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({variantId: hit.variantId}),
+      body: JSON.stringify({variantId}),
     }).catch(() => null);
+    let res = await post(hit.variantId);
+    // Another band's song: never taken; its catalogue version, if asked.
+    if (res && res.status === 409) {
+      const r = await Forms.bandRefusal(res);
+      if (!r.retryId) throw new Error(r.message || t('Not added.'));
+      res = await post(r.retryId);
+    }
     if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to the songbook. Try again.', hit.title));
     // The songbook holds the band's own songs: the answer is the band's
     // copy (or the band's song itself), which is what to open.
@@ -199,9 +207,16 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
   async function doAdd(hit, btn) {
     Forms.status(resultMsg, '');
     Forms.busy(btn, true);
-    const res = await fetch(`/api/bands/${bandId}/catalog`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId: hit.variantId}),
+    const post = (variantId) => fetch(`/api/bands/${bandId}/catalog`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId}),
     }).catch(() => null);
+    let res = await post(hit.variantId);
+    // Another band's song: never taken; its catalogue version, if asked.
+    if (res && res.status === 409) {
+      const r = await Forms.bandRefusal(res);
+      if (!r.retryId) { Forms.busy(btn, false); if (r.message) Forms.status(resultMsg, r.message, 'error'); return; }
+      res = await post(r.retryId);
+    }
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
     Forms.status(resultMsg, t('Couldn’t add “%s”. It may already be in the songbook; if not, try again.', hit.title), 'error');
@@ -211,7 +226,7 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
     const q = input.value.trim();
     results.innerHTML = '';
     if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}&band=${bandId}`).catch(() => null);
     const hits = res && res.ok ? await res.json().catch(() => []) : null;
     if (!hits) {
       results.innerHTML = '<p class="hint">' + t('Couldn’t search the catalog. Try again.') + '</p>';

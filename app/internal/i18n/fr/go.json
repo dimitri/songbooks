@@ -23,5 +23,8 @@
   "proposal for %q (%s) was accepted": "la proposition pour « %s » (%s) a été acceptée",
   "proposal for %q (%s) was rejected": "la proposition pour « %s » (%s) a été refusée",
   "proposed %s for %q": "a proposé %s pour « %s »",
-  "untitled": "sans titre"
+  "untitled": "sans titre",
+  "This is %s’s song: a band doesn’t take another band’s song.": "C’est le morceau de %s : un groupe ne prend pas le morceau d’un autre groupe.",
+  "This is %s’s song. Add the catalogue’s version instead?": "C’est le morceau de %s. Ajouter plutôt la version du catalogue ?",
+  "This is %s’s own song: %s’s originals stay theirs, and can’t be added to another band.": "C’est un morceau de %s : les compositions de %s restent les leurs et ne s’ajoutent pas à un autre groupe."
 }

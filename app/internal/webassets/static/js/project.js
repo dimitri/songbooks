@@ -130,11 +130,20 @@ const wizLibrary = wizard && window.LibraryMatch ? LibraryMatch.attach({
   artist: document.getElementById('wiz-artist'),
   host: document.getElementById('wiz-library-match'),
   addLabel: t('Add to this songbook'),
+  band: wizard.dataset.bandId || '', // a band's songbook: its own versions only
   add: async (hit) => {
-    const res = await fetch(`/api/songbooks/${wizSongbookId}/entries`, {
+    const post = (variantId) => fetch(`/api/songbooks/${wizSongbookId}/entries`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ variantId: hit.variantId }),
+      body: JSON.stringify({ variantId }),
     }).catch(() => null);
+    let res = await post(hit.variantId);
+    // A band's songbook: another band's song is never taken; its
+    // catalogue version, if asked.
+    if (res && res.status === 409) {
+      const r = await Forms.bandRefusal(res);
+      if (!r.retryId) throw new Error(r.message || t('Not added.'));
+      res = await post(r.retryId);
+    }
     if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to this songbook. Try again.', hit.title));
     // A band's songbook answers with the band's copy of the song.
     const data = await res.json().catch(() => ({}));

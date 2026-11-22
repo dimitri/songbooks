@@ -143,5 +143,14 @@
     const el = e.target;
     if (el.getAttribute && el.getAttribute('aria-invalid') === 'true' && el.checkValidity()) fieldError(el, '');
   });
-  window.Forms = { fieldError, status, busy, run, validate };
+  // A band's add answered 409 (httpapi writeAdoptErr): another band's song,
+  // which a band never takes. With the work's catalogue version, asks to
+  // add that instead: {retryId} on yes; otherwise {message} to show (an
+  // original: that band's own), or {} when the person said no.
+  async function bandRefusal(res) {
+    const d = await res.json().catch(() => ({}));
+    if (d.catalogVariantId) return confirm(d.question) ? { retryId: d.catalogVariantId } : {};
+    return { message: d.message || '' };
+  }
+  window.Forms = { fieldError, status, busy, run, validate, bandRefusal };
 })();

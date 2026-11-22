@@ -1,16 +1,17 @@
 // bandsongs makes every song a band uses the band's own: each catalogue
-// ('global'), personal ('user') or other band's song in a band's songbooks
-// or set lists gets a copy for the band (store.AdoptIntoBand: content and
-// media copied, forked_from_id the original), and the band's songbook
-// entries, set list items and recordings point at the copy. The original
-// stays as it is, with its history; each set list changed gets a
-// revision. A band that already has its copy of a song (forked_from_id)
-// gets its pointers moved to it, no second copy.
+// ('global') or personal ('user') song in a band's songbooks or set lists
+// gets a copy for the band (store.AdoptIntoBand: content and media
+// copied, forked_from_id the original), and the band's songbook entries,
+// set list items and recordings point at the copy. The original stays as
+// it is, with its history; each set list changed gets a revision. A band
+// that already has its copy of a song (forked_from_id) gets its pointers
+// moved to it, no second copy.
 //
-// A community's song in a band's songbook or set list is left as it is and
-// counted: its songbooks may be private or sold, so copying it is for a
-// person who can open it to decide (the song page's "Edit the band's
-// version").
+// Another band's song in a band's songbook or set list is left as it is
+// and reported: a band never takes another band's song (an original
+// band's songs stay theirs; covers come from the catalogue), so a person
+// decides — take it out, or take the catalogue's version instead. A
+// community's song is left too: its songbooks may be private or sold.
 //
 // It only reads unless --apply is given, and prints per band what it would
 // change (with --apply, what it changed). It never prints a song's text.
@@ -78,9 +79,13 @@ func main() {
 		if a.Action == "skip" {
 			bt.skipped++
 			bt.skippedByKind[a.Visibility]++
-			if *verbose {
-				fmt.Printf("band %d: song %d (%s): left as it is\n", a.BandID, a.VariantID, a.Visibility)
+			// Always reported, -v or not: a person decides about each.
+			why := "a community's song"
+			if a.Visibility == "band" {
+				why = "another band's song: take it out, or the catalogue's version instead"
 			}
+			fmt.Printf("band %d: song %d left as it is (%s; %d songbook entries, %d set list items)\n",
+				a.BandID, a.VariantID, why, a.Entries, a.SetlistItems)
 			continue
 		}
 		bt.entries += a.Entries

@@ -101,7 +101,10 @@ func (s *Server) handleCatalogSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Query: q})
 	if err == nil {
-		variants, err = s.store.PreferBandVersions(r.Context(), person.ID, variants)
+		// ?band=N: a band's add dialog — its own version, never another
+		// band's (a band doesn't take another band's song).
+		onlyBand, _ := strconv.ParseInt(r.URL.Query().Get("band"), 10, 64)
+		variants, err = s.store.PreferBandVersionsFor(r.Context(), person.ID, variants, onlyBand)
 	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())

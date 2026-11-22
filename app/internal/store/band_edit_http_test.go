@@ -574,10 +574,14 @@ func TestSearchShowsTheBandsVersion(t *testing.T) {
 	}
 }
 
-// TestAddingAnotherBandsSong: someone in two bands adding one band's song
-// to the other's set list, repertoire or songbook adds that band's own
-// copy, never a pointer at the other band's song.
-func TestAddingAnotherBandsSong(t *testing.T) {
+// TestAddingAnotherBandsSongIsRefused: someone in two bands adding one
+// band's song to the other's set list, repertoire or songbook is refused
+// with a 409 that says whose song it is; for a cover, it offers the
+// catalogue's version (catalogVariantId), which adds as this band's copy;
+// for an original, it says it stays theirs. Nothing is added or copied.
+// A band's add dialogs search (?band=) offers its own version or the
+// catalogue's, never another band's.
+func TestAddingAnotherBandsSongIsRefused(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
@@ -585,76 +589,100 @@ func TestAddingAnotherBandsSong(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := as(t, st, f.Core)
-	pointsAtMercy := func(how string, id int64) {
-		t.Helper()
-		v, err := st.GetVariant(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if v.Visibility != "band" || v.OwnerBandID == nil || *v.OwnerBandID != f.Band {
-			t.Errorf("%s: song %d is band %v's, not Other Lies's own", how, id, v.OwnerBandID)
-		}
-	}
-	song := func(title string) int64 {
-		id, err := st.CreateVariant(ctx, store.OwnerBand, mercy, title, "", f.Core)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
-	}
-
-	// The set list.
-	theirs := song("Mercy Set")
-	l, meta, ver, err := st.LoadSetlistByID(ctx, f.SetlistID)
+	original, err := st.CreateVariant(ctx, store.OwnerBand, mercy, "Mercy Original", "Mercy", f.Core)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var entries []map[string]any
-	for _, e := range l.Sets[0].Entries {
-		entries = append(entries, map[string]any{"variant_id": e.VariantID})
+	cover, _, err := st.AdoptIntoBand(ctx, mercy, f.CatalogSong, f.Core)
+	if err != nil {
+		t.Fatal(err)
 	}
-	entries = append(entries, map[string]any{"variant_id": theirs})
-	w := c.do("PUT", fmt.Sprintf("/api/setlists/%d", f.SetlistID), map[string]any{
-		"version": ver, "title": meta.Title, "setlist": map[string]any{"sets": []map[string]any{{"label": "Set 1", "entries": entries}}},
-	})
-	if w.Code != http.StatusOK {
-		t.Fatalf("PUT set list: %d %s", w.Code, w.Body.String())
+	c := as(t, st, f.Core)
+	type refusal struct {
+		Band             string `json:"band"`
+		CatalogVariantID int64  `json:"catalogVariantId"`
+		Message          string `json:"message"`
+		Question         string `json:"question"`
 	}
-	got := setlistSongs(t, st, f.SetlistID)
-	if len(got) != 3 || got[2] == theirs {
-		t.Fatalf("set list %v: still points at Mercy's %d", got, theirs)
+	refused := func(how string, w *httptest.ResponseRecorder, catalog int64) {
+		t.Helper()
+		var r refusal
+		json.Unmarshal(w.Body.Bytes(), &r)
+		if w.Code != http.StatusConflict || r.Band != "Mercy" || r.CatalogVariantID != catalog || r.Message == "" || (catalog != 0) != (r.Question != "") {
+			t.Errorf("%s: %d %s, want a 409 naming Mercy, catalogue version %d", how, w.Code, w.Body.String(), catalog)
+		}
 	}
-	pointsAtMercy("set list", got[2])
-
-	// The repertoire and the band's songbook.
-	rep := song("Mercy Repertoire")
-	if id := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": rep})); id == rep {
-		t.Error("repertoire: Mercy's song itself")
-	} else {
-		pointsAtMercy("repertoire", id)
-	}
+	songs := store.CountSongs(t, st)
 	sb, err := st.GetDefaultSongbook(ctx, "band", f.Band)
 	if err != nil {
 		t.Fatal(err)
 	}
-	book := song("Mercy Songbook")
-	if id := c.variantID(c.do("POST", fmt.Sprintf("/api/songbooks/%d/entries", sb), map[string]int64{"variantId": book})); id == book {
-		t.Error("songbook: Mercy's song itself")
-	} else {
-		pointsAtMercy("songbook", id)
+	for _, x := range []struct {
+		id, catalog int64
+	}{{original, 0}, {cover, f.CatalogSong}} {
+		refused("repertoire", c.do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": x.id}), x.catalog)
+		refused("fork into the band", c.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, x.id), nil), x.catalog)
+		refused("band songbook", c.do("POST", fmt.Sprintf("/api/songbooks/%d/entries", sb), map[string]int64{"variantId": x.id}), x.catalog)
+
+		l, meta, ver, err := st.LoadSetlistByID(ctx, f.SetlistID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var entries []map[string]any
+		for _, e := range l.Sets[0].Entries {
+			entries = append(entries, map[string]any{"variant_id": e.VariantID})
+		}
+		entries = append(entries, map[string]any{"variant_id": x.id})
+		refused("set list", c.do("PUT", fmt.Sprintf("/api/setlists/%d", f.SetlistID), map[string]any{
+			"version": ver, "title": meta.Title, "setlist": map[string]any{"sets": []map[string]any{{"label": "Set 1", "entries": entries}}},
+		}), x.catalog)
 	}
-	entriesNow, err := st.ListBandCatalog(ctx, f.Band)
+	if n := store.CountSongs(t, st); n != songs {
+		t.Errorf("%d songs after the refusals, want %d", n, songs)
+	}
+	if got := setlistSongs(t, st, f.SetlistID); len(got) != 2 {
+		t.Errorf("set list %v: changed by a refused save", got)
+	}
+	entries, err := st.ListBandCatalog(ctx, f.Band)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entriesNow {
-		if v, err := st.GetVariant(ctx, e.VariantID); err == nil && v.OwnerBandID != nil && *v.OwnerBandID == mercy {
-			t.Errorf("Other Lies's songbook points at Mercy's song %d", e.VariantID)
+	for _, e := range entries {
+		if e.VariantID == original || e.VariantID == cover {
+			t.Errorf("Other Lies's songbook holds Mercy's song %d", e.VariantID)
 		}
 	}
-	// Someone not in Mercy can't copy Mercy's song at all.
-	if w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": song("Private")}); w.Code != http.StatusForbidden {
-		t.Errorf("a member of one band only, adding the other's song: %d, want 403", w.Code)
+
+	// The catalogue's version the refusal offers: added as Other Lies's
+	// own copy.
+	if id := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": f.CatalogSong})); id == f.CatalogSong || id == cover {
+		t.Errorf("the catalogue's version: %d, want Other Lies's copy", id)
+	} else if v, _ := st.GetVariant(ctx, id); v == nil || *v.OwnerBandID != f.Band {
+		t.Errorf("the catalogue's version added as %+v", v)
+	}
+
+	// A band's add dialog: its own version or the catalogue's, never
+	// Mercy's; outside a band, each band's version.
+	type hit struct {
+		VariantID int64  `json:"variantId"`
+		Band      string `json:"band"`
+	}
+	search := func(path string) []hit {
+		var hits []hit
+		json.Unmarshal(c.do("GET", path, nil).Body.Bytes(), &hits)
+		return hits
+	}
+	for _, path := range []string{
+		fmt.Sprintf("/api/catalog/search?q=vent&band=%d", f.Band),
+		fmt.Sprintf("/api/catalog/match?title=Le+Vent&band=%d", f.Band),
+	} {
+		for _, h := range search(path) {
+			if h.Band == "Mercy" || h.VariantID == cover {
+				t.Errorf("%s offers Mercy's version: %+v", path, h)
+			}
+		}
+	}
+	if got := search("/api/catalog/search?q=vent"); len(got) != 2 {
+		t.Errorf("search outside a band: %+v, want each band's version", got)
 	}
 }
