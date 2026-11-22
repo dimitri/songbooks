@@ -168,6 +168,14 @@
   // dock's bar.beat; a click on a note moves the dock there; bars dragged
   // across become the dock's loop, and the dock's loop is shaded on the
   // score.
+  //
+  // A file next to the chart (or inside it: not "content: gp") is the
+  // Score view's only: there the dock plays the file's sound even when the
+  // song has a recording, the recording following it bar by bar (the
+  // simplified mixer: Recording and Score, a level and a mute each, the
+  // full Mixer a tap away); leaving the view gives the dock back its
+  // recording, or none. The song's other views never play the file's
+  // score.
 
   const page = document.getElementById('gp-score-page');
   const SOUNDFONT = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
@@ -318,6 +326,18 @@
     full.synthStarted = true;
     const { recorded } = await P.recordings;
     if (recorded) return;
+    await synthesize(P);
+  }
+  // Next to a chart the file's sound is rendered all the same, recording
+  // or not: the Score view plays it, the recording following it.
+  async function synthesizeForMix() {
+    const P = window.songbooksPlayer;
+    if (!P || full.synthStarted) return;
+    full.synthStarted = true;
+    await (P.recordings || P.ready);
+    await synthesize(P);
+  }
+  async function synthesize(P) {
     const api = full.api, score = full.score;
     P.synthProgress(t('Preparing the sound…'));
     try {
@@ -348,9 +368,12 @@
         bytes: wav(chunks, n, 44100), type: 'audio/wav',
         barTimes: full.barMs.map((ms) => ms / 1000), beats,
         sections: fileSections(), bpm: score.tempo || 0,
+        keep: mixMode(),
       });
+      if (mixMode() && sheet.dataset.renderMode === 'score') P.useSynth();
     } catch (e) {
       P.synthFailed(t('Couldn’t prepare the sound of this file.'));
+      if (full.mix) full.mix.off(t('Couldn’t prepare the sound of this file.'), true);
     }
   }
   // The file's own sections (its markers), as played, for a song whose
@@ -463,12 +486,20 @@
 
   async function showFull() {
     if (!page) return;
-    if (full) { startFollowing(); return; }
+    if (full) {
+      if (full.mix) window.songbooksPlayer?.useSynth();
+      startFollowing();
+      return;
+    }
     const canvas = page.querySelector('.gp-score-canvas');
     const trackBar = page.querySelector('.gp-tracks');
     let score;
     try { score = await loadScore(); } catch (e) { failed(canvas, e.message); return; }
     if (full) return;
+    // The file's own recording, for the simplified mixer when the song has
+    // none (timed by its sync points, read before they go).
+    const own = mixMode() && score.backingTrack && score.backingTrack.rawAudioFile
+      ? { bytes: score.backingTrack.rawAudioFile, times: fileBarTimes(score) } : null;
     // alphaTab's clock is the synthesizer's: no backing track, no sync points.
     score.backingTrack = null;
     for (const mb of score.masterBars) mb.syncPoints = undefined;
@@ -502,7 +533,7 @@
     api.postRenderFinished.on(() => requestAnimationFrame(paginate));
     api.midiLoaded.on(() => {
       Object.assign(full, barTimes(api, score));
-      renderSynth();
+      if (mixMode()) synthesizeForMix(); else renderSynth();
     });
     api.playerReady.on(() => {
       const out = api.player && api.player.output;
@@ -570,8 +601,164 @@
         }
       }, 150);
     });
+    if (mixMode()) full.mix = setUpMix(own);
     renderFull(true);
     startFollowing();
+  }
+
+  // ---- The simplified mixer ---------------------------------------------------
+  // Not "content: gp": the file sits next to the chart, or inside it.
+  const mixMode = () => !sheet.dataset.gpOnly && !!page && !!page.querySelector('.gp-mix');
+
+  // Seconds into the file's own recording where each played bar starts,
+  // from its sync points; null with none.
+  function fileBarTimes(score) {
+    const played = GPFacts.played(score.masterBars);
+    const known = [];
+    const seen = new Map();
+    played.forEach((w, pos) => {
+      const occ = seen.get(w) || 0;
+      seen.set(w, occ + 1);
+      for (const sp of score.masterBars[w - 1].syncPoints || []) {
+        if ((sp.syncPointValue.barOccurence || 0) === occ && !(sp.ratioPosition > 0)) known.push({ bar: pos, t: sp.syncPointValue.millisecondOffset / 1000 });
+      }
+    });
+    const mb = score.masterBars[0] || {};
+    const nominal = (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4)) * 60 / (score.tempo || 120);
+    return GPAlign.barTimes(known, played.length, nominal);
+  }
+
+  // The dock plays the file's sound (its bars are the file's, as played);
+  // the song's recording follows it here, bar by bar, through the song's
+  // own bar sync (its sync points or section markers) and which bar of
+  // the chart each bar of the file is (gpOrder: gp_start, or the
+  // sections' gp[...] lines) — GPAlign.follow. Recording: that element's
+  // level; Score: the dock's.
+  function setUpMix(own) {
+    const bar = page.querySelector('.gp-mix');
+    const P = () => window.songbooksPlayer;
+    const ch = (name) => {
+      const e = bar.querySelector(`[data-ch="${name}"]`);
+      return { el: e, on: e.querySelector('.gp-mix-on'), vol: e.querySelector('.gp-mix-vol') };
+    };
+    const rec = ch('rec'), sc = ch('score');
+    const why = bar.querySelector('.gp-mix-why');
+    const prefKey = `songbooks:gp-mix:${variantId}`;
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem(prefKey) || '{}') || {}; } catch (e) { /* defaults */ }
+    const st = {
+      rec: { on: prefs.recOn !== false, vol: prefs.recVol ?? 80 },
+      score: { on: prefs.scoreOn !== false, vol: prefs.scoreVol ?? 80 },
+      audio: null, map: null, times: null, guardUntil: 0,
+    };
+    const save = () => {
+      try { localStorage.setItem(prefKey, JSON.stringify({ recOn: st.rec.on, recVol: st.rec.vol, scoreOn: st.score.on, scoreVol: st.score.vol })); } catch (e) { /* not kept */ }
+    };
+    const paint = (c, v) => {
+      c.on.setAttribute('aria-pressed', String(v.on));
+      c.el.classList.toggle('is-muted', !v.on);
+      c.vol.value = v.vol;
+    };
+    const live = () => !!(st.audio && st.times && st.rec.on && st.rec.vol > 0);
+    const applyScore = () => { P()?.setLevel(st.score.on ? st.score.vol / 100 : 0); paint(sc, st.score); };
+    const applyRec = () => {
+      paint(rec, st.rec);
+      if (st.audio) st.audio.volume = st.rec.vol / 100;
+      if (!live() && st.audio) st.audio.pause();
+    };
+    sc.on.addEventListener('click', () => { st.score.on = !st.score.on; applyScore(); save(); });
+    sc.vol.addEventListener('input', () => { st.score.vol = Number(sc.vol.value); applyScore(); save(); });
+    rec.on.addEventListener('click', () => { st.rec.on = !st.rec.on; applyRec(); save(); });
+    rec.vol.addEventListener('input', () => { st.rec.vol = Number(rec.vol.value); applyRec(); save(); });
+    bar.querySelector('.gp-mix-full')?.addEventListener('click', () => document.querySelector('#mode-segmented button[data-value="mixer"]')?.click());
+    applyScore();
+    applyRec();
+    const off = (msg, scoreToo) => {
+      rec.on.disabled = true;
+      rec.vol.disabled = true;
+      rec.el.classList.add('is-off');
+      rec.on.title = msg;
+      why.textContent = msg;
+      why.hidden = false;
+      if (scoreToo) { sc.on.disabled = true; sc.vol.disabled = true; }
+    };
+
+    (async () => {
+      try {
+        const [mx, au] = await Promise.all([
+          fetch(`/api/songs/${variantId}/mixer`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : {})),
+          fetch(`/api/songs/${variantId}/audio`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : { categories: [] })),
+        ]);
+        const cats = {};
+        (au.categories || []).forEach((c) => { cats[c.category] = c; });
+        let choice = null;
+        try { choice = localStorage.getItem(`songbooks:audio-category-choice:${variantId}`); } catch (e) { /* none */ }
+        const cat = choice && cats[choice] ? choice : ['youtube', 'band', 'gp'].find((c) => cats[c]);
+        let src;
+        if (cat) {
+          if (!mx.gpOrder) { off(t('The chart isn’t lined up with the file: the recording can’t follow the score.')); return; }
+          st.map = GPAlign.chartBarsForFile(mx.gpOrder, GPFacts.played(full.score.masterBars));
+          st.times = GPAlign.barTimes(GPAlign.knownBars(cats[cat], mx.sections), mx.totalBars, (mx.timeNum || 4) * (4 / (mx.timeDen || 4)) * 60 / (mx.tempo || 120));
+          if (!st.times) { off(t('The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): it can’t follow the score.')); return; }
+          src = new Blob([await window.songbooksAudioBytes(variantId, cat, cats[cat])], { type: 'audio/mpeg' });
+          rec.on.title = cat === 'youtube' ? t('the YouTube recording') : cat === 'band' ? t('the band recording') : t('the Guitar Pro file’s recording');
+        } else if (own) {
+          if (!own.times) { off(t('The file’s recording has no sync points: it can’t follow the score.')); return; }
+          st.map = own.times.slice(0, -1).map((x, i) => i);
+          st.times = own.times;
+          src = new Blob([own.bytes], { type: 'audio/mpeg' });
+          rec.on.title = t('the Guitar Pro file’s recording');
+        } else {
+          off(t('This song has no recording.'));
+          return;
+        }
+        const a = new Audio(URL.createObjectURL(src));
+        a.preload = 'auto';
+        a.preservesPitch = true;
+        a.mozPreservesPitch = true;
+        a.webkitPreservesPitch = true;
+        st.audio = a;
+        rec.on.disabled = false;
+        rec.vol.disabled = false;
+        applyRec();
+      } catch (e) {
+        off(t('Couldn’t load the recording.'));
+      }
+    })();
+
+    // Its own timer, not the drawing's frames: those stop in a tab in the
+    // background, the sound doesn't.
+    setInterval(() => { if (full && full.mix && sheet.dataset.renderMode === 'score') full.mix.sync(); }, 40);
+    return {
+      off,
+      // While the Score view is shown: where the recording should be for
+      // the dock's place in the file.
+      sync() {
+        const a = st.audio;
+        if (!a) return;
+        const p = P();
+        const pos = p && p.source() === 'synth' && window.songbooksReferencePosition && window.songbooksReferencePosition();
+        if (!live() || !pos || !pos.playing || !full.barMs.length) { if (!a.paused) a.pause(); return; }
+        const i = Math.max(0, Math.floor(pos.bar));
+        const synthBarSec = ((full.barMs[i + 1] ?? full.barMs[i]) - full.barMs[i]) / 1000;
+        const f = GPAlign.follow(st.map, st.times, i, pos.bar - i, synthBarSec);
+        if (!f || (a.duration && f.t >= a.duration)) { if (!a.paused) a.pause(); return; }
+        const speed = p.speed();
+        const rate = f.ratio > 0 ? speed / f.ratio : speed;
+        if (Math.abs(a.playbackRate - rate) > 0.004) a.playbackRate = Math.max(0.25, Math.min(4, rate));
+        const now = performance.now();
+        if (a.paused) {
+          a.currentTime = f.t;
+          a.play().catch(() => {});
+          st.guardUntil = now + 400;
+        } else if (now > st.guardUntil && Math.abs(a.currentTime - f.t) > 0.15) {
+          a.currentTime = f.t;
+          st.guardUntil = now + 400;
+        }
+      },
+      pause() { if (st.audio) st.audio.pause(); },
+      state: () => ({ rec: { ...st.rec }, score: { ...st.score }, live: live(), audioTime: st.audio ? st.audio.currentTime : null, paused: st.audio ? st.audio.paused : null, why: why.hidden ? '' : why.textContent, source: P() ? P().source() : null }),
+    };
   }
 
   function renderFull(first) {
@@ -608,7 +795,15 @@
   function onMode() {
     const mode = sheet.dataset.renderMode;
     if (mode === 'score') showFull();
-    else drawSections();
+    else {
+      // Next to a chart the file plays in its own view only: leaving it
+      // stops it, and the dock goes back to the song's recording.
+      if (full && full.mix) {
+        full.mix.pause();
+        window.songbooksPlayer?.leaveSynth();
+      }
+      drawSections();
+    }
   }
   new MutationObserver(onMode).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
   document.addEventListener('songbooks:notation', () => {
@@ -649,5 +844,5 @@
   });
 
   // scoreApi: the Score view's alphaTab, for tests and a look from the console.
-  window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore, scoreApi: () => full && full.api };
+  window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore, scoreApi: () => full && full.api, mixState: () => (full && full.mix ? full.mix.state() : null) };
 })();

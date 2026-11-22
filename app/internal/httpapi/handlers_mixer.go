@@ -125,6 +125,21 @@ func gpBarOrder(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, total
 	if f == nil {
 		return nil
 	}
+	// A chart next to its file plays it bar for bar from "gp_start:".
+	// (A song still playing its own score voices keeps them.)
+	if !anyGPLine(sg) {
+		if total == 0 || len(f.Played) == 0 || anyScoreVoice(sg) {
+			return nil
+		}
+		start := gpStart(sg)
+		order := make([]int, total)
+		for b := range order {
+			if p := start + b; p >= 1 && p <= len(f.Played) {
+				order[b] = f.Played[p-1]
+			}
+		}
+		return order
+	}
 	order := make([]int, total)
 	any := false
 	for i := range sections {
@@ -154,6 +169,16 @@ func gpBarOrder(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, total
 		return nil
 	}
 	return order
+}
+
+// anyScoreVoice reports whether any section has a "score[...]" voice.
+func anyScoreVoice(sg *song.Song) bool {
+	for _, sec := range sg.Sections {
+		if len(sec.Scores) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // definingSection is the section a bare reference section (IsReference —

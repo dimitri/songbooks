@@ -121,6 +121,7 @@ window.songbooksDecodable = function (buf) {
   // The song's tempo; the Guitar Pro file's when its synthesizer plays
   // (offerSynth below).
   let bpm = transportEl ? parseFloat(transportEl.dataset.bpm) || 0 : 0;
+  const songBpm = bpm;
   const beatsPerBar = transportEl ? parseInt(transportEl.dataset.beatsPerBar, 10) || 4 : 4;
   const timeNum = transportEl ? parseInt(transportEl.dataset.timeNum, 10) || 4 : 4;
   const timeDen = transportEl ? parseInt(transportEl.dataset.timeDen, 10) || 4 : 4;
@@ -2743,8 +2744,10 @@ window.songbooksDecodable = function (buf) {
   });
 
   // ---- Category toggle / load -------------------------------------------
+  let synthLevel = 1; // the Score view's "Score" level (songbooksPlayer.setLevel)
   function selectCategory(cat, remember) {
     activeCategory = cat;
+    audio.volume = cat === 'synth' ? synthLevel : 1;
     if (remember) { try { localStorage.setItem(prefKey, cat); } catch (e) {} }
     categoryToggle?.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.category === cat));
     pause();
@@ -2794,7 +2797,12 @@ window.songbooksDecodable = function (buf) {
     // it's the one category guaranteed to line up with the chart's own
     // bars (see store.AudioGP's doc comment), so it's the right silent
     // default even on a song that also has a youtube/band recording.
-    const target = (preferred && categories[preferred]) ? preferred : (categories.gp ? 'gp' : available[0]);
+    // A Guitar Pro file next to the chart: its own recording is one more
+    // recording, but the song's own come first (the file is for the Score
+    // view).
+    const beside = !!document.querySelector('#gp-score-page[data-gp-beside]');
+    const first = beside ? (['youtube', 'band', 'gp'].find((c) => categories[c]) || available[0]) : (categories.gp ? 'gp' : available[0]);
+    const target = (preferred && categories[preferred]) ? preferred : first;
     selectCategory(target);
     // A key kept from the last visit: the chords go there too.
     // A student's or group's key (studentKey): the chart is there already
@@ -2828,7 +2836,20 @@ window.songbooksDecodable = function (buf) {
   //                                        halfway through the third);
   //   .setCycle(from, to)                  loop bars [from, to);
   //   .speed(), .playing(), .cycle() → {from, to} or null
+  //
+  // A file next to the chart (gp-view.js "The simplified mixer"): its
+  // sound plays only in the Score view, even when the song has recordings.
+  //   .offerSynth({..., keep: true})        kept, not played (the song's
+  //                                          recording stays on);
+  //   .useSynth()                          the file's sound on (the Score
+  //                                          view shown); false if none;
+  //   .leaveSynth()                        back to the song's recording,
+  //                                          or to none (the view left);
+  //   .source()                            'synth' or the recording's
+  //                                          category;
+  //   .setLevel(v)                         the dock's level, 0..1.
   let readyResolve;
+  let beforeSynth = null; // the recording the Score view's file took over from
   const ready = new Promise((r) => { readyResolve = r; });
   window.songbooksPlayer = Object.assign(window.songbooksPlayer || {}, {
     recordings: ready,
@@ -2844,18 +2865,20 @@ window.songbooksDecodable = function (buf) {
       if (timeLabel && text) timeLabel.title = text;
     },
     offerSynth(src) {
-      if (Object.keys(categories).length) return;
-      const fc = window.songbooksFollowClock;
-      if (fc && fc.state().running) fc.toggle(false);
-      clearInterval(noneTimer);
+      const keep = !!src.keep;
+      if (!keep && Object.keys(categories).length) return;
       const chartBars = sections().reduce((m, s) => Math.max(m, s.startBar + s.barCount), 0);
       const bars = src.barTimes.length - 1;
       synth = { ...src, ownBars: chartBars !== bars };
-      if (src.bpm) { bpm = src.bpm; secondsPerBar = (60 / bpm) * beatsPerBar; }
       categories.synth = {
         category: 'synth', markers: [], stems: [],
         barSyncPoints: src.barTimes.map((t, i) => ({ barIndex: i, timeSeconds: t })),
       };
+      if (keep) return;
+      const fc = window.songbooksFollowClock;
+      if (fc && fc.state().running) fc.toggle(false);
+      clearInterval(noneTimer);
+      if (src.bpm) { bpm = src.bpm; secondsPerBar = (60 / bpm) * beatsPerBar; }
       root.dataset.source = 'synth';
       $('audio-add-recording')?.setAttribute('hidden', '');
       if (playerBody) playerBody.hidden = false;
@@ -2884,6 +2907,40 @@ window.songbooksDecodable = function (buf) {
       return true;
     },
     setCycle(from, to) { if (duration && hasBars()) setCycle(from, to); },
+    useSynth() {
+      if (!categories.synth || !synth) return false;
+      if (activeCategory === 'synth') return true;
+      beforeSynth = activeCategory;
+      clearInterval(noneTimer);
+      const fc = window.songbooksFollowClock;
+      if (fc && fc.state().running) fc.toggle(false);
+      if (synth.bpm) { bpm = synth.bpm; secondsPerBar = (60 / bpm) * beatsPerBar; }
+      root.dataset.source = 'synth';
+      if (playerBody) playerBody.hidden = false;
+      selectCategory('synth');
+      return true;
+    },
+    leaveSynth() {
+      if (activeCategory !== 'synth') return;
+      pause();
+      bpm = songBpm;
+      secondsPerBar = bpm > 0 ? (60 / bpm) * beatsPerBar : 0;
+      delete root.dataset.source;
+      const recs = Object.keys(categories).filter((c) => c !== 'synth');
+      const back = beforeSynth && categories[beforeSynth] && beforeSynth !== 'synth' ? beforeSynth : recs[0];
+      beforeSynth = null;
+      if (back) { selectCategory(back); return; }
+      // No recording: the follow-along clock, as before (again: its play
+      // button's listener stops the ones added before it).
+      activeCategory = null;
+      duration = 0;
+      grid = [];
+      audio.removeAttribute('src');
+      audio.dataset.blobFor = '';
+      enterNoRecording();
+    },
+    source: () => activeCategory,
+    setLevel(v) { synthLevel = Math.max(0, Math.min(1, v)); if (activeCategory === 'synth') audio.volume = synthLevel; },
     speed: () => prefs.speed,
     playing: () => isPlaying(),
     cycle: () => (prefs.cycle && prefs.cycle.on && hasBars() ? { from: prefs.cycle.from, to: prefs.cycle.to } : null),

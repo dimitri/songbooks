@@ -931,7 +931,7 @@
       <ol class="gpimport-stepper" id="gpimport-stepper" aria-label="{{t "Import steps"}}">
         <li data-step="fit">{{t "What it’s for"}}</li>
         <li data-step="file">{{t "The file"}}</li>
-        <li data-step="align">{{t "Line up"}}</li>
+        <li data-step="align" data-parts="{{t "Line up"}}" data-check="{{t "Check"}}">{{t "Line up"}}</li>
         <li data-step="import">{{t "Import"}}</li>
       </ol>
       {{if .GPSource}}
@@ -995,6 +995,38 @@
           <div class="form-actions"><button type="submit" id="gpimport-search-btn" class="primary">{{t "Search GProTab.net"}}</button></div>
         </form>
         <div id="gpimport-search-results"></div>
+        {{/* A search result, looked at before choosing it (gp-import.js
+             "Preview"): its whole score, played; its tempo, time, key,
+             bars, tracks and sections next to the song's; and how it
+             lines up with the chart, as the check step will say. */}}
+        <dialog id="gpprev" class="gpprev" aria-labelledby="gpprev-title">
+          <div class="gpprev-head">
+            <div class="gpprev-titles"><h2 id="gpprev-title"></h2><p class="gpprev-sub"></p></div>
+            <button type="button" class="icon-btn gpprev-x" aria-label="{{t "Close"}}" title="{{t "Close (Esc)"}}">{{template "icon-close"}}</button>
+          </div>
+          <div class="gpprev-body">
+            <p class="gpprev-status hint" role="status"></p>
+            <p class="gpprev-fit"></p>
+            <table class="gpprev-facts" hidden>
+              <thead><tr><th></th><th>{{t "This song"}}</th><th>{{t "The file"}}</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <details class="gpprev-align-box" hidden>
+              <summary>{{t "Section by section"}}</summary>
+              <div class="gpprev-align"></div>
+            </details>
+            <div class="gpprev-player audio-transport" hidden>
+              <button type="button" class="icon-btn audio-play-btn gpprev-play" aria-label="{{t "Play"}}" title="{{t "play/pause"}}" disabled>{{template "icon-play"}}</button>
+              <span class="gpprev-time"></span>
+              <div class="gp-tracks gpprev-tracks" role="group" aria-label="{{t "Tracks shown"}}"></div>
+            </div>
+            <div class="gpprev-score"></div>
+          </div>
+          <div class="gpprev-foot">
+            <button type="button" class="gpprev-close">{{t "Close"}}</button>
+            <button type="button" class="primary gpprev-use" disabled>{{t "Use this file"}}</button>
+          </div>
+        </dialog>
         <p class="hint">{{t "Already have a file?"}} <button type="button" id="gpimport-search-skip" class="link-btn">{{t "Choose a file from your computer instead"}} &rarr;</button></p>
         <p><button type="button" class="gpimport-back" data-back="fit">&larr; {{t "Back"}}</button></p>
       </div>
@@ -1096,6 +1128,43 @@
         <p>
           <button type="button" id="gpimport-step2-back">&larr; {{t "Back"}}</button>
           <button type="button" id="gpimport-step2-next" class="primary">{{t "Next: import"}} &rarr;</button>
+        </p>
+      </div>
+
+      {{/* Step 3, for the full score next to the chart (and the score as
+           the song): the file checked against the chart before anything
+           is saved — the chart's sections over the file's bar for bar from
+           where the chart starts in it, their bar counts against the
+           file's own section markers, the chords over each bar, the
+           tempo, time signature and key (POST …/gp-check, gpalign.go; the
+           same comparison drift makes once the file is kept). The fixes
+           the app can make are one tap; nothing is changed until Import. */}}
+      <div class="gpimport-step" id="gpimport-step-check" hidden>
+        <h3>{{t "3. Check the file against the chart"}}</h3>
+        <p class="hint">{{t "The chart’s sections on top, the file’s below, bar for bar. Nothing is changed until you import: what you fix here is your choice."}}</p>
+        <p id="gpimport-check-summary" class="gpimport-check-summary" role="status"></p>
+        <div class="gpimport-check-start">
+          <label for="gpimport-start">{{t "The chart starts at the file’s bar"}}</label>
+          <span class="gpimport-num">
+            <button type="button" id="gpimport-start-down" aria-label="{{t "One bar earlier"}}">&minus;</button>
+            <input type="number" id="gpimport-start" min="1" value="1" inputmode="numeric">
+            <button type="button" id="gpimport-start-up" aria-label="{{t "One bar later"}}">+</button>
+          </span>
+          <span id="gpimport-start-note" class="hint"></span>
+        </div>
+        <div id="gpimport-fixes" class="gpimport-fixes"></div>
+        <div id="gpimport-check-header" class="gpimport-check-header"></div>
+        {{/* The two timelines, the sections' table and the chords of the
+             one picked (gp-import.js drawAlignment, also the search
+             results' preview), then that section's bars in the file. */}}
+        <div id="gpimport-align" class="gpimport-align"></div>
+        <div id="gpimport-check-notation" class="gpimport-check-notation" hidden>
+          <p class="gpimport-detail-notation-head"><span id="gpimport-detail-bars" class="hint"></span> <label class="gpimport-detail-track" hidden>{{t "Track"}} <select id="gpimport-detail-track"></select></label></p>
+          <div id="gpimport-detail-notation" class="gpimport-file-preview"></div>
+        </div>
+        <p>
+          <button type="button" class="gpimport-back" data-back="file">&larr; {{t "Back"}}</button>
+          <button type="button" id="gpimport-check-next" class="primary">{{t "Next: import"}} &rarr;</button>
         </p>
       </div>
 
@@ -2138,7 +2207,7 @@
     {{if .GPFileName}}
     {{/* The Score view: the whole Guitar Pro file, drawn and played by
          gp-view.js. Same sibling-of-#sheet convention as the Mixer. */}}
-    <div class="gp-score-page" id="gp-score-page">
+    <div class="gp-score-page" id="gp-score-page"{{if and (not .GPOnly) (not .HasGPView)}} data-gp-beside="1"{{end}}>
       {{/* It plays in the song's player, the dock (audio-player.js): the
            song's recording, else the file through the synthesizer. Above
            the sheet, what it shows: the tracks, the notation, the file. */}}
@@ -2151,6 +2220,24 @@
           {{if .CanEdit}}<a class="gp-tool gp-edit-link" href="/song/{{.VariantID}}/gp-edit" title="{{t "edit the notes on the web"}}">{{template "icon-edit"}}<span>{{t "Edit"}}</span></a>{{end}}
           <a class="gp-tool" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}">{{template "icon-download"}}<span>Guitar Pro</span></a>
         </div>
+        {{if not .GPOnly}}
+        {{/* A file next to the chart (or inside it) plays here only: the
+             dock plays the file's sound, the song's recording follows it.
+             Two levels, the full Mixer a tap away (gp-view.js "The
+             simplified mixer"). */}}
+        <div class="gp-mix" role="group" aria-label="{{t "Mix"}}">
+          <span class="gp-mix-ch" data-ch="rec">
+            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" disabled title="{{t "mute or unmute the recording"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Recording"}}</span></button>
+            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" disabled aria-label="{{t "Recording volume"}}">
+          </span>
+          <span class="gp-mix-ch" data-ch="score">
+            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" title="{{t "mute or unmute the score"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Score"}}</span></button>
+            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" aria-label="{{t "Score volume"}}">
+          </span>
+          <button type="button" class="gp-tool gp-mix-full" aria-label="{{t "Full mixer"}}" title="{{t "every track and the recording, each with its own level"}}">{{template "icon-mode-mixer"}}<span class="gp-mix-full-label">{{t "Full mixer"}}</span></button>
+          <span class="gp-mix-why" hidden></span>
+        </div>
+        {{end}}
       </div>
       <div class="gp-sheet-wrap"><div class="gp-sheet"><div class="gp-pages" aria-hidden="true"></div><div class="gp-score-canvas"></div></div></div>
     </div>
@@ -2288,6 +2375,7 @@
 <script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-align.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-view.js?v={{staticVersion}}"></script>
 {{if and .CanEdit .GPFileName}}<script src="/static/js/gp-bar-picker.js?v={{staticVersion}}"></script>{{end}}

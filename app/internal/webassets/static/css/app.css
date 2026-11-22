@@ -2348,6 +2348,40 @@ body:has(#sheet[data-render-mode="score"]) #song-structure-strip { display: none
 .gp-tip-close { min-width: 0; min-height: 0; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; background: none; color: var(--fg-faint); }
 .gp-tip-close .icon { width: 0.85rem; height: 0.85rem; margin: 0; }
 @media (hover: none) { .gp-tip { display: none; } }
+/* The simplified mixer (gp-view.js), a row of the sheet bar: the song's
+   recording and the file's score, a mute and a level each, and the full
+   Mixer. The tools' size and look. */
+.gp-mix { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.8rem; flex-basis: 100%; }
+.gp-mix-ch { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.gp-mix-on .icon { width: 0.95rem; height: 0.95rem; margin: 0; }
+.gp-mix-icon { display: inline-flex; }
+.gp-mix-icon.off, .gp-mix-ch.is-muted .gp-mix-icon.on { display: none; }
+.gp-mix-ch.is-muted .gp-mix-icon.off { display: inline-flex; }
+.gp-mix-ch.is-muted .gp-mix-name { text-decoration: line-through; }
+.gp-mix-on[aria-pressed="true"] { color: var(--fg); }
+.gp-mix-on:disabled { cursor: default; opacity: 0.55; }
+.gp-mix-vol { width: 6.5rem; accent-color: var(--accent); }
+.gp-mix-vol:disabled { opacity: 0.4; }
+.gp-mix-full { margin-left: auto; }
+.gp-mix-why { flex-basis: 100%; color: var(--fg-muted); font-size: 0.8rem; line-height: 1.3; }
+.gp-mix-why[hidden] { display: none; }
+/* A phone keeps both levels on one row: the names alone (crossed out when
+   muted), the sliders sharing what's left, the full Mixer its icon. */
+@media (max-width: 600px) {
+  .gp-mix { gap: 0.3rem 0.4rem; flex-wrap: wrap; }
+  .gp-mix-ch { flex: 1 1 0; gap: 0.25rem; }
+  .gp-mix-vol { flex: 1 1 2rem; width: auto; min-width: 2rem; }
+  .gp-mix-on { padding: 0 0.5rem; flex: none; }
+  .gp-mix-ch .gp-mix-icon, .gp-mix-ch.is-muted .gp-mix-icon.off { display: none; }
+  .gp-mix-ch .gp-mix-name { display: inline; }
+  .gp-mix-full { margin-left: 0; flex: none; }
+  .gp-mix-full-label { display: none; }
+}
+/* There the dock plays the file: the song's recordings to pick from are
+   the other views'. */
+body:has(#sheet[data-render-mode="score"]:not([data-gp-only])) #audio-category-toggle { display: none !important; }
+.gpprev-score .at-cursor-bar { background: rgba(175, 78, 57, 0.14); }
+.gpprev-score .at-cursor-beat { background: #af4e39; width: 3px; }
 /* The sheet: A4 pages (gp-view.js paginate), paper-white on the page's
    background in both themes: the notation is drawn once, in ink, and
    reads best as it prints; in the dark the paper is a touch dimmer.
@@ -7175,6 +7209,92 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .gpimport-fit-card .d { font-size: 0.88rem; color: var(--fg-muted); line-height: 1.4; }
 .gpimport-fit-card .e { font-size: 0.82rem; color: var(--fg-muted); font-style: italic; line-height: 1.35; }
 .gpimport-fit-card:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent-bg) 55%, var(--bg-raised)); }
+/* The GP import's check step (gp-import.js): the chart over the file. */
+.gpimport-check-summary { margin: 0.4rem 0 0.7rem; padding: 0.5rem 0.75rem; border-radius: var(--radius); font-weight: 600; }
+.gpimport-check-summary:empty { display: none; }
+.gpimport-check-summary.is-ok { background: var(--ok-bg); color: var(--ok); }
+.gpimport-check-summary.is-off { background: var(--warn-bg); color: var(--fg); }
+.gpimport-check-start { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 0.5rem; }
+.gpimport-check-start label { font-weight: 600; }
+.gpimport-num { display: inline-flex; align-items: stretch; }
+.gpimport-num button { min-width: 2.4rem; min-height: 2.4rem; border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); font: inherit; cursor: pointer; }
+.gpimport-num button:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.gpimport-num button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.gpimport-num input { width: 4rem; text-align: center; border: 1px solid var(--border); border-left: 0; border-right: 0; border-radius: 0; background: var(--bg); color: var(--fg); font: inherit; }
+.gpimport-fixes { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.7rem; }
+.gpimport-fixes:empty { display: none; }
+.gpimport-fix { min-height: 2.4rem; padding: 0.3rem 0.8rem; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent-bg); color: var(--accent-ink, var(--fg)); font: inherit; font-size: 0.88rem; cursor: pointer; text-align: left; }
+.gpimport-fix:hover { background: var(--accent); color: var(--accent-contrast); }
+.gpimport-twin-scroll { overflow-x: auto; margin: 0 0 0.6rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-sunken); }
+.gpimport-twin { position: relative; padding: 0.4rem 0.5rem 0.4rem 4rem; }
+.gpimport-twin-row { position: relative; height: 2rem; margin: 0.15rem 0; }
+.gpimport-twin-name { position: absolute; left: -3.6rem; top: 0.45rem; width: 3.3rem; font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.gpimport-twin-lane { position: relative; height: 100%; }
+.gpimport-twin-block { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; padding: 0 0.35rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--border-strong); border-radius: 5px; background: var(--bg-raised); color: var(--fg); font: inherit; font-size: 0.78rem; text-align: left; }
+button.gpimport-twin-block { cursor: pointer; }
+.gpimport-twin-block.is-ok { border-color: color-mix(in srgb, var(--ok) 60%, transparent); background: var(--ok-bg); }
+.gpimport-twin-block.is-bars, .gpimport-twin-block.is-shifted, .gpimport-twin-block.is-missing, .gpimport-twin-block.is-time { border-color: var(--warn); background: var(--warn-bg); font-weight: 600; }
+.gpimport-twin-block.is-chords { border-style: dashed; border-color: var(--warn); }
+.gpimport-twin-block.is-follow { border-style: dotted; color: var(--fg-muted); }
+.gpimport-twin-block.is-picked { box-shadow: 0 0 0 2px var(--accent); }
+.gpimport-twin-block.is-lead { color: var(--fg-muted); background: repeating-linear-gradient(135deg, var(--bg-sunken) 0 6px, var(--bg-raised) 6px 12px); font-style: italic; }
+.gpimport-twin-start { position: absolute; top: -0.2rem; bottom: -0.2rem; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; z-index: 1; }
+.gpimport-check-table td { vertical-align: top; }
+.gpimport-check-table tr.is-picked td { background: color-mix(in srgb, var(--accent-bg) 60%, transparent); }
+.gpimport-check-table tr.is-off .gpimport-check-status { color: var(--warn); font-weight: 600; }
+.gpimport-check-table tr.is-ok .gpimport-check-status { color: var(--ok); }
+.gpimport-check-table tr.is-follow .gpimport-check-status { color: var(--fg-muted); }
+.gpimport-check-what .gpimport-check-status, .gpimport-check-what .gpimport-check-advice { display: block; }
+.gpimport-check-what .gpimport-check-advice { margin-top: 0.2rem; }
+.gpimport-check-what .gpimport-fix { margin-top: 0.3rem; }
+.gpimport-check-advice { font-size: 0.84rem; color: var(--fg-muted); line-height: 1.35; }
+.gpimport-chords { margin: 0.5rem 0 0.7rem; }
+.gpimport-chords h4 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+.gpimport-chords-scroll { overflow-x: auto; }
+.gpimport-chords-grid { display: grid; grid-template-columns: 3.6rem repeat(var(--bars), minmax(3.6rem, 1fr)); gap: 2px; font-family: var(--font-chart, inherit); font-size: 0.88rem; }
+.gpimport-chords-name { font-family: var(--font-ui, inherit); font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; align-self: center; }
+.gpimport-chord { padding: 0.25rem 0.3rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); white-space: nowrap; }
+.gpimport-chord.is-diff { border-color: var(--warn); background: var(--warn-bg); font-weight: 700; }
+.gpimport-chord.is-none { color: var(--fg-faint); border-style: dashed; }
+.gpimport-check-header .gpimport-header-list { margin-bottom: 0.4rem; }
+.gpimport-detail-notation-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; margin: 0.4rem 0; }
+@media (max-width: 720px) {
+  .gpimport-check-table th:nth-child(2), .gpimport-check-table td:nth-child(2) { display: none; }
+  .gpimport-check-table { font-size: 0.88rem; }
+}
+/* A GProTab.net result's preview (gp-import.js): a dialog; a full-screen
+   sheet on a phone. */
+.gpimport-result-actions { white-space: nowrap; }
+.gpimport-result-actions button { min-height: 2.4rem; }
+.gpprev { width: min(62rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--fg); box-shadow: var(--shadow); }
+.gpprev[open] { display: flex; flex-direction: column; }
+.gpprev::backdrop { background: rgba(10, 8, 4, 0.5); }
+.gpprev-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 0.9rem 1rem 0.5rem; border-bottom: 1px solid var(--border); }
+.gpprev-head h2 { margin: 0; font-size: 1.15rem; }
+.gpprev-sub { margin: 0.15rem 0 0; color: var(--fg-muted); font-size: 0.88rem; }
+.gpprev-body { flex: 1 1 auto; overflow: auto; padding: 0.6rem 1rem 1rem; }
+.gpprev-status:empty, .gpprev-fit:empty { display: none; }
+.gpprev-fit { margin: 0 0 0.6rem; padding: 0.45rem 0.7rem; border-radius: var(--radius); font-weight: 600; background: var(--bg-sunken); }
+.gpprev-fit.is-ok { background: var(--ok-bg); color: var(--ok); }
+.gpprev-fit.is-off { background: var(--warn-bg); }
+.gpprev-facts { border-collapse: collapse; width: 100%; margin: 0 0 0.6rem; font-size: 0.9rem; }
+.gpprev-facts th, .gpprev-facts td { text-align: left; padding: 0.3rem 0.6rem 0.3rem 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.gpprev-facts thead th { color: var(--fg-muted); font-weight: 600; font-size: 0.8rem; }
+.gpprev-facts tbody th { font-weight: 600; white-space: nowrap; }
+.gpprev-facts tr.is-diff td:last-child { color: var(--warn); font-weight: 600; }
+.gpprev-align-box { margin: 0 0 0.7rem; }
+.gpprev-align-box summary { cursor: pointer; font-weight: 600; min-height: 2.2rem; display: flex; align-items: center; }
+.gpprev-player { position: sticky; top: -0.6rem; z-index: 2; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.45rem 0; background: var(--bg); border-bottom: 1px solid var(--border); }
+.gpprev-player .gp-tracks { margin: 0; }
+.gpprev-time { font-variant-numeric: tabular-nums; color: var(--fg-muted); min-width: 6rem; font-size: 0.88rem; }
+.gpprev-score { min-height: 12rem; background: #fff; border-radius: 6px; margin-top: 0.5rem; }
+.gpprev-foot { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.6rem 1rem; border-top: 1px solid var(--border); }
+.gpprev-foot button { min-height: 2.6rem; }
+@media (max-width: 720px) {
+  .gpprev { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  .gpprev-body { padding: 0.5rem 0.75rem 1rem; }
+  .gpprev-facts { font-size: 0.85rem; }
+}
 .song-gp-only { display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.5rem; font-size: 0.92rem; }
 .song-gp-only-note { margin: 0.2rem 0 0; }
 

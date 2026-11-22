@@ -101,6 +101,7 @@
     search: document.getElementById('gpimport-step-search'),
     file: document.getElementById('gpimport-step-file'),
     align: document.getElementById('gpimport-step-align'),
+    check: document.getElementById('gpimport-step-check'),
     import: document.getElementById('gpimport-step-import'),
   };
   const step1Next = document.getElementById('gpimport-step1-next');
@@ -110,9 +111,10 @@
 
   // Step 1: what the file is for. "beside": the full score in the song's
   // Score tab, the chart still the song's main view; "whole": the file
-  // is the song ("content: gp"), it opens on the score; neither has
-  // anything to line up. "parts": the file's bars are lined up with the
-  // song's sections, one "gp[Track]:" line each.
+  // is the song ("content: gp"), it opens on the score; both are checked
+  // against the chart (step 3, "Check": where the chart starts in the
+  // file, bar counts, chords, tempo, time, key). "parts": the file's bars
+  // are lined up with the song's sections, one "gp[Track]:" line each.
   const FITS = ['beside', 'parts', 'whole'];
   let fit = FITS.includes(panel.dataset.songShape) ? panel.dataset.songShape : 'whole';
   const lining = () => fit === 'parts';
@@ -121,14 +123,18 @@
   const stepper = document.getElementById('gpimport-stepper');
   const ORDER = ['fit', 'file', 'align', 'import'];
   function applyFit() {
-    step1Next.textContent = lining() ? t('Next: line up the sections →') : t('Next: check and import →');
+    step1Next.textContent = lining() ? t('Next: line up the sections →') : t('Next: check it against the chart →');
     trackRow.hidden = !lining() || !score || score.tracks.length < 2;
     deriveRow.hidden = !lining() || !score || ourSections.length > 0;
-    stepper.querySelector('[data-step="align"]').classList.toggle('skipped', !lining());
+    // The third step lines the file up (inside the chart), or checks it
+    // against the chart (next to it, or the whole song).
+    const third = stepper.querySelector('[data-step="align"]');
+    third.textContent = lining() ? third.dataset.parts : third.dataset.check;
   }
+  const SLOT = { search: 'file', check: 'align' };
   function goToStep(name, scroll = true) {
     Object.entries(steps).forEach(([k, el]) => { el.hidden = k !== name; });
-    const at = ORDER.indexOf(name === 'search' ? 'file' : name);
+    const at = ORDER.indexOf(SLOT[name] || name);
     stepper.querySelectorAll('li').forEach((li) => {
       const i = ORDER.indexOf(li.dataset.step);
       li.classList.toggle('current', i === at);
@@ -139,6 +145,7 @@
   document.getElementById('gpimport-fit-next').addEventListener('click', () => { applyFit(); goToStep(score ? 'file' : 'search'); });
   panel.querySelectorAll('.gpimport-back').forEach((b) => b.addEventListener('click', () => goToStep(b.dataset.back)));
   goToStep('fit', false);
+  applyFit();
 
   // ---- Step 0: search GProTab.net (handleImportGPFind, handlers_import.go)
   // for a Guitar Pro file, as an alternative to picking one already on
@@ -190,8 +197,9 @@
         <td>${escapeHTML(c.Format || '?')}</td>
         <td>${sizeText}</td>
         <td>${ratingText}</td>
-        <td><button type="button" class="primary gpimport-use-result">${escapeHTML(t('Use this'))}</button></td>`;
+        <td class="gpimport-result-actions"><button type="button" class="gpimport-preview-result">${escapeHTML(t('Preview'))}</button> <button type="button" class="primary gpimport-use-result">${escapeHTML(t('Use this'))}</button></td>`;
       tr.querySelector('.gpimport-use-result').addEventListener('click', () => useSearchResult(c));
+      tr.querySelector('.gpimport-preview-result').addEventListener('click', (e) => openPreview(c, e.currentTarget));
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
@@ -202,25 +210,232 @@
     return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // One download per result: a file previewed and then chosen isn't
+  // fetched again.
+  const fetched = new Map(); // url -> Promise<{ buf, filename, type }>
+  function fetchResult(c) {
+    if (!fetched.has(c.URL)) {
+      fetched.set(c.URL, (async () => {
+        const res = await fetch(`/api/import/gp/fetch?url=${encodeURIComponent(c.URL)}`);
+        if (!res.ok) throw new Error(await res.text());
+        const buf = await res.arrayBuffer();
+        let filename = 'import.gp';
+        const cd = res.headers.get('Content-Disposition');
+        const m = cd && /filename="([^"]+)"/.exec(cd);
+        if (m) filename = m[1];
+        return { buf, filename, type: res.headers.get('Content-Type') || 'application/octet-stream' };
+      })().catch((e) => { fetched.delete(c.URL); throw e; }));
+    }
+    return fetched.get(c.URL);
+  }
+
   async function useSearchResult(c) {
     setStatus(t('Downloading “%s” from GProTab.net…', c.Title));
     try {
-      const res = await fetch(`/api/import/gp/fetch?url=${encodeURIComponent(c.URL)}`);
-      if (!res.ok) throw new Error(await res.text());
-      const buf = await res.arrayBuffer();
-      let filename = 'import.gp';
-      const cd = res.headers.get('Content-Disposition');
-      const m = cd && /filename="([^"]+)"/.exec(cd);
-      if (m) filename = m[1];
+      const { buf, filename, type } = await fetchResult(c);
       fileSourceNote.hidden = false;
       fileSourceNote.innerHTML = `${escapeHTML(t('From GProTab.net:'))} <a href="${escapeHTML(c.URL)}" target="_blank" rel="noopener">${escapeHTML(c.Title)} — ${escapeHTML(c.Artist)}</a>`;
       goToStep('file');
       // A real File, as from the file picker: the import step uploads it
       // (FormData.append wants a Blob).
-      await loadFile(new File([buf], filename, { type: res.headers.get('Content-Type') || 'application/octet-stream' }));
+      await loadFile(new File([buf], filename, { type }));
     } catch (e) {
       setStatus(t('Couldn’t download that file. Try another result, or choose a file from your computer.'), 'err');
     }
+  }
+
+  // ---- A search result's preview: before choosing one of the files found,
+  // look at it — its whole score, played with alphaTab's synthesizer and
+  // its cursor; its tempo, time, key, bars, tracks and sections next to the
+  // song's; how it lines up with the chart (the check step's comparison,
+  // from where it lines up best). Native <dialog>: Esc closes it, focus
+  // stays in it and goes back to the result's Preview button.
+  const prev = document.getElementById('gpprev');
+  let prevApi = null;
+  let prevFor = null;   // { c, opener }
+  let prevSeq = 0;
+  function closePreview() {
+    if (prev.open) prev.close();
+  }
+  prev.addEventListener('close', () => {
+    // The preview's sound stops with it.
+    if (prevApi) { try { prevApi.stop(); prevApi.destroy(); } catch (e) { /* gone */ } prevApi = null; }
+    prev.querySelector('.gpprev-score').replaceChildren();
+    prevSeq++;
+    const back = prevFor && prevFor.opener;
+    prevFor = null;
+    // After the browser's own focus restoring, which may pick another.
+    if (back && back.isConnected) setTimeout(() => back.focus(), 0);
+  });
+  prev.querySelector('.gpprev-x').addEventListener('click', closePreview);
+  prev.querySelector('.gpprev-close').addEventListener('click', closePreview);
+  prev.addEventListener('click', (e) => { if (e.target === prev) closePreview(); }); // the backdrop
+  // Esc closes the preview only, not the editor it was opened from.
+  prev.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    closePreview();
+  });
+  prev.querySelector('.gpprev-use').addEventListener('click', () => {
+    const c = prevFor && prevFor.c;
+    closePreview();
+    if (c) useSearchResult(c);
+  });
+
+  async function openPreview(c, opener) {
+    const seq = ++prevSeq;
+    if (prevApi) { try { prevApi.stop(); prevApi.destroy(); } catch (e) { /* gone */ } prevApi = null; }
+    prevFor = { c, opener };
+    const q = (sel) => prev.querySelector(sel);
+    q('#gpprev-title').textContent = c.Title || t('Guitar Pro file');
+    q('.gpprev-sub').textContent = [c.Artist, c.Format].filter(Boolean).join(' · ');
+    q('.gpprev-status').textContent = t('Downloading “%s” from GProTab.net…', c.Title);
+    q('.gpprev-fit').textContent = '';
+    q('.gpprev-fit').className = 'gpprev-fit';
+    q('.gpprev-facts').hidden = true;
+    q('.gpprev-align-box').hidden = true;
+    q('.gpprev-player').hidden = true;
+    q('.gpprev-use').disabled = true;
+    q('.gpprev-score').replaceChildren();
+    if (!prev.open) prev.showModal();
+    let file, facts;
+    try {
+      file = await fetchResult(c);
+      if (seq !== prevSeq) return;
+      facts = GPFacts.extract(alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(file.buf), new alphaTab.Settings()));
+    } catch (e) {
+      if (seq === prevSeq) q('.gpprev-status').textContent = t('Couldn’t open this file. Try another result.');
+      return;
+    }
+    q('.gpprev-status').textContent = '';
+    q('.gpprev-use').disabled = false;
+    drawPreviewScore(new Uint8Array(file.buf), seq);
+    try {
+      const raw = await (await fetch(`/api/songs/${variantId}/raw`)).json();
+      let out = await postCheck(facts, Number(headerValue(raw.text || '', 'gp_start')) || 1);
+      // Compared where it lines up best, as the check step's first fix.
+      const fix = GPAlign.fixes(out.alignment)[0];
+      if (fix) out = await postCheck(facts, fix.start);
+      if (seq !== prevSeq) return;
+      fillPreviewFacts(raw.text || '', facts, out);
+    } catch (e) {
+      if (seq === prevSeq) q('.gpprev-status').textContent = t('Couldn’t check the file against the chart: %s', e.message);
+    }
+  }
+
+  // The file's facts next to the song's, a difference marked.
+  function fillPreviewFacts(text, facts, out) {
+    const al = out.alignment;
+    const tbody = prev.querySelector('.gpprev-facts tbody');
+    tbody.replaceChildren();
+    const row = (label, mine, theirs, differs) => {
+      const tr = document.createElement('tr');
+      if (differs) tr.className = 'is-diff';
+      for (const [v, tag] of [[label, 'th'], [mine, 'td'], [theirs, 'td']]) {
+        const c = document.createElement(tag);
+        c.textContent = v || '—';
+        tr.appendChild(c);
+      }
+      tbody.appendChild(tr);
+    };
+    const songTempo = headerValue(text, 'tempo');
+    row(t('Tempo'), songTempo ? t('%s bpm', songTempo) : t('none (120)'), facts.tempo ? t('%s bpm', facts.tempo) : '', !!facts.tempo && String(facts.tempo) !== (songTempo || '120'));
+    const songTime = headerValue(text, 'time') || '4/4';
+    const times = (facts.time || []).map((x) => (x.bar > 1 ? t('%s from bar %d', `${x.num}/${x.den}`, x.bar) : `${x.num}/${x.den}`)).join(', ');
+    row(t('Time signature'), headerValue(text, 'time') || t('none (4/4)'), times, !!facts.time.length && `${facts.time[0].num}/${facts.time[0].den}` !== songTime || facts.time.length > 1);
+    const fk = GPAlign.keyName((facts.keys || [])[0]);
+    const sk = headerValue(text, 'key');
+    row(t('Key'), sk || t('key|none'), fk || t('not set (C)'), !!fk && fk.toLowerCase() !== sk.toLowerCase());
+    const played = (facts.played || []).length;
+    row(t('Bars'), al.chartBars ? tn(al.chartBars, '%d bar', '%d bars') : t('none yet'), played === facts.bars ? tn(played, '%d bar', '%d bars') : t('%s (%d written)', tn(played, '%d bar', '%d bars'), facts.bars), !!al.chartBars && al.chartBars !== played - (al.start - 1));
+    row(t('Tracks'), '', (facts.tracks || []).map((x) => x.name || t('Track %d', x.n)).join(', '), false);
+    const secs = al.sections.length;
+    row(t('Sections'), secs ? tn(secs, '%d section', '%d sections') : t('none yet'), (facts.markers || []).length ? `${tn(facts.markers.length, '%d section', '%d sections')}: ${facts.markers.map((m) => m.text).join(', ')}` : t('no section markers'), secs > 0 && (facts.markers || []).length !== secs);
+    prev.querySelector('.gpprev-facts').hidden = false;
+
+    const fit = prev.querySelector('.gpprev-fit');
+    const left = GPAlign.remaining(al, out.header, null, out.items);
+    if (!al.sections.length) {
+      fit.textContent = t('The song has no bars yet to compare the file with.');
+    } else if (!left.total) {
+      fit.className = 'gpprev-fit is-ok';
+      fit.textContent = al.start > 1 ? t('Lines up with the chart, from the file’s bar %d.', al.start) : t('Lines up with the chart.');
+    } else {
+      fit.className = 'gpprev-fit is-off';
+      const ok = al.sections.filter((r) => r.status === 'ok').length;
+      fit.textContent = (al.start > 1 ? t('From the file’s bar %d: ', al.start) : '') + t('%s of %s line up; %s.', String(ok), tn(al.sections.length, '%d section', '%d sections'), tn(left.total, '%d difference', '%d differences'));
+    }
+    const box = prev.querySelector('.gpprev-align-box');
+    box.hidden = !al.sections.length;
+    let picked = Math.max(0, al.sections.findIndex((r) => r.status !== 'ok' && !(r.status === 'shifted' && !r.own)));
+    const draw = () => drawAlignment(prev.querySelector('.gpprev-align'), al, { picked, onPick: (i) => { picked = i; draw(); } });
+    draw();
+  }
+
+  // The whole score, every track to pick, played with the synthesizer.
+  function drawPreviewScore(bytes, seq) {
+    const holder = prev.querySelector('.gpprev-score');
+    const player = prev.querySelector('.gpprev-player');
+    const play = prev.querySelector('.gpprev-play');
+    const chips = prev.querySelector('.gpprev-tracks');
+    const time = prev.querySelector('.gpprev-time');
+    chips.replaceChildren();
+    time.textContent = '';
+    play.disabled = true;
+    const playIcon = play.dataset.icon || (play.dataset.icon = play.innerHTML);
+    play.innerHTML = playIcon;
+    const sc = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
+    const s = new alphaTab.Settings();
+    s.core.fontDirectory = '/static/js/vendor/alphatab/font/';
+    s.core.useWorkers = false;
+    s.core.enableLazyLoading = false;
+    s.display.layoutMode = alphaTab.LayoutMode.Page;
+    s.player.enablePlayer = true;
+    s.player.enableCursor = true;
+    s.player.enableUserInteraction = true;
+    s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+    s.player.scrollElement = prev.querySelector('.gpprev-body');
+    if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledSynthesizer;
+    for (const n of ['ScoreCopyright']) if (alphaTab.NotationElement[n] !== undefined) s.notation.elements.set(alphaTab.NotationElement[n], false);
+    let shown = new Set(sc.tracks.length <= 3 ? sc.tracks.map((x, i) => i) : [0]);
+    const draw = (tries) => {
+      if (seq !== prevSeq) return;
+      if (!holder.clientWidth && tries > 0) { requestAnimationFrame(() => draw(tries - 1)); return; }
+      const api = new alphaTab.AlphaTabApi(holder, s);
+      prevApi = api;
+      api.renderScore(sc, [...shown].sort((a, b) => a - b));
+      api.playerReady.on(() => { play.disabled = false; });
+      api.playerStateChanged.on((e) => {
+        const on = e.state === 1;
+        play.innerHTML = on ? '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>' : playIcon;
+        play.setAttribute('aria-label', on ? t('Pause') : t('Play'));
+        play.classList.toggle('active', on);
+        if (on) document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
+      });
+      const fmt = (ms) => { const x = Math.max(0, Math.round(ms / 1000)); return Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0'); };
+      api.playerPositionChanged.on((e) => { time.textContent = fmt(e.currentTime) + ' / ' + fmt(e.endTime); });
+    };
+    play.onclick = () => { if (prevApi) prevApi.playPause(); };
+    sc.tracks.forEach((tr, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gp-track-chip';
+      b.textContent = tr.name || t('Track %d', i + 1);
+      b.setAttribute('aria-pressed', String(shown.has(i)));
+      b.addEventListener('click', () => {
+        if (shown.has(i) && shown.size > 1) shown.delete(i); else shown.add(i);
+        b.setAttribute('aria-pressed', String(shown.has(i)));
+        if (prevApi) {
+          const surface = holder.querySelector('.at-surface');
+          if (surface) surface.replaceChildren();
+          prevApi.renderScore(sc, [...shown].sort((a, b) => a - b));
+        }
+      });
+      chips.appendChild(b);
+    });
+    player.hidden = false;
+    draw(60);
   }
 
   document.getElementById('gpimport-search-form').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
@@ -385,6 +600,8 @@
       trackSelect.appendChild(opt);
     });
     trackRow.hidden = !lining() || score.tracks.length < 2;
+    factsCache = null;
+    check = null;
     realIdx = expandGPBars(score.masterBars);
     barTimes = buildBarTimes();
     step1Next.disabled = false;
@@ -987,16 +1204,9 @@
 
   step1Next.addEventListener('click', async () => {
     if (!lining()) {
-      const mbs = score.masterBars.length;
-      const what = [tn(score.tracks.length, '%d track', '%d tracks'), score.tracks.map((tr) => tr.name || t('untitled')).join(', '), tn(mbs, '%d bar', '%d bars')];
-      summary.textContent = fit === 'beside'
-        ? t('The song keeps opening on its chart; this file goes in its Score tab: %s (%s), %s.', ...what)
-        : t('The song will open on this file’s score: %s (%s), %s. Its sections, chords and lyrics stay as they are, as extras.', ...what);
-      previewHolder.replaceChildren();
-      previewHolder.hidden = true;
-      audioRow.hidden = !(score.backingTrack && score.backingTrack.rawAudioFile);
-      goToStep('import');
-      await prepareHeader();
+      goToStep('check');
+      await prepareHeader(checkHeaderEl);
+      await runCheck();
       return;
     }
     goToStep('align');
@@ -1017,6 +1227,293 @@
     await renderPreview();
   });
 
+  // ---- Step 3 for a file next to the chart (or the whole song): the check
+  // Before anything is saved, the file is compared with the chart: the
+  // server lays the chart's sections over the file's bars from where the
+  // chart starts in it (POST …/gp-check, gpalign.go — the comparison drift
+  // makes once the file is kept, so both agree), and this draws it: two
+  // timelines on one bar axis, a row per section, the chords of the one
+  // picked side by side, and its bars in the file. Fixes the app can make
+  // are one tap (where the chart starts; the header facts above); the
+  // rest is said in plain words.
+  const checkHeaderEl = document.getElementById('gpimport-check-header');
+  const checkSummaryEl = document.getElementById('gpimport-check-summary');
+  const startInput = document.getElementById('gpimport-start');
+  const startNote = document.getElementById('gpimport-start-note');
+  const fixesEl = document.getElementById('gpimport-fixes');
+  const alignHost = document.getElementById('gpimport-align');
+  const checkNotation = document.getElementById('gpimport-check-notation');
+  const detailBars = document.getElementById('gpimport-detail-bars');
+  const detailTrack = document.getElementById('gpimport-detail-track');
+  const detailNotation = document.getElementById('gpimport-detail-notation');
+  let factsCache = null;
+  let check = null;       // the last POST …/gp-check answer: { header, alignment }
+  let checkStart = 1;     // the file's bar (as played) the chart starts on
+  let checkPicked = -1;   // the section shown in detail
+  let checkSeq = 0;
+  const fileFacts = () => factsCache || (factsCache = GPFacts.extract(score));
+
+  // t() with a count picking the form, the other values after it.
+  function tc(n, one, other, ...args) {
+    const single = window.SB_LANG === 'fr' ? (n === 0 || n === 1) : n === 1;
+    return t(single ? one : other, ...args);
+  }
+
+  async function postCheck(facts, start) {
+    const res = await fetch(`/api/songs/${variantId}/gp-check`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facts, start }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  async function runCheck(start) {
+    if (!score) return;
+    const seq = ++checkSeq;
+    try {
+      if (start === undefined) {
+        // The song's own "gp_start:", when it has one (a file replaced).
+        const raw = await (await fetch(`/api/songs/${variantId}/raw`)).json();
+        start = Number(headerValue(raw.text || '', 'gp_start')) || 1;
+      }
+      const out = await postCheck(fileFacts(), start);
+      if (seq !== checkSeq) return;
+      check = out;
+      checkStart = out.alignment.start;
+      startInput.value = checkStart;
+      startInput.max = out.alignment.fileBars || 1;
+      const first = out.alignment.sections.findIndex((r) => r.status !== 'ok' && !(r.status === 'shifted' && !r.own));
+      // The first section left to look at, unless one was picked and is
+      // still there to look at.
+      const picked = out.alignment.sections[checkPicked];
+      if (!picked || (picked.status === 'ok' && first >= 0)) checkPicked = Math.max(0, first);
+      renderCheck();
+    } catch (e) {
+      setStatus(t('Couldn’t check the file against the chart: %s', e.message), 'err');
+    }
+  }
+
+  function takenFacts() {
+    return new Set(headerChoices.filter((c) => c.input.checked || c.input.disabled).map((c) => c.key));
+  }
+
+  function renderCheckSummary() {
+    if (!check || !checkSummaryEl) return;
+    const al = check.alignment;
+    const left = GPAlign.remaining(al, check.header, takenFacts(), check.items);
+    checkSummaryEl.className = 'gpimport-check-summary ' + (left.total ? 'is-off' : 'is-ok');
+    if (!al.sections.length) {
+      checkSummaryEl.textContent = left.header
+        ? tc(left.header, 'The song has no bars yet to check against: %d difference in its header.', 'The song has no bars yet to check against: %d differences in its header.', left.header)
+        : t('The song has no bars yet to check against; its header agrees with the file.');
+    } else if (!left.total) {
+      checkSummaryEl.textContent = t('The file and the chart line up: %s, %s.', tn(al.sections.length, '%d section', '%d sections'), tn(al.chartBars, '%d bar', '%d bars'));
+    } else {
+      checkSummaryEl.textContent = tc(left.total, '%d difference left. Fix it below, or import anyway: the song will show it as out of step with the file.', '%d differences left. Fix them below, or import anyway: the song will show them as out of step with the file.', left.total);
+    }
+  }
+
+  function renderCheck() {
+    const al = check.alignment;
+    renderCheckSummary();
+    const notes = [];
+    if (checkStart > 1) notes.push(tn(checkStart - 1, '%d bar of the file before the chart starts.', '%d bars of the file before the chart starts.'));
+    if (al.fileEmpty) notes.push(tn(al.fileEmpty, 'The file opens with %d silent bar.', 'The file opens with %d silent bars.'));
+    if (al.filePickup !== al.chartPickup) notes.push(al.filePickup ? t('The file starts with a pickup bar, the chart doesn’t.') : t('The chart starts with a pickup bar, the file doesn’t.'));
+    startNote.textContent = notes.join(' ');
+    fixesEl.replaceChildren();
+    for (const f of GPAlign.fixes(al)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gpimport-fix';
+      const first = al.sections[0];
+      b.textContent = f.why === 'marker' ? t('Start at bar %d: the chart’s %s on the file’s “%s”', f.start, first.label, first.match.text)
+        : f.why === 'chords' ? t('Start at bar %d, where the chords line up best', f.start)
+        : f.why === 'empty' ? tc(f.start - 1, 'Start at bar %d, after the %d silent bar', 'Start at bar %d, after the %d silent bars', f.start, f.start - 1)
+        : t('Start at the file’s first bar');
+      b.addEventListener('click', () => runCheck(f.start));
+      fixesEl.appendChild(b);
+    }
+    drawAlignment(alignHost, al, {
+      picked: checkPicked,
+      onPick: (i) => { checkPicked = i; renderCheck(); },
+      onLineUp: (row) => runCheck(GPAlign.startFor(checkStart, row, al.fileBars)),
+    });
+    drawCheckNotation();
+  }
+
+  // The bars of the picked section in the file, as Guitar Pro numbers them,
+  // in one track (the one with the chord names, else the first).
+  // A section paired with one of the file's draws that one, all its bars.
+  function drawCheckNotation() {
+    const row = check && check.alignment.sections[checkPicked];
+    const written = row && ((row.match && row.match.written) || row.written);
+    checkNotation.hidden = !written || !written.length;
+    if (checkNotation.hidden) return;
+    if (!detailTrack.options.length) {
+      score.tracks.forEach((tr, i) => detailTrack.add(new Option(tr.name || t('Track %d', i + 1), i)));
+      const ct = fileFacts().chordTrack;
+      detailTrack.value = String(ct ? ct - 1 : 0);
+      detailTrack.closest('label').hidden = score.tracks.length < 2;
+    }
+    detailBars.textContent = t('%s in the file: bars %s', row.match ? `“${row.match.text}”` : row.label, written.map(([a, b]) => (a === b ? a : `${a}–${b}`)).join(', '));
+    detailNotation.replaceChildren();
+    for (const [a, b] of written) {
+      const mount = document.createElement('div');
+      detailNotation.appendChild(mount);
+      try { drawFileBars(mount, Number(detailTrack.value) || 0, a - 1, b - a + 1); } catch (e) { mount.textContent = t('Preview failed: %s', e.message); }
+    }
+  }
+  detailTrack.addEventListener('change', drawCheckNotation);
+  document.getElementById('gpimport-start-down').addEventListener('click', () => runCheck(GPAlign.clampStart(checkStart - 1, check && check.alignment.fileBars)));
+  document.getElementById('gpimport-start-up').addEventListener('click', () => runCheck(GPAlign.clampStart(checkStart + 1, check && check.alignment.fileBars)));
+  startInput.addEventListener('change', () => runCheck(GPAlign.clampStart(startInput.value, check && check.alignment.fileBars)));
+
+  // What a section's row says: how it sits on the file, and what to do
+  // when the app can't do it.
+  function rowStatus(row, al, k) {
+    const m = row.match;
+    switch (row.status) {
+      case 'ok': return { text: t('Lines up'), cls: 'ok' };
+      case 'missing': return { text: row.fileBars > 0 ? tn(row.fileBars, 'The file ends %d bar into it.', 'The file ends %d bars into it.') : t('The file ends before it.'), advice: t('Start the chart earlier in the file, or add the missing bars in Guitar Pro.'), cls: 'off' };
+      case 'bars': {
+        const n = Math.abs(m.bars - row.bars);
+        const text = t('%s: chart %s, file %s', row.label, tn(row.bars, '%d bar', '%d bars'), tn(m.bars, '%d bar', '%d bars'));
+        let advice;
+        if (m.bars > row.bars && m.bars % row.bars === 0) advice = t('The file plays “%s” %d times: add a repeat to the chart’s %s, or edit the file in Guitar Pro.', m.text, m.bars / row.bars, row.label);
+        else if (m.bars > row.bars) advice = tc(n, 'The file’s “%s” has %d more bar: add it to the chart’s %s, or edit the file in Guitar Pro.', 'The file’s “%s” has %d more bars: add them to the chart’s %s, or edit the file in Guitar Pro.', m.text, n, row.label);
+        else advice = tc(n, 'The file’s “%s” has %d bar less: take it out of the chart’s %s, or edit the file in Guitar Pro.', 'The file’s “%s” has %d bars less: take them out of the chart’s %s, or edit the file in Guitar Pro.', m.text, n, row.label);
+        return { text, advice, cls: 'off' };
+      }
+      case 'shifted': {
+        const n = Math.abs(row.shift);
+        if (!row.own) {
+          let cause = '';
+          for (let j = k - 1; j >= 0; j--) if (al.sections[j].status === 'bars' || (al.sections[j].status === 'shifted' && al.sections[j].own)) { cause = al.sections[j].label; break; }
+          return { text: cause ? t('Moved along by %s', cause) : t('Moved along by the sections before'), cls: 'follow' };
+        }
+        return { text: row.shift > 0 ? tc(n, 'The file’s “%s” starts %d bar later', 'The file’s “%s” starts %d bars later', m.text, n) : tc(n, 'The file’s “%s” starts %d bar earlier', 'The file’s “%s” starts %d bars earlier', m.text, n), lineUp: true, cls: 'off' };
+      }
+      case 'chords': return { text: tn(row.chordDiff.length, '%d bar with other chords', '%d bars with other chords'), advice: t('Fine if the chart simplifies them; after the import, “Use the file’s” takes the file’s.'), cls: 'chords' };
+      case 'time': return { text: t('Time signature: %s here, %s in the file', row.chartTime, row.fileTime), cls: 'off' };
+    }
+    return { text: '', cls: '' };
+  }
+
+  // drawAlignment draws a check's alignment into host: the two timelines,
+  // a row per section and the chords of the picked one. Also the search
+  // results' preview (compact: no line-up buttons).
+  function drawAlignment(host, al, opts = {}) {
+    host.replaceChildren();
+    const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    if (!al.sections.length) return;
+    const L = GPAlign.layout(al);
+    const scroll = mk('div', 'gpimport-twin-scroll');
+    const twin = mk('div', 'gpimport-twin');
+    twin.style.minWidth = Math.round(L.total * 7 + 64) + 'px';
+    const lane = (name, label) => {
+      const r = mk('div', 'gpimport-twin-row');
+      r.dataset.row = name;
+      r.append(mk('span', 'gpimport-twin-name', label));
+      const l = mk('div', 'gpimport-twin-lane');
+      r.append(l);
+      twin.append(r);
+      return l;
+    };
+    const chartLane = lane('chart', t('Chart'));
+    const fileLane = lane('file', t('File'));
+    const place = (e, x, w) => { e.style.left = (x * 100) + '%'; e.style.width = `calc(${w * 100}% - 2px)`; };
+    L.chart.forEach((c) => {
+      const row = al.sections[c.i];
+      const b = mk(opts.onPick ? 'button' : 'div', 'gpimport-twin-block is-' + (row.status === 'shifted' && !row.own ? 'follow' : row.status) + (c.i === opts.picked ? ' is-picked' : ''), c.label);
+      if (opts.onPick) { b.type = 'button'; b.addEventListener('click', () => opts.onPick(c.i)); }
+      b.title = `${c.label} · ${rowStatus(row, al, c.i).text}`;
+      place(b, c.x, c.w);
+      chartLane.append(b);
+    });
+    L.file.forEach((f) => {
+      // A lead-in too short for its name keeps it in its tooltip.
+      const b = mk('div', 'gpimport-twin-block' + (f.lead ? ' is-lead' : ''), f.lead ? (f.bars * 7 >= 40 ? t('lead-in') : '') : f.label);
+      b.title = f.lead ? tn(f.bars, '%d bar before the first section', '%d bars before the first section') : `${f.label || t('The file')} · ${tn(f.bars, '%d bar', '%d bars')} · ${t('bar %d', f.bar || f.from)}`;
+      place(b, f.x, f.w);
+      fileLane.append(b);
+    });
+    // Where the chart starts in the file.
+    for (const l of [chartLane, fileLane]) {
+      const mark = mk('div', 'gpimport-twin-start');
+      mark.style.left = (L.lead / L.total * 100) + '%';
+      l.append(mark);
+    }
+    scroll.append(twin);
+    host.append(scroll);
+
+    const table = mk('table', 'gpimport-mapping-table gpimport-check-table');
+    const head = mk('thead');
+    head.innerHTML = `<tr><th>${escapeHTML(t('Section'))}</th><th>${escapeHTML(t('Chart'))}</th><th>${escapeHTML(t('File'))}</th><th></th></tr>`;
+    const body = mk('tbody');
+    al.sections.forEach((row, k) => {
+      const st = rowStatus(row, al, k);
+      const tr = mk('tr', 'is-' + st.cls + (k === opts.picked ? ' is-picked' : ''));
+      const name = mk('td');
+      if (opts.onPick) {
+        const pick = mk('button', 'link-btn', row.label);
+        pick.type = 'button';
+        pick.addEventListener('click', () => opts.onPick(k));
+        name.append(pick);
+      } else name.textContent = row.label;
+      const fileCell = row.match ? `${tn(row.match.bars, '%d bar', '%d bars')} · “${row.match.text}”` : row.fileBars ? tn(row.fileBars, '%d bar', '%d bars') : '—';
+      const what = mk('td', 'gpimport-check-what');
+      what.append(mk('span', 'gpimport-check-status', st.text));
+      if (st.advice) what.append(mk('span', 'gpimport-check-advice', st.advice));
+      if (st.lineUp && opts.onLineUp) {
+        const b = mk('button', 'gpimport-fix', t('Line up here'));
+        b.type = 'button';
+        b.addEventListener('click', () => opts.onLineUp(row));
+        what.append(b);
+      }
+      tr.append(name, mk('td', '', tn(row.bars, '%d bar', '%d bars')), mk('td', '', fileCell), what);
+      body.append(tr);
+    });
+    table.append(head, body);
+    host.append(table);
+
+    // The picked section's chords, bar by bar: the chart's over the file's.
+    const row = al.sections[opts.picked];
+    if (!row) return;
+    const box = mk('div', 'gpimport-chords');
+    box.append(mk('h4', '', t('%s, bar by bar', row.label)));
+    const grid = mk('div', 'gpimport-chords-grid');
+    grid.style.setProperty('--bars', row.bars);
+    const diff = new Set(row.chordDiff || []);
+    const cell = (text, cls) => mk('span', 'gpimport-chord' + (cls ? ' ' + cls : ''), text || '·');
+    grid.append(mk('span', 'gpimport-chords-name', t('Chart')));
+    row.chart.forEach((c, b) => grid.append(cell(c, diff.has(b) ? 'is-diff' : '')));
+    grid.append(mk('span', 'gpimport-chords-name', t('File')));
+    row.file.forEach((c, b) => grid.append(cell(b < row.fileBars ? c : '', diff.has(b) ? 'is-diff' : b >= row.fileBars ? 'is-none' : '')));
+    const wrap = mk('div', 'gpimport-chords-scroll');
+    wrap.append(grid);
+    box.append(wrap);
+    if (!al.hasChords) box.append(mk('p', 'hint', t('The file names no chords: only the bars are compared.')));
+    host.append(box);
+  }
+
+  document.getElementById('gpimport-check-next').addEventListener('click', () => {
+    const mbs = score.masterBars.length;
+    const what = [tn(score.tracks.length, '%d track', '%d tracks'), score.tracks.map((tr) => tr.name || t('untitled')).join(', '), tn(mbs, '%d bar', '%d bars')];
+    let text = fit === 'beside'
+      ? t('The song keeps opening on its chart; this file goes in its Score tab: %s (%s), %s.', ...what)
+      : t('The song will open on this file’s score: %s (%s), %s. Its sections, chords and lyrics stay as they are, as extras.', ...what);
+    if (checkStart > 1) text += ' ' + t('The chart starts at the file’s bar %d.', checkStart);
+    const left = check ? GPAlign.remaining(check.alignment, check.header, takenFacts(), check.items).total : 0;
+    if (left) text += ' ' + tn(left, '%d difference with the file is left: the song will show it.', '%d differences with the file are left: the song will show them.');
+    summary.textContent = text;
+    previewHolder.replaceChildren();
+    previewHolder.hidden = true;
+    audioRow.hidden = !(score.backingTrack && score.backingTrack.rawAudioFile);
+    goToStep('import');
+  });
+
   // ---- Song header: the file's tempo, time signature and swing ------
   // A Guitar Pro file knows all three; a song created by hand or from
   // another import usually doesn't, and the chart then falls back to
@@ -1033,10 +1530,12 @@
     const most = (v) => feels.filter((f) => f === v).length;
     // alphaTab's TripletFeel: 2 = triplet 8th (a shuffle), 1 = triplet 16th.
     const swing = most(2) > feels.length / 2 ? '8' : most(1) > feels.length / 2 ? '16' : '';
+    const keys = fileFacts().keys || [];
     return {
       tempo: String(Math.round(score.tempo || 120)),
       time: `${full.timeSignatureNumerator}/${full.timeSignatureDenominator}`,
       swing,
+      key: GPAlign.keyName(keys[0]),
     };
   }
   function headerValue(text, key) {
@@ -1060,10 +1559,11 @@
     lines.splice(last + 1, 0, `${key}: ${value}`);
     return lines.join('\n');
   }
-  async function prepareHeader() {
+  async function prepareHeader(holder = headerHolder) {
     headerChoices = [];
-    if (!headerHolder || !score) return;
+    if (!holder || !score) return;
     headerHolder.innerHTML = '';
+    if (checkHeaderEl) checkHeaderEl.innerHTML = '';
     let text = '';
     try { text = (await (await fetch(`/api/songs/${variantId}/raw`)).json()).text || ''; } catch (e) { return; }
     const gp = gpHeader();
@@ -1071,13 +1571,15 @@
       { key: 'tempo', label: t('Tempo'), show: (v) => (v ? t('%s bpm', v) : t('none (120)')) },
       { key: 'time', label: t('Time signature'), show: (v) => v || t('none (4/4)') },
       { key: 'swing', label: t('Swing'), show: (v) => (v === '8' ? t('swung eighths') : v === '16' ? t('swung sixteenths') : t('straight')) },
+      // A file left in C major says nothing about the key.
+      ...(gp.key ? [{ key: 'key', label: t('Key'), show: (v) => v || t('key|none') }] : []),
     ];
     const list = document.createElement('div');
     list.className = 'gpimport-header-list';
     const reimport = !!document.querySelector('.gpimport-reimport-note');
     for (const r of rows) {
       const song = headerValue(text, r.key);
-      const same = song === gp[r.key];
+      const same = r.key === 'key' ? song.toLowerCase() === gp.key.toLowerCase() : song === gp[r.key];
       const p = document.createElement('p');
       const label = document.createElement('label');
       const input = document.createElement('input');
@@ -1093,14 +1595,14 @@
       was.className = 'hint';
       was.textContent = ' ' + (same ? t('(already in the song)') : t('(song has %s)', r.show(song)));
       p.appendChild(was);
-      input.addEventListener('change', () => renderPreview());
+      input.addEventListener('change', () => { renderPreview(); renderCheckSummary(); });
       list.appendChild(p);
       headerChoices.push({ key: r.key, gp: gp[r.key], song, input });
     }
     const h = document.createElement('p');
     h.className = 'hint';
     h.textContent = t('From the Guitar Pro file — checked values are written to the song header:');
-    headerHolder.append(h, list);
+    holder.append(h, list);
 
     // The file's chord diagrams: new ones ticked, ones that differ from
     // the song's not (the song's may be on purpose).
@@ -1132,7 +1634,7 @@
       dl.appendChild(p);
       diagramChoices.push({ name, fact: 'diagram:' + fold, input });
     }
-    if (diagramChoices.length) headerHolder.appendChild(dl);
+    if (diagramChoices.length) holder.appendChild(dl);
   }
   // The header the song will have after the import.
   function chosenHeader(key) {
@@ -1184,7 +1686,7 @@
       }
     }
   }
-  step3Back.addEventListener('click', () => goToStep(lining() ? 'align' : 'file'));
+  step3Back.addEventListener('click', () => goToStep(lining() ? 'align' : 'check'));
 
   // The file's chord diagrams ticked in the header step become the song's.
   async function takeDiagrams() {
@@ -1211,11 +1713,16 @@
       // "content: gp" makes the song open on the score: set for the whole
       // song, taken off a song that had it when the chart is to stay its
       // main view.
-      await writeHeader(fit === 'whole' ? { content: 'gp' } : panel.dataset.gpOnly ? { content: '' } : {});
+      const extra = fit === 'whole' ? { content: 'gp' } : panel.dataset.gpOnly ? { content: '' } : {};
+      // Where the chart starts in the file (the check step): "gp_start:"
+      // when past its first bar.
+      if (!lining()) extra.gp_start = checkStart > 1 ? String(checkStart) : '';
+      await writeHeader(extra);
       if (!lining()) {
         if (includeAudio.checked) {
           setStatus(t('Uploading the backing track and bar sync…'));
-          boundaries = [0];
+          // The chart's bar 0 is the file's bar checkStart.
+          boundaries = [checkStart - 1];
           await importAudioAndSync();
         }
         await takeDiagrams();
