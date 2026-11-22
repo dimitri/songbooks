@@ -108,19 +108,23 @@
   const step2Next = document.getElementById('gpimport-step2-next');
   const step3Back = document.getElementById('gpimport-step3-back');
 
-  // Step 1: how the file fits the song. "whole": the file is the song
-  // ("content: gp"), nothing to line up; "parts": the file's bars are
-  // lined up with the song's sections, one "gp[Track]:" line each.
-  let fit = panel.dataset.songShape === 'parts' ? 'parts' : 'whole';
+  // Step 1: what the file is for. "beside": the full score in the song's
+  // Score tab, the chart still the song's main view; "whole": the file
+  // is the song ("content: gp"), it opens on the score; neither has
+  // anything to line up. "parts": the file's bars are lined up with the
+  // song's sections, one "gp[Track]:" line each.
+  const FITS = ['beside', 'parts', 'whole'];
+  let fit = FITS.includes(panel.dataset.songShape) ? panel.dataset.songShape : 'whole';
+  const lining = () => fit === 'parts';
   const fitRadios = [...panel.querySelectorAll('input[name="gpimport-fit"]')];
   fitRadios.forEach((r) => { r.checked = r.value === fit; r.addEventListener('change', () => { if (r.checked) { fit = r.value; applyFit(); } }); });
   const stepper = document.getElementById('gpimport-stepper');
   const ORDER = ['fit', 'file', 'align', 'import'];
   function applyFit() {
-    step1Next.textContent = fit === 'whole' ? t('Next: check and import →') : t('Next: line up the sections →');
-    trackRow.hidden = fit === 'whole' || !score || score.tracks.length < 2;
-    deriveRow.hidden = fit === 'whole' || !score || ourSections.length > 0;
-    stepper.querySelector('[data-step="align"]').classList.toggle('skipped', fit === 'whole');
+    step1Next.textContent = lining() ? t('Next: line up the sections →') : t('Next: check and import →');
+    trackRow.hidden = !lining() || !score || score.tracks.length < 2;
+    deriveRow.hidden = !lining() || !score || ourSections.length > 0;
+    stepper.querySelector('[data-step="align"]').classList.toggle('skipped', !lining());
   }
   function goToStep(name, scroll = true) {
     Object.entries(steps).forEach(([k, el]) => { el.hidden = k !== name; });
@@ -378,7 +382,7 @@
       opt.textContent = tr.name || t('Track %d', i + 1);
       trackSelect.appendChild(opt);
     });
-    trackRow.hidden = fit === 'whole' || score.tracks.length < 2;
+    trackRow.hidden = !lining() || score.tracks.length < 2;
     realIdx = expandGPBars(score.masterBars);
     barTimes = buildBarTimes();
     step1Next.disabled = false;
@@ -388,7 +392,7 @@
     ourSections = (data.sections || []).filter(s => s.barCount > 0);
     boundaries = [0];
     ourSections.forEach(sec => boundaries.push(Math.min(realIdx.length, boundaries[boundaries.length - 1] + sec.barCount)));
-    deriveRow.hidden = fit === 'whole' || ourSections.length > 0;
+    deriveRow.hidden = !lining() || ourSections.length > 0;
     setStatus(t('Read “%s”: %d track(s), %d bar(s), %d section(s) to match up.', score.title || file.name, score.tracks.length, realIdx.length, ourSections.length), 'ok');
   }
 
@@ -980,9 +984,12 @@
   }
 
   step1Next.addEventListener('click', async () => {
-    if (fit === 'whole') {
+    if (!lining()) {
       const mbs = score.masterBars.length;
-      summary.textContent = t('The song will open on this file’s score: %s (%s), %s. Its sections, chords and lyrics stay as they are, as extras.', tn(score.tracks.length, '%d track', '%d tracks'), score.tracks.map((tr) => tr.name || t('untitled')).join(', '), tn(mbs, '%d bar', '%d bars'));
+      const what = [tn(score.tracks.length, '%d track', '%d tracks'), score.tracks.map((tr) => tr.name || t('untitled')).join(', '), tn(mbs, '%d bar', '%d bars')];
+      summary.textContent = fit === 'beside'
+        ? t('The song keeps opening on its chart; this file goes in its Score tab: %s (%s), %s.', ...what)
+        : t('The song will open on this file’s score: %s (%s), %s. Its sections, chords and lyrics stay as they are, as extras.', ...what);
       previewHolder.replaceChildren();
       previewHolder.hidden = true;
       audioRow.hidden = !(score.backingTrack && score.backingTrack.rawAudioFile);
@@ -1175,7 +1182,7 @@
       }
     }
   }
-  step3Back.addEventListener('click', () => goToStep(fit === 'whole' ? 'file' : 'align'));
+  step3Back.addEventListener('click', () => goToStep(lining() ? 'align' : 'file'));
 
   // The file's chord diagrams ticked in the header step become the song's.
   async function takeDiagrams() {
@@ -1199,15 +1206,20 @@
       setStatus(t('Keeping the Guitar Pro file with the song…'));
       await uploadSourceFile();
       setStatus(t('Writing the song header…'));
-      await writeHeader(fit === 'whole' ? { content: 'gp' } : {});
-      if (fit === 'whole') {
+      // "content: gp" makes the song open on the score: set for the whole
+      // song, taken off a song that had it when the chart is to stay its
+      // main view.
+      await writeHeader(fit === 'whole' ? { content: 'gp' } : panel.dataset.gpOnly ? { content: '' } : {});
+      if (!lining()) {
         if (includeAudio.checked) {
           setStatus(t('Uploading the backing track and bar sync…'));
           boundaries = [0];
           await importAudioAndSync();
         }
         await takeDiagrams();
-        setStatus(t('Imported: the song now opens on the file’s score. Reload the page to see it.'), 'ok');
+        setStatus(fit === 'beside'
+          ? t('Imported: the file is in the song’s Score tab, and the song still opens on its chart. Reload the page to see it.')
+          : t('Imported: the song now opens on the file’s score. Reload the page to see it.'), 'ok');
         return;
       }
       for (let i = 0; i < ourSections.length; i++) {

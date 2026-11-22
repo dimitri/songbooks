@@ -6230,6 +6230,7 @@ body.branded h1, body.branded h2, body.branded .brand-name { font-synthesis-weig
 .gpimport-fit-card input { position: absolute; left: 0.85rem; top: 0.95rem; }
 .gpimport-fit-card .t { font-weight: 700; }
 .gpimport-fit-card .d { font-size: 0.88rem; color: var(--fg-muted); line-height: 1.4; }
+.gpimport-fit-card .e { font-size: 0.82rem; color: var(--fg-muted); font-style: italic; line-height: 1.35; }
 .gpimport-fit-card:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent-bg) 55%, var(--bg-raised)); }
 .song-gp-only { display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.5rem; font-size: 0.92rem; }
 .song-gp-only-note { margin: 0.2rem 0 0; }

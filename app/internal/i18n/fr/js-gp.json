@@ -441,5 +441,7 @@
   "Add": "Ajouter",
   "Couldn’t add “%s”. Try again.": "Impossible d’ajouter « %s ». Réessayez.",
   "None of these — create a new song": "Aucun de ceux-ci : créer un nouveau morceau",
-  "notation|Staff": "Portée"
+  "notation|Staff": "Portée",
+  "Imported: the file is in the song’s Score tab, and the song still opens on its chart. Reload the page to see it.": "Importé : le fichier est dans l’onglet Partition du morceau, qui s’ouvre toujours sur sa grille. Rechargez la page pour le voir.",
+  "The song keeps opening on its chart; this file goes in its Score tab: %s (%s), %s.": "Le morceau s’ouvre toujours sur sa grille ; ce fichier va dans son onglet Partition : %s (%s), %s."
 }
