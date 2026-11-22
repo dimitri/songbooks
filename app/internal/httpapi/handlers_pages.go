@@ -3005,7 +3005,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 				data["SetlistName"] = meta.Title
 			}
 		}
-		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
+		data["Prev"], data["Next"], data["Place"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
 		// Arrived from the gig view (not the editable setlist page): keep the
 		// back link and prev/next pointed at that read-only list instead of
 		// a songbook page, so a reader never loses their way back to it.
@@ -3015,7 +3015,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		// from that songbook's own order.
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
-			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			data["Prev"], data["Next"], data["Place"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
 			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil {
 				data["SongbookName"] = sb.Name
 			}
@@ -3066,13 +3066,12 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 					data["EventRef"] = ev.ID
 					data["StudentKey"], data["StudentKeySet"], data["KeyContext"] = n, true, ev.Name
 					data["LessonHref"], data["LessonLabel"] = fmt.Sprintf("/communities/%d/events/%d/program", ev.OwnerCommunityID, ev.ID), ev.Name
-					if prev, next, err := s.store.ProgramNeighbors(r.Context(), ev.ID, variantID); err == nil {
-						if prev != 0 {
-							data["Prev"] = s.loadSongNeighbor(prev)
+					if prog, err := s.store.ListEventProgram(r.Context(), ev.ID); err == nil {
+						order := make([]int64, len(prog))
+						for i, p := range prog {
+							order[i] = p.VariantID
 						}
-						if next != 0 {
-							data["Next"] = s.loadSongNeighbor(next)
-						}
+						data["Prev"], data["Next"], data["Place"] = s.neighborsAt(listPlace(order, variantID))
 					}
 				}
 			}
@@ -3144,7 +3143,17 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// "Je joue": the reader's parts here, a level each (player_parts.go).
 	data["PlayerParts"] = s.playerPartsData(r, data, variantID)
 	// Where the song's "‹" goes, on the desktop header and the phone's bar.
-	data["Back"] = songBackFor(data, s.langOf(w))
+	back := songBackFor(data, s.langOf(w))
+	data["Back"] = back
+	// The line above the header: that place again, the song's position
+	// in it; else the song's owner. Previous and next keep the place.
+	place, _ := data["Place"].(songPlace)
+	var owner songOwnerPlace
+	if back.Kind == "catalog" {
+		owner = s.songOwnerPlace(r, variant, s.langOf(w))
+	}
+	data["Crumb"] = songCrumbFor(back, place, owner, s.langOf(w))
+	data["NavQuery"] = songNavQuery(data)
 	// "Accorder": the tuner, in place, the song's own tunings first (the
 	// /tuner page's, tuner.go).
 	data["SongTunings"] = songTunings(gp.Facts, s.langOf(w))
@@ -3232,8 +3241,9 @@ func setlistOwner(meta *store.SetlistMeta) (string, int64) {
 	return "", 0
 }
 
-// songNeighbor is the prev/next-in-setlist card: just enough to glance at
-// before switching — title, tempo, key — without loading the whole chart.
+// songNeighbor is the previous or next song's card in the header: its
+// title, without loading the whole chart (the tempo and key stay for the
+// cards' other readers).
 type songNeighbor struct {
 	VariantID         int64
 	Title, Tempo, Key string
@@ -3247,72 +3257,104 @@ func (s *Server) loadSongNeighbor(variantID int64) *songNeighbor {
 	return &songNeighbor{VariantID: variantID, Title: orDefault(sg.Get("title"), "untitled"), Tempo: sg.Get("tempo"), Key: sg.Get("key")}
 }
 
+// neighborsAt loads the songs either side of a place in a list.
+func (s *Server) neighborsAt(at songPlace) (prev, next *songNeighbor, _ songPlace) {
+	if at.PrevID != 0 {
+		prev = s.loadSongNeighbor(at.PrevID)
+	}
+	if at.NextID != 0 {
+		next = s.loadSongNeighbor(at.NextID)
+	}
+	return prev, next, at
+}
+
 // songbookNeighbors returns the entries immediately before/after
-// variantID in songbookID's own order, so every song page offers SOME
-// way to flip to the next one, not only when it was opened via a
-// setlist.
-func (s *Server) songbookNeighbors(ctx context.Context, songbookID, variantID int64) (prev, next *songNeighbor) {
+// variantID in songbookID's own order, and its position there, so every
+// song page offers SOME way to flip to the next one, not only when it was
+// opened via a setlist.
+func (s *Server) songbookNeighbors(ctx context.Context, songbookID, variantID int64) (prev, next *songNeighbor, at songPlace) {
 	groups, err := s.store.ListSongsOrdered(ctx, songbookID)
 	if err != nil {
-		return nil, nil
+		return nil, nil, songPlace{}
 	}
 	var flat []int64
-	at := -1
 	for _, g := range groups {
-		for _, vid := range g.VariantIDs {
-			if vid == variantID && at < 0 {
-				at = len(flat)
-			}
-			flat = append(flat, vid)
-		}
+		flat = append(flat, g.VariantIDs...)
 	}
-	if at < 0 {
-		return nil, nil
-	}
-	if at > 0 {
-		prev = s.loadSongNeighbor(flat[at-1])
-	}
-	if at < len(flat)-1 {
-		next = s.loadSongNeighbor(flat[at+1])
-	}
-	return prev, next
+	return s.neighborsAt(listPlace(flat, variantID))
 }
 
 // setlistNeighbors flattens every set's entries into one running order (a
 // setlist is a single gig, sets back to back) and returns the entries
-// immediately before/after variantID in it.
-func (s *Server) setlistNeighbors(ctx context.Context, setlistRef string, variantID int64) (prev, next *songNeighbor) {
+// immediately before/after variantID in it, and its position.
+func (s *Server) setlistNeighbors(ctx context.Context, setlistRef string, variantID int64) (prev, next *songNeighbor, at songPlace) {
 	id, err := strconv.ParseInt(setlistRef, 10, 64)
 	if err != nil {
-		return nil, nil
+		return nil, nil, songPlace{}
 	}
 	l, _, _, err := s.store.LoadSetlistByID(ctx, id)
 	if err != nil {
-		return nil, nil
+		return nil, nil, songPlace{}
 	}
 	var flat []int64
-	at := -1
 	for _, set := range l.Sets {
 		for _, e := range set.Entries {
-			if !e.IsVariant() {
-				continue
+			if e.IsVariant() {
+				flat = append(flat, e.VariantID)
 			}
-			if e.VariantID == variantID && at < 0 {
-				at = len(flat)
-			}
-			flat = append(flat, e.VariantID)
 		}
 	}
-	if at < 0 {
-		return nil, nil
+	return s.neighborsAt(listPlace(flat, variantID))
+}
+
+// songOwnerPlace is the page of the song's owner, for the line above the
+// header of a song opened from nowhere in particular: its band's
+// repertoire, its community's songbook, or the reader's own songbook;
+// none for a catalogue song, or a band's or community's the reader isn't
+// in.
+func (s *Server) songOwnerPlace(r *http.Request, v *store.CatalogVariant, lang string) songOwnerPlace {
+	ctx := r.Context()
+	person := personFromContext(r)
+	if v == nil || person == nil {
+		return songOwnerPlace{}
 	}
-	if at > 0 {
-		prev = s.loadSongNeighbor(flat[at-1])
+	switch {
+	case v.OwnerBandID != nil:
+		if ok, _ := s.store.IsCurrentBandMember(ctx, *v.OwnerBandID, person.ID); !ok && !person.IsAdmin {
+			return songOwnerPlace{}
+		}
+		if b, err := s.store.GetBand(ctx, *v.OwnerBandID); err == nil {
+			return songOwnerPlace{Href: fmt.Sprintf("/bands/%d/catalog", b.ID), Name: b.Name}
+		}
+	case v.OwnerCommunityID != nil:
+		if ok, _ := s.store.IsCurrentCommunityMember(ctx, *v.OwnerCommunityID, person.ID); !ok && !person.IsAdmin {
+			return songOwnerPlace{}
+		}
+		c, err := s.store.GetCommunity(ctx, *v.OwnerCommunityID)
+		if err != nil {
+			return songOwnerPlace{}
+		}
+		o := songOwnerPlace{Href: fmt.Sprintf("/communities/%d/songbooks/default", c.ID), Name: c.Name}
+		if books, err := s.store.ListSongbooks(ctx, "community", c.ID); err == nil {
+			for _, sb := range books {
+				if sb.IsDefault && sb.Name != "" {
+					o.Name = sb.Name
+				}
+			}
+		}
+		return o
+	case v.Visibility == "user" && v.OwnerID != nil && *v.OwnerID == person.ID:
+		o := songOwnerPlace{Href: "/songbooks/mine", Name: i18n.T(lang, "My songbook")}
+		if books, err := s.store.ListSongbooks(ctx, "person", person.ID); err == nil {
+			for _, sb := range books {
+				if sb.IsDefault {
+					o.Href = fmt.Sprintf("/songbooks/%d", sb.ID)
+				}
+			}
+		}
+		return o
 	}
-	if at < len(flat)-1 {
-		next = s.loadSongNeighbor(flat[at+1])
-	}
-	return prev, next
+	return songOwnerPlace{}
 }
 
 func orDefault(v, def string) string {

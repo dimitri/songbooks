@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -16,7 +17,11 @@ type songRefHead struct {
 	// other link), "band" (no link, a band recording) or "" (none).
 	Kind      string
 	YouTubeID string
-	CanEdit   bool
+	// Name is the reference's name beside its thumbnail: the app keeps no
+	// video title, so the link's site ("YouTube", "open.spotify.com"); a
+	// band recording is named by the template.
+	Name    string
+	CanEdit bool
 }
 
 // A YouTube video id as it goes into the thumbnail's address.
@@ -27,12 +32,29 @@ func songRefHeadFor(reference string, hasBandRecording, canEdit bool) songRefHea
 	reference = strings.TrimSpace(reference)
 	switch {
 	case reference != "":
-		h.Kind = "link"
+		h.Kind, h.Name = "link", refLinkName(reference)
 		if id := youtubeID(reference); youtubeIDRe.MatchString(id) {
-			h.Kind, h.YouTubeID = "youtube", id
+			h.Kind, h.YouTubeID, h.Name = "youtube", id, "YouTube"
 		}
 	case hasBandRecording:
 		h.Kind = "band"
 	}
 	return h
+}
+
+// refLinkName is a link's site, for its name: its host without "www." or
+// "m."; YouTube's, "YouTube". The link itself when it has no host.
+func refLinkName(ref string) string {
+	u, err := url.Parse(strings.TrimSpace(ref))
+	if err != nil || u.Hostname() == "" {
+		return strings.TrimSpace(ref)
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, p := range []string{"www.", "m."} {
+		host = strings.TrimPrefix(host, p)
+	}
+	if host == "youtube.com" || host == "youtu.be" || host == "music.youtube.com" {
+		return "YouTube"
+	}
+	return host
 }
