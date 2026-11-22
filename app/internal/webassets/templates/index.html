@@ -42,12 +42,32 @@
         <a class="home-btn" href="/songbooks/{{.ID}}?new=1">{{template "icon-plus"}} {{t "Add a song"}}</a>
         <a class="home-btn" href="/songbooks/{{.ID}}/export-songbook.pdf">{{template "icon-download"}} {{t "PDF"}}</a>
       </div>
-      {{if .Others}}
-      <p class="home-songbook-others"><span>{{t "Your other songbooks:"}}</span>
-      {{range $i, $b := .Others}}{{if $i}}<span aria-hidden="true">·</span>{{end}}<a href="/songbooks/{{$b.ID}}">{{$b.Name}}</a>{{end}}
-      <a href="/catalog?view=songbooks">{{t "All songbooks"}} &rarr;</a></p>
+      {{if or .Others .MoreLessons}}
+      <p class="home-songbook-others">{{if .Others}}<span>{{t "Your other songbooks:"}}</span>
+      {{range $i, $b := .Others}}{{if $i}}<span aria-hidden="true">·</span>{{end}}<a href="/songbooks/{{$b.ID}}">{{$b.Name}}</a>{{end}}{{end}}
+      <a href="/catalog?view=songbooks">{{t "All my songbooks"}} &rarr;</a></p>
       {{end}}
     </div>
+    {{/* A student's songbook in each coaching community (one row each,
+         at most three), under their own: named by the community. */}}
+    {{if .Lessons}}
+    <ul class="home-lesson-books">
+    {{range .Lessons}}
+      <li class="home-lesson-book">
+        <a class="home-pic home-lesson-art {{.MosaicClass}}" href="/songbooks/{{.ID}}" tabindex="-1" aria-hidden="true">{{if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{template "icon-catalog"}}</span>{{end}}</a>
+        <div class="home-lesson-text">
+          <p class="home-eyebrow">{{t "Lessons with %s" .CommunityName}}</p>
+          <h3><a href="/songbooks/{{.ID}}">{{.Name}}</a></h3>
+          <p class="home-songbook-count">{{tn .Songs "%d song" "%d songs"}}</p>
+        </div>
+        <div class="home-lesson-actions">
+          <a class="home-btn primary" href="/songbooks/{{.ID}}">{{t "Open"}}</a>
+          <a class="home-btn" href="/songbooks/{{.ID}}/export-songbook.pdf">{{template "icon-download"}} {{t "PDF"}}</a>
+        </div>
+      </li>
+    {{end}}
+    </ul>
+    {{end}}
   </section>
   {{end}}
 
@@ -107,24 +127,25 @@
   </section>
   {{end}}
 
-  {{if .Groups}}
-  <section class="home-section" aria-labelledby="groups-title">
-    <div class="home-section-head"><h3 id="groups-title">{{t "Bands and communities"}}</h3><span class="home-head-links"><a href="/bands">{{t "All bands"}}</a><a href="/communities">{{t "All communities"}}</a></span></div>
-    <ul class="group-cards">
-    {{range .Groups}}
-      <li class="group-card kind-{{.Kind}}">
-        <div class="home-pic group-pic {{if .Logo}}has-logo{{else if .Mosaic}}{{.MosaicClass}}{{else}}has-mark{{end}}" style="{{with .TileBg}}--tile-bg: {{.}};{{end}}{{with .TileFg}}--tile-fg: {{.}};{{end}}" aria-hidden="true">
-          {{if .Logo}}<img src="{{.Logo}}" alt="" loading="lazy">{{else if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{.Mark}}</span>{{end}}
-        </div>
-        <div class="group-card-text">
-          <h4><a class="group-card-link" href="{{.Link}}">{{.Name}}</a></h4>
-          <p class="group-card-kind">{{t .KindLabel}}{{with .Tagline}} · {{.}}{{end}}</p>
-          <p class="group-card-facts">{{tn .Songs "%d song" "%d songs"}} · {{tn .Members "%d member" "%d members"}}</p>
-          {{with .Next}}<p class="group-card-next">{{t "Next:"}} {{date .Starts "Mon 2 Jan"}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}} · {{.Title}}</p>{{end}}
-        </div>
-      </li>
-    {{end}}
-    </ul>
+  {{/* Your bands, then your communities: two rows of the same cards,
+       each card's line what matters for its kind; a row with no cards
+       is left out. */}}
+  {{if .Bands}}
+  <section class="home-section" aria-labelledby="bands-title">
+    <div class="home-section-head home-row-head">
+      <h3 id="bands-title" class="home-row-title">{{template "icon-pick"}} {{t "Your bands"}} <span class="home-row-hint">{{t "the people you play with"}}</span></h3>
+      <a class="home-row-all" href="/bands">{{t "All bands"}} &rarr;</a>
+    </div>
+    <ul class="group-cards">{{range .Bands}}{{template "home-group-card" .}}{{end}}</ul>
+  </section>
+  {{end}}
+  {{if .Communities}}
+  <section class="home-section" aria-labelledby="communities-title">
+    <div class="home-section-head home-row-head">
+      <h3 id="communities-title" class="home-row-title">{{template "icon-users-group"}} {{t "Your communities"}} <span class="home-row-hint">{{t "schools, teachers, jams"}}</span></h3>
+      <a class="home-row-all" href="/communities">{{t "All communities"}} &rarr;</a>
+    </div>
+    <ul class="group-cards">{{range .Communities}}{{template "home-group-card" .}}{{end}}</ul>
   </section>
   {{end}}
 
@@ -153,7 +174,7 @@
   </section>
   {{end}}
 
-  {{if not .Groups}}
+  {{if not (or .Bands .Communities)}}
   {{/* Nobody to play with yet: the way in. */}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Get started"}}</h3></div>
@@ -199,3 +220,22 @@ document.getElementById('attention-filters')?.addEventListener('click', (e) => {
 </body>
 </html>
 {{end}}
+
+{{/* A band's or community's card on the home page (home.go groupCard):
+     its picture, name, kind and the one line that matters for it. */}}
+{{define "home-group-card"}}
+      <li class="group-card kind-{{.Kind}}">
+        <div class="home-pic group-pic {{if .Logo}}has-logo{{else if .Mosaic}}{{.MosaicClass}}{{else}}has-mark{{end}}" style="{{with .TileBg}}--tile-bg: {{.}};{{end}}{{with .TileFg}}--tile-fg: {{.}};{{end}}" aria-hidden="true">
+          {{if .Logo}}<img src="{{.Logo}}" alt="" loading="lazy">{{else if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{.Mark}}</span>{{end}}
+        </div>
+        <div class="group-card-text">
+          <h4><a class="group-card-link" href="{{.Link}}">{{.Name}}</a></h4>
+          <p class="group-card-kind">{{t .KindLabel}}{{with .Tagline}} · {{.}}{{end}}</p>
+          <p class="group-card-line{{if .Waiting}} is-waiting{{end}}">{{.Line}}</p>
+        </div>
+      </li>
+{{end}}
+{{/* The home page's row icons: a guitar pick (bands), a group of people
+     (communities). */}}
+{{define "icon-pick"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 18.2c-1.4 0-6.9-7.6-6.9-11.4C3.1 3.4 6.4 2 10 2s6.9 1.4 6.9 4.8c0 3.8-5.5 11.4-6.9 11.4z"/></svg>{{end}}
+{{define "icon-users-group"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="6.2" r="2.4"/><circle cx="4.6" cy="8" r="1.8"/><circle cx="15.4" cy="8" r="1.8"/><path d="M5.8 16.5v-.8A4.2 4.2 0 0 1 10 11.5a4.2 4.2 0 0 1 4.2 4.2v.8"/><path d="M1.8 15.5v-.4a2.9 2.9 0 0 1 3.8-2.8"/><path d="M18.2 15.5v-.4a2.9 2.9 0 0 0-3.8-2.8"/></svg>{{end}}

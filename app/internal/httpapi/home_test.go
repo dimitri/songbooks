@@ -253,3 +253,34 @@ func TestCardImageAccess(t *testing.T) {
 		t.Errorf("automatic mosaic isn't the first four, 2×2")
 	}
 }
+
+// TestGroupLine: the line that matters for each kind of card.
+func TestGroupLine(t *testing.T) {
+	paris, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		t.Skip(err)
+	}
+	now := time.Date(2026, 11, 23, 10, 0, 0, 0, paris)
+	rehearsal := &store.CalendarItem{Kind: "rehearsal", Title: "Répétition", Starts: time.Date(2026, 11, 25, 20, 0, 0, 0, paris)}
+	gig := &store.CalendarItem{Kind: "gig", Title: "Fête", Starts: time.Date(2026, 11, 28, 0, 0, 0, 0, paris), AllDay: true}
+	for _, c := range []struct {
+		lang, kind string
+		f          groupFacts
+		want       string
+		waiting    bool
+	}{
+		{"en", "band", groupFacts{Next: rehearsal, OpenVotes: 2}, "Next: rehearsal Wed 25, 20:00", true},
+		{"en", "band", groupFacts{Next: gig}, "Next: gig Sat 28", true},
+		{"en", "band", groupFacts{OpenVotes: 1, Songs: 3, Members: 4}, "1 song to vote on", true},
+		{"en", "band", groupFacts{Songs: 3, Members: 1}, "3 songs · 1 member", false},
+		{"en", "community", groupFacts{Next: rehearsal, Lessons: 1, NewSongs: 2}, "1 lesson this week · 2 new songs this week", true},
+		{"en", "community", groupFacts{NewSongs: 1}, "1 new song this week", true},
+		{"en", "community", groupFacts{Next: rehearsal, Songs: 12, Members: 30}, "12 songs · 30 members", false},
+		{"fr", "band", groupFacts{Next: rehearsal}, "À venir : répétition mer. 25, 20:00", true},
+	} {
+		got, waiting := groupLine(c.lang, c.kind, c.f, now)
+		if got != c.want || waiting != c.waiting {
+			t.Errorf("groupLine(%s, %s, %+v) = %q, %v; want %q, %v", c.lang, c.kind, c.f, got, waiting, c.want, c.waiting)
+		}
+	}
+}

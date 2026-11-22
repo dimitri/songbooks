@@ -553,15 +553,16 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The top row: the person's own songbook beside "This week"; then
-	// every band and community as one grid of equal cards (home.go).
+	// The top row: the person's own songbooks beside "This week"; then
+	// their bands and their communities, two rows of equal cards
+	// (home.go).
 	week := comingUpWeek(soon, now)
 	mySongbook, err := s.mySongbook(r.Context(), lang, person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	groups, err := s.homeGroupCards(r.Context(), bandCards, communityCards, soon, now)
+	bandGroups, communityGroups, err := s.homeGroupCards(r.Context(), lang, person.ID, bandCards, communityCards, soon, now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -569,7 +570,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "index", map[string]any{
 		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
-		"Week": week, "MySongbook": mySongbook, "Groups": groups,
+		"Week": week, "MySongbook": mySongbook, "Bands": bandGroups, "Communities": communityGroups,
 		"Attention": attention,
 	})
 }

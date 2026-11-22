@@ -31,7 +31,6 @@
   "weekly": "chaque semaine",
   "+%d date": "+%d date",
   "+%d dates": "+%d dates",
-  "Bands and communities": "Groupes et communautés",
   "Logo / image": "Logo / image",
   "The picture on the band’s card, on every member’s home page.": "L’image de la carte du groupe, sur la page d’accueil de chaque membre.",
   "The card shows": "La carte montre",
@@ -43,5 +42,16 @@
   "Pick 1, 4 or 9 covers, in the order they show.": "Choisissez 1, 4 ou 9 pochettes, dans l’ordre où elles s’affichent.",
   "No covers found for the band’s songs yet: they’re looked up when its songbook is opened.": "Pas encore de pochette trouvée pour les morceaux du groupe : elles sont cherchées à l’ouverture de son songbook.",
   "Save the picture": "Enregistrer l’image",
-  "Preview": "Aperçu"
+  "Preview": "Aperçu",
+  "All my songbooks": "Tous mes songbooks",
+  "Lessons with %s": "Cours avec %s",
+  "the people you play with": "les gens avec qui vous jouez",
+  "schools, teachers, jams": "écoles, profs, jams",
+  "Next: %s %s": "À venir : %s %s",
+  "%d song to vote on": "%d morceau à voter",
+  "%d songs to vote on": "%d morceaux à voter",
+  "%d lesson this week": "%d cours cette semaine",
+  "%d lessons this week": "%d cours cette semaine",
+  "%d new song this week": "%d nouveau morceau cette semaine",
+  "%d new songs this week": "%d nouveaux morceaux cette semaine"
 }
