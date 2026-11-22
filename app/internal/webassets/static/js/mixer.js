@@ -1858,10 +1858,14 @@
   function pickReference() {
     const cats = Object.keys(audioCats);
     if (!cats.length) return null;
-    if (audioCats.gp) return 'gp';
+    // A file next to the chart: the song's own recording first, as the
+    // Score view's simplified mixer has it.
+    const beside = !!(sheet && sheet.dataset.gpBeside);
+    if (audioCats.gp && !beside) return 'gp';
     let pref = null;
     try { pref = localStorage.getItem(`songbooks:audio-category-choice:${variantId}`); } catch (e) { /* ignore */ }
-    return pref && audioCats[pref] ? pref : cats[0];
+    if (pref && audioCats[pref]) return pref;
+    return beside ? (['youtube', 'band', 'gp'].find((c) => audioCats[c]) || cats[0]) : cats[0];
   }
 
   // A song that points into its Guitar Pro file (data.gpOrder: the

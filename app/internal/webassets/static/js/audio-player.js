@@ -1474,7 +1474,11 @@ window.songbooksDecodable = function (buf) {
     const data = await res.json();
     categories = {};
     (data.categories || []).forEach(c => { categories[c.category] = c; });
-    const available = Object.keys(categories);
+    // A Guitar Pro file next to the chart plays in the Score view only
+    // (gp-view.js): here the song plays its own recordings, as a song with
+    // no file does — not the one taken from the file.
+    const beside = !!document.querySelector('#sheet[data-gp-beside]');
+    const available = Object.keys(categories).filter((c) => !(beside && c === 'gp'));
 
     if (available.length === 0) {
       if (emptyState) emptyState.hidden = false;
@@ -1487,7 +1491,7 @@ window.songbooksDecodable = function (buf) {
 
     if (categoryToggle) {
       categoryToggle.hidden = available.length < 2;
-      categoryToggle.querySelectorAll('button').forEach(b => { b.hidden = !categories[b.dataset.category]; });
+      categoryToggle.querySelectorAll('button').forEach(b => { b.hidden = !available.includes(b.dataset.category); });
     }
 
     let preferred = null;
@@ -1497,7 +1501,7 @@ window.songbooksDecodable = function (buf) {
     // it's the one category guaranteed to line up with the chart's own
     // bars (see store.AudioGP's doc comment), so it's the right silent
     // default even on a song that also has a youtube/band recording.
-    const target = (preferred && categories[preferred]) ? preferred : (categories.gp ? 'gp' : available[0]);
+    const target = (preferred && available.includes(preferred)) ? preferred : (available.includes('gp') ? 'gp' : available[0]);
     selectCategory(target);
     // A key kept from the last visit: the chords go there too.
     // A student's or group's key (studentKey): the chart is there already

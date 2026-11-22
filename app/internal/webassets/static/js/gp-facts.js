@@ -124,6 +124,18 @@
     });
     if (chordTrack >= 0) facts.chordTrack = chordTrack + 1;
 
+    // The bar the file opens on, and its silent lead-in: what the GP
+    // import's check step shifts the chart past (docs/gp-file-model.md
+    // §3.4).
+    if (mbs[0] && mbs[0].isAnacrusis) facts.pickup = true;
+    const silent = (i) => score.tracks.every((tr) => tr.staves.every((st) => {
+      const bar = st.bars[i];
+      return !bar || bar.voices.every((v) => v.beats.every((b) => b.isRest || !b.notes || b.notes.length === 0));
+    }));
+    let empty = 0;
+    while (empty < mbs.length && silent(empty)) empty++;
+    if (empty > 0 && empty < mbs.length) facts.empty = empty;
+
     let lastKey = null;
     if (keyStaff) {
       keyStaff.bars.forEach((b, i) => {

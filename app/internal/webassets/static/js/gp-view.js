@@ -4,8 +4,12 @@
 //   section (gpview.go, play.html) gets those bars of that track, or of
 //   every track, in tab, staff or both;
 // - the Score view (#gp-score-page) shows the whole file the Guitar Pro
-//   way: tracks to pick, playback with a cursor, the file's own backing
-//   track, speed, loop, metronome and count-in;
+//   way: tracks to pick, playback with a cursor, speed, loop, metronome
+//   and count-in. A song whose file is the song ("content: gp") plays the
+//   file's own backing track there; a song whose file sits next to its
+//   chart (or inside it) plays the file's tracks there and only there,
+//   with the song's recording along with the score: the simplified mixer,
+//   two levels, the full Mixer one tap away;
 // - a file stored before facts existed gets them read here and sent back
 //   (PUT /api/songs/{id}/gp-file/facts), so drift checks start working.
 //
@@ -180,7 +184,11 @@
     const phone = matchMedia('(max-width: 720px)').matches;
     s.player.scrollElement = phone ? 'html,body' : page.querySelector('.gp-score-viewport');
     if (phone) s.player.scrollOffsetY = -(page.querySelector('.gp-toolbar').offsetHeight + 16);
-    if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledAutomatic;
+    // The score as the song plays the file's own recording when it has
+    // one; next to a chart, the file's tracks always (the recording is the
+    // song's, in the simplified mixer).
+    const mix = !sheet.dataset.gpOnly && !!page.querySelector('.gp-mix');
+    if (alphaTab.PlayerMode) s.player.playerMode = mix ? alphaTab.PlayerMode.EnabledSynthesizer : alphaTab.PlayerMode.EnabledAutomatic;
     // A phone has the song's name at the top of the page already, and no
     // room for it again at the score's size.
     hide(s, phone ? SCORE_INFO : ['ScoreCopyright']);
@@ -189,7 +197,7 @@
     // A file with its own recording plays it here, under the cursor: the
     // practice player above, the same recording without the score, gives
     // this view its place (app.css).
-    if (score.backingTrack && score.backingTrack.rawAudioFile) document.body.classList.add('gp-own-audio');
+    if (!mix && score.backingTrack && score.backingTrack.rawAudioFile) document.body.classList.add('gp-own-audio');
 
     // Start on the tracks the song's own lines name, else the first.
     const named = [...sheet.querySelectorAll('.gp-score[data-track]')].map((f) => Number(f.dataset.track)).filter((i) => i >= 0);
@@ -213,7 +221,10 @@
     const play = page.querySelector('.gp-play');
     play?.addEventListener('click', () => api.playPause());
     page.querySelector('.gp-stop')?.addEventListener('click', () => api.stop());
-    page.querySelector('.gp-speed')?.addEventListener('change', (e) => { api.playbackSpeed = Number(e.target.value) || 1; });
+    page.querySelector('.gp-speed')?.addEventListener('change', (e) => {
+      const v = Number(e.target.value) || 1;
+      if (full.mix) full.mix.setSpeed(v); else api.playbackSpeed = v;
+    });
     const toggle = (cls, set) => page.querySelector(cls)?.addEventListener('click', (e) => {
       const b = e.currentTarget;
       const on = b.getAttribute('aria-pressed') !== 'true';
@@ -228,6 +239,8 @@
     const playIcon = play && play.innerHTML;
     const pauseIcon = '<svg class="icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>';
     api.playerStateChanged.on((e) => {
+      // One player at a time: the practice player stops.
+      if (e.state === 1) document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
       if (!play) return;
       const playing = e.state === 1;
       play.innerHTML = playing ? pauseIcon : playIcon;
@@ -239,10 +252,11 @@
     const fmt = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
     api.playerPositionChanged.on((e) => { if (time) time.textContent = fmt(e.currentTime) + ' / ' + fmt(e.endTime); });
     api.playedBeatChanged.on((beat) => { if (bar && beat) bar.textContent = beat.voice.bar.index + 1; });
+    if (mix) full.mix = setUpMix(api, score);
     // Space plays and pauses, Home goes back, while this view is the one
     // playing (audio-player.js leaves them to it).
     document.addEventListener('keydown', (e) => {
-      if (sheet.dataset.renderMode !== 'score' || !document.body.classList.contains('gp-own-audio')) return;
+      if (sheet.dataset.renderMode !== 'score' || !(document.body.classList.contains('gp-own-audio') || full.mix)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target.closest ? e.target : document.body;
       if (t.closest('input, select, textarea, [contenteditable]')) return;
@@ -270,6 +284,177 @@
     full.api.renderScore(full.score, tracks);
   }
 
+  // ---- The simplified mixer --------------------------------------------------
+  // Next to a chart, the Score view plays the file's tracks (the "Score"
+  // level) and the song's recording along with them (the "Recording"
+  // level), each with a volume and a mute; every track on its own is the
+  // full Mixer's. The score leads: the recording follows it bar by bar,
+  // the song's own bar sync (the recording's bar sync points or section
+  // markers, gpOrder for which bar of the chart each bar of the file is)
+  // telling where it is, and the score playing each bar at the speed that
+  // makes it last as long as in the recording (GPAlign.follow). A song
+  // with no recording plays the file's own, timed by its sync points; one
+  // whose recording isn't lined up with its bars says so, Recording off.
+
+  // Seconds into the file's own recording where each played bar starts,
+  // from its sync points; null with none.
+  function fileBarTimes(score, played) {
+    const known = [];
+    const seen = new Map();
+    played.forEach((w, pos) => {
+      const occ = seen.get(w) || 0;
+      seen.set(w, occ + 1);
+      for (const sp of score.masterBars[w - 1].syncPoints || []) {
+        if ((sp.syncPointValue.barOccurence || 0) === occ && !(sp.ratioPosition > 0)) known.push({ bar: pos, t: sp.syncPointValue.millisecondOffset / 1000 });
+      }
+    });
+    const mb = score.masterBars[0] || {};
+    const nominal = (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4)) * 60 / (score.tempo || 120);
+    return GPAlign.barTimes(known, played.length, nominal);
+  }
+
+  function setUpMix(api, score) {
+    const bar = page.querySelector('.gp-mix');
+    const ch = (name) => {
+      const el = bar.querySelector(`[data-ch="${name}"]`);
+      return { el, on: el.querySelector('.gp-mix-on'), vol: el.querySelector('.gp-mix-vol') };
+    };
+    const rec = ch('rec'), sc = ch('score');
+    const why = bar.querySelector('.gp-mix-why');
+    const prefKey = `songbooks:gp-mix:${variantId}`;
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem(prefKey) || '{}') || {}; } catch (e) { /* defaults */ }
+    const st = {
+      rec: { on: prefs.recOn !== false, vol: prefs.recVol ?? 80 },
+      score: { on: prefs.scoreOn !== false, vol: prefs.scoreVol ?? 80 },
+      speed: 1, audio: null, map: null, times: null, waitTick: null, guardUntil: 0,
+    };
+    const save = () => {
+      try { localStorage.setItem(prefKey, JSON.stringify({ recOn: st.rec.on, recVol: st.rec.vol, scoreOn: st.score.on, scoreVol: st.score.vol })); } catch (e) { /* not kept */ }
+    };
+    const paint = (c, v) => {
+      c.on.setAttribute('aria-pressed', String(v.on));
+      c.el.classList.toggle('is-muted', !v.on);
+      c.vol.value = v.vol;
+    };
+    const live = () => !!(st.audio && st.times && st.rec.on && st.rec.vol > 0);
+    const applyScore = () => { api.masterVolume = st.score.on ? st.score.vol / 100 : 0; paint(sc, st.score); };
+    const applyRec = () => {
+      paint(rec, st.rec);
+      if (st.audio) st.audio.volume = st.rec.vol / 100;
+      if (!live()) {
+        if (st.audio) st.audio.pause();
+        api.playbackSpeed = st.speed;
+      }
+    };
+    sc.on.addEventListener('click', () => { st.score.on = !st.score.on; applyScore(); save(); });
+    sc.vol.addEventListener('input', () => { st.score.vol = Number(sc.vol.value); applyScore(); save(); });
+    rec.on.addEventListener('click', () => { st.rec.on = !st.rec.on; applyRec(); save(); });
+    rec.vol.addEventListener('input', () => { st.rec.vol = Number(rec.vol.value); applyRec(); save(); });
+    bar.querySelector('.gp-mix-full')?.addEventListener('click', () => document.querySelector('#mode-segmented button[data-value="mixer"]')?.click());
+    applyScore();
+    applyRec();
+    const off = (msg) => {
+      rec.on.disabled = true;
+      rec.vol.disabled = true;
+      rec.el.classList.add('is-off');
+      rec.on.title = msg;
+      why.textContent = msg;
+      why.hidden = false;
+    };
+
+    (async () => {
+      try {
+        const [mx, au] = await Promise.all([
+          fetch(`/api/songs/${variantId}/mixer`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : {})),
+          fetch(`/api/songs/${variantId}/audio`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : { categories: [] })),
+        ]);
+        const played = GPFacts.played(score.masterBars);
+        const cats = {};
+        (au.categories || []).forEach((c) => { cats[c.category] = c; });
+        let choice = null;
+        try { choice = localStorage.getItem(`songbooks:audio-category-choice:${variantId}`); } catch (e) { /* none */ }
+        const cat = choice && cats[choice] ? choice : ['youtube', 'band', 'gp'].find((c) => cats[c]);
+        let src;
+        if (cat) {
+          if (!mx.gpOrder) { off(t('The chart isn’t lined up with the file: the recording can’t follow the score.')); return; }
+          st.map = GPAlign.chartBarsForFile(mx.gpOrder, played);
+          st.times = GPAlign.barTimes(GPAlign.knownBars(cats[cat], mx.sections), mx.totalBars, (mx.timeNum || 4) * (4 / (mx.timeDen || 4)) * 60 / (mx.tempo || 120));
+          if (!st.times) { off(t('The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): it can’t follow the score.')); return; }
+          src = new Blob([await window.songbooksAudioBytes(variantId, cat, cats[cat])], { type: 'audio/mpeg' });
+        } else if (score.backingTrack && score.backingTrack.rawAudioFile) {
+          st.map = played.map((w, i) => i);
+          st.times = fileBarTimes(score, played);
+          if (!st.times) { off(t('The file’s recording has no sync points: it can’t follow the score.')); return; }
+          src = new Blob([score.backingTrack.rawAudioFile], { type: 'audio/mpeg' });
+        } else {
+          off(t('This song has no recording.'));
+          return;
+        }
+        const a = new Audio(URL.createObjectURL(src));
+        a.preload = 'auto';
+        a.preservesPitch = true;
+        a.mozPreservesPitch = true;
+        a.webkitPreservesPitch = true;
+        st.audio = a;
+        rec.on.disabled = false;
+        rec.vol.disabled = false;
+        rec.on.title = cat === 'youtube' ? t('the YouTube recording') : cat === 'band' ? t('the band recording') : t('the Guitar Pro file’s recording');
+        applyRec();
+      } catch (e) {
+        off(t('Couldn’t load the recording.'));
+      }
+    })();
+
+    // Which played bar of the file a tick is in, and how far through.
+    function at(tick) {
+      const L = api.tickCache && api.tickCache.masterBars;
+      if (!L || !L.length) return null;
+      let lo = 0, hi = L.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (tick < L[mid].start) hi = mid - 1;
+        else if (tick >= L[mid].end) lo = mid + 1;
+        else return { pos: mid, frac: (tick - L[mid].start) / Math.max(1, L[mid].end - L[mid].start), ticks: L[mid].end - L[mid].start };
+      }
+      return null;
+    }
+    api.playerStateChanged.on((e) => {
+      if (e.state === 1) st.waitTick = api.tickPosition; // a count-in plays before the bar moves
+      else if (st.audio) st.audio.pause();
+    });
+    api.playerPositionChanged.on((e) => {
+      if (!live() || !full || api.playerState !== 1) { if (st.audio && !st.audio.paused && api.playerState !== 1) st.audio.pause(); return; }
+      if (st.waitTick != null && e.currentTick <= st.waitTick) return;
+      st.waitTick = null;
+      const p = at(e.currentTick);
+      const tempo = e.originalTempo || score.tempo || 120;
+      const f = p && GPAlign.follow(st.map, st.times, p.pos, p.frac, p.ticks / 960 * 60 / tempo);
+      if (!f || (st.audio.duration && f.t >= st.audio.duration)) {
+        st.audio.pause();
+        if (Math.abs(api.playbackSpeed - st.speed) > 0.004) api.playbackSpeed = st.speed;
+        return;
+      }
+      const want = st.speed * f.ratio;
+      if (Math.abs(api.playbackSpeed - want) > 0.004) api.playbackSpeed = want;
+      if (st.audio.playbackRate !== st.speed) st.audio.playbackRate = st.speed;
+      const now = performance.now();
+      if (st.audio.paused) {
+        st.audio.currentTime = f.t;
+        st.audio.play().catch(() => {});
+        st.guardUntil = now + 400;
+      } else if (now > st.guardUntil && Math.abs(st.audio.currentTime - f.t) > 0.15) {
+        st.audio.currentTime = f.t;
+        st.guardUntil = now + 400;
+      }
+    });
+    return {
+      setSpeed(v) { st.speed = v; if (!live()) api.playbackSpeed = v; if (st.audio) st.audio.playbackRate = v; },
+      pause() { if (st.audio) st.audio.pause(); },
+      state: () => ({ rec: { ...st.rec }, score: { ...st.score }, live: live(), audioTime: st.audio ? st.audio.currentTime : null, paused: st.audio ? st.audio.paused : null, why: why.hidden ? '' : why.textContent, speed: api.playbackSpeed }),
+    };
+  }
+
   // ---- Facts for files stored before they existed ---------------------------
 
   async function backfillFacts() {
@@ -288,8 +473,16 @@
 
   function onMode() {
     const mode = sheet.dataset.renderMode;
-    if (mode === 'score') showFull();
-    else drawSections();
+    if (mode === 'score') {
+      // The practice player is hidden here when this view has its own
+      // (next to a chart, or the file's own recording): it stops.
+      if (!sheet.dataset.gpOnly || document.body.classList.contains('gp-own-audio')) document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
+      showFull();
+    } else {
+      // The file plays in its own view only: leaving it stops it.
+      if (full) { full.api.pause(); if (full.mix) full.mix.pause(); }
+      drawSections();
+    }
   }
   new MutationObserver(onMode).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
   document.addEventListener('songbooks:notation', () => {
@@ -329,5 +522,5 @@
     });
   });
 
-  window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore };
+  window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore, mixState: () => (full && full.mix ? full.mix.state() : null) };
 })();
