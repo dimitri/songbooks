@@ -1,7 +1,7 @@
 # Songs, songbooks and who owns them — the model
 
-Status: **proposed**, for review before implementation; decisions of
-2026-11-22 folded in, the remaining questions in §10. Replaces the
+Status: **agreed** (2026-11-22), ready to implement; §10 records the
+last decisions. Replaces the
 ad-hoc rules that grew around `variant_visibility` (global / user / band
 / community / setlist / jam) and the fixes of November 2026 (#141: band
 copies made up front, another band's song refused).
@@ -108,7 +108,7 @@ entry, note).
   their role; its staff are the site admins.
 - Its songbook is computed: every public song, by work.
 - It owns today's catalogue songs.
-- Name: open (§10).
+- Name: **The Big Songbook** (FR « Le Grand Songbook »).
 
 ## 7. De-duplication
 
@@ -136,26 +136,26 @@ recordings, is the next step; a page for the world is
 | `bandsongs` copies of Nov 2026, unchanged | 54 (Mercy 43, Couleur Acoustique 11) | removed; the band's entries become links again |
 | Couleur Acoustique's songs differing from the catalogue | 15 | the band's versions, private |
 | Other Lies | 30 | the band's originals, private |
-| What's Up, Koalition (catalogue songs, never edited) | 9 | move to the catalogue (public, global community); the bands link to them. The Final Countdown: What's Up's (201) and the catalogue's (52) — see §10 |
-| Bands Camp's songbook | 66 links | stays a selection of catalogue songs |
+| What's Up, Koalition (catalogue songs, never edited) | 9 | move to the catalogue (public, global community); the bands link to them. The Final Countdown: What's Up's chart (201) becomes the catalogue's; the catalogue's 52 is merged into it |
+| Bands Camp's songbook | 66 links | stays a selection of catalogue songs (The Final Countdown: 201) |
 | Florent Passamonti | 65 | the community's, private, its paid songbooks **closed** |
-| Chloé Paul | 17 | catalogue material: covers close to the originals. Her charts differ from the catalogue's — see §10; students' entries link to the catalogue songs with their keys |
+| Chloé Paul | 17 | catalogue material: covers close to the originals. Her charts replace the catalogue's (new revisions, the old charts in history); the community's copies go; students' entries link to the catalogue songs with their keys |
 | `setlist`, `jam` | 0 | the values go |
 | songbooks `shared` | 11 | replaced by public / closed |
 | set list bodies (`variant:N`) | all | `setlist_items` rows pointing at songbook entries |
 
 Done by a reviewed command with a dry run first (like `bandsongs`).
 
-## 10. Open questions
+## 10. Decisions (2026-11-22)
 
-1. **The global community's name** — candidates around "songbook" (see
-   the PR thread).
-2. **The Final Countdown**: What's Up's chart (201) becomes the
-   catalogue's (replacing 52), and Bands Camp lists it?
-3. **Chloé's charts**: they differ from the catalogue's versions of the
-   same songs (none is an unchanged copy). Do hers replace the
-   catalogue's (as new revisions), or the catalogue's stay and hers go?
-4. **Florent's closed songbooks**: may a student still keep their own
-   key on a song (an entry setting, nothing copied)?
-5. **"Follows the recording"**: a check that flags only, or does a
-   public song have to pass it to be published?
+1. The global community: **The Big Songbook** (« Le Grand Songbook »).
+2. The Final Countdown: **What's Up's chart (201)** is the shared one.
+3. Chloé's charts **replace** the catalogue's.
+4. Florent's closed songbooks: a student may keep their own **key** on
+   a song (an entry setting, nothing copied).
+5. "Follows the recording" **flags only**: a badge or a warning; songs
+   can be public either way; staff use it to tidy The Big Songbook.
+6. Keys on the entry; any change to the song a version, several per
+   band, one row each; the original's changes offered to its versions;
+   frozen copies on unpublish/delete; everything public with a song;
+   core members / staff publish.
