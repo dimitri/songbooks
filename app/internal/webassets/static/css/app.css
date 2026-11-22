@@ -7888,6 +7888,34 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .voice-history ol { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
 .voice-history li { font-size: 0.9rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
 .voice-history-note { color: var(--fg-muted); white-space: pre-line; }
+/* The coach's Songbooks tab (coaching_book.html): the students as a strip,
+   then one songbook full width, like a band's, a chip per student or
+   group who has each song, in their key. */
+.cbk-people { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
+.cbk-person { display: inline-flex; align-items: baseline; gap: 0.45rem; padding: 0.35rem 0.75rem; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised); color: var(--fg); font-size: 0.88rem; text-decoration: none; }
+.cbk-person:hover { border-color: var(--accent); text-decoration: none; }
+.cbk-person.is-group { background: var(--bg-sunken); }
+.cbk-person .hint { font-size: 0.78rem; }
+.cbk-person .cbook-badge { align-self: center; }
+.cbk-toolbar select { min-height: 2.75rem; max-width: 16rem; }
+.cbk-row { grid-template-columns: minmax(0, 1.2fr) 3.2rem minmax(0, 1.6fr); }
+.cbk-row[hidden] { display: none; }
+.cbk-row .gig-title { font-size: 1.05rem; }
+.cbk-row .gig-title .song-badges { margin-left: 0; margin-top: 0.25rem; display: flex; }
+.cbk-row .gig-title .song-badges:empty { display: none; }
+.cbk-elsewhere { font-size: 0.75rem; font-weight: 400; color: var(--fg-muted); font-style: italic; }
+.cbk-assigned { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.cbk-chip { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2rem; padding: 0.15rem 0.6rem; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: 999px; background: var(--accent-bg); color: var(--accent-ink); font-size: 0.8rem; font-weight: 600; }
+.cbk-chip.is-group { background: var(--bg-raised); color: var(--fg); border-color: var(--border); }
+.cbk-chip-key { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cbk-assign { min-height: 2rem; padding: 0.15rem 0.6rem; border: 1px dashed var(--border); border-radius: 999px; background: transparent; color: var(--fg-muted); font-size: 0.8rem; }
+.cbk-assign .icon { width: 0.9rem; height: 0.9rem; }
+.cbk-choices { display: flex; flex-direction: column; gap: 0.35rem; max-height: 40vh; overflow: auto; }
+@media (max-width: 720px) {
+  .cbk-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .cbk-row .cbk-assigned { grid-column: 1 / -1; }
+  .cbk-toolbar select { flex: 1; max-width: none; }
+}
 /* A student's range with the song's melody over it, where a key is chosen
    (voice-strip.js): the strip as on the student's page, the melody a frame
    over it that slides with the key. */
