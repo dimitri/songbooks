@@ -114,8 +114,8 @@ func chordFixes(r *Recording, g grid, secs []Section, all []flatBar, place []pla
 		}
 		f := all[i]
 		nb := len(f.bar.Beats)
-		if nb == 0 {
-			continue
+		if nb == 0 || f.bar.DefSection < 0 {
+			continue // nothing written to fix (a "lead:" bar, a bar past the grid)
 		}
 		// The beats of each written token.
 		type span struct {
