@@ -460,6 +460,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/notes", s.requireCommunityMember(s.handlePutStudentNotes))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/songs", s.requireCommunityMember(s.handlePostCoachingSong))
 	mux.HandleFunc("PUT /api/communities/{id}/songbooks/{sbID}/songs/{variantID}/key", s.requireCommunityMember(s.handlePutCoachingSongKey))
+	// A student's "Ask for it", the coach's add or not now (coaching_songbooks.go).
+	mux.HandleFunc("POST /api/communities/{id}/song-requests", s.requireCommunityMember(s.handlePostSongRequest))
+	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/add", s.requireCommunityMember(s.handlePostSongRequestAdd))
+	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/decline", s.requireCommunityMember(s.handlePostSongRequestDecline))
 	mux.HandleFunc("GET /api/songs/{id}/coach-keys", s.requireAuth(s.handleGetCoachKeys))
 	mux.HandleFunc("POST /api/songs/{id}/coach-keys", s.requireAuth(s.handlePostCoachKey))
 	mux.HandleFunc("PUT /api/songs/{id}/parts", s.requireVariantRole("viewer", s.handlePutPlayerParts))

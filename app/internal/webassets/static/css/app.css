@@ -9137,3 +9137,70 @@ html.search-open { overflow: hidden; }
 .edit-key-note { margin: 0.2rem 0 0.4rem; }
 .row-key-select { font: inherit; font-size: 0.8rem; padding: 0.15rem 0.3rem; max-width: 9rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
 @media (max-width: 560px) { .row-key-select { max-width: 7.5rem; } }
+
+/* ---- A coaching studio's Songbooks (coaching_songbooks.html) -------------
+   The student: their songbook with the coach first (wide), the coach's
+   repertoire beside it, one under the other on a phone, songbook first.
+   The coach: the requests waiting, a card per student and per group, the
+   repertoire's card beside them on a wide screen. */
+.cbook-student { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1rem; align-items: start; margin-bottom: 1.4rem; }
+.cbook-mine, .cbook-rep, .cbook-rep-card { padding: 1rem 1.1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.cbook-eyebrow { margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); }
+.cbook-title { margin: 0; font-size: 1.35rem; font-family: var(--font-chart, inherit); }
+.cbook-meta { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; margin: 0.25rem 0 0.6rem; color: var(--fg-muted); font-size: 0.88rem; }
+.cbook-songs, .cbook-rep-list { list-style: none; margin: 0; padding: 0; }
+.cbook-song, .cbook-rep-row { display: flex; align-items: center; gap: 0.6rem; min-height: 2.9rem; border-bottom: 1px solid var(--border); }
+.cbook-song:last-child, .cbook-rep-row:last-child { border-bottom: none; }
+.cbook-song-title { flex: 1; min-width: 0; color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.cbook-song-title:hover strong { text-decoration: underline; }
+.cbook-key { flex: none; padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.78rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cbook-key.is-moved { background: var(--accent-bg); color: var(--accent-ink); font-weight: 700; }
+.cbook-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+.cbook-actions .icon { width: 1rem; height: 1rem; }
+.cbook-rep .hint { margin: 0 0 0.4rem; }
+.cbook-rep-row button { flex: none; min-height: 2.3rem; padding: 0.25rem 0.75rem; font-size: 0.85rem; }
+.cbook-state { flex: none; font-size: 0.8rem; font-weight: 600; white-space: nowrap; color: var(--fg-muted); }
+.cbook-state.is-in { color: var(--ok, var(--fg-muted)); }
+.cbook-state.is-asked { padding: 0.1rem 0.55rem; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent-ink); }
+
+.cbook-count { display: inline-block; min-width: 1.4rem; margin-left: 0.3rem; padding: 0 0.45rem; border-radius: 999px; background: var(--accent); color: var(--accent-contrast); font-size: 0.8rem; text-align: center; vertical-align: 0.1em; }
+.cbook-request-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.cbook-request { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.cbook-request.is-open { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.cbook-request-what { min-width: 0; flex: 1 1 16rem; }
+.cbook-request-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.cbook-request .coach-key output { min-width: 5.5rem; }
+
+.cbook-coach { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 1.2rem; align-items: start; }
+@media (min-width: 1100px) { .cbook-coach { grid-template-columns: minmax(0, 1fr) 21rem; } .cbook-rep-coach { position: sticky; top: 1rem; } }
+.cbook-filter { max-width: 22rem; margin-bottom: 0.8rem; }
+.cbook-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.8rem; }
+.cbook-card { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.85rem 0.95rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.cbook-card[hidden] { display: none; }
+.cbook-card.is-group { background: var(--bg-sunken); }
+.cbook-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.cbook-card-name { font-size: 1.02rem; }
+.cbook-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; font-size: 0.85rem; color: var(--fg-muted); }
+.cbook-card-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.7rem; margin: 0; font-size: 0.85rem; color: var(--fg-muted); flex: 1; }
+.cbook-card-status .is-due { color: var(--accent-ink); font-weight: 600; }
+.cbook-badge { flex: none; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent); color: var(--accent-contrast); font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.cbook-badge:hover { text-decoration: none; filter: brightness(1.05); }
+.cbook-open { align-self: flex-start; }
+.cbook-rep-coach .cbook-rep-list { margin-top: 0.6rem; padding: 0 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); max-height: 70vh; overflow: auto; }
+.cbook-rep-list[hidden] { display: none; }
+.cbook-add-choices { display: flex; flex-direction: column; gap: 0.35rem; max-height: 45vh; overflow: auto; }
+.cbook-add-key { display: flex; align-items: center; gap: 0.8rem; }
+.cbook-add-key output { min-width: 6rem; }
+.cbook-add-key-label { font-weight: 600; }
+
+@media (max-width: 720px) {
+  .cbook-student { grid-template-columns: minmax(0, 1fr); }
+  .cbook-cards { grid-template-columns: minmax(0, 1fr); }
+  .cbook-request-actions { width: 100%; }
+  .cbook-request-actions .primary { flex: 1; }
+  .cbook-request-actions .coach-key { flex: 1 0 100%; }
+  .cbook-requests .home-section-head > .hint { display: none; }
+}
+/* A song's title may wrap, its artist under it on its own line. */
+.cbook-song-title { white-space: normal; padding: 0.35rem 0; }
+.cbook-song-title .hint { display: block; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

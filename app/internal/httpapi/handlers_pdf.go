@@ -247,6 +247,17 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// ?keys=songbook: each song in the key it has in this songbook (a
+	// coaching student's, a group's: songbook_entries.semitones), "PDF in
+	// my keys"; else as written.
+	var keys map[int64]int
+	if r.URL.Query().Get("keys") == "songbook" {
+		if keys, err = s.store.SongbookKeys(r.Context(), id); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
 	var refs []pdfnative.SongRef
 	for _, g := range groups {
 		groupLabel := g.Label
@@ -258,7 +269,11 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 			if err != nil {
 				continue
 			}
-			refs = append(refs, pdfnative.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: song.Write(sg)})
+			body := song.Write(sg)
+			if n := keys[vid]; n != 0 {
+				body = transposedBody(body, n)
+			}
+			refs = append(refs, pdfnative.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: body})
 		}
 	}
 	if len(refs) == 0 {
@@ -400,4 +415,15 @@ func withGPNotes(sg *song.Song) *song.Song {
 		return sg
 	}
 	return out
+}
+
+// transposedBody is a song's text moved by n semitones (its chords, its
+// key: header), for a PDF in a singer's key; as it is when its key can't
+// be told (no chords, a key it can't read).
+func transposedBody(body string, n int) string {
+	res, err := song.TransposeText(body, song.TransposeOptions{Semitones: n})
+	if err != nil {
+		return body
+	}
+	return res.Text
 }
