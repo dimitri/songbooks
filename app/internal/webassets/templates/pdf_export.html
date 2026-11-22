@@ -1,0 +1,25 @@
+{{/* A PDF's layout and notes, then the download, in a dialog opened by a
+     [data-pdf-open="ID"] button (pdf-export.js): a songbook's, a set
+     list's. The same choices as a song's "Export as PDF…" (play.html).
+     Called with (dict "ID" the dialog's id "Href" the PDF's address
+     "Title" its heading "Hint" what it holds, both English keys). */}}
+{{define "pdf-export-dialog"}}
+<dialog class="song-pdf-dialog" id="{{.ID}}" aria-labelledby="{{.ID}}-title">
+  <form method="dialog" class="pdf-mode-row song-pdf-form">
+    <h2 id="{{.ID}}-title">{{t .Title}}</h2>
+    {{with .Hint}}<p class="hint">{{t .}}</p>{{end}}
+    <fieldset class="song-pdf-layouts">
+      <legend>{{t "Layout"}}</legend>
+      <label><input type="radio" name="{{.ID}}-mode" class="pdf-mode-radio" value="" checked> {{t "Song"}} <small>{{t "the chart, chords and lyrics"}}</small></label>
+      <label><input type="radio" name="{{.ID}}-mode" class="pdf-mode-radio" value="jazz"> {{t "Jazz chart"}} <small>{{t "the chords on one page"}}</small></label>
+      <label><input type="radio" name="{{.ID}}-mode" class="pdf-mode-radio" value="map"> {{t "Song map"}} <small>{{t "the sections and their bars"}}</small></label>
+      <label><input type="radio" name="{{.ID}}-mode" class="pdf-mode-radio" value="lyrics"> {{t "Lyrics only"}} <small>{{t "the words alone"}}</small></label>
+    </fieldset>
+    <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
+    <div class="song-pdf-actions">
+      <button type="submit" value="cancel" class="ghost-btn">{{t "Cancel"}}</button>
+      <a class="pdf-export-link button primary" href="{{.Href}}" download>{{template "icon-download"}} {{t "Download the PDF"}}</a>
+    </div>
+  </form>
+</dialog>
+{{end}}

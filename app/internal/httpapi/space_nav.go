@@ -48,10 +48,14 @@ type SpaceSection struct {
 	Label string
 	Path  string
 	Icon  string // an icon-* template name, for the phone's list
-	// Filters are the section's own views (a band's Repertoire: its
-	// songs, those to vote on, those to discover), in a segmented
-	// control under the tabs; the first is where the section's tab goes.
+	// Filters are the section's own views (a band's Recordings: its
+	// rehearsals, its concerts), in a segmented control under the tabs;
+	// the first is where the section's tab goes.
 	Filters []SpaceSection
+	// ViewsInPage: the page draws its views itself, as chips at the head
+	// of its list (space-views) rather than as a second row of tabs (a
+	// band's Songbook: its songs, those to vote on, those to discover).
+	ViewsInPage bool
 }
 
 // spaceTabs is the one declared list of a kind of space's sections,
@@ -62,9 +66,11 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 	case spaceBand:
 		return []SpaceSection{
 			{Key: "overview", Label: "Overview", Icon: "icon-home"},
-			// The songs we might add are views of the repertoire, not
-			// sections of their own (the old Proposals and Discover).
-			{Key: "catalog", Label: "Repertoire", Path: "/catalog", Icon: "icon-catalog", Filters: []SpaceSection{
+			// The band's songs, its songbook (its PDF is the band's
+			// book). The songs we might add are views of it, not sections
+			// of their own (the old Proposals and Discover), shown as
+			// chips at the head of its list.
+			{Key: "catalog", Label: "Songbook", Path: "/catalog", Icon: "icon-catalog", ViewsInPage: true, Filters: []SpaceSection{
 				{Key: "all", Label: "Songs", Path: "/catalog"},
 				{Key: "vote", Label: "To vote", Path: "/catalog/vote"},
 				{Key: "discover", Label: "Discover", Path: "/catalog/discover"},
@@ -158,6 +164,9 @@ type SpaceNav struct {
 	// segmented control under the tabs (space-filters), nil when the
 	// section has none.
 	Filters []SpaceTab
+	// ViewsInPage: the page shows Filters itself, as the chips at the
+	// head of its list (space-views), not under the tabs.
+	ViewsInPage bool
 	// Switcher is the page's global navigation (navState), whose Spaces
 	// feed the header's space switcher ("space-switcher", its "header"
 	// variant). Nil, or no current space (one the viewer isn't a member
@@ -238,6 +247,7 @@ func newSpaceNav(kind string, id int64, name string, role spaceRole, current str
 		if filter == "-" {
 			continue // a page inside the section (one student, one class): no views
 		}
+		n.ViewsInPage = sec.ViewsInPage
 		for i, f := range sec.Filters {
 			on := f.Key == filter || filter == "" && i == 0
 			n.Filters = append(n.Filters, SpaceTab{SpaceSection: f, Href: home + f.Path, Current: on})
@@ -361,6 +371,9 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
 			nav.withHints(hints)
 		}
+		if nav.ViewsInPage {
+			s.countSongbookViews(lw.r, band.ID, nav)
+		}
 		nav.Switcher = pageNavState(m)
 		m["Space"] = nav
 		return
@@ -425,8 +438,27 @@ func dayHint(lang string, t time.Time) string {
 	return i18n.Date(lang, t, "Mon 2 Jan")
 }
 
+// countSongbookViews puts on a band's Songbook chips how many songs it
+// holds and how many proposals wait for a vote (Due), so "To vote" says
+// when there is something to do. Best effort: no count on an error.
+func (s *Server) countSongbookViews(r *http.Request, bandID int64, n *SpaceNav) {
+	for i := range n.Filters {
+		f := &n.Filters[i]
+		switch f.Key {
+		case "all":
+			if songs, err := s.store.ListBandCatalog(r.Context(), bandID); err == nil {
+				f.Hint = fmt.Sprint(len(songs))
+			}
+		case "vote":
+			if open, err := s.store.ListProposals(r.Context(), bandID, store.ProposalFilter{Status: "open"}); err == nil && len(open) > 0 {
+				f.Hint, f.Due = fmt.Sprint(len(open)), true
+			}
+		}
+	}
+}
+
 // SectionLabel is the open section's name (its English key), for the
-// page's heading and its browser tab: "Repertoire". The home's is "".
+// page's heading and its browser tab: "Songbook". The home's is "".
 func (n *SpaceNav) SectionLabel() string {
 	if n.Gear != nil && n.Gear.Current {
 		return n.Gear.Label
@@ -439,9 +471,10 @@ func (n *SpaceNav) SectionLabel() string {
 	return ""
 }
 
-// spaceExport is a space's songbook as files, for the Export menu in a
-// section's toolbar (the space-export template): its PDF (with the
-// layout and notes choices) and its playlist, "" when it has none.
+// spaceExport is a space's songbook as files, for its section's toolbar:
+// its PDF (the space-export template: a PDF button, the layout and notes
+// chosen in its dialog) and its playlist (a button of its own beside
+// it), "" when it has none.
 type spaceExport struct {
 	PDF      string
 	Playlist string

@@ -993,9 +993,9 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// bandCatalogExport is the Repertoire's Export menu (space-export): the
-// songbook PDF, and the playlist of its songs' recordings. Actions on
-// the repertoire, in its own toolbar rather than the sidebar.
+// bandCatalogExport is the Songbook's PDF button (space-export) and its
+// Playlist button (space-playlist): the songbook as a PDF, and the
+// playlist of its songs' recordings, in the head of its list.
 func bandCatalogExport(ctx context.Context, s *Server, bandID int64) spaceExport {
 	e := spaceExport{PDF: fmt.Sprintf("/bands/%d/export-songbook.pdf", bandID)}
 	if sbID, err := s.store.GetDefaultSongbook(ctx, "band", bandID); err == nil {

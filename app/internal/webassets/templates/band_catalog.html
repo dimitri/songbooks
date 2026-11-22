@@ -20,15 +20,22 @@
 <main class="index">
   {{template "space-nav" .Space}}
 
+  {{/* The head of the list: its views (Songs, To vote, Discover) as
+       chips, the search, then what to do with the songbook — play it,
+       add to it, print it (menu proposal §3.6: views apart from
+       actions). */}}
+  <div class="songbook-head">
+    {{template "space-views" .Space}}
+    {{if .Entries}}<input type="search" id="repertoire-search" placeholder="{{t "Search this songbook…"}}" aria-label="{{t "Search this songbook"}}" enterkeyhint="search">{{end}}
+    <div class="setlist-actions songbook-actions">
+      {{if .Entries}}{{template "space-playlist" .Export}}{{end}}
+      <button type="button" id="open-add-song" class="setlist-action">{{template "icon-plus"}} {{t "Add song"}}</button>
+      {{if .Entries}}{{template "space-export" .Export}}{{end}}
+    </div>
+  </div>
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    {{t "This band’s repertoire is empty — songs don’t appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty">{{t "Add your first song"}}</button> {{t "repertoire|to get started."}}
-  </div>
-  {{else}}
-  <div class="repertoire-toolbar">
-    <input type="search" id="repertoire-search" placeholder="{{t "Search this repertoire…"}}" aria-label="{{t "Search this repertoire"}}" enterkeyhint="search">
-    <button type="button" id="open-add-song">{{template "icon-plus"}} {{t "Add song"}}</button>
-    {{template "space-export" .Export}}
+    {{t "This songbook is empty."}} {{t "Songs don't appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty">{{t "Add your first song"}}</button> {{t "to get started."}}
   </div>
   {{end}}
 
