@@ -3007,7 +3007,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// A student opening one of their songs from elsewhere in that
 	// community (its repertoire, a group's list, an assignment) gets it in
 	// their own key too.
-	if data["StudentKeySet"] == nil && coachCtx != 0 {
+	if data["StudentKeySet"] == nil && coachCtx != 0 && r.URL.Query().Get("key") != "original" {
 		if _, n, ok, err := s.store.StudentKeyIn(r.Context(), person.ID, coachCtx, variantID); err == nil && ok {
 			data["StudentKey"], data["StudentKeySet"], data["KeyContext"], data["KeyMine"] = n, true, person.DisplayName, true
 		}
