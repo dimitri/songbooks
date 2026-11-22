@@ -6,15 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{docTitle (t "Click track") .Title}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
-{{/* Added to the Home Screen (or installed), this page opens as an app of
-     its own, straight on this set list's click track, full screen: its
-     own manifest, before pwa-head's (the first one counts); on an iPhone,
-     the only full screen a page gets (fullscreen.js). */}}
-<link rel="manifest" href="/setlists/{{.SetlistID}}/clicktrack/manifest.json" crossorigin="use-credentials">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="{{t "Click track"}}">
 {{template "pwa-head"}}
 </head>
 <body data-mini-player="off">
@@ -25,8 +16,6 @@
   <h1>{{t "Click track"}}</h1>
   <nav class="song-nav">
     <button id="theme-toggle" class="icon-btn" type="button" title="{{t "toggle light/dark"}}">{{template "icon-theme"}}</button>
-    {{/* Full screen (fullscreen.js): shown where the browser has it. */}}
-    <button id="ct-fullscreen" class="icon-btn ct-fullscreen" type="button" hidden aria-pressed="false" title="{{t "full screen (⇧F)"}}" data-title-enter="{{t "full screen (⇧F)"}}" data-title-exit="{{t "leave full screen (Esc)"}}"><svg class="icon ct-fs-enter" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5v-4h4M12.5 3.5h4v4M16.5 12.5v4h-4M7.5 16.5h-4v-4"/></svg><svg class="icon ct-fs-exit" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 3.5v4h-4M16.5 7.5h-4v-4M12.5 16.5v-4h4M3.5 12.5h4v4"/></svg></button>
   </nav>
 </header>
 <main class="clicktrack-page">
@@ -45,9 +34,6 @@
        someone stops it or moves to another song. */}}
   <div class="clicktrack-layout" id="clicktrack-root" data-setlist-id="{{.SetlistID}}"{{if .CanEdit}} data-can-edit="1"{{end}}>
     <div class="clicktrack-stage">
-      {{/* An iPhone has no full screen for a page: the Home Screen's is
-           the one (fullscreen.js). Once, until dismissed. */}}
-      <p class="ct-fs-hint" id="ct-fs-hint" hidden><span>{{t "For full screen: Share → Add to Home Screen."}}</span> <button type="button" class="icon-btn ct-fs-hint-close" aria-label="{{t "Got it"}}" title="{{t "Got it"}}">{{template "icon-close"}}</button></p>
       <section class="clicktrack-now-playing" id="clicktrack-now-playing">
         <div class="clicktrack-position" id="clicktrack-position"></div>
         <h2 id="clicktrack-title"></h2>
@@ -171,7 +157,6 @@
 <template id="icon-speaker-mute-tpl">{{template "icon-speaker-mute"}}</template>
 <script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-shell.js?v={{staticVersion}}"></script>
-<script src="/static/js/fullscreen.js?v={{staticVersion}}"></script>
 <script src="/static/js/setlist-clicktrack.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>
