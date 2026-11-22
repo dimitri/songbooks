@@ -17,9 +17,8 @@ import (
 // the band publishes. A private song's recordings are never public: who
 // can't open the song can't hear them.
 //
-// The recordings play from the band's pCloud folder, as the band's own
-// pages play them: the browser asks pCloud for the file with the folder's
-// public link (docs/band-recordings.md).
+// They play through the app (band_recordings_stream.go): the band's
+// folder link never leaves the server.
 
 // publicRecordingSQL is "r is heard by everyone signed in" (s its song).
 const publicRecordingSQL = `(s.public AND NOT r.gone AND (s.owner_band_id = r.band_id OR r.public))`
@@ -60,8 +59,9 @@ func (st *Store) PlayedByFor(ctx context.Context, songIDs []int64) (map[int64][]
 	return out, rows.Err()
 }
 
-// PublicRecording is one recording everyone signed in hears, ready to
-// play from the band's pCloud folder.
+// PublicRecording is one recording everyone signed in hears; it plays
+// through the app (/recordings/{id}/audio, band_recordings_stream.go),
+// never with the band's folder link.
 type PublicRecording struct {
 	ID          int64
 	FileID      int64
@@ -70,8 +70,6 @@ type PublicRecording struct {
 	Size        int64
 	SessionDate *time.Time
 	Take        *int
-	APIHost     string
-	Code        string
 }
 
 // PublicBandRecordings is one band's public recordings of a song.
@@ -85,9 +83,8 @@ type PublicBandRecordings struct {
 // recorded first), each band's latest first.
 func (st *Store) PublicSongRecordings(ctx context.Context, songID int64) ([]PublicBandRecordings, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT b.id, b.name, r.id, r.file_id, r.kind, r.name, r.size, r.session_date, r.take, src.api_host, src.code
+		SELECT b.id, b.name, r.id, r.file_id, r.kind, r.name, r.size, r.session_date, r.take
 		FROM band_recordings r JOIN songs s ON s.id = r.variant_id JOIN bands b ON b.id = r.band_id
-		JOIN band_recording_sources src ON src.id = r.source_id
 		WHERE r.variant_id = $1 AND `+publicRecordingSQL+`
 		ORDER BY count(*) OVER (PARTITION BY b.id) DESC, b.name, b.id, r.session_date DESC NULLS LAST, r.take NULLS FIRST, r.id`, songID)
 	if err != nil {
@@ -99,7 +96,7 @@ func (st *Store) PublicSongRecordings(ctx context.Context, songID int64) ([]Publ
 		var bandID int64
 		var bandName string
 		var r PublicRecording
-		if err := rows.Scan(&bandID, &bandName, &r.ID, &r.FileID, &r.Kind, &r.Name, &r.Size, &r.SessionDate, &r.Take, &r.APIHost, &r.Code); err != nil {
+		if err := rows.Scan(&bandID, &bandName, &r.ID, &r.FileID, &r.Kind, &r.Name, &r.Size, &r.SessionDate, &r.Take); err != nil {
 			return nil, err
 		}
 		if len(out) == 0 || out[len(out)-1].BandID != bandID {

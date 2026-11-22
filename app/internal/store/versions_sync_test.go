@@ -357,7 +357,7 @@ func TestPublicBandRecordings(t *testing.T) {
 		t.Fatalf("a core member making a recording public: %d %s", w.Code, w.Body.String())
 	}
 	html := as(t, st, f.Outsider).page(fmt.Sprintf("/song/%d/recordings", f.CatalogSong))
-	if !strings.Contains(html, "Other Lies") || !strings.Contains(html, `data-rp-code="thecode"`) {
+	if !strings.Contains(html, "Other Lies") || !strings.Contains(html, fmt.Sprintf(`data-rp-src="/recordings/%d/audio"`, rec)) || strings.Contains(html, "thecode") {
 		t.Error("the song's public recordings page lacks the band's recording")
 	}
 	if html := as(t, st, f.Outsider).page("/catalog"); !strings.Contains(html, "played by:") {

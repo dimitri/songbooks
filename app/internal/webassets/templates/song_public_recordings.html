@@ -1,8 +1,8 @@
 {{/* A public song's bands' recordings everyone signed in hears
      (docs/ownership-model.md §8, versions_sync.go's
      handleSongRecordingsPage): by band, the latest first, played with the
-     band recordings' player (rec-player), straight from each band's
-     pCloud folder. */}}
+     band recordings' player (rec-player), through the app
+     (/recordings/{id}/audio): the bands' folder links stay on the server. */}}
 {{define "song_public_recordings"}}
 <!doctype html>
 <html lang="{{lang}}">
@@ -27,7 +27,7 @@
     <h2>{{.BandName}} <small>{{tn (len .Recordings) "%d recording" "%d recordings"}}</small></h2>
     <ol class="rec-list">
       {{range .Recordings}}
-      <li class="rec-row" data-rp-file="{{.FileID}}" data-rp-host="{{.APIHost}}" data-rp-code="{{.Code}}" data-title="{{$.Song.Title}}" data-detail="{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}}, {{t "recording|take"}} {{.}}{{end}}" data-date="{{with .SessionDate}}{{.Format "2006-01-02"}}{{end}}" data-kind="{{.Kind}}">
+      <li class="rec-row" data-rp-src="/recordings/{{.ID}}/audio" data-title="{{$.Song.Title}}" data-detail="{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}}, {{t "recording|take"}} {{.}}{{end}}" data-date="{{with .SessionDate}}{{.Format "2006-01-02"}}{{end}}" data-kind="{{.Kind}}">
         <button type="button" class="rec-play" aria-label="{{t "Play"}}">{{template "icon-play"}}</button>
         <span class="rec-text">
           <strong>{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}} · {{t "recording|take"}} {{.}}{{end}}</strong>

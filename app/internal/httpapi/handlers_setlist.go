@@ -180,22 +180,21 @@ type setlistSound struct {
 	Ref *soundSource
 }
 
-// soundSource is an mp3 of the app's (Src) or a file of the band's pCloud
-// folder (Host, Code, File).
+// soundSource is an mp3 of the app's (Src): the song's own, or the
+// band's recording through the app (recordings_stream.go).
 type soundSource struct {
-	Src        string
-	Host, Code string
-	File       int64
-	Label      string
+	Src   string
+	Label string
 }
 
-// soundFor is variantID's setlistSound, nil when it has neither; bandID 0
-// for a set list that isn't a band's.
-func (s *Server) soundFor(ctx context.Context, bandID, variantID int64) *setlistSound {
+// soundFor is variantID's setlistSound for personID, nil when it has
+// neither; bandID 0 for a set list that isn't a band's. The band's
+// recording plays through the app, for who may hear it.
+func (s *Server) soundFor(ctx context.Context, personID, bandID, variantID int64) *setlistSound {
 	var snd setlistSound
 	if bandID != 0 {
-		if rec, err := s.store.ChosenSongRecording(ctx, bandID, variantID); err == nil && rec != nil {
-			snd.Rec = &soundSource{Host: rec.APIHost, Code: rec.Code, File: rec.FileID, Label: "the band's recording"}
+		if rec, err := s.store.ChosenSongRecording(ctx, bandID, variantID); err == nil && rec != nil && s.store.CanHearRecording(ctx, personID, rec.RecordingID) {
+			snd.Rec = &soundSource{Src: recordingAudioURL(rec.RecordingID), Label: "the band's recording"}
 		}
 	}
 	if audio, err := s.store.ListSongAudio(ctx, variantID); err == nil {
@@ -308,7 +307,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			if vs := choices[e.ID]; len(vs) > 1 {
 				row.Versions = versionChoices(vs, e.VariantID)
 			}
-			if row.Sound = s.soundFor(r.Context(), bandID, e.VariantID); row.Sound != nil {
+			if row.Sound = s.soundFor(r.Context(), personIDOf(r), bandID, e.VariantID); row.Sound != nil {
 				playable++
 				choice = choice || row.Sound.Rec != nil && row.Sound.Ref != nil
 			}
@@ -925,7 +924,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 			first = false
 			// Listen, among the set list's views: only when a song has
 			// something to play.
-			if playable == 0 && s.soundFor(r.Context(), bandID, e.VariantID) != nil {
+			if playable == 0 && s.soundFor(r.Context(), personIDOf(r), bandID, e.VariantID) != nil {
 				playable++
 			}
 		}
@@ -1001,4 +1000,12 @@ func (s *Server) handlePutClicktrackNote(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"note": note})
+}
+
+// personIDOf is the signed-in person's id, 0 for no one.
+func personIDOf(r *http.Request) int64 {
+	if p := personFromContext(r); p != nil {
+		return p.ID
+	}
+	return 0
 }

@@ -118,19 +118,10 @@ type playlistTrack struct {
 	Category    string            `json:"category,omitempty"`
 	AudioURL    string            `json:"audio,omitempty"`
 	VideoID     string            `json:"video,omitempty"`
-	Remote      *playlistRemote   `json:"remote,omitempty"` // the band's chosen recording, from its pCloud folder
 	Sections    []playlistSection `json:"sections"`
 	Cover       string            `json:"cover,omitempty"` // the song's cover art (docs/covers.md)
 	Album       string            `json:"album,omitempty"`
 	both        bool              // has both its own and a reference recording
-}
-
-// playlistRemote is a recording the browser plays straight from the
-// band's pCloud folder (store.RemoteRecording).
-type playlistRemote struct {
-	Host   string `json:"host"`
-	Code   string `json:"code"`
-	FileID int64  `json:"file"`
 }
 
 // playlistSection is a section of a track: its name, its length in bars
@@ -259,9 +250,11 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 		}
 		// A band's own reference for the song, chosen among its recordings.
 		if sb.OwnerKind == "band" && prefer != "reference" {
-			if rec, err := s.store.ChosenSongRecording(r.Context(), sb.OwnerBandID, row.VariantID); err == nil && rec != nil {
-				t.Source, t.Category, t.AudioURL, t.VideoID, t.SourceLabel = "band", "", "", "", "Ours"
-				t.Remote = &playlistRemote{Host: rec.APIHost, Code: rec.Code, FileID: rec.FileID}
+			// Through the app, for who may hear it (recordings_stream.go):
+			// the band's folder link never reaches the page.
+			if rec, err := s.store.ChosenSongRecording(r.Context(), sb.OwnerBandID, row.VariantID); err == nil && rec != nil &&
+				s.store.CanHearRecording(r.Context(), personFromContext(r).ID, rec.RecordingID) {
+				t.Source, t.Category, t.AudioURL, t.VideoID, t.SourceLabel = "band", "", recordingAudioURL(rec.RecordingID), "", "Ours"
 				t.Subtitle = rec.Label(s.langOf(w))
 				for i := range t.Sections {
 					t.Sections[i].Start = -1

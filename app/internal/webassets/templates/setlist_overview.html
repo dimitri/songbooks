@@ -68,7 +68,7 @@
     <h2>{{$set.Label}}</h2>
     <div class="gig-table" data-reorder-list>
       {{range $rowIdx, $row := $set.Rows}}
-      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{with .Rec}}{{if .Src}} data-rec-src="{{.Src}}"{{else}} data-rec-file="{{.File}}" data-rec-host="{{.Host}}" data-rec-code="{{.Code}}"{{end}} data-rec-label="{{t .Label}}"{{end}}{{with .Ref}} data-ref-src="{{.Src}}" data-ref-label="{{t .Label}}"{{end}} data-rp-src="" data-title="{{$row.Title}}" data-set="{{$set.Label}}" data-tile="{{t "Song %s" (printf "%v" $row.Num)}}"{{end}}>
+      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{with .Rec}} data-rec-src="{{.Src}}" data-rec-label="{{t .Label}}"{{end}}{{with .Ref}} data-ref-src="{{.Src}}" data-ref-label="{{t .Label}}"{{end}} data-rp-src="" data-title="{{$row.Title}}" data-set="{{$set.Label}}" data-tile="{{t "Song %s" (printf "%v" $row.Num)}}"{{end}}>
         <span class="gig-num">{{$row.Num}}</span>
         {{/* The version this set list plays, and, when the band's
              songbook has several of the song, the others to pick from

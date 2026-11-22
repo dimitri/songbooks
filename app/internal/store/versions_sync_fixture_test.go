@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -74,4 +76,87 @@ func SongbookSongIDs(t *testing.T, st *Store, songbookID int64) []int64 {
 		out = append(out, id)
 	}
 	return out
+}
+
+// StubPCloud sends every request the server makes to pCloud to stub
+// instead (its scheme and host replaced), for the test.
+func StubPCloud(t *testing.T, stub *httptest.Server) {
+	t.Helper()
+	saved := pcloudDo
+	pcloudDo = func(req *http.Request) (*http.Response, error) {
+		req.Header.Set("X-Pcloud-Host", req.URL.Host)
+		req.URL.Scheme, req.URL.Host = "http", stub.Listener.Addr().String()
+		return stub.Client().Do(req)
+	}
+	pcloudLinks.Lock()
+	pcloudLinks.m = map[string]pcloudCached{}
+	pcloudLinks.Unlock()
+	t.Cleanup(func() { pcloudDo = saved })
+}
+
+// AddTestPractice gives personID a day's practice of songID (seconds) in
+// a community made for it, and one checked take; returns the community.
+func AddTestPractice(t *testing.T, st *Store, personID, songID int64, seconds int) int64 {
+	t.Helper()
+	ctx := context.Background()
+	var cid int64
+	if err := st.db.QueryRow(ctx, `INSERT INTO communities (name) VALUES ('Studio') RETURNING id`).Scan(&cid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(ctx, `
+		INSERT INTO practice_logs (person_id, community_id, variant_id, practiced_on, seconds, source, pitch_takes, pitch_score)
+		VALUES ($1, $2, $3, current_date, $4, 'player', 1, 80)`, personID, cid, songID, seconds); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(ctx, `
+		INSERT INTO practice_takes (person_id, community_id, variant_id, level, pitch, rhythm)
+		VALUES ($1, $2, $3, 'beginner', 80, 70)`, personID, cid, songID); err != nil {
+		t.Fatal(err)
+	}
+	return cid
+}
+
+// PracticeOf is personID's practice_logs and practice_takes rows' songs
+// (0 for none) and the logs' kept titles.
+func PracticeOf(t *testing.T, st *Store, personID int64) (logSongs []int64, titles []string, takeSongs []int64) {
+	t.Helper()
+	ctx := context.Background()
+	rows, err := st.db.Query(ctx, `SELECT coalesce(variant_id, 0), song_title FROM practice_logs WHERE person_id = $1 ORDER BY id`, personID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id int64
+		var title string
+		if err := rows.Scan(&id, &title); err != nil {
+			t.Fatal(err)
+		}
+		logSongs, titles = append(logSongs, id), append(titles, title)
+	}
+	rows.Close()
+	rows, err = st.db.Query(ctx, `SELECT coalesce(variant_id, 0) FROM practice_takes WHERE person_id = $1 ORDER BY id`, personID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		takeSongs = append(takeSongs, id)
+	}
+	return logSongs, titles, takeSongs
+}
+
+// AnnotationsBy counts personID's notes on songs.
+func AnnotationsBy(t *testing.T, st *Store, personID int64) int {
+	t.Helper()
+	var n int
+	if err := st.db.QueryRow(context.Background(), `
+		SELECT (SELECT count(*) FROM variant_annotations WHERE person_id = $1) + (SELECT count(*) FROM section_annotations WHERE person_id = $1)`,
+		personID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
