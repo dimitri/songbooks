@@ -7854,6 +7854,33 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .voice-ranges { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.8rem; }
 .voice-range { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
 .voice-range .voice-tag { min-width: 7.5rem; justify-content: center; }
+/* A site admin's "See as…" on a coaching studio's pages (space_nav.html
+   "see-as"): quiet when they see it as themselves, a striped banner while
+   it's a preview. */
+.see-as { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.4rem 0.8rem; margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--fg-muted); }
+.see-as.is-on { justify-content: space-between; padding: 0.55rem 0.8rem; border: 1px dashed var(--accent); border-radius: var(--radius); background: repeating-linear-gradient(-45deg, var(--accent-bg), var(--accent-bg) 10px, var(--bg-raised) 10px, var(--bg-raised) 20px); color: var(--fg); }
+.see-as-note { margin: 0; flex: 1 1 18rem; }
+.see-as-pick { display: inline-flex; align-items: center; gap: 0.4rem; }
+.see-as-pick select { min-height: 2.2rem; padding: 0.15rem 0.5rem; font-size: 0.85rem; max-width: 16rem; }
+.see-as-leave { font-weight: 600; }
+
+/* A student's voice type (coaching.html "Voice"): the type and the range
+   in words, the tessitura as a striped bar under the registers, the
+   coach's assessment and its history. */
+.voice-type-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.8rem; margin: 0 0 0.4rem; color: var(--fg-muted); }
+.voice-type-name { font-size: 1.1rem; color: var(--fg); }
+.voice-chart-bar.is-tessitura { background: repeating-linear-gradient(-45deg, var(--accent), var(--accent) 4px, color-mix(in srgb, var(--accent) 45%, transparent) 4px, color-mix(in srgb, var(--accent) 45%, transparent) 8px); }
+.voice-tag.is-type { background: var(--accent-bg); color: var(--accent-ink); }
+.voice-assess { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.voice-assess-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0.6rem; }
+@media (max-width: 720px) { .voice-assess-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .voice-assess-row > :first-child { grid-column: 1 / -1; } }
+.voice-shared-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+.voice-assessment { margin: 0.8rem 0 0; padding: 0.5rem 0.8rem; border-left: 3px solid var(--accent); background: var(--bg-sunken); white-space: pre-line; }
+.voice-history { margin-top: 0.8rem; }
+.voice-history summary { cursor: pointer; font-weight: 600; }
+.voice-history ol { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.voice-history li { font-size: 0.9rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
+.voice-history-note { color: var(--fg-muted); white-space: pre-line; }
 .voice-range label { display: inline-flex; align-items: center; gap: 0.35rem; }
 .voice-range select { min-height: 2.5rem; }
 .voice-range .voice-note { flex: 1 1 12rem; min-height: 2.5rem; }
@@ -8781,31 +8808,3 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 /* A song's title may wrap, its artist under it on its own line. */
 .cbook-song-title { white-space: normal; padding: 0.35rem 0; }
 .cbook-song-title .hint { display: block; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* A site admin's "See as…" on a coaching studio's pages (space_nav.html
-   "see-as"): quiet when they see it as themselves, a striped banner while
-   it's a preview. */
-.see-as { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.4rem 0.8rem; margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--fg-muted); }
-.see-as.is-on { justify-content: space-between; padding: 0.55rem 0.8rem; border: 1px dashed var(--accent); border-radius: var(--radius); background: repeating-linear-gradient(-45deg, var(--accent-bg), var(--accent-bg) 10px, var(--bg-raised) 10px, var(--bg-raised) 20px); color: var(--fg); }
-.see-as-note { margin: 0; flex: 1 1 18rem; }
-.see-as-pick { display: inline-flex; align-items: center; gap: 0.4rem; }
-.see-as-pick select { min-height: 2.2rem; padding: 0.15rem 0.5rem; font-size: 0.85rem; max-width: 16rem; }
-.see-as-leave { font-weight: 600; }
-
-/* A student's voice type (coaching.html "Voice"): the type and the range
-   in words, the tessitura as a striped bar under the registers, the
-   coach's assessment and its history. */
-.voice-type-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.8rem; margin: 0 0 0.4rem; color: var(--fg-muted); }
-.voice-type-name { font-size: 1.1rem; color: var(--fg); }
-.voice-chart-bar.is-tessitura { background: repeating-linear-gradient(-45deg, var(--accent), var(--accent) 4px, color-mix(in srgb, var(--accent) 45%, transparent) 4px, color-mix(in srgb, var(--accent) 45%, transparent) 8px); }
-.voice-tag.is-type { background: var(--accent-bg); color: var(--accent-ink); }
-.voice-assess { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
-.voice-assess-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0.6rem; }
-@media (max-width: 720px) { .voice-assess-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .voice-assess-row > :first-child { grid-column: 1 / -1; } }
-.voice-shared-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
-.voice-assessment { margin: 0.8rem 0 0; padding: 0.5rem 0.8rem; border-left: 3px solid var(--accent); background: var(--bg-sunken); white-space: pre-line; }
-.voice-history { margin-top: 0.8rem; }
-.voice-history summary { cursor: pointer; font-weight: 600; }
-.voice-history ol { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
-.voice-history li { font-size: 0.9rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
-.voice-history-note { color: var(--fg-muted); white-space: pre-line; }

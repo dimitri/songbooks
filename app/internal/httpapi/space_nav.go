@@ -154,14 +154,14 @@ type SpaceNav struct {
 	Brand    *brand.Theme
 	Sections []SpaceTab
 	Gear     *SpaceTab
-	Current  string // the open section's Key
+	// SeeAs is a site admin's "See as…" on a coaching community's pages
+	// (coaching_viewer.go), nil for anyone else.
+	SeeAs   *seeAsSwitch
+	Current string // the open section's Key
 	// Filters are the open section's views, the open one Current: a
 	// segmented control under the tabs (space-filters), nil when the
 	// section has none.
 	Filters []SpaceTab
-	// SeeAs is a site admin's "See as…" on a coaching community's pages
-	// (coaching_viewer.go), nil for anyone else.
-	SeeAs *seeAsSwitch
 	// Switcher is the page's global navigation (navState), whose Spaces
 	// feed the header's space switcher ("space-switcher", its "header"
 	// variant). Nil, or no current space (one the viewer isn't a member
