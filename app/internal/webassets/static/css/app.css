@@ -7203,3 +7203,28 @@ a.singer-chip:hover { border-color: var(--border-strong); }
 .students-lesson-kinds { font-size: 0.75rem; line-height: 1.35; margin-top: 0.15rem; }
 .key-down, .key-up { font-weight: 600; font-variant-numeric: tabular-nums; }
 .key-down { color: var(--accent-ink); }
+
+/* Edit on a song this person can't, or shouldn't, change here (play.html
+   #edit-offer-dialog, song.js): what Edit does instead — the band's
+   version, or one's own copy — asked, never done on its own. */
+.edit-offer-dialog { width: min(30rem, calc(100vw - 2rem)); border: 1px solid var(--border); border-radius: 14px; background: var(--bg-raised); color: var(--fg); padding: 1.2rem 1.3rem; box-shadow: var(--shadow); }
+.edit-offer-dialog::backdrop { background: rgba(10, 8, 4, 0.45); }
+.edit-offer-dialog h2 { margin: 0 0 0.6rem; font-size: 1.15rem; }
+.edit-offer-dialog p { margin: 0 0 0.6rem; }
+.edit-offer-dialog .form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.edit-offer-dialog .form-status:empty { display: none; }
+@media (max-width: 480px) {
+  .edit-offer-dialog .form-actions { flex-direction: column-reverse; align-items: stretch; }
+}
+/* One's own copy of a band's song: the band has its own version. */
+.band-version-notice { margin: 0 0 0.8rem; padding: 0.5rem 0.75rem; border-radius: 8px; background: var(--accent-bg); color: var(--fg); font-size: 0.9rem; }
+.band-version-notice a { color: var(--accent-ink); font-weight: 600; }
+.band-version-tag { display: inline-block; margin-left: 0.5rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--accent-bg); color: var(--accent-ink); font-size: 0.72rem; font-weight: 600; white-space: nowrap; vertical-align: middle; }
+/* A song opened in the key a songbook keeps it in (play.html): whose
+   version, the key, back to the song's own. The editor says it edits the
+   song in its own key. A songbook row's key control (project.html). */
+.songbook-key-line { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--fg-muted); }
+.songbook-key-line a { color: var(--accent-ink); }
+.edit-key-note { margin: 0.2rem 0 0.4rem; }
+.row-key-select { font: inherit; font-size: 0.8rem; padding: 0.15rem 0.3rem; max-width: 9rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+@media (max-width: 560px) { .row-key-select { max-width: 7.5rem; } }

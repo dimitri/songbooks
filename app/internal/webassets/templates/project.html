@@ -48,7 +48,7 @@
       <h3>{{t .Label}}</h3>
       <ul class="song-list" data-group-label="{{.Label}}">
         {{$n := 0}}
-        {{range .Songs}}
+        {{range $song := .Songs}}
         {{$n = add1 $n}}
         <li data-variant-id="{{.VariantID}}">
           <span class="catalog-drag-handle" title="{{t "drag to reorder"}}" aria-hidden="true">{{template "icon-grip"}}</span>
@@ -58,7 +58,9 @@
             <span class="song-title">{{.Title}}</span>
             <span class="song-meta">{{if .Tempo}}{{t "%s bpm" .Tempo}}{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
             {{template "song-badges" (index $.Badges .VariantID)}}
+            {{with index $.BandVersions .VariantID}}<span class="band-version-tag" title="{{t "%s has its own version of this song" .BandName}}">{{t "band has its own version"}}</span>{{end}}
           </a>
+          {{with .Keys}}<select class="row-key-select" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{$song.VariantID}}" aria-label="{{t "Key of %s in this songbook" $song.Title}}" title="{{t "the key the song opens in from this songbook"}}">{{range .}}<option value="{{.N}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select>{{end}}
           <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="{{t "Remove from this songbook"}}" aria-label="{{t "Remove %s from this songbook" .Title}}">{{template "icon-trash"}}</button>
         </li>
         {{end}}

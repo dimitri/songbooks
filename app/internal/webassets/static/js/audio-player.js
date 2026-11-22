@@ -888,6 +888,64 @@ window.songbooksDecodable = function (buf) {
   }
   $('audio-key-btn')?.addEventListener('click', loadCoachKeys);
 
+  // Anyone keeps the key in My songbook, or in a songbook they can change
+  // that has the song (play.html #audio-key-books, songbook_keys.go): the
+  // song then opens in it from there, the same song in another key.
+  const booksBox = $('audio-key-books'), booksList = $('audio-key-book-list');
+  let bookKeys = null;
+  function renderBookKeys() {
+    if (!booksBox || !bookKeys || !bookKeys.length) return;
+    booksBox.hidden = false;
+    const n = prefs.semitones;
+    booksList.replaceChildren(...bookKeys.map((x, i) => {
+      const li = document.createElement('li');
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = x.name;
+      const now = document.createElement('span');
+      now.className = 'now';
+      now.textContent = x.inSongbook ? fmtKey(x.keyName, x.semitones) : t('not in it yet');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'audio-pill-btn';
+      const same = x.inSongbook && x.semitones === n;
+      btn.disabled = same;
+      btn.textContent = same ? '✓' : (x.inSongbook ? t('Save %s', keyNow() || fmtKey('', n)) : t('Add in %s', keyNow() || fmtKey('', n)));
+      btn.setAttribute('aria-label', same ? t('%s: in this key', x.name) : t('Keep %s in %s', keyNow() || fmtKey('', n), x.name));
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/songbooks/${x.songbookId}/entries/${variantId}/key`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ semitones: prefs.semitones }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          const d = await res.json();
+          bookKeys[i] = { ...x, inSongbook: true, semitones: d.semitones, keyName: d.keyName };
+        } catch (e) {
+          alert(t('Couldn’t save the key.'));
+        }
+        renderBookKeys();
+      });
+      li.append(who, now, btn);
+      return li;
+    }));
+  }
+  async function loadBookKeys() {
+    if (bookKeys || !booksBox) return;
+    bookKeys = [];
+    try {
+      const res = await fetch(`/api/songs/${variantId}/songbook-keys`);
+      if (res.ok) {
+        const d = await res.json();
+        if (!coachKey) coachKey = d.key || '';
+        bookKeys = d.songbooks || [];
+      }
+    } catch (e) { /* nowhere to keep it */ }
+    renderBookKeys();
+  }
+  $('audio-key-btn')?.addEventListener('click', loadBookKeys);
+
   function setSemitones(n) {
     n = Math.max(-7, Math.min(7, Math.round(n)));
     const delta = n - prefs.semitones;
@@ -895,7 +953,7 @@ window.songbooksDecodable = function (buf) {
     savePrefs();
     shiftChords(delta);
     applyKey();
-    setTimeout(renderCoachKeys, 0);
+    setTimeout(() => { renderCoachKeys(); renderBookKeys(); }, 0);
   }
   // The Mixer plays in the same key, and sets it here (mixer.js "Key"):
   // one key per song, whichever view it was set from.

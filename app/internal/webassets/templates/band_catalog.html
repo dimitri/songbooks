@@ -121,7 +121,7 @@
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">{{t "“Add” links to the song as it is. “Add a copy” gives the band its own version that any member can edit."}}</p>
+      <p class="hint">{{t "“Add” gives the band its own copy of the song, which any member can change for the band. The catalogue’s song stays as it is."}}</p>
       <form class="field" id="catalog-search-form" role="search">
         <label for="catalog-search-input">{{t "Find a song in the catalog"}}</label>
         <input type="search" id="catalog-search-input" placeholder="{{t "e.g. a title or an artist"}}" autocomplete="off" enterkeyhint="search">
@@ -152,7 +152,10 @@ const bandLibrary = window.LibraryMatch ? LibraryMatch.attach({
       body: JSON.stringify({variantId: hit.variantId}),
     }).catch(() => null);
     if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to the repertoire. Try again.', hit.title));
-    location.href = `/song/${hit.variantId}?band=${bandId}`;
+    // The repertoire holds the band's own songs: the answer is the band's
+    // copy (or the band's song itself), which is what to open.
+    const data = await res.json().catch(() => ({}));
+    location.href = `/song/${data.variantId || hit.variantId}?band=${bandId}`;
   },
   isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
   openHref: (hit) => `/song/${hit.variantId}?band=${bandId}`,
@@ -177,10 +180,10 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
     location.href = `/song/${data.variantId}?edit=1`;
   });
 });
-// ---- "From the catalog": search-as-you-type over /api/catalog/search,
-// replacing the old "paste a variant id you found on another page"
-// flow — add points at the variant as-is, fork makes this band's own
-// copy, same two actions the old by-id form offered. ----
+// ---- "From the catalog": search-as-you-type over /api/catalog/search.
+// Add makes the song the band's own (its copy, which every member
+// changes for the band — handleAddBandCatalogEntry), never a pointer at
+// the catalogue's song, which a member's edit would change for everyone. ----
 (function () {
   const input = document.getElementById('catalog-search-input');
   const results = document.getElementById('catalog-search-results');
@@ -188,14 +191,12 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
   if (!input) return;
   let debounceTimer;
 
-  async function doAdd(hit, fork, btn) {
-    const url = fork ? `/api/bands/${bandId}/catalog/fork/${hit.variantId}` : `/api/bands/${bandId}/catalog`;
-    const opts = fork
-      ? {method: 'POST'}
-      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId: hit.variantId})};
+  async function doAdd(hit, btn) {
     Forms.status(resultMsg, '');
     Forms.busy(btn, true);
-    const res = await fetch(url, opts).catch(() => null);
+    const res = await fetch(`/api/bands/${bandId}/catalog`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId: hit.variantId}),
+    }).catch(() => null);
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
     Forms.status(resultMsg, t('Couldn’t add “%s”. It may already be in the repertoire; if not, try again.', hit.title), 'error');
@@ -239,13 +240,8 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
       addBtn.type = 'button';
       addBtn.textContent = t('Add');
       addBtn.setAttribute('aria-label', t('Add %s', hit.title));
-      addBtn.addEventListener('click', () => doAdd(hit, false, addBtn));
-      const forkBtn = document.createElement('button');
-      forkBtn.type = 'button';
-      forkBtn.textContent = t('Add a copy');
-      forkBtn.setAttribute('aria-label', t('Add a copy of %s', hit.title));
-      forkBtn.addEventListener('click', () => doAdd(hit, true, forkBtn));
-      actions.append(addBtn, forkBtn);
+      addBtn.addEventListener('click', () => doAdd(hit, addBtn));
+      actions.append(addBtn);
       row.appendChild(actions);
       results.appendChild(row);
     }

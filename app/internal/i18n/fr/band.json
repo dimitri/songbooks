@@ -458,5 +458,5 @@
   "vote|yes": "oui",
   "you haven't visited yet": "vous n’êtes pas encore venu",
   "yours": "le vôtre",
-  "“Add” links to the song as it is. “Add a copy” gives the band its own version that any member can edit.": "« Ajouter » renvoie au morceau tel quel. « Ajouter une copie » donne au groupe sa propre version, que chaque membre peut modifier."
+  "“Add” gives the band its own copy of the song, which any member can change for the band. The catalogue’s song stays as it is.": "« Ajouter » donne au groupe sa propre copie du morceau, que chaque membre peut modifier pour le groupe. Le morceau du catalogue reste tel quel."
 }

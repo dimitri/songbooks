@@ -14,7 +14,6 @@
   "theme: light (click for dark)": "thème : clair (cliquez pour sombre)",
   "theme: dark (click for auto)": "thème : sombre (cliquez pour auto)",
   "Close the editor and lose your unsaved changes? Choose Cancel to go back and save them.": "Fermer l’éditeur et perdre vos modifications non enregistrées ? Choisissez Annuler pour revenir les enregistrer.",
-  "Couldn't make your own copy of this song to edit. Try again.": "Impossible de créer votre copie de ce morceau pour le modifier. Réessayez.",
   "Throw away all your unsaved changes to this song? This can't be undone.": "Abandonner toutes vos modifications non enregistrées de ce morceau ? C’est irréversible.",
   "Saving…": "Enregistrement…",
   "Not saved: this song changed since you opened it. Copy your changes, reload the page, then save again.": "Non enregistré : ce morceau a changé depuis que vous l’avez ouvert. Copiez vos modifications, rechargez la page, puis enregistrez de nouveau.",
@@ -261,5 +260,7 @@
   "done": "faite",
   "suggested": "suggérée",
   "Step %s of %s: %s": "Étape %s sur %s : %s",
-  "Re-split from this song's own lyrics: nothing dropped or rewritten.": "Redécoupé à partir des paroles de ce morceau : rien de supprimé ni de réécrit."
+  "Re-split from this song's own lyrics: nothing dropped or rewritten.": "Redécoupé à partir des paroles de ce morceau : rien de supprimé ni de réécrit.",
+  "Couldn't make the band's version of this song. Try again.": "Impossible de créer la version du groupe de ce morceau. Réessayez.",
+  "Couldn't make your own copy of this song. Try again.": "Impossible de créer votre copie de ce morceau. Réessayez."
 }

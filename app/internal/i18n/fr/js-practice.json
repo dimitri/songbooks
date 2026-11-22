@@ -281,5 +281,8 @@
   "%d repeats": "%d reprises",
   "%d min %d s": "%d min %d s",
   "%d repeat · %d min %d s": "%d reprise · %d min %d s",
-  "repeat %d of %d": "reprise %d sur %d"
+  "repeat %d of %d": "reprise %d sur %d",
+  "not in it yet": "pas encore dedans",
+  "%s: in this key": "%s : dans cette tonalité",
+  "Keep %s in %s": "Garder %s dans %s"
 }

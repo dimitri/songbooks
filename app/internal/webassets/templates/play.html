@@ -607,9 +607,12 @@
       {{if .Tempo}}<span class="topbar-meta-item">{{.Tempo}} bpm</span>{{end}}
       {{/* Opened from a coaching student's or group's songbook: the key the
            coach gave it there (data-key-offset), and whose it is. */}}
-      {{if .StudentKeySet}}<span class="topbar-meta-item key-context" title="{{t "the key this song was given for them"}}">{{if .KeyMine}}{{if .StudentKeyName}}{{t "Your key: %s" .StudentKeyName}}{{else if .StudentKey}}{{t "Your key: %s" (printf "%+d" .StudentKey)}}{{else}}{{t "Your key: original"}}{{end}}{{else if .StudentKey}}{{if .StudentKeyName}}{{t "%s’s key: %s" .KeyContext (printf "%s (%+d)" .StudentKeyName .StudentKey)}}{{else}}{{t "%s’s key: %s" .KeyContext (printf "%+d" .StudentKey)}}{{end}}{{else}}{{t "%s’s key: original" .KeyContext}}{{end}}</span>{{end}}
+      {{if and .StudentKeySet (not .SongbookKey)}}<span class="topbar-meta-item key-context" title="{{t "the key this song was given for them"}}">{{if .KeyMine}}{{if .StudentKeyName}}{{t "Your key: %s" .StudentKeyName}}{{else if .StudentKey}}{{t "Your key: %s" (printf "%+d" .StudentKey)}}{{else}}{{t "Your key: original"}}{{end}}{{else if .StudentKey}}{{if .StudentKeyName}}{{t "%s’s key: %s" .KeyContext (printf "%s (%+d)" .StudentKeyName .StudentKey)}}{{else}}{{t "%s’s key: %s" .KeyContext (printf "%+d" .StudentKey)}}{{end}}{{else}}{{t "%s’s key: original" .KeyContext}}{{end}}</span>{{end}}
       {{if and .GPSource .CanEdit}}<a class="topbar-meta-item gp-source-badge" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file — see Edit → GP Import to bring edits back in"}}">{{template "icon-instrument-guitar"}} {{t "GP import: %s" .GPSource}}</a>{{end}}
     </div>
+    {{/* Opened in the key a songbook keeps it in (songbook_keys.go): the
+         same song, whoever's it is, transposed for this songbook. */}}
+    {{with .SongbookKey}}<p class="songbook-key-line">{{if .Whose}}{{.Whose}} · {{end}}{{if .Mine}}{{t "in your key: %s" .Label}}{{else}}{{t "in the key of “%s”: %s" .Songbook .Label}}{{end}} · <a href="{{.Original}}">{{t "Original key"}}</a></p>{{end}}
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
          — jumpToSection()/setPlaying() (song.js) operate on these exact
          ids to drive click-a-section-and-follow-along playback, which is
@@ -683,6 +686,9 @@
         <button id="edit-drawer-close" class="icon-btn" type="button" title="{{t "close"}}">{{template "icon-close"}}</button>
       </div>
     </div>
+    {{/* The editor changes the song itself, in its own key, for everyone
+         who has it — not this songbook's key of it. */}}
+    {{with .SongbookKey}}<p class="hint edit-key-note">{{if .OwnKey}}{{t "You’re editing %s, in its own key: %s." .WhoseLower .OwnKey}}{{else}}{{t "You’re editing %s, in its own key." .WhoseLower}}{{end}}</p>{{end}}
     <div class="prep-tabs view-tabs" role="tablist">
       <button class="prep-tab active" data-tab="structure" type="button">{{t "Chart"}}</button>
       <button class="prep-tab" data-tab="raw" type="button">{{t "Source"}}</button>
@@ -703,7 +709,7 @@
       </div>
     </section>
 
-    <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}" hidden>
+    <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{.CanEdit}}"{{if .BandOffer}} data-edit-offer="band"{{else if and (not .CanEdit) .CanCopy}} data-edit-offer="copy"{{end}} hidden>
       {{if .GPSource}}
       <p class="hint gpimport-reimport-note"><strong>{{t "This song was imported from %s" .GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>{{t "download it"}}</a>). {{t "The"}} <code>score[...]:</code> {{t "lines below are that file's own exact notation — hand-editing this JSON works but is easy to get wrong; for a real change, edit the Guitar Pro file itself and bring it back in via the"}} <strong>{{t "GP Import"}}</strong> {{t "tab instead."}}</p>
       {{end}}
@@ -1614,6 +1620,14 @@
             <div class="audio-pop-head"><strong>{{t "Save this key for"}}</strong><span class="hint">{{t "the song then opens in it for them, the chart and the recording"}}</span></div>
             <ul class="audio-key-targets" id="audio-key-targets"></ul>
           </div>
+          {{/* For anyone: this key kept in My songbook, or in a songbook
+               they can change that has the song (songbook_keys.go): the
+               song then opens in it from there. Filled when the panel
+               first opens. */}}
+          <div class="audio-key-coach" id="audio-key-books" hidden>
+            <div class="audio-pop-head"><strong>{{t "Keep this key in"}}</strong><span class="hint">{{t "the song opens in it from there; the song itself stays in its key"}}</span></div>
+            <ul class="audio-key-targets" id="audio-key-book-list"></ul>
+          </div>
         </div>
         <div class="audio-pop" id="audio-pop-voice" hidden>
           <div class="audio-pop-head"><strong>{{t "Voice"}}</strong><span class="hint">{{t "the singer, from the recording split in its parts"}}</span></div>
@@ -1700,6 +1714,9 @@
       </ul>
     </details>
     {{end}}
+    {{/* One's own copy of a song a band of one's has its own version of
+         (store.BandVersionOf): the band plays and changes that one. */}}
+    {{with .BandVersion}}<p class="band-version-notice">{{t "%s has its own version of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s version"}}</a></p>{{end}}
     <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
@@ -1887,6 +1904,34 @@
   </div>
 </div>
 </div><!-- /.app-content -->
+
+{{/* Edit on a song this person can't, or shouldn't, change here
+     (handleSong's BandOffer, CanCopy): what Edit does instead, said
+     first, never a silent copy. song.js opens it. */}}
+{{if or .BandOffer (and (not .CanEdit) .CanCopy)}}
+<dialog class="edit-offer-dialog" id="edit-offer-dialog" aria-labelledby="edit-offer-title" aria-describedby="edit-offer-text">
+  <form method="dialog">
+    {{with .BandOffer}}
+    <h2 id="edit-offer-title">{{t "Edit %s’s version" .BandName}}</h2>
+    <p id="edit-offer-text">{{if .OwnSongID}}{{t "%s has its own version of this song; this page opened another one." .BandName}}{{else if eq $.SongVisibility "global"}}{{t "This is the catalogue’s song, which %s uses. Changing it here would change it for everyone, not for the band." .BandName}}{{else if eq $.SongVisibility "user"}}{{t "This is someone’s own song, which %s uses." .BandName}}{{else}}{{t "This song isn’t %s’s own." .BandName}}{{end}}</p>
+    <p class="hint">{{if .OwnSongID}}{{t "Its songbook and set lists will open the band’s version from now on."}}{{else}}{{t "%s gets its own copy, which every member can change. Its songbook and set lists will open that one; the original stays as it is." .BandName}}{{end}}</p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="edit-offer-go" data-action="band" data-band-id="{{.BandID}}">{{t "Edit %s’s version" .BandName}}</button>
+    </div>
+    {{else}}
+    <h2 id="edit-offer-title">{{t "You can’t change this song"}}</h2>
+    <p id="edit-offer-text">{{with .EditOwner}}{{if eq .Kind "band"}}{{t "This is %s’s song; only its members can change it." .Name}}{{else if eq .Kind "community"}}{{t "This is %s’s song; changing it takes the right to edit the repertoire." .Name}}{{else if eq .Kind "global"}}{{t "This is the catalogue’s song; you can’t change it."}}{{else if eq .Kind "setlist"}}{{t "This song belongs to the set list “%s”; only who can change the set list can change it." .Name}}{{else if eq .Kind "user"}}{{t "This is %s’s own song; only they can change it." .Name}}{{else}}{{t "Only its owner can change this song."}}{{end}}{{else}}{{t "Only its owner can change this song."}}{{end}}</p>
+    <p class="hint">{{t "You can make your own copy and change that. It goes into My songbook; this song stays as it is."}}</p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="edit-offer-go" data-action="copy">{{t "Make my own copy"}}</button>
+    </div>
+    {{end}}
+    <p class="form-status" id="edit-offer-status" role="status"></p>
+  </form>
+</dialog>
+{{end}}
 
 {{if .SongbookRef}}<script>window.songbooksPracticeContext = { songbookId: {{.SongbookRef}}, variantId: {{.VariantID}} };</script>
 <script src="/static/js/practice-time.js?v={{staticVersion}}"></script>
