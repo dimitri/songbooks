@@ -343,7 +343,9 @@ func (st *Store) repointOwnerSetlists(ctx context.Context, tx pgx.Tx, owner Owne
 // SetSongPublic makes songID public or private for personID, who needs
 // SongRights.Publish (a person their own; a band's core members; a
 // community's staff; the site's admins for The Big Songbook's). A closed
-// songbook's song is never public: ErrForbidden.
+// songbook's song is never public: ErrForbidden. Made private again, every
+// other owner linking it that can't see it any more keeps a frozen copy
+// in its place (frozen.go).
 func (st *Store) SetSongPublic(ctx context.Context, personID, songID int64, public bool) error {
 	r, err := st.SongRightsFor(ctx, personID, songID)
 	if err != nil {

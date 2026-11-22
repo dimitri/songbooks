@@ -2142,7 +2142,7 @@
     {{/* One's own copy of a song a band of one's has its own version of
          (store.BandVersionOf): the band plays and changes that one. */}}
     {{/* A band's song made from another: where it came from, quietly. */}}
-    {{with .BasedOn}}<p class="based-on">{{t "Based on:"}} <a href="/song/{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</a>{{if eq .Kind "global"}} ({{t "the catalogue’s"}}){{else if .Owner}} ({{.Owner}}){{end}}</p>{{end}}
+    {{if not .Frozen}}{{with .BasedOn}}<p class="based-on">{{t "Based on:"}} <a href="/song/{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</a>{{if eq .Kind "global"}} ({{t "the catalogue’s"}}){{else if .Owner}} ({{.Owner}}){{end}}</p>{{end}}{{end}}
     {{/* Steps 6 and 7 of the ownership model (versions_sync.go): a
          frozen copy says what of; a public song, which bands' recordings
          everyone hears; a version, what its original changed since. */}}

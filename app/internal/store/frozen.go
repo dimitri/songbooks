@@ -26,9 +26,9 @@ import (
 // links the band's song in their own songbook). A band or a community
 // links only public songs and its own, so it always gets its copy.
 //
-// Set lists are their text bodies' lines here ("variant:N"); once they
-// are setlist_items rows pointing at songbook entries (step 3), the
-// entries repointed carry them, and the lines' repointing goes.
+// A set list's songs are setlist_items rows (step 3, migration 0115):
+// the owner's rows that are the song are repointed at its copy, a
+// revision of each set list recorded (repointOwnerSetlists).
 
 // SongUses says who would lose a song made private or deleted: what the
 // confirmation says before.
@@ -125,8 +125,8 @@ func songUses(ctx context.Context, tx pgx.Tx, songID int64, forDelete bool) (*So
 		  FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
 		  WHERE se.variant_id = $1
 		  UNION ALL
-		  SELECT scope::text, coalesce(owner_person_id, owner_band_id, owner_community_id), 0, 1
-		  FROM setlists WHERE body ~ ('variant:\s*' || $1::bigint::text || '(\D|$)')
+		  SELECT sl.scope::text, coalesce(sl.owner_person_id, sl.owner_band_id, sl.owner_community_id), 0, 1
+		  FROM setlists sl WHERE EXISTS (SELECT 1 FROM setlist_items i WHERE i.setlist_id = sl.id AND i.variant_id = $1)
 		)
 		SELECT kind, id, sum(books)::int, sum(lists)::int FROM holders
 		WHERE NOT (kind = $2 AND id = $3)

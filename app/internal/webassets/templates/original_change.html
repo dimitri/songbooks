@@ -7,7 +7,7 @@
 {{define "original-change"}}
 <details class="original-change" id="original-change" data-variant-id="{{.VersionID}}" data-original-version="{{.OriginalVersion}}" open>
   <summary><strong>{{t "The original changed"}}</strong> · <a href="/song/{{.OriginalID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</a>{{if eq .OwnerKind "global"}} ({{t "the catalogue’s"}}){{else if .OwnerName}} ({{.OwnerName}}){{end}}</summary>
-  <p class="hint">{{if .SyncedAt}}{{t "What changed in it since this version last took or kept its changes (%s):" (date .SyncedAt "2 Jan 2006")}}{{else}}{{t "What changed in it since this version was made:"}}{{end}}</p>
+  <p class="hint">{{if .SyncedAt}}{{t "What changed in it since %s, when this version was made or last answered its changes:" (date .SyncedAt "2 Jan 2006")}}{{else}}{{t "What changed in it since this version was made:"}}{{end}}</p>
   {{if .Changes}}<ul class="original-change-list">{{range .Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>{{end}}
   {{if .Lines}}
   <details class="history-diff"><summary>{{t "Show the text"}}</summary>
