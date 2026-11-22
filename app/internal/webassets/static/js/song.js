@@ -261,10 +261,20 @@ const ICONS = {
         // --cap counts the row's regular bars: a pickup has its own narrow
         // width (.bar-pickup, app.css), so the bars next to it stay as wide
         // as every other row's.
-        line.style.setProperty('--cap', String(cap));
+        // A short first row beside the clef and pickups (bars: 4,5 on a
+        // phone: the pickups + 2 bars) keeps the other rows' bar width when
+        // it has the room, rather than squeezing its bars into what a full
+        // row's would get beside them: its --cap is scaled so that
+        // (row - clef - pickups) / --cap is the line's width / cap.
+        let capCss = cap;
+        const head = availW - firstBudget;
+        if (row === 0 && pickup > 0 && size - pickup < cap && (size - pickup) * (availW / cap) + head <= availW) {
+          capCss = Math.round((cap * (availW - head) / availW) * 1000) / 1000;
+        }
+        line.style.setProperty('--cap', String(capCss));
         if (row === 0 && pickup > 1) line.style.setProperty('--pickups', String(pickup));
         const budget = row === 0 ? firstBudget : availW;
-        if (cap * minBarPx > budget) line.style.setProperty('--bar-w', Math.max(2.6 * fontPx, budget / cap) + 'px');
+        if (capCss * minBarPx > budget) line.style.setProperty('--bar-w', Math.max(2.6 * fontPx, budget / capCss) + 'px');
         if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
         for (const bar of chunk) line.appendChild(bar.cloneNode(true));
         newLines.push(line);
