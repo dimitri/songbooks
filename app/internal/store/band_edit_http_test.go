@@ -570,8 +570,11 @@ func TestSearchShowsTheBandsVersion(t *testing.T) {
 			t.Errorf("%s, in no band: %+v, want the catalogue's %d", path, got, f.CatalogSong)
 		}
 	}
-	if html := as(t, st, f.Core).page("/catalog?q=vent"); !strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, ours)) || strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, f.CatalogSong)) || !strings.Contains(html, "band-version-tag") {
-		t.Error("the catalogue page: not the band's version, labelled")
+	// The catalogue page lists everything the member sees, by work
+	// (docs/ownership-model.md §3): the band's version first, labelled
+	// with whose it is, the catalogue's beside it.
+	if html := as(t, st, f.Core).page("/catalog?q=vent"); !strings.Contains(html, fmt.Sprintf(`data-variant-id="%d"`, ours)) || !strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, f.CatalogSong)) || !strings.Contains(html, "Other Lies · private") {
+		t.Error("the catalogue page: not the band's version first, labelled, with the catalogue's beside it")
 	}
 	html := as(t, st, f.Core).page(fmt.Sprintf("/song/%d", ours))
 	if !strings.Contains(html, `class="based-on"`) || !strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, f.CatalogSong)) {
