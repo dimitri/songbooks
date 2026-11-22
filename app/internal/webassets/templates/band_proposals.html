@@ -98,7 +98,7 @@ function songPicker(input, hidden, list) {
     const q = input.value.trim();
     list.replaceChildren();
     if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}&band=${bandId}`).catch(() => null);
     const hits = res && res.ok ? await res.json().catch(() => []) : [];
     if (!hits.length) {
       const p = document.createElement('p');
@@ -168,10 +168,17 @@ document.getElementById('create-proposal-form').addEventListener('submit', (e) =
   }
   const payload = kind === 'new_reference' ? {url: document.getElementById('proposal-url').value.trim(), note} : {note};
   Forms.run(form, document.getElementById('create-proposal-btn'), async () => {
-    const res = await fetch(`/api/bands/${bandId}/proposals`, {
+    const propose = (id) => fetch(`/api/bands/${bandId}/proposals`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({kind, targetVariantId, payload}),
+      body: JSON.stringify({kind, targetVariantId: id, payload}),
     });
+    let res = await propose(targetVariantId);
+    // Another band's song: never the band's; its catalogue version, if asked.
+    if (res.status === 409) {
+      const r = await Forms.bandRefusal(res);
+      if (!r.retryId) throw new Error(r.message || t('Not added.'));
+      res = await propose(r.retryId);
+    }
     if (!res.ok) throw new Error(t('Couldn’t send the proposal. Check the song and link, then try again.'));
     location.reload();
   });

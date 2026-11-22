@@ -279,18 +279,19 @@ func (st *Store) decideProposal(ctx context.Context, proposalID int64, newStatus
 
 // applyAcceptEffect performs the real-world side effect a proposal's
 // acceptance implies — adding the target variant to the band's
-// repertoire for 'new_song', or updating the target variant's
-// "reference" header field for 'new_reference' — reusing the existing
-// mechanisms (AddBandCatalogEntry; LoadSong/SaveSong, same path
-// handlePutMeta already uses) rather than a second storage location, per
-// the brief.
+// repertoire for 'new_song' — as the band's own song (AdoptIntoBand: the
+// catalogue's or a person's song copied for the band, another band's
+// refused), never a pointer — or updating the target variant's
+// "reference" header field for 'new_reference' (LoadSong/SaveSong, same
+// path handlePutMeta already uses).
 func (st *Store) applyAcceptEffect(ctx context.Context, p *BandProposal, actorPersonID int64) error {
 	switch p.Kind {
 	case "new_song":
 		if p.TargetVariantID == nil {
 			return fmt.Errorf("new_song proposal %d has no target variant", p.ID)
 		}
-		return st.AddBandCatalogEntry(ctx, p.BandID, *p.TargetVariantID, actorPersonID)
+		_, _, err := st.AdoptIntoBand(ctx, p.BandID, *p.TargetVariantID, actorPersonID)
+		return err
 
 	case "new_reference":
 		if p.TargetVariantID == nil {
