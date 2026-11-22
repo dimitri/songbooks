@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -118,11 +119,11 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 				agenda,
 			}, material...)
 		}
-		return append([]SpaceSection{
-			{Key: "overview", Label: "My week", Icon: "icon-home"},
-			{Key: "progress", Label: "My progress", Path: fmt.Sprintf("/students/%d", role.PersonID), Icon: "icon-profile"},
-			agenda,
-		}, material...)
+		out := []SpaceSection{{Key: "overview", Label: "My week", Icon: "icon-home"}}
+		if role.PersonID != 0 { // 0: a member with nothing yet (an admin's preview)
+			out = append(out, SpaceSection{Key: "progress", Label: "My progress", Path: fmt.Sprintf("/students/%d", role.PersonID), Icon: "icon-profile"})
+		}
+		return append(append(out, agenda), material...)
 	}
 	return nil
 }
@@ -158,6 +159,9 @@ type SpaceNav struct {
 	// segmented control under the tabs (space-filters), nil when the
 	// section has none.
 	Filters []SpaceTab
+	// SeeAs is a site admin's "See as…" on a coaching community's pages
+	// (coaching_viewer.go), nil for anyone else.
+	SeeAs *seeAsSwitch
 	// Switcher is the page's global navigation (navState), whose Spaces
 	// feed the header's space switcher ("space-switcher", its "header"
 	// variant). Nil, or no current space (one the viewer isn't a member
@@ -382,8 +386,19 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 	}
 	see, _ := m["CanSeeMembers"].(bool)
 	kind := spaceCommunity
+	roleID := person.ID
+	var seeAs *seeAsSwitch
 	if community.IsCoaching() {
 		kind = spaceCoaching
+		// The coach's sections or the student's, as the pages decide
+		// (coachingViewerOf), an admin's "See as…" included.
+		// (The writer's request is the one before requireAuth: the
+		// person goes in its context here.)
+		pr := lw.r.WithContext(context.WithValue(ctx, personCtxKey, person))
+		if v, err := s.coachingViewerOf(pr, community.ID); err == nil {
+			staff, roleID = v.Coach, v.PersonID
+			seeAs = s.seeAsFor(pr, community, v)
+		}
 	}
 	if kind == spaceCoaching {
 		if moved, ok := coachingSections[section]; ok {
@@ -395,7 +410,8 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 			section = "progress"
 		}
 	}
-	nav := newSpaceNav(kind, community.ID, community.Name, spaceRole{Staff: staff, SeeMembers: see, PersonID: person.ID}, section)
+	nav := newSpaceNav(kind, community.ID, community.Name, spaceRole{Staff: staff, SeeMembers: see, PersonID: roleID}, section)
+	nav.SeeAs = seeAs
 	nav.Brand = webassets.BrandLookupFor("community", community.ID)
 	if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
 		nav.withHints(hints)

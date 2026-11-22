@@ -122,9 +122,8 @@ func (s *Server) handleExercisePage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	me := personFromContext(r)
 	pd := exercisePageData{Exercise: e, IsCoach: coach}
-	studentID := me.ID
+	studentID := s.viewedPersonID(r, community.ID)
 	if coach {
 		studentID, _ = strconv.ParseInt(r.URL.Query().Get("student"), 10, 64)
 	}

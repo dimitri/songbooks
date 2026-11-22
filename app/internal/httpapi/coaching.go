@@ -61,9 +61,12 @@ func rangeViews(rs []store.VoiceRange, lang string) []rangeView {
 	return out
 }
 
-// coachingContext loads a coaching community and says whether the viewer
-// is its coach (its staff, or a site admin); nil and an error page when
-// it isn't a coaching community.
+// coachingContext loads a coaching community and says whether its pages
+// are the coach's for this viewer (coachingViewerOf: the staff; a site
+// admin unless they're a student there; an admin's "See as…"); nil and
+// an error page when it isn't a coaching community. A change asked for
+// during a student's or a member's preview is refused: the admin would
+// be acting for someone who didn't.
 func (s *Server) coachingContext(w http.ResponseWriter, r *http.Request) (*store.Community, bool, bool) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	community, err := s.store.GetCommunity(r.Context(), communityID)
@@ -71,15 +74,30 @@ func (s *Server) coachingContext(w http.ResponseWriter, r *http.Request) (*store
 		http.NotFound(w, r)
 		return nil, false, false
 	}
-	person := personFromContext(r)
-	coach := person.IsAdmin
-	if !coach {
-		if coach, err = s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID); err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return nil, false, false
-		}
+	v, err := s.coachingViewerOf(r, communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return nil, false, false
 	}
-	return community, coach, true
+	if v.ReadOnly && r.Method != http.MethodGet && r.Method != http.MethodHead {
+		httpError(w, http.StatusConflict, i18n.T(s.langOfRequest(r), "This is a preview: leave it to make a change."))
+		return nil, false, false
+	}
+	return community, v.Coach, true
+}
+
+// viewedPersonID is whose student pages a coaching community's page shows:
+// the viewer's own, or the student a site admin looks as (0 for a member
+// with nothing yet).
+func (s *Server) viewedPersonID(r *http.Request, communityID int64) int64 {
+	v, err := s.coachingViewerOf(r, communityID)
+	if err != nil {
+		return personFromContext(r).ID
+	}
+	if v.Coach {
+		return personFromContext(r).ID
+	}
+	return v.PersonID
 }
 
 type studentRow struct {
@@ -118,9 +136,12 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	person := personFromContext(r)
 	if !coach {
-		http.Redirect(w, r, fmt.Sprintf("/communities/%d/students/%d", community.ID, person.ID), http.StatusFound)
+		if id := s.viewedPersonID(r, community.ID); id != 0 {
+			http.Redirect(w, r, fmt.Sprintf("/communities/%d/students/%d", community.ID, id), http.StatusFound)
+		} else {
+			http.Redirect(w, r, fmt.Sprintf("/communities/%d/songbooks", community.ID), http.StatusFound)
+		}
 		return
 	}
 	members, err := s.store.ListCommunityMembers(r.Context(), community.ID, false)
@@ -276,7 +297,7 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	person := personFromContext(r)
-	if !coach && studentID != person.ID {
+	if !coach && studentID != s.viewedPersonID(r, community.ID) {
 		http.NotFound(w, r)
 		return
 	}
@@ -335,6 +356,10 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	}
 	data["Student"] = member
 	data["Ranges"] = rangeViews(rs, s.langOfRequest(r))
+	if err := s.voiceData(r, community.ID, studentID, coach, data["Ranges"].([]rangeView), data); err != nil {
+		fail(err)
+		return
+	}
 	data["SongbookID"] = sbID
 	data["Songs"] = s.withKeys(r.Context(), songs)
 	data["Groups"] = inGroups
@@ -670,9 +695,11 @@ func (s *Server) handleCoachingLessonsPage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	person := personFromContext(r)
-	only := person.ID
+	only := s.viewedPersonID(r, community.ID)
 	if coach {
 		only = 0
+	} else if only == 0 {
+		only = -1 // a member with nothing yet: no lessons
 	}
 	lessons, err := s.store.ListCoachingLessons(r.Context(), community.ID, time.Now().Add(-6*time.Hour), only)
 	if err != nil {

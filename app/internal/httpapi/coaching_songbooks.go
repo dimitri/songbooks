@@ -87,6 +87,9 @@ type coachBookCard struct {
 	// A student's voice, lowest to highest noted ("do3–la4"), "" when
 	// none is.
 	Voice string
+	// VoiceType: the coach's assessment (store.VoiceTypes), its English
+	// label, "" when not classified.
+	VoiceType string
 	// A group's: a year's class or a one-off, and how many students.
 	IsYear  bool
 	Members int
@@ -103,16 +106,14 @@ type coachBookCard struct {
 // coaching community: the student's view or the coach's.
 func (s *Server) handleCoachingSongbooksPage(w http.ResponseWriter, r *http.Request, community *store.Community) {
 	ctx := r.Context()
-	person := personFromContext(r)
-	coach := person.IsAdmin
-	if !coach {
-		var err error
-		if coach, err = s.store.HasAnyCommunityManagePrivilege(ctx, community.ID, person.ID); err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
+	v, err := s.coachingViewerOf(r, community.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
+	coach := v.Coach
 	data := s.coachingPageData(r, community, coach, "songbooks")
+	data["ReadOnly"] = v.ReadOnly
 	coachName := s.store.CoachName(ctx, community.ID)
 	data["CoachName"] = coachName
 	data["CoachFirstName"] = firstWord(coachName)
@@ -139,7 +140,7 @@ func (s *Server) handleCoachingSongbooksPage(w http.ResponseWriter, r *http.Requ
 	if coach {
 		err = s.coachBooksData(r, community, repertoire, data)
 	} else {
-		err = s.studentBooksData(r, community, person.ID, repertoire, data)
+		err = s.studentBooksData(r, community, v.PersonID, repertoire, data)
 	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -187,9 +188,11 @@ func (s *Server) studentBooksData(r *http.Request, community *store.Community, p
 		}
 	}
 	data["BookMoved"] = moved
-	lessons, err := s.store.ListCoachingLessons(ctx, community.ID, time.Now(), personID)
-	if err != nil {
-		return err
+	var lessons []store.CoachingLesson
+	if personID != 0 { // 0: a member with nothing yet (an admin's preview)
+		if lessons, err = s.store.ListCoachingLessons(ctx, community.ID, time.Now(), personID); err != nil {
+			return err
+		}
 	}
 	if len(lessons) > 0 {
 		ev := lessons[0].Event
@@ -211,9 +214,11 @@ func (s *Server) studentBooksData(r *http.Request, community *store.Community, p
 	data["Repertoire"] = rows
 	// Their groups' songbooks, and the community's other songbooks they
 	// may open (never another student's, nor a group they aren't in).
-	groups, err := s.store.ListCoachingGroups(ctx, community.ID, personID)
-	if err != nil {
-		return err
+	var groups []store.CoachingGroup
+	if personID != 0 {
+		if groups, err = s.store.ListCoachingGroups(ctx, community.ID, personID); err != nil {
+			return err
+		}
 	}
 	var groupCards []coachBookCard
 	for _, g := range groups {
@@ -322,6 +327,10 @@ func (s *Server) coachBookCards(r *http.Request, community *store.Community, req
 	if err != nil {
 		return nil, err
 	}
+	types, err := s.store.CommunityVoiceTypes(ctx, community.ID)
+	if err != nil {
+		return nil, err
+	}
 	asked := map[int64]int{}
 	for _, q := range requests {
 		asked[q.PersonID]++
@@ -377,6 +386,7 @@ func (s *Server) coachBookCards(r *http.Request, community *store.Community, req
 			return nil, err
 		}
 		c.Voice = voiceSpan(rs, lang)
+		c.VoiceType = voiceTypeLabels[types[m.PersonID]]
 		if w, ok := worked[m.PersonID]; ok {
 			c.LastSong = &w
 		}

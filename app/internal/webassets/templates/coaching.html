@@ -569,9 +569,12 @@
 <main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}">
   {{template "space-nav" .Space}}
 
-  <section class="home-section">
+  <section class="home-section" id="voice">
     <div class="home-section-head"><h3>{{t "Voice"}}</h3><span class="hint">{{t "ranges overlap: the mixed voice bridges chest and head"}}</span></div>
-    {{template "voice-chart" .Ranges}}
+    {{/* The voice type and the whole range, then the tessitura (the
+         comfortable part), a striped bar under the registers. */}}
+    <p class="voice-type-line"><strong class="voice-type-name">{{with .VoiceTypeLabel}}{{t .}}{{else}}{{t "Voice type not classified yet"}}{{end}}</strong>{{with .VoiceSpan}}<span>{{t "range %s" .}}</span>{{end}}{{with .Tessitura}}<span>{{t "comfortable %s" (printf "%s–%s" .LowName .HighName)}}</span>{{end}}</p>
+    {{template "voice-chart" .ChartRanges}}
     <div class="voice-ranges">
       {{range .Ranges}}
       <div class="voice-range" data-register="{{.Register}}">
@@ -588,6 +591,38 @@
       </div>
       {{end}}
     </div>
+    {{if .IsCoach}}
+    {{/* The coach's assessment: a type (or none yet), the tessitura, a
+         few words; each change kept in the history below. */}}
+    <form class="voice-assess form-stack">
+      <div class="voice-assess-row">
+        <div class="field"><label for="voice-type">{{t "Voice type"}}</label>
+          <select id="voice-type" name="voiceType">{{$vt := .Voice.VoiceType}}{{range .VoiceTypes}}<option value="{{.Value}}"{{if eq .Value $vt}} selected{{end}}>{{t .Label}}</option>{{end}}</select></div>
+        <div class="field"><label for="voice-tess-low">{{t "Comfortable from"}}</label>
+          <select id="voice-tess-low" name="tessLow"><option value="">—</option>{{$tl := .TessLow}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $tl}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        <div class="field"><label for="voice-tess-high">{{t "to"}}</label>
+          <select id="voice-tess-high" name="tessHigh"><option value="">—</option>{{$th := .TessHigh}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $th}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+      </div>
+      <div class="field"><label for="voice-note">{{t "Your assessment"}}</label>
+        <textarea id="voice-note" name="note" rows="2" placeholder="{{t "What you hear: range, timbre, where the voice changes register, what to work on…"}}">{{.Voice.Assessment}}</textarea></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Save the assessment"}}</button><p class="form-status" role="status"></p></div>
+      <label class="check voice-shared-row"><input type="checkbox" class="voice-shared"{{if .Voice.Shared}} checked{{end}}> {{t "%s reads the assessment and its history" .Student.DisplayName}}</label>
+    </form>
+    {{else if and .ShowAssessment .Voice.Assessment}}
+    <blockquote class="voice-assessment">{{.Voice.Assessment}}</blockquote>
+    {{end}}
+    {{if and .ShowAssessment .VoiceHistory}}
+    <details class="voice-history"{{if .IsCoach}} open{{end}}>
+      <summary>{{t "History"}} <span class="hint">{{len .VoiceHistory}}</span></summary>
+      <ol>
+      {{range .VoiceHistory}}
+        <li><span class="hint">{{date .At "2 Jan 2006"}}{{with .By}} · {{.}}{{end}}</span>
+          {{if .IsNoteOnly}}<strong>{{t .Field}}</strong>{{else}}<strong>{{t .Field}}</strong>{{t "voice-history|:"}} {{if .Old}}{{if .IsType}}{{t .Old}}{{else}}{{.Old}}{{end}}{{else}}—{{end}} → {{if .New}}{{if .IsType}}{{t .New}}{{else}}{{.New}}{{end}}{{else}}—{{end}}{{end}}
+          {{with .Note}}<div class="voice-history-note">{{.}}</div>{{end}}</li>
+      {{end}}
+      </ol>
+    </details>
+    {{end}}
   </section>
 
   {{template "practice-section" .}}
@@ -673,6 +708,21 @@
     };
     row.querySelectorAll('select').forEach((s) => s.addEventListener('change', save));
     row.querySelector('.voice-note').addEventListener('change', save);
+  });
+  // The assessment: type, tessitura, words; whether the student reads it.
+  const assess = document.querySelector('.voice-assess');
+  assess?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const num = (v) => (v === '' ? null : Number(v));
+    Forms.run(assess, assess.querySelector('button[type="submit"]'), async () => {
+      await send(`${api}/voice`, 'PUT', {
+        voiceType: assess.voiceType.value, tessituraLow: num(assess.tessLow.value), tessituraHigh: num(assess.tessHigh.value), note: assess.note.value,
+      }).catch(() => { throw new Error(t('Couldn’t save the assessment.')); });
+      location.reload();
+    });
+  });
+  assess?.querySelector('.voice-shared').addEventListener('change', (e) => {
+    send(`${api}/voice/shared`, 'PUT', { shared: e.target.checked }).catch(() => { e.target.checked = !e.target.checked; alert(t('Couldn’t save.')); });
   });
   const notes = document.getElementById('coach-notes');
   notes?.addEventListener('change', () => send(`${api}/notes`, 'PUT', { notes: notes.value }).catch(() => alert(t('Couldn’t save the notes.'))));

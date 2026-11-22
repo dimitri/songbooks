@@ -446,8 +446,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /communities/{id}/students/{personID}", s.requireCommunityMember(s.handleCoachingStudentPage))
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/ranges/{register}", s.requireCommunityMember(s.handlePutStudentRange))
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/notes", s.requireCommunityMember(s.handlePutStudentNotes))
+	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/voice", s.requireCommunityMember(s.handlePutStudentVoice))
+	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/voice/shared", s.requireCommunityMember(s.handlePutStudentVoiceShared))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/songs", s.requireCommunityMember(s.handlePostCoachingSong))
 	mux.HandleFunc("PUT /api/communities/{id}/songbooks/{sbID}/songs/{variantID}/key", s.requireCommunityMember(s.handlePutCoachingSongKey))
+	// A site admin's "See as…" across a coaching community's pages (coaching_viewer.go).
+	mux.HandleFunc("GET /communities/{id}/see-as", s.requireAuth(s.handleSeeAs))
 	// A student's "Ask for it", the coach's add or not now (coaching_songbooks.go).
 	mux.HandleFunc("POST /api/communities/{id}/song-requests", s.requireCommunityMember(s.handlePostSongRequest))
 	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/add", s.requireCommunityMember(s.handlePostSongRequestAdd))

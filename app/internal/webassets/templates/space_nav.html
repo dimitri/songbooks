@@ -7,6 +7,7 @@
      any, follow on every width. Called with .Space (a SpaceNav); nothing
      when the page isn't a space's. */}}
 {{define "space-nav"}}{{with .}}
+{{template "see-as" .SeeAs}}
 <div class="space-header{{if .IsHome}} is-home{{end}}">
   <a class="space-avatar" href="{{.Home}}" tabindex="-1" aria-hidden="true">{{with .Brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="space-mark">{{.Mark}}</span>{{else}}{{$.Initials}}{{end}}{{else}}{{.Initials}}{{end}}</a>
   <div class="space-id">
@@ -85,4 +86,21 @@
   </div>
 </details>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+{{end}}{{end}}
+
+{{/* A site admin's "See as…" on a coaching community's pages
+     (httpapi/coaching_viewer.go): who the pages are shown for, and while
+     it's someone else, a banner saying it's a preview. Called with
+     .Space.SeeAs; nothing for anyone else. */}}
+{{define "see-as"}}{{with .}}
+<form class="see-as{{if .Preview}} is-on{{end}}" method="get" action="{{.Action}}">
+  <input type="hidden" name="back" value="{{.Back}}">
+  {{if eq .Preview "coach"}}<p class="see-as-note"><strong>{{t "Preview: the coach’s pages."}}</strong> {{t "What you change, you change as yourself, a site admin."}}</p>
+  {{else if eq .Preview "student"}}<p class="see-as-note"><strong>{{t "Preview: what %s sees." .Name}}</strong> {{if .ReadOnly}}{{t "Read-only: nothing can be asked or changed for them."}}{{end}}</p>
+  {{else if eq .Preview "member"}}<p class="see-as-note"><strong>{{t "Preview: what a member with nothing yet sees."}}</strong> {{t "Read-only."}}</p>{{end}}
+  <label class="see-as-pick"><span>{{t "See as…"}}</span>
+    <select name="as" aria-label="{{t "See as…"}}" onchange="this.form.submit()">{{range .Options}}<option value="{{.Value}}"{{if .Current}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+  <noscript><button type="submit">{{t "See"}}</button></noscript>
+  {{if .Preview}}<a class="see-as-leave" href="{{.Action}}?as=&amp;back={{.Back}}">{{t "Leave the preview"}}</a>{{end}}
+</form>
 {{end}}{{end}}
