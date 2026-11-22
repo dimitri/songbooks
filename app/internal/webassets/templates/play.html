@@ -665,6 +665,29 @@
   {{end}}
 </div>
 {{end}}
+{{if .LessonView}}
+{{/* A lesson (lessonview.go): three views, not the chart's — its video
+     first (with the course around it and the score under it), the score
+     alone, the mixer. The chart's switcher (#mode-segmented) stays, hidden,
+     as the views' engine: Score and Mixer are its buttons, the Video view
+     is its Score with the video above it (lesson-view.js). On a wide
+     screen these take its place (beside the song's actions); on a phone
+     they stay here, at the top of the song. */}}
+<span id="lesson-tabs-home" hidden></span>
+<div class="view-tabs lesson-tabs" id="lesson-tabs" role="group" aria-label="{{t "View"}}" data-tab="{{if .LessonVideoID}}video{{else}}score{{end}}">
+  {{if .LessonVideoID}}<button type="button" data-lesson-tab="video" class="active" aria-pressed="true" title="{{t "the lesson’s video, the score under it"}}">{{template "icon-video"}} {{t "Video"}}</button>{{end}}
+  <button type="button" data-lesson-tab="score"{{if not .LessonVideoID}} class="active" aria-pressed="true"{{else}} aria-pressed="false"{{end}} title="{{t "the score alone"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>
+  <button type="button" data-lesson-tab="mixer" aria-pressed="false" title="{{t "mixer"}}">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
+</div>
+<script>
+  // Where the chart's switcher sits on a wide screen, before the first paint.
+  (() => {
+    const tabs = document.getElementById('lesson-tabs'), seg = document.getElementById('mode-segmented');
+    if (seg && matchMedia('(min-width: 901px)').matches && seg.parentElement !== tabs.parentElement) seg.before(tabs);
+  })();
+</script>
+<script src="/static/js/lesson-view.js?v={{staticVersion}}" defer></script>
+{{end}}
 </div>
 
 <div class="edit-drawer-backdrop" id="edit-drawer-backdrop" hidden></div>
@@ -1474,6 +1497,26 @@
        comment. Removed to avoid a duplicate #site-nav-fullpage id. */}}
 
   <div class="content-main">
+    {{if .LessonView}}
+    {{/* The lesson view's stage (lesson-view.js): the lesson's video, big,
+         the course's card beside it on a wide screen, under it on a phone.
+         The video loads when played (its thumbnail until then); played,
+         it docks in a corner once scrolled past or on the Score and Mixer
+         views, still playing, until its close button closes it. */}}
+    <div class="lesson-stage" id="lesson-stage" data-tab="{{if .LessonVideoID}}video{{else}}score{{end}}">
+    {{with .LessonVideoID}}
+    <figure class="lesson-stage-video" id="lesson-stage-video" data-video="{{.}}">
+      <div class="lesson-stage-frame">
+        <button type="button" class="lesson-stage-play" aria-label="{{t "Play the video: %s" $.LessonVideoTitle}}">
+          <img src="https://i.ytimg.com/vi/{{.}}/hqdefault.jpg" alt="" loading="lazy" decoding="async">
+          <span class="lesson-stage-play-icon" aria-hidden="true"><svg viewBox="0 0 68 48"><path d="M66.5 7.7a8.5 8.5 0 0 0-6-6C55.2.3 34 .3 34 .3s-21.2 0-26.5 1.4a8.5 8.5 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.5 8.5 0 0 0 6 6C12.8 47.7 34 47.7 34 47.7s21.2 0 26.5-1.4a8.5 8.5 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3z"/><path d="M27 34l18-10-18-10z" fill="#fff"/></svg></span>
+          <span class="lesson-stage-video-title">{{$.LessonVideoTitle}}</span>
+        </button>
+        <button type="button" class="lesson-stage-close icon-btn" aria-label="{{t "Close the video"}}" title="{{t "Close the video"}}">{{template "icon-close"}}</button>
+      </div>
+    </figure>
+    {{end}}
+    {{end}}
     {{with .LessonPanel}}
     {{/* The lesson this song is in, in a course (lessonPanel): the song's
          page is where it's practised — its score, playback and audio —
@@ -1489,7 +1532,7 @@
           <span class="lesson-panel-name">{{.Lesson.Title}}</span>
         </a>
         <div class="lesson-panel-actions">
-          {{if .VideoID}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>{{t "Video"}}</span></button>{{end}}
+          {{if and .VideoID (not $.LessonView)}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>{{t "Video"}}</span></button>{{end}}
           {{if .Files}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-files">{{template "icon-download"}}<span>{{t "Files"}} <small>{{len .Files}}</small></span></button>{{end}}
           <button type="button" id="lesson-panel-done" class="lesson-panel-btn lesson-panel-done" aria-pressed="{{if .Done}}true{{else}}false{{end}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg><span>{{if .Done}}{{t "Done"}}{{else}}{{t "Mark as done"}}{{end}}</span></button>
         </div>
@@ -1500,7 +1543,7 @@
       </div>
       {{/* The video stays in view while the score scrolls: docked in a
            corner once its place is out of sight (the script below). */}}
-      {{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="{{t "Close the video"}}">{{template "icon-close"}}</button></div></div>{{end}}
+      {{if not $.LessonView}}{{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="{{t "Close the video"}}">{{template "icon-close"}}</button></div></div>{{end}}{{end}}
       {{with .Files}}<ul class="lesson-panel-files" id="lesson-panel-files" hidden>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext (t "FILE")}}{{end}}</span><span class="lesson-panel-file">{{.Filename}}</span><small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>{{end}}
       {{/* The lessons before and after: which way, then which, each on its
            own line so a long name stays readable. Done makes "next" the
@@ -1568,6 +1611,7 @@
     })();
     </script>
     {{end}}
+    {{if .LessonView}}</div>{{/* .lesson-stage */}}{{end}}
     {{/* Single-line song structure overview — a thin progress line with
          one tick + label per section, weighted by its own bar count.
          Lives INSIDE the main pane (not the full page width) so it lines
