@@ -1520,7 +1520,7 @@ const ICONS = {
     try { spellTable = sheet.dataset.spell ? JSON.parse(sheet.dataset.spell) : null; } catch (e) { spellTable = null; }
     const glyphs = (n) => n[0] + n.slice(1).replace('b', '♭').replace('#', '♯');
     function spellIn(pc) {
-      const o = ((offset % 12) + 12) % 12;
+      const o = ((shownOffset() % 12) + 12) % 12;
       if (!spellTable) return spell(pc);
       return glyphs(spellTable.names[o][((pc % 12) + 12) % 12]);
     }
@@ -1546,15 +1546,19 @@ const ICONS = {
     // row shows at its written key (or a whole octave away), another key's
     // row when the song has one for the displayed key, otherwise a short
     // note rather than shapes that no longer match the chords.
+    // The editor shows the song in its own key: it changes the song
+    // itself, for everyone who has it, not the key this page plays it in
+    // (a songbook's, or tonight's −/+). Back in it when the editor closes.
+    const shownOffset = () => (document.body.classList.contains('drawer-open') ? 0 : offset);
     function applyDiagrams(displayedKey) {
       sheet.querySelectorAll('.chord-legend-other, .chord-legend-note').forEach(el => el.remove());
       const own = sheet.querySelector('.chord-legend-own');
-      const shifted = ((offset % 12) + 12) % 12 !== 0;
+      const shifted = ((shownOffset() % 12) + 12) % 12 !== 0;
       if (own) own.hidden = shifted;
       if (!shifted || sheet.dataset.hasDiagrams !== '1') return;
       let node = null;
       if (origKeyParts && diagramSets) {
-        const pc = ((rootPitchClass(origKeyParts[1]) + offset) % 12 + 12) % 12;
+        const pc = ((rootPitchClass(origKeyParts[1]) + shownOffset()) % 12 + 12) % 12;
         const minor = /^(m|mi|min|minor|-)$/i.test(origKeyParts[2] || '');
         const set = [...diagramSets.content.querySelectorAll('.chord-legend-other')]
           .find(el => parseInt(el.dataset.keyPc, 10) === pc && (el.dataset.keyMinor === '1') === minor);
@@ -1598,18 +1602,19 @@ const ICONS = {
     }
     function applyTranspose() {
       if (transposeAmount) transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
+      const shown = shownOffset();
       sheet.querySelectorAll('[data-pc]').forEach(el => {
         const pc = parseInt(el.dataset.pc, 10);
         if (pc < 0 || Number.isNaN(pc)) return;
         // Untransposed, chords read as the song writes them.
         if (el.dataset.orig === undefined) el.dataset.orig = el.innerHTML;
         if (el.dataset.jz && el.dataset.name0 === undefined) el.dataset.name0 = el.dataset.name || '';
-        if (((offset % 12) + 12) % 12 === 0) {
+        if (((shown % 12) + 12) % 12 === 0) {
           el.innerHTML = el.dataset.orig;
           if (el.dataset.jz) el.dataset.name = el.dataset.name0;
           return;
         }
-        const name = spellIn(pc + offset);
+        const name = spellIn(pc + shown);
         if (el.dataset.jz) {
           el.dataset.name = name;
           // The Jazz chart: a letter and a music-font accidental.
@@ -1623,7 +1628,7 @@ const ICONS = {
       // A moved chord can be wider than the one it replaced (C → D♭):
       // squeeze the Jazz chart's crowded bars again.
       fitJazzChords();
-      if (offset === 0 || !origKey || !keyTransposed) {
+      if (shown === 0 || !origKey || !keyTransposed) {
         if (keyTransposed) keyTransposed.hidden = true;
         if (keyTransposed) keyTransposed.textContent = '';
         applyDiagrams('');
@@ -1636,7 +1641,7 @@ const ICONS = {
       if (!m) { keyTransposed.hidden = true; applyDiagrams(''); return; }
       const pc = rootPitchClass(m[1]);
       if (pc < 0) { keyTransposed.hidden = true; applyDiagrams(''); return; }
-      keyTransposed.textContent = spellTable ? glyphs(spellTable.keys[((offset % 12) + 12) % 12]) : spell(pc + offset) + m[2];
+      keyTransposed.textContent = spellTable ? glyphs(spellTable.keys[((shown % 12) + 12) % 12]) : spell(pc + shown) + m[2];
       keyTransposed.hidden = false;
       applyDiagrams(keyTransposed.textContent);
     }
@@ -1750,6 +1755,7 @@ const ICONS = {
     drawer.hidden = !opening;
     drawerBackdrop.hidden = !opening;
     document.body.classList.toggle('drawer-open', opening);
+    reapplyTranspose(); // the editor's chart in the song's own key (Transpose below)
     // Phase 46: editToggle moved out of the mode-segmented pill into its
     // own sidebar row, so its .active state is toggled on its own element
     // directly now, separately from the view-mode tabs' own active-button
@@ -1786,6 +1792,7 @@ const ICONS = {
   window.addEventListener('popstate', () => {
     const wantOpen = new URLSearchParams(location.search).get('edit') === '1';
     if (wantOpen === !drawer.hidden) return;
+    if (wantOpen && (editOffer || !pageCanEdit)) return;
     if (!setDrawerOpen(wantOpen, { suppressHistory: true })) {
       // User cancelled closing — the URL already changed out from under us
       // (that's how popstate fired at all); push it back to ?edit=1 so the
@@ -1793,25 +1800,51 @@ const ICONS = {
       history.pushState({ songbooksEdit: true }, '', editURL(true));
     }
   });
-  // Implicit fork: a viewer without edit rights on this variant never sees
-  // a separate "fork" button/step (the old explicit fork-variant-btn is
-  // gone — see play.html) — tapping Edit silently forks it for them first,
-  // then lands them on the fork's own page with the drawer already open.
-  // CanEdit viewers (the common case) skip straight to setDrawerOpen.
-  editToggle.addEventListener('click', async () => {
-    if (drawer.hidden && !pageCanEdit && pageVariantId) {
-      editToggle.disabled = true;
-      try {
-        const res = await fetch(`/api/variants/${pageVariantId}/fork`, {method: 'POST'});
-        const data = await res.json().catch(() => ({}));
-        // Not a form: nowhere on the page to show this but a dialog.
-        if (!res.ok) { alert(t("Couldn't make your own copy of this song to edit. Try again.")); return; }
-        location.href = `/song/${data.variantId}?edit=1`;
-        return;
-      } finally {
-        editToggle.disabled = false;
-      }
+  // Edit on a song this viewer can't, or shouldn't, change here never
+  // copies anything on its own (it used to: a silent personal copy, and
+  // people kept working on "their" copy of a band's song). The editor's
+  // data-edit-offer says what Edit offers instead, in #edit-offer-dialog
+  // (play.html, handleSong): "band", make the song the band's own and edit
+  // that (a member opening the catalogue's song from the band's songbook or
+  // set list); "copy", the person's own copy, asked for explicitly. Either
+  // lands on the new song with the editor open, the page's context (?band,
+  // ?setlist, ?songbook) kept.
+  const editOffer = editorElForFork?.dataset.editOffer || '';
+  const offerDialog = document.getElementById('edit-offer-dialog');
+  function openEditOffer() {
+    if (!offerDialog || offerDialog.open) return;
+    Forms.status(document.getElementById('edit-offer-status'), '');
+    offerDialog.showModal();
+  }
+  // The native dialog gives focus back to what had it, except when that was
+  // a row of the phone's View sheet, closed by then: back to Edit, then.
+  offerDialog?.addEventListener('close', () => {
+    const at = document.activeElement;
+    if ((!at || at === document.body || offerDialog.contains(at)) && editToggle.offsetParent) editToggle.focus();
+  });
+  document.getElementById('edit-offer-go')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = document.getElementById('edit-offer-status');
+    const url = btn.dataset.action === 'band'
+      ? `/api/bands/${btn.dataset.bandId}/catalog/fork/${pageVariantId}`
+      : `/api/variants/${pageVariantId}/fork`;
+    Forms.status(status, '');
+    Forms.busy(btn, true);
+    const res = await fetch(url, {method: 'POST'}).catch(() => null);
+    const data = res && res.ok ? await res.json().catch(() => ({})) : null;
+    if (!data || !data.variantId) {
+      Forms.busy(btn, false);
+      Forms.status(status, btn.dataset.action === 'band'
+        ? t("Couldn't make the band's version of this song. Try again.")
+        : t("Couldn't make your own copy of this song. Try again."), 'error');
+      return;
     }
+    const params = new URLSearchParams(location.search);
+    params.set('edit', '1');
+    location.href = `/song/${data.variantId}?${params.toString()}`;
+  });
+  editToggle.addEventListener('click', () => {
+    if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }
     setDrawerOpen(drawer.hidden);
   });
   closeEditBtn.addEventListener('click', () => setDrawerOpen(false));
@@ -1839,7 +1872,14 @@ const ICONS = {
   // bookmarkable: reloading or sharing the link always dropped you back on
   // the read-only chart.
   if (new URLSearchParams(location.search).get('edit') === '1') {
-    setDrawerOpen(true, { suppressHistory: true });
+    if (editOffer || !pageCanEdit) {
+      // Not this viewer's to edit here: the address loses ?edit=1, and Edit
+      // says why (and what it can do instead), when it can do something.
+      history.replaceState(history.state, '', editURL(false));
+      if (editOffer) openEditOffer();
+    } else {
+      setDrawerOpen(true, { suppressHistory: true });
+    }
   }
 
   // No off-canvas controls sheet any more — #mini-metro-settings is a

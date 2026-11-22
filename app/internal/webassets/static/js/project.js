@@ -136,8 +136,10 @@ const wizLibrary = wizard && window.LibraryMatch ? LibraryMatch.attach({
       body: JSON.stringify({ variantId: hit.variantId }),
     }).catch(() => null);
     if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to this songbook. Try again.', hit.title));
+    // A band's songbook answers with the band's copy of the song.
+    const data = await res.json().catch(() => ({}));
     wizard.close();
-    location.href = `/song/${hit.variantId}?songbook=${wizSongbookId}`;
+    location.href = `/song/${data.variantId || hit.variantId}?songbook=${wizSongbookId}`;
   },
   isInList: (id) => !!document.querySelector(`#catalog-section li[data-variant-id="${id}"]`),
   openHref: (hit) => `/song/${hit.variantId}?songbook=${wizSongbookId}`,
@@ -498,6 +500,33 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
     li.setAttribute('draggable', 'true');
   });
 })();
+
+// ---- A row's key (songbook_keys.go): the song opens in it from this
+// songbook, the song itself unchanged. Saved on change; the row's key
+// name follows. ----
+document.querySelectorAll('.row-key-select').forEach((sel) => {
+  let saved = sel.value;
+  sel.addEventListener('change', async () => {
+    sel.disabled = true;
+    const res = await fetch(`/api/songbooks/${sel.dataset.songbookId}/entries/${sel.dataset.variantId}/key`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semitones: parseInt(sel.value, 10) }),
+    }).catch(() => null);
+    sel.disabled = false;
+    if (!res || !res.ok) {
+      sel.value = saved;
+      alert(t('Couldn’t save the key.'));
+      return;
+    }
+    saved = sel.value;
+    const d = await res.json().catch(() => ({}));
+    const meta = sel.closest('li')?.querySelector('.song-meta');
+    if (meta && d.keyName) {
+      const tempo = meta.textContent.split('·')[0].trim();
+      meta.textContent = /bpm/.test(tempo) ? `${tempo} · ${d.keyName}` : d.keyName;
+    }
+  });
+});
 
 // The home page's "Add a song" (?new=1) opens the wizard at once (here,
 // last, once everything it uses is set up); the address drops the

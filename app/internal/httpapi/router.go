@@ -152,6 +152,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songbooks/{id}/lessons/{lessonID}/done", s.requireAuth(s.handleSetLessonDone))
 	mux.HandleFunc("POST /api/songbooks/{id}/lessons/{lessonID}/songs/{variantID}/move", s.requireAuth(s.handleMoveLessonSong))
 	mux.HandleFunc("PUT /api/songbooks/{id}/entries/{variantID}/lesson", s.requireAuth(s.handleSetSongLesson))
+	mux.HandleFunc("PUT /api/songbooks/{id}/entries/{variantID}/key", s.requireAuth(s.handlePutSongbookKey))
+	mux.HandleFunc("GET /api/songs/{id}/songbook-keys", s.requireVariantRole("viewer", s.handleGetSongbookKeys))
 	mux.HandleFunc("PUT /api/songbooks/{id}/files/{fileID}/lesson", s.requireAuth(s.handleSetFileLesson))
 	mux.HandleFunc("POST /api/songbooks/{id}/rename", s.requireAuth(s.handleRenameSongbook))
 	mux.HandleFunc("DELETE /api/songbooks/{id}", s.requireAuth(s.handleDeleteSongbook))

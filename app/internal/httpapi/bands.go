@@ -1083,9 +1083,11 @@ func (s *Server) handleCreateBandVariant(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
-// handleAddBandCatalogEntry points the band's repertoire at an existing
-// (global, or anyone's visible) variant, by reference — "add this song to
-// the band's set," not a copy.
+// handleAddBandCatalogEntry adds an existing song (the catalogue's, or
+// anyone's the caller can see) to the band's repertoire as the band's own
+// song: a band's repertoire holds the band's songs (store.AdoptIntoBand),
+// which every member changes for the whole band, never the catalogue's or
+// someone's own song by reference. Answers the band's song's id.
 func (s *Server) handleAddBandCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -1095,12 +1097,11 @@ func (s *Server) handleAddBandCatalogEntry(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "missing variantId")
 		return
 	}
-	actor := personFromContext(r)
-	if err := s.store.AddBandCatalogEntry(r.Context(), bandID, req.VariantID, actor.ID); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	newID, err := s.adoptIntoBand(r.Context(), bandID, req.VariantID, personFromContext(r))
+	if !writeAdoptErr(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"added": true})
+	writeJSON(w, http.StatusOK, map[string]any{"added": true, "variantId": newID})
 }
 
 // handleRemoveBandCatalogEntry drops the band's pointer to one variant.
@@ -1119,10 +1120,12 @@ func (s *Server) handleRemoveBandCatalogEntry(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]bool{"removed": true})
 }
 
-// handleForkVariantIntoBand forks an existing (global, or anyone's
-// visible) variant into the band's own repertoire — the new variant row
-// gets visibility='band', owner_band_id = this band, and every current
-// band member can then edit it in place (see CanEditVariant).
+// handleForkVariantIntoBand makes a song the band's own
+// (store.AdoptIntoBand): a copy for the band, unless the band already has
+// one, that every current member then edits in place (CanEditVariant), and
+// the band's songbooks, set lists and recordings pointed at it. The song
+// page's "Edit the band's version" uses it too. Answers the band's song's
+// id.
 func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
@@ -1130,21 +1133,49 @@ func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
-	actor := personFromContext(r)
-	newID, err := s.store.ForkVariant(r.Context(), variantID, actor.ID, "band", bandID)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, "this song can't be copied")
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	newID, err := s.adoptIntoBand(r.Context(), bandID, variantID, personFromContext(r))
+	if !writeAdoptErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
+}
+
+// adoptIntoBand is store.AdoptIntoBand for a person: they must be able to
+// copy the song into the band (CanCopyVariant: they can open it, and it
+// isn't out of a private songbook) unless it is the band's already.
+// Membership is the caller's check (requireBandMember).
+func (s *Server) adoptIntoBand(ctx context.Context, bandID, variantID int64, actor *store.Person) (int64, error) {
+	own, err := s.store.IsBandSong(ctx, bandID, variantID)
+	if err != nil {
+		return 0, err
+	}
+	if !own {
+		ok, err := s.store.CanCopyVariant(ctx, actor.ID, variantID, "band", bandID)
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			return 0, store.ErrForbidden
+		}
+	}
+	newID, _, err := s.store.AdoptIntoBand(ctx, bandID, variantID, actor.ID)
+	return newID, err
+}
+
+// writeAdoptErr answers adoptIntoBand's error, if any, and says whether
+// there was none.
+func writeAdoptErr(w http.ResponseWriter, err error) bool {
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, store.ErrNotFound):
+		httpError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, store.ErrForbidden):
+		httpError(w, http.StatusForbidden, "this song can't be copied")
+	default:
+		httpError(w, http.StatusInternalServerError, err.Error())
+	}
+	return false
 }
 
 // handleBandSettingsPage is the band's Settings section: its name, what

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"app/internal/chordsym"
 	"app/internal/covers"
 	"app/internal/i18n"
 	"app/internal/store"
@@ -113,6 +114,19 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		VariantID         int64
 		Title, Tempo, Key string
 		Cover             *covers.Cover
+		// The key the song is kept in here (songbook_keys.go), and the
+		// keys a row's control offers, for whoever can change the songbook.
+		Semitones int
+		Keys      []keyOption
+	}
+	canKey := false
+	if ok, _ := s.store.CanEditSongbook(r.Context(), p.ID, id); ok && !sb.IsStudent() && sb.Kind != store.SongbookKindGroup {
+		canKey = true
+	}
+	entryKeys, err := s.store.SongbookEntryKeys(r.Context(), id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	type songbookGroup struct {
 		Label string
@@ -150,10 +164,21 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, vid := range g.VariantIDs {
 			row := songbookSongRow{VariantID: vid, Title: i18n.T(s.langOf(w), "untitled"), Cover: coverOf[vid]}
+			ownKey := ""
 			if parsed, _, err := s.store.LoadVariant(vid); err == nil {
 				row.Title = orDefault(parsed.Get("title"), row.Title)
 				row.Tempo = parsed.Get("tempo")
 				row.Key = parsed.Get("key")
+				ownKey = songKeyName(parsed)
+			}
+			row.Semitones = entryKeys[vid]
+			if row.Semitones != 0 {
+				if k := chordsym.KeyIn(ownKey, row.Semitones); k != "" {
+					row.Key = k
+				}
+			}
+			if canKey {
+				row.Keys = keyOptions(s.langOf(w), ownKey, row.Semitones)
 			}
 			sg.Songs = append(sg.Songs, row)
 		}
@@ -177,9 +202,18 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 	for _, g := range groups {
 		ids = append(ids, g.VariantIDs...)
 	}
+	// A person's songbook: their own copies of a song a band of theirs
+	// has its own version of, tagged (store.BandVersionsOf).
+	bandVersions := map[int64]*store.BandVersion{}
+	if sb.OwnerKind == "person" {
+		if m, err := s.store.BandVersionsOf(r.Context(), p.ID, ids); err == nil {
+			bandVersions = m
+		}
+	}
 	s.render(w, "songbook", map[string]any{
 		"Me": p, "Songbook": sb, "Groups": out, "Badges": s.songBadgesFor(r.Context(), ids),
 		"ContextualGroup": contextual, "Look": look, "OwnerName": ownerName,
+		"BandVersions": bandVersions,
 	})
 }
 
@@ -369,11 +403,21 @@ func (s *Server) handleAddSongbookEntry(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusForbidden, "can't see this song")
 		return
 	}
-	if err := s.store.AddToSongbook(r.Context(), id, req.VariantID, p.ID); err != nil {
+	variantID := req.VariantID
+	// A band's songbook holds the band's own songs: the catalogue's song,
+	// or someone's own, goes in as the band's copy (adoptIntoBand), which
+	// every member then changes for the band.
+	if sb, err := s.store.GetSongbook(r.Context(), id); err == nil && sb.OwnerKind == "band" && sb.OwnerBandID != 0 {
+		variantID, err = s.adoptIntoBand(r.Context(), sb.OwnerBandID, req.VariantID, p)
+		if !writeAdoptErr(w, err) {
+			return
+		}
+	}
+	if err := s.store.AddToSongbook(r.Context(), id, variantID, p.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"added": true})
+	writeJSON(w, http.StatusOK, map[string]any{"added": true, "variantId": variantID})
 }
 
 // handleRemoveSongbookEntry removes a variant pointer from songbookID —
@@ -445,4 +489,37 @@ func (s *Server) handleRedoSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion, "text": text})
+}
+
+// keyOption is one key of a songbook row's key control: the song moved by
+// N semitones, named ("A (−2)"), or its own key.
+type keyOption struct {
+	N        int
+	Label    string
+	Selected bool
+}
+
+// keyOptions are the keys a songbook row offers, an octave's span around
+// the song's own (ownKey, "" when it has none), the one it's in selected.
+func keyOptions(lang, ownKey string, current int) []keyOption {
+	var out []keyOption
+	for n := -6; n <= 6; n++ {
+		label := ""
+		if n == 0 {
+			if ownKey != "" {
+				label = i18n.T(lang, "%s (own key)", ownKey)
+			} else {
+				label = i18n.T(lang, "its own key")
+			}
+		} else {
+			off := strings.Replace(fmt.Sprintf("%+d", n), "-", "−", 1)
+			if k := chordsym.KeyIn(ownKey, n); k != "" {
+				label = k + " (" + off + ")"
+			} else {
+				label = off
+			}
+		}
+		out = append(out, keyOption{N: n, Label: label, Selected: n == current})
+	}
+	return out
 }

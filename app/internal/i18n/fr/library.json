@@ -563,5 +563,11 @@
   "wrapper. For anything the shortcut can't express (an unusual tuning, an explicit minimum fret), fall back to the full form, same as the guitar example above:": ". Pour ce que ce raccourci ne permet pas d’exprimer (un accordage inhabituel, une case minimale explicite), revenez à la forme complète, comme dans l’exemple de guitare ci-dessus :",
   "— a dedicated view, the whole song as one continuous drum staff with chord names floating above it, same as a real drummer's chart.": "— une vue dédiée, tout le morceau sur une seule portée de batterie continue avec les noms d’accords au-dessus, comme la vraie partition d’un batteur.",
   "— just written the way a": "— simplement écrit comme le contient réellement un bloc",
-  "— those are implicit in a": "— ils sont implicites dans un bloc"
+  "— those are implicit in a": "— ils sont implicites dans un bloc",
+  "band has its own version": "le groupe a sa version",
+  "My songbook": "Mon songbook",
+  "Key of %s in this songbook": "Tonalité de %s dans ce songbook",
+  "the key the song opens in from this songbook": "la tonalité dans laquelle le morceau s’ouvre depuis ce songbook",
+  "%s (own key)": "%s (orig.)",
+  "its own key": "sa tonalité"
 }

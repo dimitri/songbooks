@@ -322,5 +322,8 @@
   "%d bpm (eighth)": "%d bpm (croche)",
   "%d bpm (half note)": "%d bpm (blanche)",
   "(clicked in 4/4)": "(clic en 4/4)",
-  "Previous / next song (pedal)": "Morceau précédent / suivant (pédalier)"
+  "Previous / next song (pedal)": "Morceau précédent / suivant (pédalier)",
+  "not in it yet": "pas encore dedans",
+  "%s: in this key": "%s : dans cette tonalité",
+  "Keep %s in %s": "Garder %s dans %s"
 }

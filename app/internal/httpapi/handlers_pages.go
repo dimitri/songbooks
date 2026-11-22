@@ -2747,17 +2747,39 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// Me: the desktop sidebar needs it for the admin-only Admin link and
 	// the account row, same as every other top-level page.
 	person := personFromContext(r)
-	// CanEdit drives the client-side implicit-fork-on-edit flow (see
-	// song.js's editToggle handler): a viewer without edit rights on this
-	// variant never sees a separate "fork" step — tapping Edit silently
-	// forks it for them first.
-	// CanCopy: whether that fork is allowed at all — not out of a private
-	// songbook (store.CanCopyVariant); without either, there's no Edit.
+	// What Edit does (song.js's editToggle handler), never a silent copy:
+	//   - CanEdit: opens the editor on this song, saved in place (a band's
+	//     song for any current member of the band, CanEditVariant).
+	//   - BandOffer: the song is one a band of the viewer's uses without
+	//     owning it (the catalogue's song in the band's songbook or set
+	//     list, opened from there): Edit explains, and offers to make it
+	//     the band's (POST /api/bands/{id}/catalog/fork/{variant}), then
+	//     edits that. Changing the catalogue's song from a band's page
+	//     would change it for everyone, and not the band's.
+	//   - CanCopy without CanEdit: Edit says whose song it is and why it
+	//     can't be changed, and offers "Make my own copy" (an explicit
+	//     POST /api/variants/{id}/fork). Not out of a private songbook
+	//     (store.CanCopyVariant); without either, there's no Edit.
 	var canEdit, canCopy bool
+	var bandOffer *store.BandHold
+	var editOwner *store.VariantOwner
+	var bandVersion *store.BandVersion
 	if person != nil {
 		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
-		if !canEdit {
+		if variant != nil {
+			bandOffer = s.bandEditOffer(r, person.ID, variant)
+		}
+		if bandOffer != nil {
+			canEdit, canCopy = false, true
+		} else if !canEdit {
 			canCopy, _ = s.store.CanCopyVariant(r.Context(), person.ID, variantID, "user", 0)
+			if canCopy {
+				editOwner, _ = s.store.VariantOwnerOf(r.Context(), variantID)
+			}
+		}
+		// A copy of one's own of a band's song: the band has its version.
+		if variant != nil && variant.Visibility == "user" {
+			bandVersion, _ = s.store.BandVersionOf(r.Context(), person.ID, variantID)
 		}
 		// Home's "Continue" list; a failure here mustn't cost the page. A
 		// playlist showing the song beside its player isn't a visit.
@@ -2774,6 +2796,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Me":        person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
+		"BandOffer": bandOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "SongVisibility": variantVisibility(variant),
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "SpellJSON": transposeSpellJSON(sg), "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
@@ -2868,7 +2891,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			// A student's or a group's songbook (coaching.go): the song
 			// opens in the key the coach gave it there — the chart, the
 			// recording — for the coach as for the student, and says whose.
-			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && (sb.IsStudent() || sb.Kind == store.SongbookKindGroup) {
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && (sb.IsStudent() || sb.Kind == store.SongbookKindGroup) && r.URL.Query().Get("key") != "original" {
 				if ok, _ := s.store.CanAccessSongbook(r.Context(), personFromContext(r).ID, songbookID); ok || personFromContext(r).IsAdmin {
 					if n, err := s.store.EntrySemitones(r.Context(), songbookID, variantID); err == nil {
 						data["StudentKey"] = n
@@ -2881,6 +2904,25 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 							// The student, in their own songbook: their key.
 							data["KeyMine"] = sb.StudentPersonID == personFromContext(r).ID
 						}
+						// Moved: the same line as any songbook's key (whose
+						// version, the key, back to the song's own), and the
+						// editor's note that it edits the song in its key.
+						if n != 0 {
+							mine, _ := data["KeyMine"].(bool)
+							data["SongbookKey"] = s.newSongbookKeyLine(r, s.langOf(w), variant, person.ID, songKeyName(sg), n, mine, sb.Name)
+						}
+					}
+				}
+			}
+			// Any other songbook the person can open that keeps the song in
+			// another key (songbook_keys.go): the song opens in that key,
+			// unless asked for its own (?key=original).
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && !sb.IsStudent() && sb.Kind != store.SongbookKindGroup && r.URL.Query().Get("key") != "original" {
+				if ok, _ := s.store.CanAccessSongbook(r.Context(), person.ID, songbookID); ok {
+					if n, in, err := s.store.SongbookEntryKey(r.Context(), songbookID, variantID); err == nil && in && n != 0 {
+						mine := sb.OwnerKind == "person" && sb.OwnerPersonID == person.ID && sb.IsDefault
+						data["StudentKey"], data["StudentKeySet"] = n, true
+						data["SongbookKey"] = s.newSongbookKeyLine(r, s.langOf(w), variant, person.ID, songKeyName(sg), n, mine, sb.Name)
 					}
 				}
 			}
@@ -2970,6 +3012,16 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			data["StudentKey"], data["StudentKeySet"], data["KeyContext"], data["KeyMine"] = n, true, person.DisplayName, true
 		}
 	}
+	// Opened from nowhere in particular (home, a search, the catalogue),
+	// not from a band's, a community's, a set list's or another songbook:
+	// the key the song has in the person's own songbook.
+	if data["StudentKeySet"] == nil && data["SetlistRef"] == nil && data["SongbookRef"] == nil && data["EventRef"] == nil &&
+		data["BandRef"] == nil && data["CommunityRef"] == nil && r.URL.Query().Get("key") != "original" {
+		if n, ok, err := s.store.MySongbookKey(r.Context(), person.ID, variantID); err == nil && ok && n != 0 {
+			data["StudentKey"], data["StudentKeySet"] = n, true
+			data["SongbookKey"] = s.newSongbookKeyLine(r, s.langOf(w), variant, person.ID, songKeyName(sg), n, true, "")
+		}
+	}
 	if n, ok := data["StudentKey"].(int); ok {
 		data["StudentKeyName"] = chordsym.KeyIn(songKeyName(sg), n)
 	}
@@ -3024,6 +3076,60 @@ func (s *Server) songCoachingContext(r *http.Request, data map[string]any) int64
 		return coaching(id)
 	}
 	return 0
+}
+
+// bandEditOffer is the band whose version Edit offers on this song page
+// (handleSong's BandOffer), or nil: a band personID is a current member of
+// that uses the song without owning it (store.BandsHolding). The band the
+// page was opened from (?band=, a band's ?setlist= or ?songbook=) when
+// it's one of those; with no band in the address, the first of them for a
+// catalogue song only (opened from home or a search, say) — a person's own
+// song opened from their own songbook is theirs to edit.
+func (s *Server) bandEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant) *store.BandHold {
+	holds, err := s.store.BandsHolding(r.Context(), personID, variant.VariantID)
+	if err != nil || len(holds) == 0 {
+		return nil
+	}
+	if bandID := s.songPageBand(r); bandID != 0 {
+		for i := range holds {
+			if holds[i].BandID == bandID {
+				return &holds[i]
+			}
+		}
+		return nil
+	}
+	if variant.Visibility == "global" {
+		return &holds[0]
+	}
+	return nil
+}
+
+// songPageBand is the band a song page was opened from: ?band=N, a band's
+// set list (?setlist=N) or a band's songbook (?songbook=N); 0 for none.
+func (s *Server) songPageBand(r *http.Request) int64 {
+	q := r.URL.Query()
+	if id, err := strconv.ParseInt(q.Get("band"), 10, 64); err == nil && id > 0 {
+		return id
+	}
+	if id, err := strconv.ParseInt(q.Get("setlist"), 10, 64); err == nil && id > 0 {
+		if meta, err := s.store.GetSetlistMeta(r.Context(), id); err == nil && meta.Scope == "band" && meta.OwnerBandID != nil {
+			return *meta.OwnerBandID
+		}
+		return 0
+	}
+	if id, err := strconv.ParseInt(q.Get("songbook"), 10, 64); err == nil && id > 0 {
+		if sb, err := s.store.GetSongbook(r.Context(), id); err == nil && sb.OwnerKind == "band" {
+			return sb.OwnerBandID
+		}
+	}
+	return 0
+}
+
+func variantVisibility(v *store.CatalogVariant) string {
+	if v == nil {
+		return ""
+	}
+	return v.Visibility
 }
 
 // songBrandContext is whose look a song page takes (internal/brand): the
