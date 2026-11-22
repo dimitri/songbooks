@@ -3278,6 +3278,30 @@ const ICONS = {
     tempoInput.title = t('beats per minute, saved to the song header');
     tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
+    // Tap: the beat tapped fills the field (tap-tempo.js, the ⋯ menu's
+    // Tap tempo's arithmetic), from the second tap; saved with the rest.
+    // Outside the label, so a tap doesn't also focus the field.
+    let tempoTap = null;
+    if (window.SongbooksTapTempo) {
+      const tapper = window.SongbooksTapTempo.create();
+      tempoTap = document.createElement('button');
+      tempoTap.type = 'button';
+      tempoTap.className = 'ghost-btn header-field-tap';
+      tempoTap.textContent = t('Tap');
+      tempoTap.title = t('tap the beat to fill in the tempo');
+      let tappedAt = -Infinity;
+      const tapOnce = () => {
+        tappedAt = performance.now();
+        const bpm = tapper.tap(tappedAt);
+        if (bpm == null || !window.SongbooksTapTempo.usable(bpm)) return;
+        tempoInput.value = String(bpm);
+        markDirty();
+        metaSet('tempo', String(bpm));
+      };
+      tempoTap.addEventListener('pointerdown', (e) => { if (e.button === 0) { e.preventDefault(); tapOnce(); } });
+      // Space or Enter on the button (a pointer's tap was already counted).
+      tempoTap.addEventListener('click', () => { if (performance.now() - tappedAt > 400) tapOnce(); });
+    }
 
     // Swing: written straight notes played as a shuffle — the song
     // header's "swing:" (8 or 16; see the song format docs).
@@ -3333,7 +3357,7 @@ const ICONS = {
 
     const chipsRow = document.createElement('div');
     chipsRow.className = 'song-meta-chips-row';
-    chipsRow.append(timeField, tempoField, swingField, genreField, genreStatus);
+    chipsRow.append(timeField, tempoField, ...(tempoTap ? [tempoTap] : []), swingField, genreField, genreStatus);
 
     host.append(titleArtistRow, chipsRow);
 
