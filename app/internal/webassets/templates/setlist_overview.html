@@ -284,7 +284,7 @@
       const text = document.createElement('div');
       const ti = document.createElement('div'); ti.className = 'attention-title'; ti.textContent = song.title;
       text.appendChild(ti);
-      if (song.artist) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = song.artist; text.appendChild(a); }
+      if (song.artist || song.band) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = [song.artist, song.band ? t('sentence|%s’s version', song.band) : ''].filter(Boolean).join(' · '); text.appendChild(a); }
       const btn = document.createElement('button');
       btn.type = 'button'; btn.textContent = t('Add');
       btn.setAttribute('aria-label', t('Add %s', song.title));

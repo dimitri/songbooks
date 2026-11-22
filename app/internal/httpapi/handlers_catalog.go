@@ -39,6 +39,11 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		Sort:   r.URL.Query().Get("sort"),
 	}
 	variants, err := s.store.ListCatalog(r.Context(), person.ID, filter)
+	if err == nil {
+		// A band member sees their band's version of a song, not the
+		// catalogue's (store.PreferBandVersions).
+		variants, err = s.store.PreferBandVersions(r.Context(), person.ID, variants)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -72,6 +77,9 @@ type catalogSearchHit struct {
 	Title      string `json:"title"`
 	Artist     string `json:"artist"`
 	Visibility string `json:"visibility"`
+	// Band: the band's name, for a band's version shown in place of the
+	// catalogue's song (store.PreferBandVersions).
+	Band string `json:"band,omitempty"`
 }
 
 // handleCatalogSearch is GET /api/catalog/search?q=... — a JSON type-
@@ -92,6 +100,9 @@ func (s *Server) handleCatalogSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Query: q})
+	if err == nil {
+		variants, err = s.store.PreferBandVersions(r.Context(), person.ID, variants)
+	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -101,7 +112,7 @@ func (s *Server) handleCatalogSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	hits := make([]catalogSearchHit, len(variants))
 	for i, v := range variants {
-		hits[i] = catalogSearchHit{VariantID: v.VariantID, Title: v.Title, Artist: v.Artist, Visibility: v.Visibility}
+		hits[i] = catalogSearchHit{VariantID: v.VariantID, Title: v.Title, Artist: v.Artist, Visibility: v.Visibility, Band: v.BandName}
 	}
 	writeJSON(w, http.StatusOK, hits)
 }

@@ -9204,3 +9204,6 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 /* A song's title may wrap, its artist under it on its own line. */
 .cbook-song-title { white-space: normal; padding: 0.35rem 0; }
 .cbook-song-title .hint { display: block; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A band's song made from another (play.html): where it came from. */
+.based-on { margin: 0 0 0.6rem; font-size: 0.82rem; color: var(--fg-muted); }
+.based-on a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); }

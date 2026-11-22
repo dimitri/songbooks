@@ -212,6 +212,9 @@ type CatalogVariant struct {
 	ForkedFromID    *int64
 	Genre           string // from the parent work; "" means unset, not filtered out of an unfiltered listing
 	Album           string // from the parent work; "" means unset (migration 0033)
+	// BandName is the band's, for a band's version shown in place of the
+	// catalogue's song (PreferBandVersions); "" otherwise.
+	BandName string
 }
 
 // CatalogFilter narrows ListCatalog's listing. Zero values mean "no
@@ -310,12 +313,13 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 //   - visibility='community': a CURRENT member whose role grants
 //     edit_repertoire and who can see the song (canViewCommunityVariant:
 //     a sold songbook's song needs its grant too).
-//   - visibility='global': any logged-in person. Still a deliberate,
-//     known-permissive placeholder, same as phase 1 — global variants
-//     have no band/role concept attached to them in THIS phase either;
-//     the brief explicitly defers "who can edit a global variant" to
-//     later phases (plural), so this phase only had to add the band case
-//     above, not solve that one too.
+//   - visibility='global' (the catalogue): site admins only. Everyone
+//     else has their own songbook: Edit on a catalogue song offers their
+//     own version (an explicit copy, ForkVariant "user"), or their band's
+//     (AdoptIntoBand) — the catalogue's song is shared by everyone and
+//     isn't anyone's to change in place. Import tooling (cmd/*,
+//     AcceptCommunitySubmission) writes through the store directly and
+//     never asks this.
 func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) (bool, error) {
 	var visibility string
 	var ownerID, ownerBandID, ownerCommunityID, ownerSetlistID *int64
@@ -329,7 +333,9 @@ func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) 
 	}
 	switch visibility {
 	case "global":
-		return true, nil
+		var admin bool
+		err := st.db.QueryRow(ctx, `SELECT coalesce((SELECT is_admin FROM people WHERE id = $1), false)`, personID).Scan(&admin)
+		return admin, err
 	case "band":
 		if ownerBandID == nil {
 			return false, nil
@@ -713,7 +719,9 @@ func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, sco
 
 	switch scope {
 	case "user":
-		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
+		// The person's own version takes the original's place in their
+		// songbook, its entry kept (its order, the key it's in there).
+		if _, err := tx.Exec(ctx, `UPDATE songbook_entries SET variant_id = $3 WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID, newID); err != nil {
 			return 0, err
 		}
 		if _, err := tx.Exec(ctx, `

@@ -2106,6 +2106,8 @@
     </div>
     {{/* One's own copy of a song a band of one's has its own version of
          (store.BandVersionOf): the band plays and changes that one. */}}
+    {{/* A band's song made from another: where it came from, quietly. */}}
+    {{with .BasedOn}}<p class="based-on">{{t "Based on:"}} <a href="/song/{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</a>{{if eq .Kind "global"}} ({{t "the catalogue’s"}}){{else if .Owner}} ({{.Owner}}){{end}}</p>{{end}}
     {{with .BandVersion}}<p class="band-version-notice">{{t "%s has its own version of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s version"}}</a></p>{{end}}
     <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}"{{with .SpellJSON}} data-spell="{{.}}"{{end}} data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
@@ -2325,15 +2327,26 @@
       <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="edit-offer-go" data-action="band" data-band-id="{{.BandID}}">{{t "Edit %s’s version" .BandName}}</button>
     </div>
+    {{else}}{{if and .EditOwner (eq .EditOwner.Kind "global")}}
+    {{/* The catalogue's song: everyone's, changed in place by no one but
+         the site's admins; everyone has their own songbook for their
+         version of it. */}}
+    <h2 id="edit-offer-title">{{t "Make your own version"}}</h2>
+    <p id="edit-offer-text">{{t "This is the catalogue’s song, shared by everyone: nobody changes it in place. Make your own version of it to change."}}</p>
+    <p class="hint">{{t "Your version goes into My songbook, in this song’s place if it’s there. The catalogue’s song stays as it is."}}</p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="edit-offer-go" data-action="copy">{{t "Make my own version"}}</button>
+    </div>
     {{else}}
     <h2 id="edit-offer-title">{{t "You can’t change this song"}}</h2>
-    <p id="edit-offer-text">{{with .EditOwner}}{{if eq .Kind "band"}}{{t "This is %s’s song; only its members can change it." .Name}}{{else if eq .Kind "community"}}{{t "This is %s’s song; changing it takes the right to edit the repertoire." .Name}}{{else if eq .Kind "global"}}{{t "This is the catalogue’s song; you can’t change it."}}{{else if eq .Kind "setlist"}}{{t "This song belongs to the set list “%s”; only who can change the set list can change it." .Name}}{{else if eq .Kind "user"}}{{t "This is %s’s own song; only they can change it." .Name}}{{else}}{{t "Only its owner can change this song."}}{{end}}{{else}}{{t "Only its owner can change this song."}}{{end}}</p>
+    <p id="edit-offer-text">{{with .EditOwner}}{{if eq .Kind "band"}}{{t "This is %s’s song; only its members can change it." .Name}}{{else if eq .Kind "community"}}{{t "This is %s’s song; changing it takes the right to edit the repertoire." .Name}}{{else if eq .Kind "setlist"}}{{t "This song belongs to the set list “%s”; only who can change the set list can change it." .Name}}{{else if eq .Kind "user"}}{{t "This is %s’s own song; only they can change it." .Name}}{{else}}{{t "Only its owner can change this song."}}{{end}}{{else}}{{t "Only its owner can change this song."}}{{end}}</p>
     <p class="hint">{{t "You can make your own copy and change that. It goes into My songbook; this song stays as it is."}}</p>
     <div class="form-actions">
       <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="edit-offer-go" data-action="copy">{{t "Make my own copy"}}</button>
     </div>
-    {{end}}
+    {{end}}{{end}}
     <p class="form-status" id="edit-offer-status" role="status"></p>
   </form>
 </dialog>
