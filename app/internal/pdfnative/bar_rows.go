@@ -159,3 +159,27 @@ func sectionBarRows(barsPerLine []int, n int, pickup bool) []barRow {
 	}
 	return planBarRows(rows, barRowOpts{PerRow: phraseBars, Pickup: pickup, Explicit: true})
 }
+
+// capBarRows splits rows wider than limit regular bars into rows of at
+// most limit, each drawn limit bars wide; the song's pickup bar (on the
+// first row) rides on top of the first piece.
+func capBarRows(rows []barRow, limit int, pickup bool) []barRow {
+	var out []barRow
+	for i, r := range rows {
+		if r.Cap <= limit {
+			out = append(out, r)
+			continue
+		}
+		extra := 0
+		if i == 0 && pickup {
+			extra = 1
+		}
+		for left := r.Bars; left > 0; {
+			k := min(limit+extra, left)
+			out = append(out, barRow{Bars: k, Cap: limit})
+			left -= k
+			extra = 0
+		}
+	}
+	return out
+}

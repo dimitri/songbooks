@@ -46,11 +46,12 @@ type Options struct {
 	// is safe.
 	HideNotes bool
 
-	// Columns overrides the chart's chord/lyric column count (normally
-	// 2). A setlist/gig export sets this to 1 — printed for reading off a
-	// music stand from a few feet away, where a dense two-column chart
-	// isn't legible, unlike a songbook/single-song export which keeps
-	// the default. Zero means "use the renderer's normal default".
+	// Columns overrides the chart's column count (normally 2: sections
+	// flow down two newspaper-style columns, like the web Song view on a
+	// wide screen). 1 forces a single full-width column (?cols=1 on an
+	// export link). Zero means "use the renderer's normal default". A
+	// Song-layout chart with no lyrics anywhere prints in one column
+	// regardless — see songCols.
 	Columns int
 }
 
@@ -71,8 +72,9 @@ type SongRef struct {
 	Note  string // the setlist entry's own gig note (setlist.Entry.Note), e.g. "capo 2, watch the bridge tempo" — printed in the contents/running-order table, not part of the song's own chart
 }
 
-// FrontMatter controls the cover + title page rendered before the
-// contents/setlist table. CoverTitle defaults to Title when empty.
+// FrontMatter controls the single cover page rendered before the
+// contents/setlist table. Its title is CoverTitle, else EventTitle, else
+// the export's own title; BandName/Date/Venue print beneath it when set.
 type FrontMatter struct {
 	CoverTitle string
 	EventTitle string

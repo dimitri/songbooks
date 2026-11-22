@@ -713,7 +713,16 @@ func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float
 		// pickup riding on the first row, a short last row keeping a full
 		// row's bar width.
 		start := 0
-		for lineIdx, row := range sectionBarRows(sec.BarsPerLine, len(sec.Measures), pickup) {
+		rows := sectionBarRows(sec.BarsPerLine, len(sec.Measures), pickup)
+		// In a half-width column (the two-column Song/Lyrics layout) a
+		// staff row holds at most 4 bars, scaled to the column — the web
+		// Song view's own cap (song.js reflowStaffLines, modeCap 4) — so a
+		// section authored "bars: 8" for a full-width page doesn't cram 8
+		// bars into half the width. Jazz keeps its own density, as on the web.
+		if mode != ModeJazz && c.colW < contentWidth()-1 {
+			rows = capBarRows(rows, 4, pickup)
+		}
+		for lineIdx, row := range rows {
 			end := min(start+row.Bars, len(sec.Measures))
 			showTS := firstStaff && lineIdx == 0
 			rowPickup := pickup && lineIdx == 0

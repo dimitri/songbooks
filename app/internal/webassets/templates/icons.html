@@ -317,7 +317,7 @@
     {{range .Entries}}<a class="sidebar-song-row" href="{{.Path}}"{{if .External}} target="_blank" rel="noopener"{{end}}>{{if .Icon}}{{template "nav-icon" .Icon}} {{end}}{{t .Label}}{{if .External}} &#8599;{{end}}</a>{{end}}
     {{if .PDFExportPath}}
     <span class="pdf-mode-row sidebar-song-row" style="flex-wrap:wrap;">
-      <a class="pdf-export-link" href="{{.PDFExportPath}}" title="{{t "export the whole songbook as one PDF — cover, title page, contents, every song"}}" download>{{template "icon-download"}} {{if .PDFExportLabel}}{{t .PDFExportLabel}}{{else}}{{t "Export songbook (PDF)"}}{{end}}</a>
+      <a class="pdf-export-link" href="{{.PDFExportPath}}" title="{{t "export the whole songbook as one PDF — cover, contents, every song"}}" download>{{template "icon-download"}} {{if .PDFExportLabel}}{{t .PDFExportLabel}}{{else}}{{t "Export songbook (PDF)"}}{{end}}</a>
       <select class="pdf-mode-select" aria-label="{{t "PDF layout"}}">
         <option value="">{{t "Song"}}</option>
         <option value="jazz">{{t "Jazz chart"}}</option>

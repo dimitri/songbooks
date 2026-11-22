@@ -30,13 +30,13 @@ func optionsFromRequest(r *http.Request) pdfnative.Options {
 }
 
 // setlistOptionsFromRequest is optionsFromRequest for a gig/setlist
-// export: single-column by default, since it's printed to read off a
-// music stand from a few feet away, where the normal two-column chart
-// isn't legible — ?cols=2 opts back into the dense layout if wanted.
+// export: the renderer's normal two-column layout (sections flow down two
+// columns, like the web Song view), so a song stays on one page instead of
+// running a narrow single column over several; ?cols=1 opts into one
+// full-width column.
 func setlistOptionsFromRequest(r *http.Request) pdfnative.Options {
 	o := optionsFromRequest(r)
-	o.Columns = 1
-	if c, err := strconv.Atoi(r.URL.Query().Get("cols")); err == nil && c > 0 {
+	if c, err := strconv.Atoi(r.URL.Query().Get("cols")); err == nil && c > 0 && c <= 2 {
 		o.Columns = c
 	}
 	return o
@@ -218,7 +218,7 @@ func (s *Server) handleExportSetlistPageOnlyByIDPDF(w http.ResponseWriter, r *ht
 }
 
 // handleExportSongbookPDF renders a songbook's entire song list to one
-// combined PDF (cover, plain title page, contents, every song) — in the
+// combined PDF (cover, contents, every song) — in the
 // songbook's own canonical song_order, the same ordering the songbook's
 // own page already shows.
 func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request) {
