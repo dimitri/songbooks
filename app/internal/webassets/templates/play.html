@@ -428,7 +428,7 @@
 <span class="topbar-meta-item topbar-ref" id="topbar-ref" data-kind="{{.Kind}}"{{if .CanEdit}} data-can-edit="1"{{end}}{{if and (not .Kind) (not .CanEdit)}} hidden{{end}}>
   <button type="button" class="topbar-ref-btn" id="topbar-ref-btn" data-add-label="{{t "Add a reference"}}" data-open-label="{{t "Open the song's reference"}}" aria-label="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}" title="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}">
     <span class="topbar-ref-thumb">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="40" height="22" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}{{template "icon-play"}}</span>
-    <span class="topbar-ref-icon is-link">{{template "icon-link"}}</span>
+    <span class="topbar-ref-icon is-link">{{template "icon-ref-link"}}</span>
     <span class="topbar-ref-icon is-band">{{template "icon-speaker"}}</span>
     <span class="topbar-ref-icon is-add" aria-hidden="true">+</span>
     <span class="topbar-ref-label">{{t "Reference"}}</span>
