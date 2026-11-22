@@ -236,6 +236,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis/apply", s.requireVariantRole("editor", s.handlePostAudioAnalysisApply))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/facts", s.requireVariantRole("viewer", s.handlePutSongGPFileFacts))
+	mux.HandleFunc("PUT /api/songs/{id}/gp-file/instruments", s.requireVariantRole("editor", s.handlePutSongGPFileInstruments))
 	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/gp", s.requireVariantRole("editor", s.handlePutSectionGP))
 	mux.HandleFunc("DELETE /api/songs/{id}/sections/{index}/gp", s.requireVariantRole("editor", s.handleDeleteSectionGP))
 	mux.HandleFunc("POST /api/songs/{id}/gp-check", s.requireVariantRole("editor", s.handlePostGPCheck))
@@ -320,6 +321,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
 	mux.HandleFunc("POST /api/variants/{id}/versions", s.requireAuth(s.handleNewVersion))
 	mux.HandleFunc("POST /api/variants/{id}/public", s.requireAuth(s.handleSetSongPublic))
+	// Steps 6 and 7 of the ownership model (versions_sync.go): the
+	// original's changes offered to a version; who uses a song before it
+	// goes private or is deleted; the bands' public recordings of a song.
+	mux.HandleFunc("POST /api/variants/{id}/original-change", s.requireAuth(s.handleSyncWithOriginal))
+	mux.HandleFunc("GET /api/variants/{id}/uses", s.requireVariantRole("editor", s.handleSongUses))
+	mux.HandleFunc("GET /song/{id}/recordings", s.requireVariantRole("viewer", s.handleSongRecordingsPage))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/{recID}/public", s.requireBandMember(s.handleSetBandRecordingPublic))
 	mux.HandleFunc("POST /api/songbooks/{id}/public", s.requireAuth(s.handleSetSongbookPublic))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
 	mux.HandleFunc("PUT /api/variants/{id}", s.requireAuth(s.handleUpdateVariant))
@@ -664,6 +672,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /setlists/{id}/practice", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/listening", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
+	mux.HandleFunc("GET /setlists/{id}/clicktrack/manifest.json", s.requireAuth(s.handleClicktrackManifest))
 	// A band's set lists live inside the band; /setlists/{id} redirects
 	// there (atSetlistPath). {id} is the set list here, as above; who may
 	// see it is the set list's own check, same as at /setlists/{id}.

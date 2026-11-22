@@ -714,6 +714,14 @@
     title: '', play: () => setPlaying(true), pause: () => setPlaying(false),
     previous: () => goTo(cur - 1, false), next: () => goTo(cur + 1, false),
   }) : null;
+  // ---- Full screen (fullscreen.js): the header's button, ⇧F; on an
+  // iPhone, the line about the Home Screen. The screen stays on as before.
+  const fullscreen = window.SongbooksFullscreen ? window.SongbooksFullscreen.setUp({
+    button: document.getElementById('ct-fullscreen'),
+    hint: document.getElementById('ct-fs-hint'),
+    hintKey: 'songbooks:ct-fullscreen-hint',
+    cover: true,
+  }) : null;
   if (window.PlayerShell) window.PlayerShell.keys({
     title: t('The click track’s keys'),
     own: '#ct-bar, #ct-panel',
@@ -730,6 +738,7 @@
       '\\': backToSongTempo,
       m: () => muteBtn.click(), t: () => tapBtn.click(),
       f: () => shell?.open(!shell.isOpen()),
+      'Shift+f': () => { if (fullscreen && fullscreen.supported) fullscreen.toggle(); else return false; },
     },
     help: [
       [t('Play / stop'), ' ', 'k'],
@@ -738,6 +747,7 @@
       [t('Tempo −1 / +1 (⇧ for 5) · \\ back to the song’s'), '[', ']', '\\'],
       [t('Mute · tap the tempo'), 'm', 't'],
       [t('Open / close the running order · close · these shortcuts'), 'f', 'Escape', '?'],
+      ...(fullscreen && fullscreen.supported ? [[t('Full screen'), 'Shift+f']] : []),
     ],
   });
 

@@ -64,9 +64,12 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 	for i, v := range variants {
 		ids[i] = v.VariantID
 	}
+	// The bands whose recordings of a song everyone hears
+	// (docs/ownership-model.md §8): "played by: Mercy (2 recordings)".
+	playedBy, _ := s.store.PlayedByFor(r.Context(), ids)
 	s.render(w, "catalog", map[string]any{
 		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
-		"DefaultSongbookID": defaultSongbookID,
+		"DefaultSongbookID": defaultSongbookID, "PlayedBy": playedBy,
 	})
 }
 

@@ -1923,6 +1923,8 @@ const ICONS = {
     const btn = e.currentTarget;
     const makePublic = btn.dataset.songPublish !== 'true';
     if (makePublic && !confirm(t('Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own version.'))) return;
+    // Private again: who links it keeps a frozen copy; said first.
+    if (!makePublic && !confirm(await songUses('private'))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/api/variants/${pageVariantId}/public`, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({public: makePublic}),
@@ -1933,6 +1935,27 @@ const ICONS = {
       return;
     }
     location.reload();
+  }));
+  // Delete this song… (docs/ownership-model.md §5): the confirmation says
+  // who links it (each keeps a frozen copy) and who has their own version.
+  async function songUses(what) {
+    const res = await fetch(`/api/variants/${pageVariantId}/uses?for=${what}`).catch(() => null);
+    const data = res && res.ok ? await res.json().catch(() => null) : null;
+    if (data && data.message) return data.message;
+    return what === 'delete' ? t('Delete this song? This can’t be undone.') : t('Make this song private?');
+  }
+  document.querySelectorAll('[data-song-delete]').forEach((el) => el.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (!confirm(await songUses('delete'))) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/songs/${pageVariantId}`, {method: 'DELETE'}).catch(() => null);
+    if (!res || !res.ok) {
+      Forms.busy(btn, false);
+      alert(t("Couldn't delete this song. Try again."));
+      return;
+    }
+    const back = document.querySelector('a.song-back[href]');
+    location.href = back ? back.getAttribute('href') : '/';
   }));
   editToggle.addEventListener('click', () => {
     if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }
