@@ -496,5 +496,7 @@
   "previous: %s": "précédent : %s",
   "Tools": "Outils",
   "Stage": "Scène",
-  "the player’s click": "le clic du lecteur"
+  "the player’s click": "le clic du lecteur",
+  "Add a reference": "Ajouter une référence",
+  "Open the song's reference": "Ouvrir la référence du morceau"
 }

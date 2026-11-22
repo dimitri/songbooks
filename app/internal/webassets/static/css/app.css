@@ -993,6 +993,45 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .gp-source-badge { display: inline-flex; align-items: center; gap: 0.3em; color: var(--fg-muted); }
 .gp-source-badge:hover { color: var(--fg); }
 .gp-source-badge .icon { width: 0.85rem; height: 0.85rem; }
+/* The song's reference (play.html "song-ref-head"): a pill after the
+   artist, the YouTube video's thumbnail in it, or an icon (a link, a band
+   recording, "+" to add one); it opens the Reference view. */
+.topbar-ref { display: inline-flex; align-items: center; }
+.topbar-ref[hidden] { display: none; }
+.topbar-meta > .topbar-ref[hidden]:first-child + *::before { content: none; }
+.topbar-ref-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 1.75rem; padding: 0.1rem 0.6rem 0.1rem 0.45rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised);
+  color: var(--fg-muted); font-size: 0.8rem; line-height: 1.2; white-space: nowrap;
+}
+.topbar-ref-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--border-strong); }
+.topbar-ref-btn .icon { margin-right: 0; }
+.topbar-ref-thumb, .topbar-ref-icon { display: none; }
+.topbar-ref-icon { align-items: center; justify-content: center; flex: none; width: 0.95rem; height: 0.95rem; }
+.topbar-ref-icon .icon { width: 0.95rem; height: 0.95rem; }
+.topbar-ref-icon.is-add { font-size: 1rem; font-weight: 600; line-height: 1; }
+.topbar-ref[data-kind="youtube"] .topbar-ref-btn { padding-left: 0.2rem; }
+.topbar-ref[data-kind="youtube"] .topbar-ref-thumb {
+  position: relative; display: block; flex: none; width: 40px; height: 22px; overflow: hidden;
+  border-radius: 999px 4px 4px 999px; background: var(--bg-sunken);
+}
+.topbar-ref-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.topbar-ref-thumb .icon {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; padding: 2px; transform: translate(-50%, -50%);
+  border-radius: 50%; background: rgba(0, 0, 0, 0.6); color: #fff; box-sizing: border-box;
+}
+.topbar-ref[data-kind="link"] .is-link, .topbar-ref[data-kind="band"] .is-band, .topbar-ref[data-kind=""] .is-add { display: inline-flex; }
+/* Nothing to listen to yet: an editor's discreet way in. */
+.topbar-ref[data-kind=""] .topbar-ref-btn { border-style: dashed; background: none; }
+/* A phone: the thumbnail says it, its label goes (the button keeps its
+   aria-label). */
+@media (max-width: 480px) {
+  .topbar-ref[data-kind="youtube"] .topbar-ref-label { display: none; }
+  .topbar-ref[data-kind="youtube"] .topbar-ref-btn { padding: 0.1rem 0.2rem; }
+  .topbar-ref[data-kind="youtube"] .topbar-ref-thumb { border-radius: 999px; width: 44px; }
+}
+body.stage .topbar-ref { display: none !important; }
+body.stage .topbar-meta > .topbar-ref:first-child + *::before { content: none; }
 .topbar-current .segmented { margin-top: 0.5rem; flex-wrap: wrap; justify-content: center; }
 @media (max-width: 640px) {
   .song-topbar { grid-template-columns: 1fr; }

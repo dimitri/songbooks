@@ -418,6 +418,24 @@
 {{end}}
 {{end}}
 
+{{define "song-ref-head"}}
+{{/* The song's reference in the header's meta line (songRefHead,
+     song_ref_head.go): a YouTube video's thumbnail, or an icon for any
+     other link or a band recording, and "Reference". It opens the
+     Reference view, the ⋯ menu's (song.js initReference keeps it in step
+     when the link changes there). No reference: "+ Reference" for the
+     song's editors (it opens the link field), nothing for others. */}}
+<span class="topbar-meta-item topbar-ref" id="topbar-ref" data-kind="{{.Kind}}"{{if .CanEdit}} data-can-edit="1"{{end}}{{if and (not .Kind) (not .CanEdit)}} hidden{{end}}>
+  <button type="button" class="topbar-ref-btn" id="topbar-ref-btn" data-add-label="{{t "Add a reference"}}" data-open-label="{{t "Open the song's reference"}}" aria-label="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}" title="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}">
+    <span class="topbar-ref-thumb">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="40" height="22" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}{{template "icon-play"}}</span>
+    <span class="topbar-ref-icon is-link">{{template "icon-link"}}</span>
+    <span class="topbar-ref-icon is-band">{{template "icon-speaker"}}</span>
+    <span class="topbar-ref-icon is-add" aria-hidden="true">+</span>
+    <span class="topbar-ref-label">{{t "Reference"}}</span>
+  </button>
+</span>
+{{end}}
+
 {{define "song"}}
 {{$brand := brandFor .BrandKind .BrandID}}
 <!doctype html>
@@ -507,6 +525,7 @@
     <h1>{{.Title}}</h1>
     <div class="topbar-meta">
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}</span>{{end}}
+      {{if .RefHead}}{{template "song-ref-head" .RefHead}}{{end}}
       {{if .Key}}<span class="topbar-meta-item topbar-key">
         {{/* View-only transpose: shifts the chords on screen for tonight,
              never the saved song (Edit → Source → Transpose does that).
