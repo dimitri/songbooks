@@ -58,6 +58,35 @@ A song is the community's song in all of them; only its key differs
 songbook, the song page starts the practice player in that key, the
 chords following. A student's page shows their songs and their groups'.
 
+The **Songbooks** section (`/communities/{id}/songbooks`,
+coaching_songbooks.go) shows them from each side:
+
+- **The student**: first *Your songbook with* the coach (its name, how
+  many songs, in their key, the next lesson), each song with its key as
+  a pill ("C (−3)", or "original"), *All n songs* and *PDF in my keys*
+  (`/songbooks/{id}/export-songbook.pdf?keys=songbook`: each song
+  transposed by its entry's semitones). Then the coach's repertoire (the
+  default songbook), each song either *in your songbook* or *Ask for
+  it*; then their groups' songbooks and the community's others they may
+  open. Never another student's.
+- **Ask for it** (migration 0107, `coaching_song_requests`, one row per
+  student and song): only a current student, for their own songbook,
+  and only a song of the repertoire. Each of the staff gets a
+  notification (`song_request`, in their language) that opens the
+  Songbooks section on the request; the row says *Asked*. The coach
+  *Adds it to their songbook* (with the key picker when the community
+  has its key per student on, `coach_student_keys`), or *Not now* (the
+  student may ask again). Added, the student is told
+  (`song_request_added`); either way the other staff's notifications of
+  it are marked read.
+- **The coach**: *Requests (n)* first; then a card per student and per
+  group, the soonest lesson (a group's session) first: its song count,
+  the student's range, the last song worked on, the takes since the last
+  lesson (to check), *Open songbook* (the student's page, the group's
+  page); a search when there are more than six. Beside them the
+  repertoire's card: its songs, each *Add to…* a student or a group in a
+  key (the song page's own coach-keys endpoint).
+
 ## Students' songs, and an event's program
 
 The coach's **Students’ songs** tab (`/communities/{id}/student-songs`) lists every song the students and groups

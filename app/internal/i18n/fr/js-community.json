@@ -107,5 +107,16 @@
   "%d members shown": "%d membres affichés",
   "Remove %s from this event’s managers?": "Retirer %s des responsables de cet événement ?",
   "Couldn’t remove that manager. Try again.": "Impossible de retirer ce responsable. Réessayez.",
-  "Admin": "Admin"
+  "Admin": "Admin",
+  "Asked": "Demandé",
+  "Show the songs": "Voir les morceaux",
+  "Hide the songs": "Masquer les morceaux",
+  "Added to %s’s songbook, in %s.": "Ajouté au songbook de %s, en %s.",
+  "Couldn’t ask for it. Try again.": "Impossible de le demander. Réessayez.",
+  "Couldn’t load your students.": "Impossible de charger vos élèves.",
+  "Pick a student or a group.": "Choisissez un élève ou une classe.",
+  "has it, in %s": "l’a déjà, en %s",
+  "No student or group to add it to.": "Aucun élève ni classe à qui l’ajouter.",
+  "%d request": "%d demande",
+  "%d requests": "%d demandes"
 }

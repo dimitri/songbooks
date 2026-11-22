@@ -386,6 +386,12 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A coaching studio's: the student's songbook and the repertoire, or
+	// the coach's cards of every student's (coaching_songbooks.go).
+	if community.IsCoaching() {
+		s.handleCoachingSongbooksPage(w, r, community)
+		return
+	}
 	songbooks, err := s.store.ListSongbooks(r.Context(), "community", communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())

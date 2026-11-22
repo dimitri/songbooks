@@ -592,7 +592,7 @@
 
   {{template "practice-section" .}}
 
-  <section class="home-section">
+  <section class="home-section" id="songs">
     <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Songs, in %s’s key" .Student.DisplayName}}{{else}}{{t "My songs"}}{{end}}</h3><span class="count">{{len .Songs}}</span></div>
     {{template "coach-song-list" .}}
   </section>

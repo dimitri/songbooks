@@ -279,6 +279,7 @@ var spacePages = map[string]string{
 	"coaching_group":             "students/-",
 	"coaching_lessons":           "agenda/lessons",
 	"coaching_warmups":           "warmups",
+	"coaching_songbooks":         "songbooks",
 }
 
 // coachingSections are where a coaching studio keeps the pages every

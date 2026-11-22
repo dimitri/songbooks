@@ -99,6 +99,7 @@ var pageNavSections = map[string]string{
 	"coaching_repertoire":        webassets.NavCommunities,
 	"coaching_program":           webassets.NavCommunities,
 	"coaching_warmups":           webassets.NavCommunities,
+	"coaching_songbooks":         webassets.NavCommunities,
 	"coaching_exercise":          webassets.NavCommunities,
 	"coaching_exercise_edit":     webassets.NavCommunities,
 	"coaching_checking":          webassets.NavCommunities,
