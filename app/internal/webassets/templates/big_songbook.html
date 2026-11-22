@@ -103,7 +103,7 @@
     <ul class="big-dup-songs">
     {{range $i, $s := $g.Songs}}
       <li class="big-dup-song" data-song-id="{{$s.ID}}">
-        <label class="big-dup-keep"><input type="radio" name="keep-{{$gi}}" value="{{$s.ID}}"{{if eq $i 0}} checked{{end}}> {{t "Keep"}}</label>
+        <label class="big-dup-keep"><input type="radio" name="keep-{{$gi}}" value="{{$s.ID}}"{{if eq $s.ID $g.KeepID}} checked{{end}}> {{t "Keep"}}</label>
         <div class="big-dup-text">
           <a href="/song/{{$s.ID}}">{{t "Song %d" $s.ID}}</a> — {{$s.Title}} — {{$s.Artist}}{{with $s.VersionName}} — {{.}}{{end}}
           <span class="owner-badge is-public">{{if $s.Catalogue}}{{t "The Big Songbook"}}{{else}}{{$s.OwnerName}}{{end}}</span>

@@ -458,12 +458,19 @@ func (s *Server) handleMergeSongsAPI(w http.ResponseWriter, r *http.Request) {
 		out.Summary = i18n.T(lang, "Song %d is merged into song %d:", rep.Drop.ID, rep.Keep.ID)
 	}
 	m := rep.Moved
-	out.Lines = []string{
-		i18n.N(lang, m.Entries, "move %d songbook entry (its key kept)", "move %d songbook entries (their keys kept)"),
-		i18n.N(lang, m.SetlistItems, "move %d set list line", "move %d set list lines"),
-		i18n.N(lang, m.Recordings, "move %d band recording", "move %d band recordings"),
-		i18n.N(lang, m.Media, "move %d recording or Guitar Pro file the kept song lacks", "move %d recordings or Guitar Pro files the kept song lacks"),
-		i18n.N(lang, m.Other, "move %d other reference (notes, practice, visits, versions made from it…)", "move %d other references (notes, practice, visits, versions made from it…)"),
+	for _, l := range []struct {
+		n          int
+		one, other string
+	}{
+		{m.Entries, "move %d songbook entry (its key kept)", "move %d songbook entries (their keys kept)"},
+		{m.SetlistItems, "move %d set list line", "move %d set list lines"},
+		{m.Recordings, "move %d band recording", "move %d band recordings"},
+		{m.Media, "move %d recording or Guitar Pro file the kept song lacks", "move %d recordings or Guitar Pro files the kept song lacks"},
+		{m.Other, "move %d other reference (notes, practice, visits, versions made from it…)", "move %d other references (notes, practice, visits, versions made from it…)"},
+	} {
+		if l.n > 0 {
+			out.Lines = append(out.Lines, i18n.N(lang, l.n, l.one, l.other))
+		}
 	}
 	if rep.MediaDropped > 0 {
 		out.Lines = append(out.Lines, i18n.N(lang, rep.MediaDropped,

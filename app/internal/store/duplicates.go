@@ -54,6 +54,19 @@ type DuplicateGroup struct {
 	Title   string // the first song's "Title — Artist"
 	VideoID string // for "video"
 	Songs   []DuplicateSong
+	// KeepID: the one to keep, proposed — the one most pointed at
+	// (songbook entries, set lists, recordings, versions), the oldest of
+	// equals.
+	KeepID int64
+}
+
+func (g *DuplicateGroup) proposeKeep() {
+	best := -1
+	for _, s := range g.Songs {
+		if n := s.Entries + s.Setlists + s.Recordings + s.Versions; n > best {
+			best, g.KeepID = n, s.ID
+		}
+	}
 }
 
 // FindDuplicates lists the duplicates among public songs, oldest song
@@ -151,6 +164,9 @@ func groupDuplicates(songs []DuplicateSong) []DuplicateGroup {
 	sort.SliceStable(out, func(i, j int) bool {
 		return strings.ToLower(out[i].Title) < strings.ToLower(out[j].Title)
 	})
+	for i := range out {
+		out[i].proposeKeep()
+	}
 	return out
 }
 
