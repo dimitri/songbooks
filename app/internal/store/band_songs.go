@@ -150,7 +150,9 @@ func (st *Store) VariantOwnerOf(ctx context.Context, variantID int64) (*VariantO
 // AdoptIntoBand makes variantID the band's own song and returns that
 // song's id: variantID itself when the band owns it already; else the
 // band's copy of it when it has one (forked_from_id); else a new copy for
-// the band (content and media, as ForkVariant copies them). Then, when the
+// the band (content and media, as ForkVariant copies them) — whether
+// variantID is the catalogue's, a person's or another band's: a band's
+// songbook and set lists never point at another band's song. Then, when the
 // band's song isn't variantID, everything of the band's that pointed at
 // variantID points at the band's song: its songbooks' entries (in place,
 // keeping their order, key and lesson), its set lists' items (a revision
@@ -349,8 +351,11 @@ func SetlistVariantIDs(l *setlist.Setlist) []int64 {
 
 // BandAdoption is one song a band uses without owning it, as cmd/bandsongs
 // plans it: Action is "copy" (a new copy for the band), "reuse" (the band
-// already has its copy; only the pointers move), or "skip" (another
-// band's or a community's song: not copied without a person deciding).
+// already has its copy; only the pointers move), or "skip" (a
+// community's song: its songbooks may be private or sold, so it isn't
+// copied without a person deciding). Another band's song is copied like a
+// catalogue one: a band's songbook and set lists never point at another
+// band's song.
 type BandAdoption struct {
 	BandID       int64
 	BandName     string
@@ -458,7 +463,7 @@ func (st *Store) PlanBandAdoptions(ctx context.Context) ([]BandAdoption, error) 
 			return nil, err
 		}
 		switch a.Visibility {
-		case "global", "user":
+		case "global", "user", "band":
 			err := st.db.QueryRow(ctx, `
 				SELECT id FROM songs WHERE visibility = 'band' AND owner_band_id = $1 AND forked_from_id = $2
 				ORDER BY id LIMIT 1`, a.BandID, a.VariantID).Scan(&a.BandSongID)

@@ -261,9 +261,12 @@ func TestAdoptIntoBand(t *testing.T) {
 	}
 }
 
-// TestPlanBandAdoptionsSkipsAnotherBandsSong: another band's song in a
-// band's set list is left for a person to decide.
-func TestPlanBandAdoptionsSkipsAnotherBandsSong(t *testing.T) {
+// TestAnotherBandsSongIsCopied: another band's song in a band's set list
+// (the one bandsongs left on staging, Other Lies's song in Mercy's set
+// list) is planned as a copy like a catalogue song, and adopting it makes
+// this band's own copy — never a pointer at the other band's song, which
+// stays as it is. A community's song is still left to a person.
+func TestAnotherBandsSongIsCopied(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
@@ -275,11 +278,19 @@ func TestPlanBandAdoptionsSkipsAnotherBandsSong(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	community, err := st.CreateCommunity(ctx, "Jam Club", f.Core)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clubs, err := st.CreateCommunityVariant(ctx, community, "Club Song", "", f.Core)
+	if err != nil {
+		t.Fatal(err)
+	}
 	l, _, version, err := st.LoadSetlistByID(ctx, f.SetlistID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	l.Sets[0].Entries = append(l.Sets[0].Entries, setlist.Entry{VariantID: theirs})
+	l.Sets[0].Entries = append(l.Sets[0].Entries, setlist.Entry{VariantID: theirs}, setlist.Entry{VariantID: clubs})
 	if _, err := st.SaveSetlistByID(ctx, f.SetlistID, l, "Friday", "", version, f.Core); err != nil {
 		t.Fatal(err)
 	}
@@ -287,20 +298,48 @@ func TestPlanBandAdoptionsSkipsAnotherBandsSong(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var skipped, copied int
+	actions := map[int64]string{}
 	for _, a := range plan {
-		switch {
-		case a.VariantID == theirs && a.Action == "skip" && a.BandID == f.Band:
-			skipped++
-		case a.VariantID == f.CatalogSong && a.Action == "copy":
-			copied++
-		default:
-			t.Errorf("unexpected: %+v", a)
+		if a.BandID != f.Band {
+			t.Errorf("unexpected band: %+v", a)
 		}
+		actions[a.VariantID] = a.Action
 	}
-	if skipped != 1 || copied != 1 {
-		t.Errorf("plan %+v", plan)
+	if len(actions) != 3 || actions[theirs] != "copy" || actions[f.CatalogSong] != "copy" || actions[clubs] != "skip" {
+		t.Errorf("plan %v: want another band's and the catalogue's songs copied, the community's left", actions)
 	}
+
+	_, theirsVersion, _ := st.LoadVariantRaw(theirs)
+	ours, created, err := st.AdoptIntoBand(ctx, f.Band, theirs, f.Core)
+	if err != nil || !created || ours == theirs {
+		t.Fatalf("AdoptIntoBand(another band's song) = %d, %v, %v", ours, created, err)
+	}
+	v, err := st.GetVariant(ctx, ours)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Visibility != "band" || *v.OwnerBandID != f.Band || v.ForkedFromID == nil || *v.ForkedFromID != theirs {
+		t.Errorf("the copy: %+v, want this band's, forked from %d", v, theirs)
+	}
+	if got := SetlistVariantIDs(mustSetlist(t, st, f.SetlistID)); containsID(got, theirs) || !containsID(got, ours) {
+		t.Errorf("set list %v: still points at the other band's %d", got, theirs)
+	}
+	if _, after, _ := st.LoadVariantRaw(theirs); after != theirsVersion {
+		t.Error("the other band's song changed")
+	}
+	o, err := st.GetVariant(ctx, theirs)
+	if err != nil || *o.OwnerBandID != other {
+		t.Errorf("the other band's song: %+v, %v", o, err)
+	}
+}
+
+func mustSetlist(t *testing.T, st *Store, id int64) *setlist.Setlist {
+	t.Helper()
+	l, _, _, err := st.LoadSetlistByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return l
 }
 
 // TestVariantOwnerOf names whose song it is, for the "you can't change
