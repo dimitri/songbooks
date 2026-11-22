@@ -1651,6 +1651,8 @@ window.songbooksDecodable = function (buf) {
     // the start (a student's songbook: theirs).
     if (coachCommunity) loadCoachKeys();
     renderSing();
+    // The strip's script comes after this one (voice-strip.js).
+    document.addEventListener('songbooks:voice-strip', renderStrip);
   }
 
 

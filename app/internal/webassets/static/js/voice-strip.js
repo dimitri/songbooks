@@ -97,4 +97,6 @@
   }
 
   window.VoiceStrip = { show, key, hide };
+  // Loaded after the player: it draws now.
+  document.dispatchEvent(new Event('songbooks:voice-strip'));
 })();
