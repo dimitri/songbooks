@@ -355,6 +355,8 @@ func (s *Server) handleBigSongbookPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	fits := s.recordingFits(r.Context(), lang, ids)
+	// The bands whose recordings of a song everyone hears (§8).
+	playedBy, _ := s.store.PlayedByFor(r.Context(), ids)
 	views := make([]bigWorkView, len(works))
 	for i, wk := range works {
 		v := bigWorkView{FoundWork: wk, Badges: map[int64]string{}, Fits: map[int64]fitView{}}
@@ -394,7 +396,7 @@ func (s *Server) handleBigSongbookPage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, "big_songbook", map[string]any{
 		"Me": person, "Works": views, "Songs": songs, "From": from, "Froms": froms, "Q": q,
-		"IsStaff": person.IsAdmin, "Duplicates": dups,
+		"IsStaff": person.IsAdmin, "Duplicates": dups, "PlayedBy": playedBy,
 	})
 }
 

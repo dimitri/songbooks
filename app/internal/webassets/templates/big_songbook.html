@@ -52,6 +52,7 @@
         <li class="big-version" data-variant-id="{{.ID}}">
           <a class="big-version-title" href="/song/{{.ID}}">{{.Artist}}{{with .VersionName}} — {{.}}{{end}}</a>
           <span class="owner-badge is-public">{{index $w.Badges .ID}}</span>
+          {{with index $.PlayedBy .ID}}<span class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}{{$b.BandName}} ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</span>{{end}}
           {{if $fit.Fit}}<span class="fit-badge is-{{$fit.Fit}}"{{with $fit.Why}} title="{{.}}"{{end}}>{{$fit.Label}}</span>{{end}}
           <button type="button" class="link-button" data-add-to="{{.ID}}" data-title="{{.Title}} — {{.Artist}}" data-badge="{{index $w.Badges .ID}}">{{t "Add to…"}}</button>
           {{if and $.IsStaff $fit.Why}}<p class="hint fit-why">{{$fit.Why}}</p>{{end}}

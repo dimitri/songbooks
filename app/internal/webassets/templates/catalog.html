@@ -74,6 +74,7 @@
         <div class="catalog-card-meta">{{$first.Artist}}{{with $first.Genre}} &middot; {{.}}{{end}}</div>
         <span class="owner-badge{{if $first.Public}} is-public{{end}}{{if $first.Closed}} is-closed{{end}}">{{index $.Owners $first.ID}}</span>
         {{template "song-badges" (index $.Badges $first.ID)}}
+        {{with index $.PlayedBy $first.ID}}<div class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}{{$b.BandName}} ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</div>{{end}}
       </a>
       {{if gt (len .Songs) 1}}
       <details class="find-versions">
@@ -91,6 +92,7 @@
       {{end}}
       <div class="catalog-card-actions">
         <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+        {{if index $.PlayedBy $first.ID}}<a href="/song/{{$first.ID}}/recordings">{{t "Listen"}}</a>{{end}}
         {{if not $first.Closed}}<button type="button" data-add-to="{{$first.ID}}" data-title="{{$first.Title}} — {{$first.Artist}}" data-badge="{{index $.Owners $first.ID}}">{{t "Add to…"}}</button>{{end}}
       </div>
     </div>

@@ -328,6 +328,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
 	mux.HandleFunc("POST /api/variants/{id}/versions", s.requireAuth(s.handleNewVersion))
 	mux.HandleFunc("POST /api/variants/{id}/public", s.requireAuth(s.handleSetSongPublic))
+	// Steps 6 and 7 of the ownership model (versions_sync.go): the
+	// original's changes offered to a version; who uses a song before it
+	// goes private or is deleted; the bands' public recordings of a song.
+	mux.HandleFunc("POST /api/variants/{id}/original-change", s.requireAuth(s.handleSyncWithOriginal))
+	mux.HandleFunc("GET /api/variants/{id}/uses", s.requireVariantRole("editor", s.handleSongUses))
+	mux.HandleFunc("GET /song/{id}/recordings", s.requireVariantRole("viewer", s.handleSongRecordingsPage))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/{recID}/public", s.requireBandMember(s.handleSetBandRecordingPublic))
 	mux.HandleFunc("POST /api/songbooks/{id}/public", s.requireAuth(s.handleSetSongbookPublic))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
 	mux.HandleFunc("PUT /api/variants/{id}", s.requireAuth(s.handleUpdateVariant))

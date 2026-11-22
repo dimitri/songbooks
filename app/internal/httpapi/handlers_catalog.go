@@ -84,9 +84,12 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		}
 		scopes = append(scopes, scopeView{Label: f.Label, Href: href, Active: f.Scope == filter.Scope})
 	}
+	// The bands whose recordings of a song everyone hears
+	// (docs/ownership-model.md §8): "played by: Mercy (2 recordings)".
+	playedBy, _ := s.store.PlayedByFor(r.Context(), ids)
 	s.render(w, "catalog", map[string]any{
 		"Me": person, "Works": works, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
-		"Owners": owners, "Scopes": scopes,
+		"Owners": owners, "Scopes": scopes, "PlayedBy": playedBy,
 	})
 }
 
