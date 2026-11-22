@@ -106,6 +106,10 @@ func (s *Server) requireVariantRole(minRole string, next http.HandlerFunc) http.
 		} else {
 			allowed, err = s.store.CanViewVariant(r.Context(), p.ID, id)
 		}
+		// A song merged into another (§7): its old links open that one.
+		if errors.Is(err, store.ErrNotFound) && s.mergedRedirect(w, r, id) {
+			return
+		}
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return

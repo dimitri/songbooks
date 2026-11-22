@@ -51,12 +51,12 @@
 
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    {{t "This songbook is empty."}}{{if .CanEdit}} {{t "Songs don't appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty">{{t "Add your first song"}}</button> {{t "to get started."}}{{end}}
+    {{t "This songbook is empty."}}{{if .CanEdit}} {{t "Songs don't appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty" data-add-song="{{.SongbookID}}">{{t "Add your first song"}}</button> {{t "to get started."}}{{end}}
   </div>
   {{else}}
   <div class="repertoire-toolbar">
     <input type="search" id="repertoire-search" placeholder="{{t "Search this songbook…"}}" aria-label="{{t "Search this songbook"}}" autocomplete="off" enterkeyhint="search">
-    {{if .CanEdit}}<button type="button" id="open-add-song">{{template "icon-plus"}} {{t "Add song"}}</button>{{end}}
+    {{if .CanEdit}}<button type="button" id="open-add-song" data-add-song="{{.SongbookID}}">{{template "icon-plus"}} {{t "Add song"}}</button>{{end}}
     {{template "space-export" .Export}}
   </div>
   {{end}}
@@ -106,49 +106,10 @@
   </details>
   {{end}}
 
-  <dialog id="add-song-dialog">
-    <h2>{{t "Add a song"}}</h2>
-    <div class="add-song-tabs">
-      <button type="button" class="add-song-tab active" data-panel="write">{{t "Write new"}}</button>
-      <button type="button" class="add-song-tab" data-panel="catalog">{{t "From the catalog"}}</button>
-    </div>
-
-    <div class="add-song-panel" data-panel="write">
-      <p class="hint">{{t "A blank song, private to the community."}}</p>
-      <form class="form-stack" id="new-variant-form">
-        <div class="field">
-          <label for="new-variant-title">{{t "Title"}}</label>
-          <input type="text" id="new-variant-title" name="title" required autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="new-variant-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-          <input type="text" id="new-variant-artist" name="artist" autocomplete="off">
-        </div>
-        {{/* "Already in the library" list, see library-match.js. */}}
-        <div id="new-variant-library-match"></div>
-        <div class="form-actions">
-          <button type="submit" id="new-variant-btn" class="primary">{{t "Create song"}}</button>
-        </div>
-        <p id="new-variant-result" class="form-status" role="status"></p>
-      </form>
-    </div>
-
-    <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">{{t "\"Add\" links to the song as it is; \"Make the community’s version\" gives the community its own version to edit."}}</p>
-      <form class="field" id="catalog-search-form" role="search">
-        <label for="catalog-search-input">{{t "Title or artist"}}</label>
-        <input type="search" id="catalog-search-input" autocomplete="off" enterkeyhint="search">
-      </form>
-      <div id="catalog-search-results" class="attention-list" aria-live="polite"></div>
-      <p id="add-result" class="form-status" role="status"></p>
-    </div>
-
-    <div class="form-actions dialog-actions">
-      <button type="button" id="close-add-song">{{t "Close"}}</button>
-    </div>
-  </dialog>
 </main>
-<script src="/static/js/library-match.js?v={{staticVersion}}"></script>
+{{/* "Add song": the one Add / Create dialog (add-song.js), on the
+     community's songbook. */}}
+<script src="/static/js/add-song.js?v={{staticVersion}}"></script>
 <script>
 const communityId = {{.Community.ID}};
 // A 4xx's own sentence is worth showing; anything else gets the plain
@@ -157,129 +118,6 @@ function errText(res, data, fallback) {
   const msg = res.status < 500 && data && data.error;
   return msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback;
 }
-const newVariantForm = document.getElementById('new-variant-form');
-// As the title is typed, songs already in the library with that title,
-// each with one button that adds it to this songbook instead of writing
-// a duplicate. "None of these" creates the new song.
-const communityLibrary = window.LibraryMatch ? LibraryMatch.attach({
-  title: document.getElementById('new-variant-title'),
-  artist: document.getElementById('new-variant-artist'),
-  host: document.getElementById('new-variant-library-match'),
-  addLabel: t('Add to this songbook'),
-  add: async (hit) => {
-    const res = await fetch(`/api/communities/${communityId}/catalog`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({variantId: hit.variantId}),
-    }).catch(() => null);
-    const data = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) throw new Error(res ? errText(res, data, t('Couldn’t add “%s”. Try again.', hit.title)) : t('Couldn’t reach the server. Try again.'));
-    location.href = `/song/${hit.variantId}?community=${communityId}`;
-  },
-  isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
-  openHref: (hit) => `/song/${hit.variantId}?community=${communityId}`,
-  onNone: () => newVariantForm.requestSubmit(),
-}) : null;
-newVariantForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  Forms.run(newVariantForm, document.getElementById('new-variant-btn'), async () => {
-    // Pressed Create before the list had a chance to show: show it first.
-    if (communityLibrary && !(await communityLibrary.guard())) return;
-    const title = document.getElementById('new-variant-title').value.trim();
-    const artist = document.getElementById('new-variant-artist').value.trim();
-    const res = await fetch(`/api/communities/${communityId}/variants`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({title, artist}),
-    }).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(errText(res, data, t('Couldn’t create the song. Try again.')));
-    // Straight into edit mode, not the Play page — a brand-new original
-    // has an empty [Verse] placeholder and nothing to play yet.
-    location.href = `/song/${data.variantId}?edit=1`;
-  });
-});
-// ---- "From the catalog": search-as-you-type over /api/catalog/search,
-// add points at the variant as-is, fork makes this community's own copy —
-// same two actions the band repertoire page's dialog offers. ----
-(function () {
-  const input = document.getElementById('catalog-search-input');
-  const results = document.getElementById('catalog-search-results');
-  const resultMsg = document.getElementById('add-result');
-  if (!input) return;
-  let debounceTimer;
-
-  async function doAdd(variantId, fork, btn) {
-    Forms.status(resultMsg, '');
-    Forms.busy(btn, true);
-    const url = fork ? `/api/communities/${communityId}/catalog/fork/${variantId}` : `/api/communities/${communityId}/catalog`;
-    const opts = fork
-      ? {method: 'POST'}
-      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId})};
-    const res = await fetch(url, opts).catch(() => null);
-    const data = res ? await res.json().catch(() => ({})) : {};
-    if (res && res.ok) {
-      location.reload();
-    } else {
-      Forms.busy(btn, false);
-      Forms.status(resultMsg, res ? errText(res, data, fork ? t('Couldn’t make the community’s version. Try again.') : t('Couldn’t add that song. Try again.')) : t('Couldn’t reach the server. Try again.'), 'error');
-    }
-  }
-
-  async function search() {
-    const q = input.value.trim();
-    results.innerHTML = '';
-    if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
-    const hits = await res.json().catch(() => []);
-    if (!hits.length) {
-      results.innerHTML = '<p class="hint">' + t('No matches.') + '</p>';
-      return;
-    }
-    for (const hit of hits) {
-      const row = document.createElement('div');
-      row.className = 'attention-row';
-      // textContent, not innerHTML: titles are user-written.
-      const text = document.createElement('div');
-      const titleEl = document.createElement('div');
-      titleEl.className = 'attention-title'; titleEl.textContent = hit.title;
-      text.appendChild(titleEl);
-      if (hit.artist) {
-        const a = document.createElement('div');
-        a.className = 'attention-subtitle'; a.textContent = hit.artist;
-        text.appendChild(a);
-      }
-      row.appendChild(text);
-      const actions = document.createElement('span');
-      actions.style.marginLeft = 'auto';
-      actions.style.display = 'flex';
-      actions.style.gap = '0.4rem';
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.textContent = t('Add');
-      addBtn.className = 'primary';
-      addBtn.setAttribute('aria-label', t('Add %s', hit.title));
-      addBtn.addEventListener('click', () => doAdd(hit.variantId, false, addBtn));
-      const forkBtn = document.createElement('button');
-      forkBtn.type = 'button';
-      forkBtn.textContent = t('Make the community’s version');
-      forkBtn.setAttribute('aria-label', t('Make the community’s version of %s', hit.title));
-      forkBtn.addEventListener('click', () => doAdd(hit.variantId, true, forkBtn));
-      actions.append(forkBtn, addBtn);
-      row.appendChild(actions);
-      results.appendChild(row);
-    }
-  }
-
-  input.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(search, 250);
-  });
-  // Enter (the keyboard's Search key) searches straight away.
-  document.getElementById('catalog-search-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    clearTimeout(debounceTimer);
-    search();
-  });
-})();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!confirm(t('Remove “%s” from this songbook? The song itself isn’t deleted.', btn.dataset.title))) return;
@@ -316,22 +154,6 @@ document.querySelectorAll('.reject-btn').forEach(btn => {
     decideSubmission(btn, 'reject', t('Couldn’t reject that submission. Try again.'));
   });
 });
-
-// ---- "+ Add song" dialog: two alternative methods as tabs, opened from
-// either the toolbar or the empty state. ----
-(function () {
-  const dialog = document.getElementById('add-song-dialog');
-  if (!dialog) return;
-  document.getElementById('open-add-song')?.addEventListener('click', () => dialog.showModal());
-  document.getElementById('open-add-song-empty')?.addEventListener('click', () => dialog.showModal());
-  document.getElementById('close-add-song')?.addEventListener('click', () => dialog.close());
-  dialog.querySelectorAll('.add-song-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      dialog.querySelectorAll('.add-song-tab').forEach(t => t.classList.toggle('active', t === tab));
-      dialog.querySelectorAll('.add-song-panel').forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.panel; });
-    });
-  });
-})();
 
 // ---- Live search over the already-rendered list — same as the band
 // repertoire page's own filter, a small-enough list to filter

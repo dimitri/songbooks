@@ -986,9 +986,15 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	for i, row := range rows {
 		ids[i] = row.VariantID
 	}
+	// The band's songbook: the Add / Create dialog adds to it.
+	sbID, err := s.store.GetDefaultSongbook(r.Context(), "band", bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "band_catalog", map[string]any{
 		"Me": person, "Band": band, "Entries": rows, "Badges": s.songBadgesFor(r.Context(), ids),
-		"AlbumGroups": albumGroups,
+		"AlbumGroups": albumGroups, "SongbookID": sbID,
 		"Export":      bandCatalogExport(r.Context(), s, bandID),
 	})
 }

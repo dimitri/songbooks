@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -33,18 +34,18 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	person := personFromContext(r)
-	filter := store.CatalogFilter{
+	lang := s.langOf(w)
+	// Everything the person sees (docs/ownership-model.md §1): their own
+	// songs, their bands' and communities', every public one, each with
+	// whose it is and who sees it, the versions of a work together.
+	filter := store.FindFilter{
 		Query:  r.URL.Query().Get("q"),
+		Scope:  validFindScope(r.URL.Query().Get("scope")),
 		Artist: r.URL.Query().Get("artist"),
 		Genre:  r.URL.Query().Get("genre"),
 		Sort:   r.URL.Query().Get("sort"),
 	}
-	variants, err := s.store.ListCatalog(r.Context(), person.ID, filter)
-	if err == nil {
-		// A band member sees their band's version of a song, not the
-		// catalogue's (store.PreferBandVersions).
-		variants, err = s.store.PreferBandVersions(r.Context(), person.ID, variants)
-	}
+	works, err := s.store.FindSongs(r.Context(), person.ID, filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -54,19 +55,38 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defaultSongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	var ids []int64
+	owners := map[int64]string{}
+	for _, wk := range works {
+		for _, sg := range wk.Songs {
+			ids = append(ids, sg.ID)
+			owners[sg.ID] = ownerBadge(lang, sg)
+		}
 	}
-
-	ids := make([]int64, len(variants))
-	for i, v := range variants {
-		ids[i] = v.VariantID
+	type scopeView struct {
+		Label, Href string
+		Active      bool
+	}
+	var scopes []scopeView
+	for _, f := range findScopes {
+		v := url.Values{}
+		for _, k := range []string{"q", "artist", "genre", "sort"} {
+			if x := r.URL.Query().Get(k); x != "" {
+				v.Set(k, x)
+			}
+		}
+		if f.Scope != "" {
+			v.Set("scope", f.Scope)
+		}
+		href := "/catalog"
+		if len(v) > 0 {
+			href += "?" + v.Encode()
+		}
+		scopes = append(scopes, scopeView{Label: f.Label, Href: href, Active: f.Scope == filter.Scope})
 	}
 	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
-		"DefaultSongbookID": defaultSongbookID,
+		"Me": person, "Works": works, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
+		"Owners": owners, "Scopes": scopes,
 	})
 }
 
