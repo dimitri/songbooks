@@ -881,14 +881,15 @@
          handleGetSongStructure). "Lead-in shift" handles the classic
          case where the embedded backing track starts with a count-in
          or silent bars the chart itself has no bar for. */}}
-    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" data-song-shape="{{if .GPOnly}}whole{{else if or .HasLyrics (gt (len .Sections) 1)}}parts{{else}}whole{{end}}"{{if .GPOnly}} data-gp-only="1"{{end}} hidden>
+    <section class="prep-panel" data-panel="gpimport" id="gpimport-panel" data-variant-id="{{.VariantID}}" data-song-title="{{.Title}}" data-song-artist="{{.Artist}}" data-song-shape="{{if .GPOnly}}whole{{else if or .HasLyrics (gt (len .Sections) 1)}}beside{{else}}whole{{end}}"{{if .GPOnly}} data-gp-only="1"{{end}} hidden>
       {{/* The Guitar Pro import, in four steps (gp-import.js): how the file
-           fits the song, the file, lining it up with the song's sections
-           (only when it fills parts of the song), then check and import.
+           is for (next to the chart, inside it, or the whole song), the
+           file, lining it up with the song's sections (only inside the
+           chart), then check and import.
            The file is kept with the song either way; the song points into
            it rather than copying its notes (docs/gp-file-model.md). */}}
       <ol class="gpimport-stepper" id="gpimport-stepper" aria-label="{{t "Import steps"}}">
-        <li data-step="fit">{{t "How it fits"}}</li>
+        <li data-step="fit">{{t "What it’s for"}}</li>
         <li data-step="file">{{t "The file"}}</li>
         <li data-step="align">{{t "Line up"}}</li>
         <li data-step="import">{{t "Import"}}</li>
@@ -899,17 +900,29 @@
       <p id="gpimport-status" class="hint" role="status"></p>
 
       <div class="gpimport-step" id="gpimport-step-fit">
-        <h3>{{t "1. How does the file fit this song?"}}</h3>
-        <div class="gpimport-fit" role="radiogroup" aria-label="{{t "How the file fits the song"}}">
+        {{/* Three ways a file goes with a song, each named by what the
+             song page shows afterwards: the chart with a Score tab
+             beside it, the file's bars inside the chart's sections, or
+             the score as the song itself ("content: gp"). */}}
+        <h3>{{t "1. What is this file for?"}}</h3>
+        <div class="gpimport-fit" role="radiogroup" aria-label="{{t "What the file is for"}}">
           <label class="gpimport-fit-card">
-            <input type="radio" name="gpimport-fit" value="whole">
-            <span class="t">{{t "The whole song"}}</span>
-            <span class="d">{{t "An instrumental, a lesson, a full transcription. The song opens on the file’s score, with playback and every track. Sections, chords and lyrics stay optional."}}</span>
+            <input type="radio" name="gpimport-fit" value="beside">
+            <span class="t">{{t "The full score, next to the chart"}}</span>
+            <span class="d">{{t "The song still opens on its chart, chords and lyrics. The file gets its own Score tab, with every track, played along with the song."}}</span>
+            <span class="e">{{t "For a full transcription of a song you already play from its chart."}}</span>
           </label>
           <label class="gpimport-fit-card">
             <input type="radio" name="gpimport-fit" value="parts">
-            <span class="t">{{t "Parts of the song"}}</span>
-            <span class="d">{{t "Riffs, a solo, a bass line or drum parts for sections the song already has. You line the file’s bars up with the sections, and each section shows its bars under its chords and lyrics."}}</span>
+            <span class="t">{{t "Riffs and solos inside the chart"}}</span>
+            <span class="d">{{t "Each section of the chart shows its own bars of the file, under its chords and lyrics. Next, you line the file’s bars up with the sections."}}</span>
+            <span class="e">{{t "For an intro riff, a solo, a bass line or drum parts."}}</span>
+          </label>
+          <label class="gpimport-fit-card">
+            <input type="radio" name="gpimport-fit" value="whole">
+            <span class="t">{{t "The score is the song"}}</span>
+            <span class="d">{{t "The song opens on the file’s score, with every track and playback. A chart, chords and lyrics are optional."}}</span>
+            <span class="e">{{t "For an instrumental, an exercise or a lesson."}}</span>
           </label>
         </div>
         <p><button type="button" id="gpimport-fit-next" class="primary">{{t "Next: the file"}} &rarr;</button></p>

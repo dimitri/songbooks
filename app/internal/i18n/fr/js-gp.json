@@ -446,5 +446,7 @@
   "Preparing the sound… %d%": "Préparation du son… %d %",
   "Couldn’t prepare the sound of this file.": "Impossible de préparer le son de ce fichier.",
   "%d page": "%d page",
-  "%d pages": "%d pages"
+  "%d pages": "%d pages",
+  "Imported: the file is in the song’s Score tab, and the song still opens on its chart. Reload the page to see it.": "Importé : le fichier est dans l’onglet Partition du morceau, qui s’ouvre toujours sur sa grille. Rechargez la page pour le voir.",
+  "The song keeps opening on its chart; this file goes in its Score tab: %s (%s), %s.": "Le morceau s’ouvre toujours sur sa grille ; ce fichier va dans son onglet Partition : %s (%s), %s."
 }
