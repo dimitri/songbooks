@@ -135,6 +135,14 @@ func (s *Server) handleCreateProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor := personFromContext(r)
+	// A band never takes another band's song: not even as a proposal
+	// (the catalogue's version is offered instead, writeAdoptErr).
+	if req.Kind == "new_song" && req.TargetVariantID != 0 {
+		if err := s.store.BandMayTake(r.Context(), bandID, req.TargetVariantID); err != nil && !errors.Is(err, store.ErrNotFound) {
+			s.writeAdoptErr(w, r, err)
+			return
+		}
+	}
 	id, err := s.store.CreateProposal(r.Context(), bandID, actor.ID, req.Kind, req.TargetVariantID, req.Payload)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())

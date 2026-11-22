@@ -686,3 +686,53 @@ func TestAddingAnotherBandsSongIsRefused(t *testing.T) {
 		t.Errorf("search outside a band: %+v, want each band's version", got)
 	}
 }
+
+// TestProposedSongIsTheBandsOwn: a band proposal of a catalogue song,
+// once accepted, adds the band's own copy (not a pointer at the
+// catalogue's song); proposing another band's song is refused like adding
+// it.
+func TestProposedSongIsTheBandsOwn(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := store.NewBandFixture(t, st)
+	proposed, err := st.CreateVariant(ctx, store.OwnerCatalog, 0, "Proposed", "", f.Core)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := st.CreateProposal(ctx, f.Band, f.Guest, "new_song", proposed, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AcceptProposal(ctx, id, f.Core); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := st.ListBandCatalog(ctx, f.Band)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copied bool
+	for _, e := range entries {
+		if e.VariantID == proposed {
+			t.Error("the repertoire points at the catalogue's song")
+		}
+		if e.ForkedFromID != nil && *e.ForkedFromID == proposed && e.Visibility == "band" {
+			copied = true
+		}
+	}
+	if !copied {
+		t.Error("no band copy of the proposed song in the repertoire")
+	}
+
+	mercy, err := st.CreateBand(ctx, "Mercy", f.Core)
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := st.CreateVariant(ctx, store.OwnerBand, mercy, "Mercy Original", "", f.Core)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := as(t, st, f.Core).do("POST", fmt.Sprintf("/api/bands/%d/proposals", f.Band), map[string]any{"kind": "new_song", "targetVariantId": theirs})
+	if w.Code != http.StatusConflict {
+		t.Errorf("proposing Mercy's song to Other Lies: %d %s, want 409", w.Code, w.Body.String())
+	}
+}
