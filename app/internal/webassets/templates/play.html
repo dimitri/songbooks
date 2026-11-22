@@ -669,8 +669,8 @@
         {{/* docs/ownership-model.md §5 and §2: another version of a song
              one edits, named, beside it; a song made public or private by
              who may (SongRights). */}}
-        {{if .CanNewVersion}}<button type="button" role="menuitem" id="new-version-open" aria-haspopup="dialog" title="{{t "another version of this song, beside it"}}">{{template "icon-duplicate"}} {{t "New version from this…"}}</button>{{end}}
-        {{if .CanPublish}}<button type="button" role="menuitem" id="song-publish-toggle" data-public="{{.SongPublic}}" title="{{if .SongPublic}}{{t "only its owner’s members see it then"}}{{else}}{{t "everyone signed in sees it then, and can link it or make their own version"}}{{end}}">{{if .SongPublic}}{{template "icon-lock"}}{{else}}{{template "icon-community"}}{{end}} {{if .SongPublic}}{{t "Make private"}}{{else}}{{t "Make public"}}{{end}}</button>{{end}}
+        {{if .CanNewVersion}}<button type="button" role="menuitem" id="new-version-open" data-new-version-open aria-haspopup="dialog" title="{{t "another version of this song, beside it"}}">{{template "icon-duplicate"}} {{t "New version from this…"}}</button>{{end}}
+        {{if .CanPublish}}<button type="button" role="menuitem" id="song-publish-toggle" data-song-publish="{{.SongPublic}}" title="{{if .SongPublic}}{{t "only its owner’s members see it then"}}{{else}}{{t "everyone signed in sees it then, and can link it or make their own version"}}{{end}}">{{if .SongPublic}}{{template "icon-lock"}}{{else}}{{template "icon-community"}}{{end}} {{if .SongPublic}}{{t "Make private"}}{{else}}{{t "Make public"}}{{end}}</button>{{end}}
       </div>
     </div>
   </div>
@@ -1492,6 +1492,8 @@
     {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
     {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} {{t "Versions"}}</a>{{end}}
     {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
+    {{if .CanNewVersion}}<button type="button" class="stack-sheet-row" data-new-version-open aria-haspopup="dialog">{{template "icon-duplicate"}} {{t "New version from this…"}}</button>{{end}}
+    {{if .CanPublish}}<button type="button" class="stack-sheet-row" data-song-publish="{{.SongPublic}}">{{if .SongPublic}}{{template "icon-lock"}} {{t "Make private"}}{{else}}{{template "icon-community"}} {{t "Make public"}}{{end}}</button>{{end}}
   </div>
 
   <div class="content-main">

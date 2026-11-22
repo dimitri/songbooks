@@ -1877,12 +1877,14 @@ const ICONS = {
   // New version from this (the More menu): named, beside this one in the
   // songbook; it opens in the editor.
   const versionDialog = document.getElementById('new-version-dialog');
-  document.getElementById('new-version-open')?.addEventListener('click', () => {
+  // The ⋯ menu's item, and the phone's Song sheet's row (song-controls.js
+  // closes the sheet).
+  document.querySelectorAll('[data-new-version-open]').forEach((el) => el.addEventListener('click', () => {
     if (!versionDialog || versionDialog.open) return;
     Forms.status(document.getElementById('new-version-status'), '');
     versionDialog.showModal();
     document.getElementById('new-version-name')?.focus();
-  });
+  }));
   document.getElementById('new-version-form')?.addEventListener('submit', (e) => {
     if (e.submitter && e.submitter.value === 'cancel') return;
     e.preventDefault();
@@ -1917,9 +1919,9 @@ const ICONS = {
   // Make public / Make private (docs/ownership-model.md §2): everything
   // goes with the song — its chart, reference, recordings, stems, Guitar
   // Pro file.
-  document.getElementById('song-publish-toggle')?.addEventListener('click', async (e) => {
+  document.querySelectorAll('[data-song-publish]').forEach((el) => el.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
-    const makePublic = btn.dataset.public !== 'true';
+    const makePublic = btn.dataset.songPublish !== 'true';
     if (makePublic && !confirm(t('Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own version.'))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/api/variants/${pageVariantId}/public`, {
@@ -1931,7 +1933,7 @@ const ICONS = {
       return;
     }
     location.reload();
-  });
+  }));
   editToggle.addEventListener('click', () => {
     if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }
     setDrawerOpen(drawer.hidden);
