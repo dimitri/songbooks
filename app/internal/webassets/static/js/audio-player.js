@@ -2707,6 +2707,9 @@ window.songbooksDecodable = function (buf) {
     // Whether there is a recording at all, for the page around the player:
     // with one, the key is the player's (play.html .topbar-key).
     root.dataset.recording = available.length ? 'yes' : 'no';
+    // Which there are, for the header's reference (song.js initReference):
+    // a band recording is the reference when there's no link.
+    document.dispatchEvent(new CustomEvent('songbooks:audio-categories', { detail: { categories: available } }));
 
     if (available.length === 0) {
       if (categoryToggle) categoryToggle.hidden = true;

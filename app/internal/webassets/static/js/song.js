@@ -1417,6 +1417,49 @@ const ICONS = {
       if (open) urlInput.focus();
     }
     editBtn.addEventListener('click', () => setEditOpen(editRow.hidden));
+
+    // The reference in the header's meta line (play.html "song-ref-head"):
+    // opens this view, the ⋯ menu's Reference; "+ Reference" opens it on
+    // the link field. Kept in step with the link saved below and with the
+    // recordings (a band recording is the reference when there's no link).
+    const head = document.getElementById('topbar-ref');
+    const headBtn = document.getElementById('topbar-ref-btn');
+    let hasBand = head?.dataset.kind === 'band';
+    function renderHead() {
+      if (!head) return;
+      const url = block.dataset.url || '';
+      const vid = url && youtubeId(url);
+      const kind = vid && /^[A-Za-z0-9_-]{6,20}$/.test(vid) ? 'youtube' : url ? 'link' : hasBand ? 'band' : '';
+      head.dataset.kind = kind;
+      head.hidden = !kind && !head.dataset.canEdit;
+      const label = kind ? headBtn.dataset.openLabel : headBtn.dataset.addLabel;
+      headBtn.title = label;
+      headBtn.setAttribute('aria-label', label);
+      const thumb = head.querySelector('.topbar-ref-thumb');
+      let img = thumb.querySelector('img');
+      if (kind !== 'youtube') { img?.remove(); return; }
+      const src = `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`;
+      if (img && img.getAttribute('src') === src) return;
+      if (!img) {
+        img = document.createElement('img');
+        img.alt = '';
+        img.width = 40; img.height = 22;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        thumb.prepend(img);
+      }
+      img.src = src;
+    }
+    headBtn?.addEventListener('click', () => {
+      const add = head.dataset.kind === '';
+      document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+      if (add) setEditOpen(true);
+    });
+    document.addEventListener('songbooks:audio-categories', (e) => {
+      hasBand = (e.detail?.categories || []).includes('band');
+      renderHead();
+    });
     // A real <form>: Enter in the field saves, and forms.js checks the
     // type="url" before this runs.
     editRow.addEventListener('submit', async (e) => {
@@ -1438,6 +1481,7 @@ const ICONS = {
         editBtn.setAttribute('aria-label', label);
         renderEmbed(url);
         embedBuilt = true;
+        renderHead();
         setEditOpen(false);
       });
     });

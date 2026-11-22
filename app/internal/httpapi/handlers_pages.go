@@ -2820,6 +2820,17 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
+	// The reference in the header (song_ref_head.go): without a link, a
+	// band recording is the song's reference.
+	hasBand := false
+	if sg.Get("reference") == "" {
+		if list, err := s.store.ListSongAudio(r.Context(), variantID); err == nil {
+			for _, a := range list {
+				hasBand = hasBand || a.Category == store.AudioBand
+			}
+		}
+	}
+	data["RefHead"] = songRefHeadFor(sg.Get("reference"), hasBand, canEdit)
 	if gp.Meta != nil {
 		data["GPFileName"] = gp.Meta.Filename
 		data["GPFileSHA"] = gp.Meta.SHA256
