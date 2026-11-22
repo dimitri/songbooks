@@ -7766,7 +7766,8 @@ a.setlist-action:hover { text-decoration: none; }
 .setlist-name-row h1 { cursor: text; min-width: 0; }
 button.icon-btn.setlist-rename-btn { flex: none; border-color: transparent; background: none; color: inherit; opacity: 0.75; }
 button.icon-btn.setlist-rename-btn:hover, button.icon-btn.setlist-rename-btn:focus-visible { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
-.setlist-name-row .band-name-input { min-width: 0; width: min(28rem, 100%); }
+.app-header .setlist-name-row { flex: 1 1 auto; min-width: 0; }
+.setlist-name-row .band-name-input { flex: 1 1 auto; min-width: 0; max-width: 28rem; background: var(--bg-raised); color: var(--fg); }
 /* "New set list", inside the band's Set lists section (band_setlists.html). */
 .band-setlist-new { margin: 0 0 1.2rem; }
 .band-setlist-new > summary { min-height: 2.25rem; padding: 0.35rem 0.85rem; border: 1px solid var(--accent); border-radius: var(--radius-control, 8px); color: var(--accent); font-weight: 600; list-style: none; }
