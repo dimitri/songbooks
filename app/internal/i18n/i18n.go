@@ -184,3 +184,17 @@ func NoteName(lang string, midi int) string {
 	}
 	return fmt.Sprintf("%s%d", enNotes[midi%12], midi/12-1)
 }
+
+// Of is a person's name as a format's "from"/"of" argument in lang
+// ("Notes from %s", "%s’s repertoire"): French says "d’Inès" before a
+// vowel or a mute h, "de Chloé" otherwise, its catalog writing "Notes
+// %s"; English, the name alone.
+func Of(lang, name string) string {
+	if lang != "fr" {
+		return name
+	}
+	if r := []rune(strings.ToLower(name)); len(r) > 0 && strings.ContainsRune("aàâäeéèêëiîïoôöuùûüyh", r[0]) {
+		return "d’" + name
+	}
+	return "de " + name
+}

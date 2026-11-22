@@ -11,8 +11,7 @@ import (
 
 // A coaching student's voice type (docs/coaching.md, "Voice types"): the
 // coach's assessment on the student's page (a type or none yet, the
-// tessitura, a few words), its history, and whether the student reads
-// them. The student always sees their type and their range.
+// tessitura, a few words) and its history, which the student reads too.
 
 // voiceTypeLabels name the voice types (English keys, translated where
 // printed).
@@ -106,8 +105,8 @@ func tessituraView(p store.VoiceProfile, lang string) *rangeView {
 	return &rv
 }
 
-// voiceData puts a student's voice type, tessitura and (for the coach, or
-// when shared) the assessment and its history in a student page's data.
+// voiceData puts a student's voice type, tessitura, the assessment and its
+// history in a student page's data (the coach's and the student's alike).
 func (s *Server) voiceData(r *http.Request, communityID, studentID int64, coach bool, ranges []rangeView, data map[string]any) error {
 	ctx := r.Context()
 	lang := s.langOfRequest(r)
@@ -144,14 +143,11 @@ func (s *Server) voiceData(r *http.Request, communityID, studentID int64, coach 
 		th = *p.TessituraHigh
 	}
 	data["TessLow"], data["TessHigh"] = tl, th
-	data["ShowAssessment"] = coach || p.Shared
-	if coach || p.Shared {
-		h, err := s.store.StudentVoiceHistory(ctx, communityID, studentID)
-		if err != nil {
-			return err
-		}
-		data["VoiceHistory"] = voiceChangeViews(h, lang)
+	h, err := s.store.StudentVoiceHistory(ctx, communityID, studentID)
+	if err != nil {
+		return err
 	}
+	data["VoiceHistory"] = voiceChangeViews(h, lang)
 	return nil
 }
 
@@ -184,27 +180,4 @@ func (s *Server) handlePutStudentVoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// handlePutStudentVoiceShared is PUT
-// /api/communities/{id}/students/{personID}/voice/shared {shared}: the
-// student reads the assessment and its history, or not (not, until the
-// coach says so).
-func (s *Server) handlePutStudentVoiceShared(w http.ResponseWriter, r *http.Request) {
-	community, student, ok := s.coachRequest(w, r)
-	if !ok {
-		return
-	}
-	var req struct {
-		Shared bool `json:"shared"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := s.store.SetStudentVoiceShared(r.Context(), community.ID, student.PersonID, req.Shared, personFromContext(r).ID); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"shared": req.Shared})
 }

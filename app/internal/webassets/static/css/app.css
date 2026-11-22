@@ -7881,6 +7881,16 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .voice-history ol { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
 .voice-history li { font-size: 0.9rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
 .voice-history-note { color: var(--fg-muted); white-space: pre-line; }
+/* A student's notes (coaching.html): private, the coach's and the staff's,
+   or shared, the student reads them. */
+.note-kind { display: inline-flex; align-items: center; padding: 0 0.45rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.72rem; font-weight: 700; color: var(--fg-muted); vertical-align: middle; }
+.note-kind.is-shared { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-bg); }
+.teaching-note.is-shared { border-left: 3px solid var(--accent); padding-left: 0.6rem; }
+.teaching-note-head { flex-wrap: wrap; }
+.teaching-note-head .link-btn ~ .link-btn { margin-left: 0.8rem; }
+.note-kind-pick { display: flex; flex-direction: column; gap: 0.2rem; }
+.note-about { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 0.6rem; }
+.coach-new-note { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem; padding: 0.6rem 0.9rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
 .voice-range label { display: inline-flex; align-items: center; gap: 0.35rem; }
 .voice-range select { min-height: 2.5rem; }
 .voice-range .voice-note { flex: 1 1 12rem; min-height: 2.5rem; }

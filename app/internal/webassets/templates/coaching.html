@@ -566,7 +566,7 @@
   {{if .IsCoach}}<a class="back-link" href="/communities/{{.Community.ID}}/students">{{template "icon-back"}} {{t "Students"}}</a>{{else}}{{template "space-back" .Space}}{{end}}
   <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}{{t "My progress"}}{{end}}</h1>
 </header>
-<main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}">
+<main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}" data-student-name="{{.Student.DisplayName}}">
   {{template "space-nav" .Space}}
 
   <section class="home-section" id="voice">
@@ -606,12 +606,12 @@
       <div class="field"><label for="voice-note">{{t "Your assessment"}}</label>
         <textarea id="voice-note" name="note" rows="2" placeholder="{{t "What you hear: range, timbre, where the voice changes register, what to work on…"}}">{{.Voice.Assessment}}</textarea></div>
       <div class="form-actions"><button type="submit" class="primary">{{t "Save the assessment"}}</button><p class="form-status" role="status"></p></div>
-      <label class="check voice-shared-row"><input type="checkbox" class="voice-shared"{{if .Voice.Shared}} checked{{end}}> {{t "%s reads the assessment and its history" .Student.DisplayName}}</label>
+      <p class="hint">{{t "%s reads the assessment and its history too." .Student.DisplayName}}</p>
     </form>
-    {{else if and .ShowAssessment .Voice.Assessment}}
+    {{else if .Voice.Assessment}}
     <blockquote class="voice-assessment">{{.Voice.Assessment}}</blockquote>
     {{end}}
-    {{if and .ShowAssessment .VoiceHistory}}
+    {{if .VoiceHistory}}
     <details class="voice-history"{{if .IsCoach}} open{{end}}>
       <summary>{{t "History"}} <span class="hint">{{len .VoiceHistory}}</span></summary>
       <ol>
@@ -634,23 +634,50 @@
 
   {{if .IsCoach}}
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "only the coach sees them"}}</span></div>
-    <label class="field coach-notes">{{t "About %s" .Student.DisplayName}}
+    <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "private ones only you and the staff see; shared ones %s reads" .Student.DisplayName}}</span></div>
+    <label class="field coach-notes">{{t "About %s" .Student.DisplayName}} <span class="note-kind">{{t "note|Private"}}</span>
       <textarea id="coach-notes" rows="3" placeholder="{{t "who they are as a singer, goals, what to watch"}}">{{.Notes}}</textarea></label>
     <form class="teaching-note-form form-stack">
       <div class="field"><label for="teaching-note-body">{{t "A new note"}}</label>
       <textarea id="teaching-note-body" name="body" rows="3" placeholder="{{t "What you worked on, what to practise next…"}}" required></textarea></div>
-      <div class="field"><label for="teaching-note-event">{{t "About a lesson"}}</label>
-        <select id="teaching-note-event" name="eventId"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select></div>
+      <fieldset class="field-group note-kind-pick">
+        <legend>{{t "Who reads it"}}</legend>
+        <label class="check"><input type="radio" name="shared" value="0" checked> {{t "Private: you and the staff"}}</label>
+        <label class="check"><input type="radio" name="shared" value="1"> {{t "Shared: %s reads it too (and is told)" .Student.DisplayName}}</label>
+      </fieldset>
+      <div class="note-about">
+        <div class="field"><label for="teaching-note-event">{{t "About a lesson"}}</label>
+          <select id="teaching-note-event" name="eventId"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select></div>
+        <div class="field"><label for="teaching-note-song">{{t "About a song"}}</label>
+          <select id="teaching-note-song" name="variantId"><option value="0">{{t "No song in particular"}}</option>{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</select></div>
+      </div>
       <div class="form-actions"><button type="submit" class="primary">{{t "Add the note"}}</button></div>
     </form>
     <div class="teaching-notes">
       {{range .TeachingNotes}}
-      <article class="teaching-note" data-note="{{.ID}}">
-        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}
-          <button type="button" class="link-btn teaching-note-edit">{{t "Edit"}}</button></div>
+      <article class="teaching-note{{if .Shared}} is-shared{{end}}" data-note="{{.ID}}">
+        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}{{with .SongTitle}} <span class="hint">· {{.}}</span>{{end}}
+          <span class="note-kind{{if .Shared}} is-shared{{end}}">{{if .Shared}}{{t "note|Shared"}}{{else}}{{t "note|Private"}}{{end}}</span>
+          <button type="button" class="link-btn teaching-note-edit">{{t "Edit"}}</button>
+          {{if not .Shared}}<button type="button" class="link-btn teaching-note-share">{{t "Share with %s" $.Student.DisplayName}}</button>{{end}}</div>
         <p class="teaching-note-body">{{.Body}}</p>
       </article>
+      {{end}}
+    </div>
+  </section>
+  {{else}}
+  {{/* The student: the notes the coach shared with them, the latest
+       first (the private ones never reach this page). */}}
+  <section class="home-section" id="notes">
+    <div class="home-section-head"><h3>{{t "Notes from %s" (ofName .CoachFirstName)}}</h3><span class="count">{{len .SharedNotes}}</span></div>
+    <div class="teaching-notes">
+      {{range .SharedNotes}}
+      <article class="teaching-note is-shared">
+        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}{{if .VariantID}} <span class="hint">· <a href="/song/{{.VariantID}}">{{.SongTitle}}</a></span>{{end}}</div>
+        <p class="teaching-note-body">{{.Body}}</p>
+      </article>
+      {{else}}
+      <p class="hint">{{t "No notes yet: %s writes them here, after a lesson for instance." .CoachFirstName}}</p>
       {{end}}
     </div>
   </section>
@@ -721,17 +748,20 @@
       location.reload();
     });
   });
-  assess?.querySelector('.voice-shared').addEventListener('change', (e) => {
-    send(`${api}/voice/shared`, 'PUT', { shared: e.target.checked }).catch(() => { e.target.checked = !e.target.checked; alert(t('Couldn’t save.')); });
-  });
   const notes = document.getElementById('coach-notes');
   notes?.addEventListener('change', () => send(`${api}/notes`, 'PUT', { notes: notes.value }).catch(() => alert(t('Couldn’t save the notes.'))));
   document.querySelector('.teaching-note-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    send(`${api}/teaching-notes`, 'POST', { body: f.get('body'), eventId: Number(f.get('eventId')) })
+    send(`${api}/teaching-notes`, 'POST', { body: f.get('body'), eventId: Number(f.get('eventId')), variantId: Number(f.get('variantId')), shared: f.get('shared') === '1' })
       .then(() => location.reload()).catch(() => alert(t('Couldn’t add the note.')));
   });
+  // A private note shared with the student: one way, asked first.
+  document.querySelectorAll('.teaching-note-share').forEach((b) => b.addEventListener('click', () => {
+    const note = b.closest('.teaching-note');
+    if (!confirm(t('Share this note with %s? They will read it, and it can’t be made private again.', page.dataset.studentName))) return;
+    send(`${api}/teaching-notes/${note.dataset.note}/share`, 'POST').then(() => location.reload()).catch(() => alert(t('Couldn’t share the note.')));
+  }));
   // A note edited in place: emptied, it goes.
   document.querySelectorAll('.teaching-note').forEach((note) => {
     note.querySelector('.teaching-note-edit').addEventListener('click', () => {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"app/internal/i18n"
@@ -382,6 +383,18 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 		fail(err)
 		return
 	}
+	// The notes the student reads (the coach sees them all, below); the
+	// student opening their own page has read what told them so.
+	data["CoachFirstName"] = firstWord(s.store.CoachName(ctx, community.ID))
+	if !coach {
+		if data["SharedNotes"], err = s.store.ListSharedTeachingNotes(ctx, community.ID, studentID); err != nil {
+			fail(err)
+			return
+		}
+		if studentID == person.ID {
+			_ = s.store.MarkNotificationsReadByLink(ctx, "teaching_note_shared", sharedNotesLink(community.ID, studentID))
+		}
+	}
 	if coach {
 		if data["Notes"], err = s.store.StudentNotes(ctx, community.ID, studentID); err != nil {
 			fail(err)
@@ -631,23 +644,91 @@ func (s *Server) handlePostTeachingNote(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req struct {
-		Body    string `json:"body"`
-		EventID int64  `json:"eventId"`
+		Body      string `json:"body"`
+		EventID   int64  `json:"eventId"`
+		VariantID int64  `json:"variantId"`
+		// Shared: the student reads it; else it's private, the coach's
+		// and the staff's only.
+		Shared bool `json:"shared"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Body == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Body) == "" {
 		httpError(w, http.StatusBadRequest, "a note needs a text")
 		return
 	}
-	var eventID *int64
+	ctx := r.Context()
+	var eventID, variantID *int64
 	if req.EventID != 0 {
+		ev, err := s.store.GetEvent(ctx, req.EventID)
+		if err != nil || ev.OwnerKind != "community" || ev.OwnerCommunityID != community.ID {
+			httpError(w, http.StatusBadRequest, "not a lesson of this community")
+			return
+		}
 		eventID = &req.EventID
 	}
-	id, err := s.store.AddTeachingNote(r.Context(), community.ID, student.PersonID, eventID, req.Body, personFromContext(r).ID)
+	if req.VariantID != 0 {
+		if ok, err := s.store.CommunityHasSong(ctx, community.ID, req.VariantID); err != nil || !ok {
+			httpError(w, http.StatusBadRequest, "not a song of this community")
+			return
+		}
+		variantID = &req.VariantID
+	}
+	me := personFromContext(r)
+	id, err := s.store.AddStudentNote(ctx, community.ID, student.PersonID, eventID, variantID, strings.TrimSpace(req.Body), req.Shared, me.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int64{"id": id})
+	if req.Shared {
+		if err := s.notifySharedNote(r, community, student.PersonID, me); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "shared": req.Shared})
+}
+
+// handlePostShareTeachingNote is POST
+// /api/communities/{id}/students/{personID}/teaching-notes/{noteID}/share:
+// a private note shared with the student, who is told. One way only: a
+// shared note can be rewritten or deleted, never made private again (the
+// student may have read it).
+func (s *Server) handlePostShareTeachingNote(w http.ResponseWriter, r *http.Request) {
+	community, student, ok := s.coachRequest(w, r)
+	if !ok {
+		return
+	}
+	noteID, err := pathID(r, "noteID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid note")
+		return
+	}
+	if err := s.store.ShareTeachingNote(r.Context(), community.ID, student.PersonID, noteID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, "no such private note")
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.notifySharedNote(r, community, student.PersonID, personFromContext(r)); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"shared": true})
+}
+
+// sharedNotesLink is where a student reads their shared notes.
+func sharedNotesLink(communityID, studentID int64) string {
+	return fmt.Sprintf("/communities/%d/students/%d#notes", communityID, studentID)
+}
+
+// notifySharedNote tells the student the coach shared a note with them,
+// in their language ("New note from Chloé").
+func (s *Server) notifySharedNote(r *http.Request, community *store.Community, studentID int64, author *store.Person) error {
+	lang := s.recipientLang(r, studentID, community.ID)
+	body := i18n.T(lang, "New note from %s", i18n.Of(lang, firstWord(author.DisplayName)))
+	_, err := s.store.CreateNotification(r.Context(), studentID, "teaching_note_shared", body, sharedNotesLink(community.ID, studentID))
+	return err
 }
 
 // handlePutTeachingNote is PUT /api/communities/{id}/students/{personID}/teaching-notes/{noteID}.
