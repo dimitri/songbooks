@@ -111,3 +111,39 @@ func TestLeadJazzChart(t *testing.T) {
 		t.Errorf("%d lead cells, want 1", leads)
 	}
 }
+
+// The lead-in isn't part of the form: sections playing the Intro's grid
+// again keep the chart compact, and every played bar maps to one cell.
+func TestLeadJazzChartForm(t *testing.T) {
+	for _, lead := range []string{"", "lead: 1\n", "lead: | D7 | . |\n"} {
+		src := "time: 4/4\n\n[Intro]\n" + lead + "bars: 4,5\ngrid: |: Gm | Bb | Dm | C | Gm | Bb | F | C | (4.) C :|\n\n[Verse]\nla\n\n[Chorus]\nla\n\n[Bridge]\ngrid: |: Gm | C :|\n"
+		sg := song.Parse(src)
+		secs := buildSections(sg)
+		jc := buildJazzChart(sg, secs)
+		n := song.Parse(src).LeadIn()
+		total := 0
+		for _, s := range secs {
+			total = max(total, s.StartBar+s.BarCount)
+		}
+		if !jc.Compact || jc.Bars != total {
+			t.Errorf("%q: compact %v, %d bars, want compact, %d", lead, jc.Compact, jc.Bars, total)
+		}
+		seen := map[string]bool{}
+		for _, l := range jc.Lines {
+			for _, c := range l.Cells {
+				for _, p := range strings.Fields(c.Played) {
+					if seen[p] {
+						t.Errorf("%q: bar %s in two cells", lead, p)
+					}
+					seen[p] = true
+				}
+			}
+		}
+		if len(seen) != total {
+			t.Errorf("%q: %d bars mapped, want %d", lead, len(seen), total)
+		}
+		if first := jc.Lines[0]; first.Lead != n || (n > 0 && (!first.Cells[0].Lead || first.Cells[0].Mark == "" || first.Cells[n].Mark != "")) {
+			t.Errorf("%q: first line lead %d, cells %+v", lead, first.Lead, first.Cells[:n+1])
+		}
+	}
+}

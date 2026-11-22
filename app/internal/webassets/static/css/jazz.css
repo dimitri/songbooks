@@ -194,3 +194,6 @@
    not counted — lighter, a small "lead" in its bottom-left corner. */
 .jz-bar.jz-lead > .jz-rest, .jz-bar.jz-lead > .jz-at, .jz-bar.jz-lead > .jz-rep1 { opacity: .5; }
 .jz-lead-tag { position: absolute; left: .3em; bottom: .05em; font-size: .36em; color: var(--jz-ink-soft); line-height: 1; pointer-events: none; }
+/* The song's lead-in opens the first line, its cells narrow (the Song
+   view's pickup), the line's four bars sharing the rest. */
+.jz-sys.has-lead { grid-template-columns: repeat(var(--lead, 1), minmax(0, .45fr)) repeat(4, minmax(0, 1fr)); }

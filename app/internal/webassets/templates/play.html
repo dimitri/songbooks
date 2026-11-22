@@ -162,7 +162,7 @@
         <div class="jz-composer">{{.Composer}}{{with .Key}}<span class="jz-sub">{{t "Key"}}: <span class="sr-only jz-key-say" data-say-rest="{{range $.KeySayRest}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}">{{range $.KeySayRoot}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{range $.KeySayRest}} {{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}</span><span class="jz-key" aria-hidden="true">{{.}}</span></span>{{end}}</div>
       </div>
       {{range .Lines}}
-      <div class="jz-sys{{if .Gap}} gap{{end}}{{if .Coda}} coda{{end}}">
+      <div class="jz-sys{{if .Gap}} gap{{end}}{{if .Coda}} coda{{end}}{{if .Lead}} has-lead{{end}}"{{with .Lead}} style="--lead: {{.}}"{{end}}>
         {{range .Cells}}{{if .Pad}}<div class="jz-bar jz-pad"></div>{{else}}<div class="jz-bar{{if .Lead}} jz-lead{{end}}"{{if .HasPlayed}} data-global-bar="{{.First}}" data-played="{{.Played}}"{{end}}>
           {{if .LeadTag}}<span class="jz-lead-tag" title="{{t "lead-in: played before bar 1, not counted"}}">{{t "lead"}}</span>{{end}}
           {{if .Left}}<div class="jz-lineL{{if ne .Left "single"}} wide{{end}}{{if eq .Left "rep-both"}} both{{end}}"{{if eq .Left "rep-start" "rep-both"}} role="img" aria-label="{{t "Repeat start"}}"{{end}}>{{template "jz-barline" .Left}}</div>{{end}}
