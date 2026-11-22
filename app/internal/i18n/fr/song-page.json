@@ -470,7 +470,6 @@
   "You can’t change this song": "Vous ne pouvez pas modifier ce morceau",
   "This is %s’s song; only its members can change it.": "C’est le morceau de %s ; seuls ses membres peuvent le modifier.",
   "This is %s’s song; changing it takes the right to edit the repertoire.": "C’est le morceau de %s ; le modifier demande le droit de modifier le répertoire.",
-  "This is the catalogue’s song; you can’t change it.": "C’est le morceau du catalogue ; vous ne pouvez pas le modifier.",
   "This song belongs to the set list “%s”; only who can change the set list can change it.": "Ce morceau appartient à la set list « %s » ; seuls ceux qui peuvent modifier la set list peuvent le modifier.",
   "This is %s’s own song; only they can change it.": "C’est le morceau personnel de %s ; seule cette personne peut le modifier.",
   "Only its owner can change this song.": "Seul son propriétaire peut modifier ce morceau.",
@@ -486,5 +485,11 @@
   "You’re editing %s, in its own key.": "Vous modifiez %s, dans sa tonalité d’origine.",
   "Keep this key in": "Garder cette tonalité dans",
   "the song opens in it from there; the song itself stays in its key": "le morceau s’y ouvre dans cette tonalité ; le morceau lui-même garde la sienne",
-  "sentence|%s’s version": "la version de %s"
+  "sentence|%s’s version": "la version de %s",
+  "Make your own version": "Faites votre propre version",
+  "This is the catalogue’s song, shared by everyone: nobody changes it in place. Make your own version of it to change.": "C’est le morceau du catalogue, partagé par tous : personne ne le modifie directement. Faites-en votre propre version pour le modifier.",
+  "Your version goes into My songbook, in this song’s place if it’s there. The catalogue’s song stays as it is.": "Votre version va dans Mon songbook, à la place de ce morceau s’il y est. Le morceau du catalogue reste tel quel.",
+  "Make my own version": "Faire ma propre version",
+  "Based on:": "D’après :",
+  "the catalogue’s": "celui du catalogue"
 }

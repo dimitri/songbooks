@@ -55,7 +55,7 @@
     <div class="catalog-card" data-variant-id="{{.VariantID}}">
       <a class="catalog-card-main" href="/song/{{.VariantID}}">
         <div class="catalog-card-title">{{.Title}}</div>
-        <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}}</div>
+        <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}}{{with .BandName}} <span class="band-version-tag">{{t "%s’s version" .}}</span>{{end}}</div>
         {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <div class="catalog-card-actions">

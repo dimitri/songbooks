@@ -493,3 +493,89 @@ func (st *Store) PlanBandAdoptions(ctx context.Context) ([]BandAdoption, error) 
 	})
 	return out, nil
 }
+
+// BandSongRef is a band's own version of a work.
+type BandSongRef struct {
+	VariantID     int64
+	BandID        int64
+	BandName      string
+	Title, Artist string
+}
+
+// BandVersionsOfCatalogSongs finds, for each catalogue ('global') song
+// among variantIDs, the versions of its work that the bands personID
+// currently belongs to have: one per band (the band's copy of that very
+// song first), by band name. Songs without any are absent from the map.
+// Search and the library show a member these in place of the catalogue's
+// song (PreferBandVersions): the band's version is the one they play.
+func (st *Store) BandVersionsOfCatalogSongs(ctx context.Context, personID int64, variantIDs []int64) (map[int64][]BandSongRef, error) {
+	out := map[int64][]BandSongRef{}
+	if len(variantIDs) == 0 {
+		return out, nil
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT g, id, band_id, band_name, title, artist FROM (
+		  SELECT DISTINCT ON (g.id, b.id) g.id AS g, bs.id, b.id AS band_id, b.name AS band_name, bs.title, bs.artist
+		  FROM songs g
+		  JOIN songs bs ON bs.visibility = 'band' AND bs.work_id = g.work_id
+		  JOIN bands b ON b.id = bs.owner_band_id
+		  JOIN band_members bm ON bm.band_id = b.id AND bm.person_id = $1 AND upper_inf(bm.validity)
+		  WHERE g.id = ANY($2) AND g.visibility = 'global'
+		  ORDER BY g.id, b.id, (bs.forked_from_id IS NOT DISTINCT FROM g.id) DESC, bs.id
+		) v
+		ORDER BY g, band_name, band_id`, personID, variantIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var g int64
+		var r BandSongRef
+		if err := rows.Scan(&g, &r.VariantID, &r.BandID, &r.BandName, &r.Title, &r.Artist); err != nil {
+			return nil, err
+		}
+		out[g] = append(out[g], r)
+	}
+	return out, rows.Err()
+}
+
+// PreferBandVersions is vs with each catalogue song that a band of
+// personID's has its own version of replaced by those versions, each
+// labelled with its band (BandName), in its place; a song already listed
+// isn't listed twice.
+func (st *Store) PreferBandVersions(ctx context.Context, personID int64, vs []CatalogVariant) ([]CatalogVariant, error) {
+	ids := make([]int64, len(vs))
+	for i, v := range vs {
+		ids[i] = v.VariantID
+	}
+	versions, err := st.BandVersionsOfCatalogSongs(ctx, personID, ids)
+	if err != nil || len(versions) == 0 {
+		return vs, err
+	}
+	seen := map[int64]bool{}
+	for _, v := range vs {
+		if versions[v.VariantID] == nil {
+			seen[v.VariantID] = true
+		}
+	}
+	out := make([]CatalogVariant, 0, len(vs))
+	for _, v := range vs {
+		refs := versions[v.VariantID]
+		if refs == nil {
+			out = append(out, v)
+			continue
+		}
+		for _, r := range refs {
+			if seen[r.VariantID] {
+				continue
+			}
+			seen[r.VariantID] = true
+			band := r.BandID
+			out = append(out, CatalogVariant{
+				VariantID: r.VariantID, WorkID: v.WorkID, Title: r.Title, Artist: r.Artist,
+				Visibility: "band", OwnerBandID: &band, Genre: v.Genre, Album: v.Album, BandName: r.BandName,
+			})
+		}
+	}
+	return out, nil
+}

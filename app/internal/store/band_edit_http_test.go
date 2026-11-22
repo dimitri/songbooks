@@ -181,9 +181,10 @@ func TestEditFromTheBandsSetlist(t *testing.T) {
 			t.Errorf("%s: no offer of the band's version", path)
 		}
 	}
-	// Someone in no band that uses it edits the catalogue's song, as before.
-	if html := as(t, st, f.Outsider).page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, "data-edit-offer") {
-		t.Error("an outsider: not the editor on the catalogue's song")
+	// Someone in no band that uses it: their own version, not the
+	// catalogue's song (TestCatalogueSongs).
+	if html := as(t, st, f.Outsider).page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, `data-edit-offer="copy"`) {
+		t.Error("an outsider: no offer of their own version of the catalogue's song")
 	}
 
 	bandSong := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, f.CatalogSong), nil))
@@ -456,5 +457,119 @@ func TestSongbookKey(t *testing.T) {
 
 	if v := version(t, st, f.BandSong); v != songVersion {
 		t.Errorf("the song changed: version %d, was %d", v, songVersion)
+	}
+}
+
+// TestCatalogueSongs: the catalogue's song is everyone's and no one's to
+// change in place but a site admin's. Edit offers one's own version (an
+// explicit copy), which takes the song's place in one's songbook, its key
+// there kept.
+func TestCatalogueSongs(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := store.NewBandFixture(t, st)
+	admin, err := st.CreatePerson(ctx, "admin", "Admin", "admin@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetAdmin(ctx, admin, true); err != nil {
+		t.Fatal(err)
+	}
+	text := "title: Le Vent\nartist: Someone\n\n[Verse]\nC\n"
+	for _, c := range []struct {
+		who  int64
+		want bool
+	}{{f.Outsider, false}, {f.Core, false}, {admin, true}} {
+		if ok, err := st.CanEditVariant(ctx, c.who, f.CatalogSong); err != nil || ok != c.want {
+			t.Errorf("person %d: CanEditVariant = %v, %v; want %v", c.who, ok, err, c.want)
+		}
+		want := http.StatusForbidden
+		if c.want {
+			want = http.StatusOK
+		}
+		if w := as(t, st, c.who).saveRaw(f.CatalogSong, text); w.Code != want {
+			t.Errorf("person %d: PUT raw on the catalogue's song: %d, want %d", c.who, w.Code, want)
+		}
+	}
+	if html := as(t, st, admin).page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, "data-edit-offer") {
+		t.Error("an admin: not the editor on the catalogue's song")
+	}
+
+	// The outsider's songbook has it, two semitones down.
+	o := as(t, st, f.Outsider)
+	mine, err := st.GetDefaultSongbook(ctx, "person", f.Outsider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := o.do("PUT", fmt.Sprintf("/api/songbooks/%d/entries/%d/key", mine, f.CatalogSong), map[string]int{"semitones": -2}); w.Code != http.StatusOK {
+		t.Fatalf("PUT key: %d", w.Code)
+	}
+	html := o.page(fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, mine))
+	if !strings.Contains(html, `data-edit-offer="copy"`) || !strings.Contains(html, "Make my own version") {
+		t.Error("no offer of one's own version")
+	}
+	ownVersion := o.variantID(o.do("POST", fmt.Sprintf("/api/variants/%d/fork", f.CatalogSong), nil))
+	if n, ok, err := st.SongbookEntryKey(ctx, mine, ownVersion); err != nil || !ok || n != -2 {
+		t.Errorf("my version in my songbook: %d %v %v, want -2", n, ok, err)
+	}
+	if _, ok, _ := st.SongbookEntryKey(ctx, mine, f.CatalogSong); ok {
+		t.Error("the catalogue's song still in my songbook beside my version")
+	}
+	if html := o.page(fmt.Sprintf("/song/%d", ownVersion)); !strings.Contains(html, `data-can-edit="true"`) {
+		t.Error("my version: not the editor")
+	}
+}
+
+// TestSearchShowsTheBandsVersion: a member searching the library finds
+// their band's version of a song in place of the catalogue's, labelled;
+// with two bands, each band's; someone in no band, the catalogue's. The
+// band's song says what it's based on.
+func TestSearchShowsTheBandsVersion(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := store.NewBandFixture(t, st)
+	ours, _, err := st.AdoptIntoBand(ctx, f.Band, f.CatalogSong, f.Core)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := st.CreateBand(ctx, "Mercy", f.Guest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, _, err := st.AdoptIntoBand(ctx, other, f.CatalogSong, f.Guest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type hit struct {
+		VariantID int64  `json:"variantId"`
+		Band      string `json:"band"`
+	}
+	search := func(who int64, path string) []hit {
+		t.Helper()
+		w := as(t, st, who).do("GET", path, nil)
+		var hits []hit
+		if err := json.Unmarshal(w.Body.Bytes(), &hits); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		return hits
+	}
+	for _, path := range []string{"/api/catalog/search?q=vent", "/api/catalog/match?title=Le+Vent"} {
+		if got := search(f.Core, path); len(got) != 1 || got[0].VariantID != ours || got[0].Band != "Other Lies" {
+			t.Errorf("%s, a member of one band: %+v, want only its version %d", path, got, ours)
+		}
+		got := search(f.Guest, path)
+		if len(got) != 2 || got[0].VariantID != theirs || got[0].Band != "Mercy" || got[1].VariantID != ours || got[1].Band != "Other Lies" {
+			t.Errorf("%s, a member of two bands: %+v, want Mercy's %d and Other Lies's %d", path, got, theirs, ours)
+		}
+		if got := search(f.Outsider, path); len(got) != 1 || got[0].VariantID != f.CatalogSong || got[0].Band != "" {
+			t.Errorf("%s, in no band: %+v, want the catalogue's %d", path, got, f.CatalogSong)
+		}
+	}
+	if html := as(t, st, f.Core).page("/catalog?q=vent"); !strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, ours)) || strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, f.CatalogSong)) || !strings.Contains(html, "band-version-tag") {
+		t.Error("the catalogue page: not the band's version, labelled")
+	}
+	html := as(t, st, f.Core).page(fmt.Sprintf("/song/%d", ours))
+	if !strings.Contains(html, `class="based-on"`) || !strings.Contains(html, fmt.Sprintf(`href="/song/%d"`, f.CatalogSong)) {
+		t.Error("the band's song: no \"Based on\" link to the catalogue's")
 	}
 }

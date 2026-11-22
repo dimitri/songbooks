@@ -2910,6 +2910,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	var bandOffer *store.BandHold
 	var editOwner *store.VariantOwner
 	var bandVersion *store.BandVersion
+	var basedOn *songBasedOn
 	if person != nil {
 		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
 		if variant != nil {
@@ -2927,6 +2928,18 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if variant != nil && variant.Visibility == "user" {
 			bandVersion, _ = s.store.BandVersionOf(r.Context(), person.ID, variantID)
 		}
+		// A band's song made from another (AdoptIntoBand, a fork into the
+		// band): where it came from, when the viewer can open that.
+		if variant != nil && variant.Visibility == "band" && variant.ForkedFromID != nil {
+			if ok, _ := s.store.CanViewVariant(r.Context(), person.ID, *variant.ForkedFromID); ok {
+				if orig, err := s.store.GetVariant(r.Context(), *variant.ForkedFromID); err == nil {
+					basedOn = &songBasedOn{VariantID: orig.VariantID, Title: orig.Title, Artist: orig.Artist}
+					if o, err := s.store.VariantOwnerOf(r.Context(), orig.VariantID); err == nil {
+						basedOn.Kind, basedOn.Owner = o.Kind, o.Name
+					}
+				}
+			}
+		}
 		// Home's "Continue" list; a failure here mustn't cost the page. A
 		// playlist showing the song beside its player isn't a visit.
 		if r.URL.Query().Get("embed") != "playlist" {
@@ -2942,7 +2955,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Me":        person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
-		"BandOffer": bandOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "SongVisibility": variantVisibility(variant),
+		"BandOffer": bandOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
@@ -3185,6 +3198,15 @@ func (s *Server) songPageBand(r *http.Request) int64 {
 		}
 	}
 	return 0
+}
+
+// songBasedOn is the song a band's song was made from (play.html's
+// "Based on" line): its title and artist, and whose it is (Kind is its
+// visibility, Owner its band's, community's or person's name).
+type songBasedOn struct {
+	VariantID     int64
+	Title, Artist string
+	Kind, Owner   string
 }
 
 func variantVisibility(v *store.CatalogVariant) string {

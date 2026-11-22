@@ -225,10 +225,11 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
       title.className = 'attention-title';
       title.textContent = hit.title;
       text.appendChild(title);
-      if (hit.artist) {
+      if (hit.artist || hit.band) {
         const artist = document.createElement('div');
         artist.className = 'attention-subtitle';
-        artist.textContent = hit.artist;
+        // A band of yours has its own version: that's the one listed.
+        artist.textContent = [hit.artist, hit.band ? t('sentence|%s’s version', hit.band) : ''].filter(Boolean).join(' · ');
         text.appendChild(artist);
       }
       row.appendChild(text);

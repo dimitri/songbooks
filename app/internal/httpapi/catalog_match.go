@@ -17,6 +17,9 @@ type libraryMatchHit struct {
 	Bands      int    `json:"bands"`
 	Songbooks  int    `json:"songbooks"`
 	Exact      bool   `json:"exact"`
+	// Band: the band's name, for a band's version shown in place of the
+	// catalogue's song (store.BandVersionsOfCatalogSongs).
+	Band string `json:"band,omitempty"`
 }
 
 const maxLibraryMatches = 5
@@ -41,12 +44,37 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	hits := make([]libraryMatchHit, len(matches))
+	// A band member is shown their band's version of a catalogue song in
+	// its place, one per band, labelled.
+	ids := make([]int64, len(matches))
 	for i, m := range matches {
-		hits[i] = libraryMatchHit{
+		ids[i] = m.VariantID
+	}
+	versions, err := s.store.BandVersionsOfCatalogSongs(r.Context(), person.ID, ids)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	hits := []libraryMatchHit{}
+	seen := map[int64]bool{}
+	for _, m := range matches {
+		if refs := versions[m.VariantID]; refs != nil {
+			for _, b := range refs {
+				if !seen[b.VariantID] {
+					seen[b.VariantID] = true
+					hits = append(hits, libraryMatchHit{VariantID: b.VariantID, Title: b.Title, Artist: b.Artist, Visibility: "band", Exact: m.Exact, Band: b.BandName})
+				}
+			}
+			continue
+		}
+		if seen[m.VariantID] {
+			continue
+		}
+		seen[m.VariantID] = true
+		hits = append(hits, libraryMatchHit{
 			VariantID: m.VariantID, Title: m.Title, Artist: m.Artist, Key: m.Key,
 			Visibility: m.Visibility, MadeBy: m.MadeBy, Bands: m.Bands, Songbooks: m.Songbooks, Exact: m.Exact,
-		}
+		})
 	}
 	writeJSON(w, http.StatusOK, hits)
 }
