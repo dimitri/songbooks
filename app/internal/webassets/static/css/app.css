@@ -4588,8 +4588,18 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
     background: var(--border-strong); opacity: 0.35; margin: 0 0 0.4rem;
   }
 }
-@media (min-width: 600px) and (max-width: 900px) {
-  /* The rail: the tab bar's entries, stacked down the left edge. */
+/* A phone on its side (short and wide) keeps its tab bar along the
+   bottom, as on its end, only slimmer: the icon beside its label, the
+   way iOS draws a tab bar in landscape. The rail below is a tablet's. */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 900px) {
+  :root { --tabbar-h: 2.6rem; --context-h: 2.6rem; }
+  .global-tabbar > a { flex-direction: row; gap: 0.4rem; font-size: 0.72rem; }
+  .global-tabbar .icon { width: 1.15rem; height: 1.15rem; }
+  .global-tabbar { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+}
+@media (min-width: 600px) and (max-width: 900px) and (min-height: 501px) {
+  /* The rail (a tablet held upright, or a small window): the tab bar's
+     entries, stacked down the left edge. */
   /* No bar along the bottom then: the bars fixed there (the player's,
      the click track's) sit on the screen's edge, not a tab bar's height
      above it. */
