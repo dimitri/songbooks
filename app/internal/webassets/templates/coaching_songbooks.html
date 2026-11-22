@@ -64,7 +64,7 @@
     <div class="home-section-head"><h3>{{t "Requests"}} <span class="cbook-count">{{len .Requests}}</span></h3><span class="hint">{{t "songs your students asked for"}}</span></div>
     <ul class="cbook-request-list">
     {{range .Requests}}
-      <li class="cbook-request{{if eq .ID $.OpenRequest}} is-open{{end}}" id="request-{{.ID}}" data-request="{{.ID}}" data-person="{{.PersonID}}" data-key="{{.Key}}" data-semitones="0">
+      <li class="cbook-request{{if eq .ID $.OpenRequest}} is-open{{end}}" id="request-{{.ID}}" data-request="{{.ID}}" data-person="{{.PersonID}}" data-variant="{{.VariantID}}" data-key="{{.Key}}" data-semitones="0">
         <div class="cbook-request-what">
           <strong>{{.StudentName}}</strong> <span class="hint">{{t "asks for"}}</span> <a href="/song/{{.VariantID}}">{{.Title}}</a>{{with .Artist}} <span class="hint">· {{.}}</span>{{end}}
           <div class="hint">{{date .CreatedAt "Mon 2 Jan, 15:04"}}</div>
@@ -80,6 +80,9 @@
           <button type="button" class="primary cbook-request-add">{{t "Add to their songbook"}}</button>
           <button type="button" class="cbook-request-decline">{{t "Not now"}}</button>
         </div>
+        {{/* The student's range with the song's melody over it, in the
+             key being tried (voice-strip.js). */}}
+        <div class="voice-strip cbook-request-strip" hidden></div>
       </li>
     {{end}}
     </ul>
@@ -165,6 +168,7 @@
           <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
         </span>
       </div>
+      <div class="voice-strip cbook-add-strip" hidden></div>
       <p class="form-status" role="status"></p>
       <div class="form-actions">
         <button type="submit" class="primary cbook-add-save">{{t "Add"}}</button>
@@ -249,6 +253,7 @@
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
+{{if .IsCoach}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
 <script>
 (() => {
   const page = document.querySelector('.cbook-page');
@@ -289,7 +294,10 @@
       const n = clamp((Number(row.dataset.semitones) || 0) + d);
       row.dataset.semitones = n;
       out.textContent = keyText(row.dataset.key, n);
+      window.VoiceStrip?.key(strip, n);
     };
+    const strip = row.querySelector('.cbook-request-strip');
+    window.VoiceStrip?.show(strip, { variant: Number(row.dataset.variant), community, person: Number(row.dataset.person), coach: true, semitones: 0 });
     row.querySelector('.coach-key-down')?.addEventListener('click', () => move(-1));
     row.querySelector('.coach-key-up')?.addEventListener('click', () => move(1));
     const gone = () => {
@@ -351,11 +359,19 @@
   const keyOut = dlg.querySelector('.cbook-add-key output');
   const status = dlg.querySelector('.form-status');
   let song = null, songKey = '', targets = [], semis = 0;
-  const showKey = () => { keyOut.textContent = keyText(songKey, semis); };
+  const addStrip = dlg.querySelector('.cbook-add-strip');
+  const showKey = () => { keyOut.textContent = keyText(songKey, semis); window.VoiceStrip?.key(addStrip, semis); };
   const picked = () => targets[Number(form.querySelector('input[name="target"]:checked')?.value)];
   dlg.querySelector('.coach-key-down').addEventListener('click', () => { semis = clamp(semis - 1); showKey(); });
   dlg.querySelector('.coach-key-up').addEventListener('click', () => { semis = clamp(semis + 1); showKey(); });
-  choices.addEventListener('change', () => { const x = picked(); semis = x ? x.semitones : 0; showKey(); });
+  choices.addEventListener('change', () => {
+    const x = picked();
+    semis = x ? x.semitones : 0;
+    // A student picked: their range, the song's melody over it.
+    if (x && x.kind === 'student') window.VoiceStrip?.show(addStrip, { variant: Number(song), community, person: x.personId, coach: true, semitones: semis });
+    else window.VoiceStrip?.hide(addStrip);
+    showKey();
+  });
   dlg.querySelector('.cbook-add-cancel').addEventListener('click', () => dlg.close());
   page.querySelectorAll('.cbook-add-to').forEach((btn) => btn.addEventListener('click', async () => {
     const row = btn.closest('.cbook-rep-row');
@@ -365,6 +381,7 @@
     choices.textContent = t('Loading…');
     semis = 0;
     keyOut.textContent = '';
+    window.VoiceStrip?.hide(addStrip);
     dlg.showModal();
     try {
       const r = await fetch(`/api/songs/${song}/coach-keys?community=${community}`);

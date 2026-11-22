@@ -1613,6 +1613,23 @@ window.songbooksDecodable = function (buf) {
     const chip = [name ? (n ? `${name} ${semis(n)}` : name) : semis(n), short].filter(Boolean).join(' · ');
     keyShort = short;
     renderKeyChip();
+    renderStrip();
+  }
+  // The student's range with the song's melody over it, in the key being
+  // tried (voice-strip.js, coaching): the student the coach picked, or a
+  // student's own; nothing for a group, or before a student is picked.
+  function renderStrip() {
+    const stripBox = $('audio-voice-strip');
+    if (!stripBox || !window.VoiceStrip || !coachCommunity) return;
+    let person = null;
+    if (singTarget) person = singTarget.kind === 'student' ? singTarget.personId : null;
+    else if (root.dataset.keyMine) person = 0;
+    if (person === null) { VoiceStrip.hide(stripBox); return; }
+    if (stripBox.dataset.stripFor !== `${variantId}/${coachCommunity}/${person}`) {
+      VoiceStrip.show(stripBox, { variant: variantId, community: coachCommunity, person, coach: person !== 0, semitones: prefs.semitones });
+    } else {
+      VoiceStrip.key(stripBox, prefs.semitones);
+    }
   }
   // A coach picks whose key it is: the key goes to theirs when they have
   // the song, else stays as it is, to give it them.

@@ -7888,6 +7888,17 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 .voice-history ol { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
 .voice-history li { font-size: 0.9rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
 .voice-history-note { color: var(--fg-muted); white-space: pre-line; }
+/* A student's range with the song's melody over it, where a key is chosen
+   (voice-strip.js): the strip as on the student's page, the melody a frame
+   over it that slides with the key. */
+.voice-strip { margin: 0.6rem 0 0.2rem; }
+.voice-strip[hidden] { display: none; }
+.voice-strip-melody { position: absolute; top: 0.95rem; bottom: -0.15rem; border: 2px solid var(--fg); border-radius: 5px; background: color-mix(in srgb, var(--fg) 7%, transparent); pointer-events: none; transition: left 0.2s ease, width 0.2s ease; }
+.voice-strip-melody.is-clipped { border-style: dashed; }
+.voice-strip-melody[hidden] { display: none; }
+.voice-strip-caption { margin: 0.35rem 0 0; font-size: 0.8rem; }
+.cbook-request-strip { flex: 1 0 100%; }
+@media (prefers-reduced-motion: reduce) { .voice-strip-melody { transition: none; } }
 /* A student's notes (coaching.html): private, the coach's and the staff's,
    or shared, the student reads them. */
 .note-kind { display: inline-flex; align-items: center; padding: 0 0.45rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.72rem; font-weight: 700; color: var(--fg-muted); vertical-align: middle; }
