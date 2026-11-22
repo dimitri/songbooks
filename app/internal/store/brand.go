@@ -55,7 +55,10 @@ func (st *Store) SetBrand(ctx context.Context, kind string, id int64, b brand.Br
 	if err != nil {
 		return err
 	}
-	tag, err := st.db.Exec(ctx, `UPDATE `+table+` SET brand = $2 WHERE id = $1`, id, raw)
+	// The card image choice kept beside it (card_image.go) stays.
+	tag, err := st.db.Exec(ctx, `
+		UPDATE `+table+` SET brand = $2::jsonb || CASE WHEN brand ? 'card' THEN jsonb_build_object('card', brand->'card') ELSE '{}'::jsonb END
+		 WHERE id = $1`, id, raw)
 	if err != nil {
 		return err
 	}

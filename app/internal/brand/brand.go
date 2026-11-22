@@ -406,3 +406,16 @@ func mix(a, b string, t float64) string {
 	c := func(x, y float64) int { return int((x+(y-x)*t)*255 + 0.5) }
 	return fmt.Sprintf("#%02x%02x%02x", c(ar, br), c(ag, bg), c(ab, bb))
 }
+
+// ContrastOn is the text color that reads on a hex background: near-black
+// or white, whichever reads better ("" for no background).
+func ContrastOn(hex string) string {
+	if hex == "" {
+		return ""
+	}
+	return contrastOn(hex)
+}
+
+// HeaderFg is the text color that reads on the header band, "" when the
+// brand has no header color.
+func (t *Theme) HeaderFg() string { return ContrastOn(t.Header) }

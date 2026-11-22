@@ -5885,53 +5885,145 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .home-section-head h3 { margin: 0; font-size: 1.1rem; }
 .home-section-head .count { font-size: 0.82rem; color: var(--fg-faint); }
 
-/* Home: "Coming up" (every band's and community's next events, the
-   first one larger), then cards for communities and bands in their own
-   look, then songbooks. */
-.home-head-links { display: flex; gap: 1rem; font-size: 0.88rem; font-weight: 600; }
+/* Home (index.html, home.go): a dashboard. The top row is the person's
+   own songbook (wide: its covers, the songs opened last, Open / Add /
+   PDF) beside "This week" (compact rows, a weekly series once); below,
+   every band and community as one grid of equal cards, four a row. A
+   phone stacks them: the songbook, two dates and "See all", the cards
+   two a row. */
+.home-head-links { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.88rem; font-weight: 600; }
 .home-head-links a { display: inline-flex; align-items: center; gap: 0.3rem; }
 .home-head-links .icon { width: 1rem; height: 1rem; }
-.upcoming-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
-.upcoming-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.7rem 0.9rem; border-top: 1px solid var(--border); }
-.upcoming-row:first-child { border-top: 0; }
-.upcoming-row .coming-up-date { background: color-mix(in srgb, var(--kind) 14%, transparent); color: var(--kind); }
-.upcoming-text { flex: 1; min-width: 0; }
-.upcoming-title { display: block; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
-.upcoming-meta { font-size: 0.84rem; color: var(--fg-muted); overflow-wrap: anywhere; }
-.upcoming-kind { font-weight: 700; color: var(--kind); }
-.upcoming-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
-.upcoming-row.is-next { padding-block: 0.95rem; }
-.upcoming-row.is-next .coming-up-date { width: 3.8rem; height: 3.8rem; }
-.upcoming-row.is-next .upcoming-title { font-size: 1.08rem; }
 .home-empty { margin: 0; padding: 0.9rem 1rem; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--fg-muted); }
-.home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.8rem; }
-.home-cards-small { grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
-.home-card { --card-head: var(--fg); --card-tag: var(--accent); display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); color: var(--fg); overflow: hidden; min-width: 0; }
-.home-card:hover { text-decoration: none; border-color: var(--card-tag); }
-.home-card-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.85rem; background: var(--card-head); color: #fff; }
-.home-card-mark { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 0.9rem; background: rgba(255,255,255,.16); overflow: hidden; }
-.home-card-mark img { width: 100%; height: 100%; object-fit: cover; }
-.home-card-mark .icon { width: 1.2rem; height: 1.2rem; }
-.home-card-name { min-width: 0; display: flex; flex-direction: column; }
-.home-card-name b { overflow-wrap: anywhere; line-height: 1.25; }
-.home-card-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--card-tag); filter: brightness(1.35); }
-.home-card-facts { list-style: none; margin: 0; padding: 0.6rem 0.85rem 0.75rem; display: grid; gap: 0.2rem; font-size: 0.84rem; color: var(--fg-muted); }
-.home-card-facts b { color: var(--fg); font-weight: 600; }
-.home-card-band { flex-direction: row; align-items: center; gap: 0.7rem; padding: 0.6rem 0.75rem; }
-.home-card-band .home-card-mark { background: var(--card-head); color: #fff; }
-.home-card-line { font-size: 0.82rem; color: var(--fg-muted); overflow-wrap: anywhere; }
-.home-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; }
-.home-recent-label { font-size: 0.82rem; color: var(--fg-faint); margin-right: 0.2rem; }
-.home-songbooks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); column-gap: 1.4rem; }
-.home-songbooks li { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
-.home-songbooks span { color: var(--fg-faint); font-size: 0.84rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.home-eyebrow { margin: 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); }
+
+.home-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; margin: 0 0 2rem; align-items: stretch; }
+
+/* A picture: a logo, a mosaic of covers (m1, m4, m9: one, 2×2, 3×3)
+   or a mark, on the tile's colours (the brand's header and the text
+   colour that reads on it; the app's own otherwise). */
+.home-pic {
+  --tile-bg: var(--bg-sunken); --tile-fg: var(--fg-muted);
+  display: grid; overflow: hidden; aspect-ratio: 1; background: var(--tile-bg); color: var(--tile-fg);
+}
+.home-pic img { display: block; width: 100%; height: 100%; object-fit: cover; min-width: 0; min-height: 0; }
+.home-pic.m4 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+.home-pic.m9 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+.home-pic-mark { place-self: center; font-weight: 800; font-size: 2.2rem; letter-spacing: 0.02em; line-height: 1; font-family: var(--font-display, var(--font-ui)); }
+.home-pic-mark .icon { width: 3rem; height: 3rem; }
+
+.home-songbook {
+  display: grid; grid-template-columns: minmax(9rem, 15rem) minmax(0, 1fr); gap: 1.2rem; align-items: start;
+  padding: 1.1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised);
+}
+.home-songbook-art { border-radius: calc(var(--radius) * 0.8); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18); }
+.home-songbook-text { min-width: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.home-songbook h2 { margin: 0; font-size: 1.6rem; line-height: 1.15; overflow-wrap: anywhere; }
+.home-songbook h2 a { color: var(--fg); }
+.home-songbook-count { margin: 0; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.home-songbook-recent, .home-songbook-others { margin: 0; display: flex; flex-wrap: wrap; gap: 0.15rem 0.45rem; font-size: 0.9rem; color: var(--fg-faint); }
+.home-songbook-recent a, .home-songbook-others a { overflow-wrap: anywhere; }
+.home-songbook-others { font-size: 0.84rem; }
+.home-songbook-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.35rem 0 0.2rem; }
+.home-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; padding: 0.45rem 0.95rem;
+  border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised); color: var(--fg); font-weight: 600; font-size: 0.9rem;
+}
+.home-btn:hover { text-decoration: none; border-color: var(--border-strong); }
+.home-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.home-btn .icon { width: 1rem; height: 1rem; }
+
+.home-week {
+  display: flex; flex-direction: column; min-width: 0;
+  padding: 1rem 1.1rem 0.8rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised);
+}
+.home-week .home-section-head { margin-bottom: 0.4rem; }
+.home-week-all { display: none; font-size: 0.88rem; font-weight: 600; }
+.home-week-later { margin: 0 0 0.2rem; font-size: 0.86rem; color: var(--fg-muted); }
+.week-list { list-style: none; margin: 0; padding: 0; }
+.week-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
+.week-row:first-child { border-top: 0; }
+.week-row .coming-up-date { width: 2.6rem; height: 2.6rem; border-radius: 8px; background: color-mix(in srgb, var(--kind) 14%, transparent); color: var(--kind); }
+.week-row .coming-up-date .day { font-size: 1rem; }
+.week-text { flex: 1; min-width: 0; }
+.week-title { display: block; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; line-height: 1.3; }
+.week-group { font-weight: 500; color: var(--fg-muted); }
+.week-meta { font-size: 0.82rem; color: var(--fg-muted); overflow-wrap: anywhere; }
+.week-kind { font-weight: 700; color: var(--kind); }
+.week-repeat { font-weight: 600; }
+.week-setlist { flex: none; padding: 0.3rem 0.5rem; }
+.home-week-links { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin: auto 0 0; padding-top: 0.7rem; font-size: 0.86rem; font-weight: 600; }
+.home-week-links a { display: inline-flex; align-items: center; gap: 0.3rem; }
+.home-week-links .icon { width: 1rem; height: 1rem; }
+
+.group-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem; }
+.group-card {
+  position: relative; display: flex; flex-direction: column; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.group-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); }
+.group-pic { aspect-ratio: 4 / 3; }
+.group-pic.has-logo { padding: 0.8rem; }
+.group-pic.has-logo img { object-fit: contain; }
+.group-card-text { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.7rem 0.85rem 0.85rem; min-width: 0; }
+.group-card h4 { margin: 0; font-size: 1.02rem; line-height: 1.25; overflow-wrap: anywhere; }
+.group-card-link { color: var(--fg); }
+.group-card-link::after { content: ""; position: absolute; inset: 0; }
+.group-card-link:hover { text-decoration: none; }
+.group-card-link:focus-visible { outline: none; }
+.group-card:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.group-card-kind { margin: 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-faint); overflow-wrap: anywhere; }
+.group-card-facts, .group-card-next { margin: 0; font-size: 0.82rem; color: var(--fg-muted); overflow-wrap: anywhere; }
+.group-card-next { color: var(--fg); }
+
+@media (max-width: 1100px) {
+  .group-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Tablet and phone: one column; two dates and a "See all (n)". */
+@media (max-width: 900px) {
+  .home-top { grid-template-columns: minmax(0, 1fr); }
+  .week-row:nth-child(n + 3) { display: none; }
+  .home-week-all { display: inline; }
+  .group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+}
+@media (max-width: 560px) {
+  /* The cover beside the title, the buttons across the card below. */
+  .home-songbook { grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.3rem 0.9rem; padding: 0.9rem; align-content: start; }
+  .home-songbook-text { display: contents; }
+  .home-songbook-text > * { grid-column: 2; }
+  .home-songbook-art { grid-row: 1 / span 4; align-self: start; }
+  .home-songbook-text > .home-songbook-actions, .home-songbook-text > .home-songbook-others { grid-column: 1 / -1; }
+  .home-songbook-actions { margin-top: 0.6rem; }
+  .home-songbook h2 { font-size: 1.3rem; }
+  .home-section-head { flex-wrap: wrap; row-gap: 0.2rem; }
+  .home-btn { padding-inline: 0.8rem; }
+  .group-card-text { padding: 0.55rem 0.65rem 0.7rem; }
+  .group-card h4 { font-size: 0.95rem; }
+  .group-card-facts { display: none; }
+}
+/* A band's settings: its card picture (card-image.js), the choices
+   beside a live preview of its home card. */
+.card-image-layout { display: grid; grid-template-columns: minmax(0, 1fr) 14rem; gap: 1.2rem; align-items: start; }
+.card-image-editor label.check { display: flex; margin-left: 0; }
+.card-image-logo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 0.3rem 1.75rem; }
+.card-image-logo[hidden] { display: none; }
+.card-image-logo img { width: 3.5rem; height: 3.5rem; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-sunken); }
+.card-image-covers { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr)); gap: 0.45rem; }
+.card-image-cover { position: relative; display: block; width: 100%; min-height: 0; aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: 6px; overflow: hidden; background: var(--bg-sunken); }
+.card-image-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.card-image-cover[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.card-image-cover[aria-pressed="false"] img { opacity: 0.75; }
+.card-image-order { position: absolute; top: 0.2rem; left: 0.2rem; min-width: 1.3rem; padding: 0 0.25rem; border-radius: 999px; background: var(--accent); color: var(--accent-contrast); font-size: 0.75rem; font-weight: 700; line-height: 1.3rem; text-align: center; }
+.card-image-order:empty { display: none; }
+.card-image-preview { margin: 0; position: sticky; top: 1rem; }
+.card-image-preview figcaption { margin-bottom: 0.4rem; }
+@media (max-width: 700px) {
+  .card-image-layout { grid-template-columns: minmax(0, 1fr); }
+  .card-image-preview { position: static; max-width: 14rem; order: -1; }
+}
 .calendar-page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .calendar-page-head h2 { margin: 0; }
-@media (max-width: 560px) {
-  .upcoming-row { flex-wrap: wrap; }
-  .upcoming-actions { width: 100%; justify-content: flex-start; padding-left: 4.1rem; }
-  .upcoming-row.is-next .upcoming-actions { padding-left: 4.7rem; }
-}
 
 .attention-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
 .attention-filters button {
@@ -8735,7 +8827,7 @@ body:not(.stage) .stage-exit { display: none; }
 .today-card {
   --today-bg: #3b2e3a; --today-accent: #e7b06c;
   display: flex; flex-direction: column; gap: 0.3rem; min-width: 0;
-  padding: 0.95rem 1.05rem; border-radius: var(--radius); background: var(--today-bg); color: #f3e8d8; box-shadow: var(--shadow);
+  padding: 0.95rem 1.05rem; border-radius: var(--radius); background: var(--today-bg); color: var(--today-fg, #f3e8d8); box-shadow: var(--shadow);
 }
 .today-card.kind-band { --today-bg: #2f3b33; }
 .today-card.kind-jam { --today-bg: #2e3346; }

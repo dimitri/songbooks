@@ -42,6 +42,51 @@
   </div>
 
   {{if .IsCore}}
+  {{/* The band's card picture on everyone's home page (card-image.js,
+       store.CardImage): its logo, a mosaic of its songs' covers, or the
+       covers it picks; the card beside the choices shows it live. */}}
+  <div class="card card--md card-image-editor" id="card-image" data-endpoint="/api/bands/{{.Band.ID}}" data-kind="{{t "Band"}}">
+    <h2>{{t "Logo / image"}}</h2>
+    <p class="hint">{{t "The picture on the band’s card, on every member’s home page."}}</p>
+    <div class="card-image-layout">
+      <form class="form-stack" id="card-image-form">
+        <fieldset class="field-group">
+          <legend>{{t "The card shows"}}</legend>
+          <label class="check"><input type="radio" name="mode" value=""> {{t "Automatic: the logo, else our songs’ covers"}}</label>
+          <label class="check"><input type="radio" name="mode" value="logo"> {{t "Our logo"}}</label>
+          <div class="card-image-logo" id="card-image-logo">
+            <img id="card-image-logo-preview" alt="{{t "The logo"}}" hidden>
+            <input type="file" id="card-image-logo-file" accept="image/png,image/jpeg,image/webp" hidden>
+            <button type="button" id="card-image-logo-upload">{{t "Upload a logo"}}</button>
+            <span class="field-hint" id="card-image-logo-status" role="status"></span>
+          </div>
+          <label class="check"><input type="radio" name="mode" value="mosaic"> {{t "A mosaic of our songs’ covers"}}</label>
+          <label class="check"><input type="radio" name="mode" value="picked"> {{t "Album covers we pick"}}</label>
+        </fieldset>
+        <div class="card-image-picker" id="card-image-picker" hidden>
+          <p class="field-hint" id="card-image-picker-hint">{{t "Pick 1, 4 or 9 covers, in the order they show."}}</p>
+          <ul class="card-image-covers" id="card-image-covers" aria-describedby="card-image-picker-hint"></ul>
+        </div>
+        <p class="field-hint" id="card-image-none" hidden>{{t "No covers found for the band’s songs yet: they’re looked up when its songbook is opened."}}</p>
+        <div class="form-actions"><button type="submit" class="primary" id="card-image-save">{{t "Save the picture"}}</button></div>
+        <p class="form-status" role="status"></p>
+      </form>
+      <figure class="card-image-preview">
+        <figcaption class="field-hint">{{t "Preview"}}</figcaption>
+        <div class="group-card" aria-hidden="true">
+          <div class="home-pic group-pic" id="card-image-pic"></div>
+          <div class="group-card-text">
+            <h4><span class="group-card-link">{{.Band.Name}}</span></h4>
+            <p class="group-card-kind">{{t "Band"}}</p>
+          </div>
+        </div>
+      </figure>
+    </div>
+  </div>
+  <script src="/static/js/card-image.js?v={{staticVersion}}"></script>
+  {{end}}
+
+  {{if .IsCore}}
   <div class="card card--md">
     <h2>{{t "Language"}}</h2>
     <form class="form-stack" id="band-locale-form">

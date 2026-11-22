@@ -117,5 +117,10 @@
   "this song": "ce morceau",
   "vote failed": "échec du vote",
   "“%s”": "« %s »",
-  "Couldn’t rename the set list. Press Enter to try again.": "Impossible de renommer la set list. Appuyez sur Entrée pour réessayer."
+  "Couldn’t rename the set list. Press Enter to try again.": "Impossible de renommer la set list. Appuyez sur Entrée pour réessayer.",
+  "Upload a logo": "Envoyer un logo",
+  "Replace the logo": "Remplacer le logo",
+  "Pick at least one cover.": "Choisissez au moins une pochette.",
+  "Couldn’t save the picture. Try again.": "Impossible d’enregistrer l’image. Réessayez.",
+  "Saved: the band’s card shows it now.": "Enregistré : la carte du groupe l’affiche maintenant."
 }

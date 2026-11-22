@@ -195,21 +195,6 @@ func firstUpcoming(items []store.CalendarItem, now time.Time) *nextUpView {
 	return nil
 }
 
-// upcomingList is the home page's "Coming up": items not over yet (one
-// that started under two hours ago is still on), soonest first, at most n.
-func upcomingList(items []store.CalendarItem, now time.Time, n int) []nextUpView {
-	var out []nextUpView
-	for _, it := range items {
-		if len(out) == n {
-			break
-		}
-		if it.AllDay || it.Starts.After(now.Add(-2*time.Hour)) {
-			out = append(out, nextUpView{CalendarItem: it, SetlistLink: setlistLink(it), When: humanDay(it.Starts, now)})
-		}
-	}
-	return out
-}
-
 // handleCalendarPage is GET /calendar: the month of everything on the
 // person's calendar (their bands' and communities' events, rehearsals and
 // gigs), ?month=2026-12 for another, and the way to subscribe to it.

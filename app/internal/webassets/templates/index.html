@@ -19,12 +19,72 @@
     <h2>{{t .Greeting}}, {{.Me.DisplayName}}</h2>
   </div>
 
+  {{/* The dashboard (home.go): the person's own songbook beside "This
+       week", then every band and community as one grid of equal cards.
+       A phone stacks them: the songbook, two dates, the cards two by two. */}}
+  <div class="home-top">
+  {{with .MySongbook}}
+  <section class="home-songbook" aria-labelledby="songbook-title">
+    <a class="home-songbook-art home-pic {{.MosaicClass}}" href="/songbooks/{{.ID}}" tabindex="-1" aria-hidden="true">
+      {{if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{template "icon-catalog"}}</span>{{end}}
+    </a>
+    <div class="home-songbook-text">
+      <p class="home-eyebrow">{{t "Your songbook"}}</p>
+      <h2 id="songbook-title"><a href="/songbooks/{{.ID}}">{{.Name}}</a></h2>
+      <p class="home-songbook-count">{{tn .Songs "%d song" "%d songs"}}</p>
+      {{if .Recent}}
+      <p class="home-songbook-recent"><span>{{t "Recently:"}}</span>
+      {{range $i, $r := .Recent}}{{if $i}}<span aria-hidden="true">·</span>{{end}}<a href="/song/{{$r.SongID}}{{if $r.Query}}?{{$r.Query}}{{end}}">{{$r.Title}}</a>{{end}}
+      </p>
+      {{end}}
+      <div class="home-songbook-actions">
+        <a class="home-btn primary" href="/songbooks/{{.ID}}">{{t "Open"}}</a>
+        <a class="home-btn" href="/songbooks/{{.ID}}?new=1">{{template "icon-plus"}} {{t "Add a song"}}</a>
+        <a class="home-btn" href="/songbooks/{{.ID}}/export-songbook.pdf">{{template "icon-download"}} {{t "PDF"}}</a>
+      </div>
+      {{if .Others}}
+      <p class="home-songbook-others"><span>{{t "Your other songbooks:"}}</span>
+      {{range $i, $b := .Others}}{{if $i}}<span aria-hidden="true">·</span>{{end}}<a href="/songbooks/{{$b.ID}}">{{$b.Name}}</a>{{end}}
+      <a href="/catalog?view=songbooks">{{t "All songbooks"}} &rarr;</a></p>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{with .Week}}
+  <section class="home-week" aria-labelledby="week-title">
+    <div class="home-section-head">
+      <h3 id="week-title">{{t "This week"}}</h3>
+      {{if .Total}}<a class="home-week-all" href="/calendar">{{t "See all (%d)" .Total}}</a>{{end}}
+    </div>
+    {{if .Rows}}
+    {{if .Later}}<p class="home-week-later">{{t "Nothing this week. Next:"}}</p>{{end}}
+    <ol class="week-list">
+    {{range .Rows}}
+      <li class="week-row kind-{{.Kind}}">
+        <div class="coming-up-date"><span class="month">{{date .Starts "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
+        <div class="week-text">
+          <a class="week-title" href="{{.Link}}">{{.Title}}{{with .GroupName}}<span class="week-group"> · {{.}}</span>{{end}}</a>
+          <div class="week-meta"><span class="week-kind">{{t .KindLabel}}</span>{{if or (eq .When "Today") (eq .When "Tomorrow")}} · {{t .When}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}}{{else if not .AllDay}} · {{.Starts.Format "15:04"}}{{end}}{{if .Weekly}} · <span class="week-repeat">{{t "weekly"}}</span>{{else if .More}} · <span class="week-repeat">{{tn .More "+%d date" "+%d dates"}}</span>{{end}}{{with .Place}} · {{.}}{{end}}</div>
+        </div>
+        {{if eq .LessonMode "online"}}<a class="chip-link primary" href="{{.Link}}">{{t "Join"}}</a>{{else if .SetlistLink}}<a class="chip-link week-setlist" href="{{.SetlistLink}}" title="{{t "Set list"}}" aria-label="{{t "Set list"}}">{{template "icon-setlists"}}</a>{{end}}
+      </li>
+    {{end}}
+    </ol>
+    {{else}}
+    <p class="home-empty">{{t "Nothing planned in the next three months."}}</p>
+    {{end}}
+    <p class="home-week-links"><a href="/calendar">{{template "icon-calendar"}} {{t "Full calendar"}}</a><a href="/calendar/subscribe">{{t "Subscribe"}}</a></p>
+  </section>
+  {{end}}
+  </div>
+
   {{/* Aujourd'hui (today.go): one card a role, the most time-critical
        first, each one tap to the task. */}}
   {{if .Today}}
   <section class="today-cards" aria-label="{{t "Today"}}">
   {{range .Today}}
-    <article class="today-card kind-{{.Kind}}" style="{{with .Header}}--today-bg: {{.}};{{end}}{{with .Accent}}--today-accent: {{.}};{{end}}">
+    <article class="today-card kind-{{.Kind}}" style="{{with .Header}}--today-bg: {{.}};{{end}}{{with .HeaderFg}}--today-fg: {{.}};{{end}}{{with .Accent}}--today-accent: {{.}};{{end}}">
       <p class="today-eyebrow">{{.Eyebrow}}</p>
       <h2 class="today-title"><a href="{{.Link}}">{{.Title}}</a></h2>
       {{with .Meta}}<p class="today-meta">{{.}}</p>{{end}}
@@ -47,36 +107,26 @@
   </section>
   {{end}}
 
-  {{/* Home, in the order that matters when you open the app: what's
-       coming up in all your bands and communities (the month itself is
-       on /calendar, and in your own calendar app by subscribing), what
-       needs you, then your communities, bands and songbooks, each card
-       in that group's own look. */}}
-  <section class="home-section home-upcoming" aria-labelledby="upcoming-title">
-    <div class="home-section-head">
-      <h3 id="upcoming-title">{{t "Coming up"}}</h3>
-      <span class="home-head-links"><a href="/calendar">{{template "icon-calendar"}} {{t "Full calendar"}}</a><a href="/calendar/subscribe">{{t "Subscribe"}}</a></span>
-    </div>
-    {{if .Upcoming}}
-    <ol class="upcoming-list">
-    {{range $i, $e := .Upcoming}}
-      <li class="upcoming-row kind-{{.Kind}}{{if eq $i 0}} is-next{{end}}">
-        <div class="coming-up-date"><span class="month">{{date .Starts "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
-        <div class="upcoming-text">
-          <a class="upcoming-title" href="{{.Link}}">{{.Title}}</a>
-          <div class="upcoming-meta"><span class="upcoming-kind">{{t .KindLabel}}</span> &middot; {{if or (eq .When "Today") (eq .When "Tomorrow")}}{{t .When}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}}{{with .GroupName}} &middot; {{.}}{{end}}{{with .Place}} &middot; {{.}}{{end}}</div>
+  {{if .Groups}}
+  <section class="home-section" aria-labelledby="groups-title">
+    <div class="home-section-head"><h3 id="groups-title">{{t "Bands and communities"}}</h3><span class="home-head-links"><a href="/bands">{{t "All bands"}}</a><a href="/communities">{{t "All communities"}}</a></span></div>
+    <ul class="group-cards">
+    {{range .Groups}}
+      <li class="group-card kind-{{.Kind}}">
+        <div class="home-pic group-pic {{if .Logo}}has-logo{{else if .Mosaic}}{{.MosaicClass}}{{else}}has-mark{{end}}" style="{{with .TileBg}}--tile-bg: {{.}};{{end}}{{with .TileFg}}--tile-fg: {{.}};{{end}}" aria-hidden="true">
+          {{if .Logo}}<img src="{{.Logo}}" alt="" loading="lazy">{{else if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{.Mark}}</span>{{end}}
         </div>
-        <div class="upcoming-actions">
-          {{if eq .LessonMode "online"}}<a class="chip-link primary" href="{{.Link}}">{{t "Join"}}</a>{{end}}
-          {{if .SetlistLink}}<a class="chip-link{{if eq $i 0}} primary{{end}}" href="{{.SetlistLink}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
+        <div class="group-card-text">
+          <h4><a class="group-card-link" href="{{.Link}}">{{.Name}}</a></h4>
+          <p class="group-card-kind">{{t .KindLabel}}{{with .Tagline}} · {{.}}{{end}}</p>
+          <p class="group-card-facts">{{tn .Songs "%d song" "%d songs"}} · {{tn .Members "%d member" "%d members"}}</p>
+          {{with .Next}}<p class="group-card-next">{{t "Next:"}} {{date .Starts "Mon 2 Jan"}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}} · {{.Title}}</p>{{end}}
         </div>
       </li>
     {{end}}
-    </ol>
-    {{else}}
-    <p class="home-empty">{{t "Nothing planned in the next three months."}} <a href="/calendar">{{t "Open the calendar"}}</a></p>
-    {{end}}
+    </ul>
   </section>
+  {{end}}
 
   {{/* Open band votes and unread notifications, merged; the section
        only shows when there's something in it. */}}
@@ -103,58 +153,8 @@
   </section>
   {{end}}
 
-  {{if or .Bands .Communities}}
-  {{if .Communities}}
-  <section class="home-section" aria-labelledby="communities-title">
-    <div class="home-section-head"><h3 id="communities-title">{{t "Your communities"}}</h3><a href="/communities">{{t "All communities"}} &rarr;</a></div>
-    <div class="home-cards">
-    {{range .Communities}}{{$c := .Community}}
-      <a class="home-card" href="/communities/{{$c.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent2}}--card-tag: {{.}};{{end}}">
-        <div class="home-card-head">
-          <span class="home-card-mark" aria-hidden="true">{{if .Look.Logo}}<img src="{{.Look.Logo}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-community"}}{{end}}</span>
-          <span class="home-card-name"><b>{{$c.Name}}</b>{{with .Look.Tagline}}<span class="home-card-tag">{{.}}</span>{{end}}</span>
-        </div>
-        <ul class="home-card-facts">
-          {{if $c.HasNextEvent}}<li>{{t "Next:"}} <b>{{$c.NextEventName}}</b>, {{date $c.NextEventDate "Mon 2 Jan"}}</li>{{end}}
-          <li>{{tn $c.SongCount "%d song" "%d songs"}} &middot; {{tn $c.MemberCount "%d member" "%d members"}}</li>
-        </ul>
-      </a>
-    {{end}}
-    </div>
-  </section>
-  {{end}}
-
-  {{if .Bands}}
-  <section class="home-section" aria-labelledby="bands-title">
-    <div class="home-section-head"><h3 id="bands-title">{{t "Your bands"}}</h3><a href="/bands">{{t "All bands"}} &rarr;</a></div>
-    <div class="home-cards home-cards-small">
-    {{range .Bands}}{{$b := .Band}}
-      <a class="home-card home-card-band" href="/bands/{{$b.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent}}--card-tag: {{.}};{{end}}">
-        <span class="home-card-mark" aria-hidden="true">{{if .Look.Logo}}<img src="{{.Look.Logo}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-bands"}}{{end}}</span>
-        <span class="home-card-name"><b>{{$b.Name}}</b>
-          <span class="home-card-line">{{if $b.HasNextGig}}{{t "Gig"}} {{date $b.NextGigDate "Mon 2 Jan"}}{{with $b.NextGigVenue}} &middot; {{.}}{{end}}{{else if $b.Digest}}{{$b.Digest}}{{else}}{{tn $b.Members "%d member" "%d members"}}{{end}}</span>
-        </span>
-      </a>
-    {{end}}
-    </div>
-  </section>
-  {{end}}
-
-  <section class="home-section" aria-labelledby="songbooks-title">
-    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/catalog?view=songbooks">{{t "All songbooks"}} &rarr;</a></div>
-    {{if .Recent}}
-    <div class="home-recent"><span class="home-recent-label">{{t "Recently played"}}</span>
-    {{range .Recent}}<a class="chip-link" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">{{.Title}}</a>{{end}}
-    </div>
-    {{end}}
-    {{if .Songbooks}}
-    <ul class="home-songbooks">
-    {{range .Songbooks}}<li><a href="/songbooks/{{.ID}}">{{.Name}}</a><span>{{tn .SongCount "%d song" "%d songs"}}</span></li>{{end}}
-    </ul>
-    {{end}}
-  </section>
-  {{else}}
-  {{/* Nobody to play with yet: the way in, instead of empty sections. */}}
+  {{if not .Groups}}
+  {{/* Nobody to play with yet: the way in. */}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Get started"}}</h3></div>
     <div class="attention-list">

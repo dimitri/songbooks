@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/brand"
 	"app/internal/i18n"
 	"app/internal/instruments"
 	"app/internal/store"
@@ -45,8 +46,9 @@ type todayCard struct {
 	RegisterEventID int64
 	Plays           []string
 	AsksPlays       bool
-	// The band's or community's own colours.
-	Header, Accent string
+	// The band's or community's own colours, and the text colour that
+	// reads on its header.
+	Header, HeaderFg, Accent string
 }
 
 // Percent is the practice's progress bar, in %.
@@ -182,14 +184,26 @@ func (s *Server) todayCards(ctx context.Context, lang string, person *store.Pers
 
 // todayLook colours a card in its band's or community's look.
 func (s *Server) todayLook(ctx context.Context, c *todayCard, kind string, id int64) {
-	look, _, err := s.store.GetBrand(ctx, kind, id)
+	b, name, err := s.store.GetBrand(ctx, kind, id)
 	if err != nil {
 		return
 	}
-	c.Header = look.Header
+	// The preset's colours under the brand's own (a brand that only
+	// names a preset has its header there), and the text in the colour
+	// that reads on that header, light or dark.
+	look := brand.Resolve(b, name)
+	if look == nil {
+		return
+	}
+	c.Header, c.HeaderFg = look.Header, look.HeaderFg()
 	c.Accent = look.Accent2
 	if c.Accent == "" {
 		c.Accent = look.Accent
+	}
+	if c.Header != "" && c.HeaderFg != "#ffffff" {
+		// A light header: the eyebrow in the text's own colour, as an
+		// accent made for a dark card wouldn't read on it.
+		c.Accent = c.HeaderFg
 	}
 }
 
