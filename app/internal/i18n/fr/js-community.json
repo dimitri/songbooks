@@ -121,5 +121,7 @@
   "%d requests": "%d demandes",
   "Couldn’t save the assessment.": "Impossible d’enregistrer l’évaluation.",
   "Couldn’t share the note.": "Impossible de partager la note.",
-  "Share this note with %s? They will read it, and it can’t be made private again.": "Partager cette note avec %s ? Cette personne la lira, et elle ne pourra plus redevenir privée."
+  "Share this note with %s? They will read it, and it can’t be made private again.": "Partager cette note avec %s ? Cette personne la lira, et elle ne pourra plus redevenir privée.",
+  "the song’s melody (from its recording), in this key": "la mélodie du morceau (d’après son enregistrement), dans cette tonalité",
+  "melody range not known yet": "étendue de la mélodie pas encore connue"
 }

@@ -1903,6 +1903,10 @@
                   <button type="button" class="audio-pill-btn" id="audio-sing-original">{{t "Original key"}}</button>
                 </div>
                 <p class="hint">{{t "Beyond 3 semitones up or down, a voice starts to sound processed."}}</p>
+                {{/* The student's range with the song's melody over it, in
+                     the key being tried (voice-strip.js): the student's own,
+                     or the student the coach picked. */}}
+                <div class="voice-strip" id="audio-voice-strip" hidden></div>
                 <section class="sp-students audio-key-coach" id="audio-key-coach" hidden aria-labelledby="sp-students-title">
                   {{if .CoachStudentKeys}}
                   <div class="audio-pop-head"><h4 id="sp-students-title">{{t "Students"}}</h4><span class="hint">{{t "pick one: the key goes to theirs; saved, the song opens in it for them"}}</span></div>
@@ -2388,6 +2392,7 @@
 <script src="/static/js/sync-sheet.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+{{if .SingPanel}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/tuner.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-controls.js?v={{staticVersion}}"></script>
 {{/* Stage mode on every song, not only those with a score (it used to

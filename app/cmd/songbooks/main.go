@@ -197,6 +197,9 @@ func main() {
 		log.Printf("live lessons on %s", httpapi.Galene.URL)
 	}
 
+	// Each recording's melody range, from its vocals part, in the
+	// background (docs/coaching.md).
+	go httpapi.RunMelodyRanges(context.Background(), st)
 	log.Printf("songbooks serving %s on http://%s", redactURL(*dbURL), *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
 }

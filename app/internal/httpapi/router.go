@@ -468,6 +468,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/add", s.requireCommunityMember(s.handlePostSongRequestAdd))
 	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/decline", s.requireCommunityMember(s.handlePostSongRequestDecline))
 	mux.HandleFunc("GET /api/songs/{id}/coach-keys", s.requireAuth(s.handleGetCoachKeys))
+	// A student's range with the song's melody over it, where a key is chosen (voice_strip.go).
+	mux.HandleFunc("GET /api/songs/{id}/voice-strip", s.requireAuth(s.handleGetVoiceStrip))
 	mux.HandleFunc("POST /api/songs/{id}/coach-keys", s.requireAuth(s.handlePostCoachKey))
 	mux.HandleFunc("PUT /api/songs/{id}/parts", s.requireVariantRole("viewer", s.handlePutPlayerParts))
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/songs/{variantID}", s.requireCommunityMember(s.handleDeleteCoachingSong))

@@ -85,6 +85,42 @@ coaches of pop singers keep no fixed label (see below).
 - **The coach's cards** (the Songbooks tab) show the range and the
   comfortable zone, then the working label.
 
+### The song's melody over the student's range
+
+Where a key is chosen for a student, the student's range is drawn as on
+their page (C2 to C7: chest, mix, head, the comfortable zone striped),
+and the song's melody over it as a frame, **at the key being tried**: it
+slides as − / + is pressed. Information, not advice: no verdict, no
+number, only the caption *the song's melody (from its recording), in this
+key*. Nothing when the melody isn't known (the coach's pickers say
+*melody range not known yet*). Where:
+
+- the song page's *Voice & key* panel (a coaching community with its key
+  per student on): the student the coach picked, or the student's own;
+- the coach's *Add to…* (a student picked) and the requests' key
+  pickers, on the Songbooks tab.
+
+`GET /api/songs/{id}/voice-strip?community=C[&person=P]`
+(voice_strip.go, voice-strip.js): without `person`, the viewer's own
+(a student; the student a site admin looks as); with it, the coach's
+only; the song must be the community's. The melody's place in each key
+from −12 to +12 comes with it.
+
+**The melody range** is found from the recording's vocals part
+(audioanalysis.MelodyRangeOf: the voice tracked note by note with YIN,
+only notes held about 0.14 s or more, from the 5th to the 95th percentile
+of their pitches, so an octave slip, a shout or a backing voice's stray
+note don't move it; at least 8 s of steady singing, else none). The app
+finds it in the background (melody_ranges.go, started by cmd/songbooks),
+one vocals part at a time, newest first, never while a page waits, and
+keeps it (`song_melody_ranges`, migration 0112): once per split; a new
+split (a new vocals part) or a new analyzer finds it again; a part that
+can't be read is kept as "no range" until it's split again. A song's
+range is its reference recording's (YouTube), else its band recording's,
+else a Guitar Pro backing's (rarely sung): the recordings the player
+offers. It's the recording's own key, the one the key's semitones move.
+About half a second per recording (Apple M-series, a 3–4 minute part).
+
 ### What the types mean
 
 Classical singing names six or seven types (opera; choirs use the four
