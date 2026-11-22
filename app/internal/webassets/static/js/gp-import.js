@@ -215,7 +215,9 @@
       fileSourceNote.hidden = false;
       fileSourceNote.innerHTML = `${escapeHTML(t('From GProTab.net:'))} <a href="${escapeHTML(c.URL)}" target="_blank" rel="noopener">${escapeHTML(c.Title)} — ${escapeHTML(c.Artist)}</a>`;
       goToStep('file');
-      await loadFile({ name: filename, arrayBuffer: async () => buf });
+      // A real File, as from the file picker: the import step uploads it
+      // (FormData.append wants a Blob).
+      await loadFile(new File([buf], filename, { type: res.headers.get('Content-Type') || 'application/octet-stream' }));
     } catch (e) {
       setStatus(t('Couldn’t download that file. Try another result, or choose a file from your computer.'), 'err');
     }
