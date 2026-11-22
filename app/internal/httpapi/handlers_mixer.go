@@ -83,6 +83,7 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 		"tempo": tempo, "timeNum": timeNum, "timeDen": timeDen, "key": sg.Get("key"),
 		"totalBars": totalBars, "sections": outSections, "tracks": []mixerTrackJSON{},
 		"pickupBeats": pickup,
+		"leadIn":      songLeadIn(sections),
 		"notation":    s.notationPrefsFor(r),
 	}
 	if gp.Meta != nil {
@@ -370,6 +371,17 @@ func wholeSongTracks(sections []viewerSection, riffs map[int][]tab.NamedRiff, nu
 		out = append(out, tab.NamedRiff{Name: k.name, Riff: &tab.Riff{Tuning: f.Tuning, MinimumFret: f.MinimumFret, Drums: k.drums, Bars: bars}})
 	}
 	return out
+}
+
+// songLeadIn is how many bars the song plays before its bar 1: its
+// opening section's "lead:" bars (viewerSection.LeadIn).
+func songLeadIn(sections []viewerSection) int {
+	for _, sec := range sections {
+		if len(sec.Measures) > 0 {
+			return sec.LeadIn()
+		}
+	}
+	return 0
 }
 
 // labelUnescaper mirrors the "label" template func (webassets.unescapeTypst):
