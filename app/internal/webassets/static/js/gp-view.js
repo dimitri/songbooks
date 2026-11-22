@@ -338,44 +338,113 @@
     await synthesize(P);
   }
   async function synthesize(P) {
-    const api = full.api, score = full.score;
+    const score = full.score;
     P.synthProgress(t('Preparing the sound…'));
     try {
-      const sf = await fetch(SOUNDFONT).then((r) => { if (!r.ok) throw new Error('soundfont'); return r.arrayBuffer(); });
-      const opts = new alphaTab.synth.AudioExportOptions();
-      opts.soundFonts = [new Uint8Array(sf)];
-      opts.sampleRate = 44100;
-      opts.useSyncPoints = false;
-      opts.metronomeVolume = 0;
-      opts.masterVolume = 1;
-      const exporter = await api.exportAudio(opts);
-      const chunks = [];
-      let n = 0;
-      try {
-        for (;;) {
-          const c = await exporter.render(4000);
-          if (!c) break;
-          chunks.push(c.samples);
-          n += c.samples.length;
-          if (c.endTime > 0) P.synthProgress(t('Preparing the sound… %d%', Math.min(99, Math.round((100 * c.currentTime) / c.endTime))));
-        }
-      } finally {
-        exporter.destroy();
-      }
-      if (!n) throw new Error('no sound');
+      const bytes = await renderWav((pct) => P.synthProgress(t('Preparing the sound… %d%', pct)));
       const beats = full.played.map((mb) => mb.masterBar.timeSignatureNumerator || 4);
       P.offerSynth({
-        bytes: wav(chunks, n, 44100), type: 'audio/wav',
+        bytes, type: 'audio/wav',
         barTimes: full.barMs.map((ms) => ms / 1000), beats,
         sections: fileSections(), bpm: score.tempo || 0,
         keep: mixMode(),
       });
+      full.synthDone = true;
+      // The score sounds: its instruments can be chosen.
+      if (full.soundBox) full.soundBox.hidden = false;
       if (mixMode() && sheet.dataset.renderMode === 'score') P.useSynth();
     } catch (e) {
       P.synthFailed(t('Couldn’t prepare the sound of this file.'));
       if (full.mix) full.mix.off(t('Couldn’t prepare the sound of this file.'), true);
     }
+    if (full.again) resynthesize();
   }
+  // The file through the synthesizer, as a WAV; progress(percent) as it goes.
+  async function renderWav(progress) {
+    const sf = await fetch(SOUNDFONT).then((r) => { if (!r.ok) throw new Error('soundfont'); return r.arrayBuffer(); });
+    const opts = new alphaTab.synth.AudioExportOptions();
+    opts.soundFonts = [new Uint8Array(sf)];
+    opts.sampleRate = 44100;
+    opts.useSyncPoints = false;
+    opts.metronomeVolume = 0;
+    opts.masterVolume = 1;
+    const exporter = await full.api.exportAudio(opts);
+    const chunks = [];
+    let n = 0;
+    try {
+      for (;;) {
+        const c = await exporter.render(4000);
+        if (!c) break;
+        chunks.push(c.samples);
+        n += c.samples.length;
+        if (c.endTime > 0 && progress) progress(Math.min(99, Math.round((100 * c.currentTime) / c.endTime)));
+      }
+    } finally {
+      exporter.destroy();
+    }
+    if (!n) throw new Error('no sound');
+    return wav(chunks, n, 44100);
+  }
+
+  // ---- The instruments ------------------------------------------------------
+  // What each track plays with (gp-instruments.js): the file's program,
+  // the song's choice (its editors') or this person's. A new choice
+  // renders the sound again and the dock carries on with it, where it was.
+  function resynthesize() {
+    const P = window.songbooksPlayer;
+    if (!P || !P.replaceSynth) return;
+    // Still preparing the first sound, or the last choice's: again after it.
+    if (full.rendering || (full.synthStarted && !full.synthDone)) { full.again = true; return; }
+    full.again = false;
+    if (!full.synthDone) return;
+    const status = page.querySelector('.gp-sound-status');
+    const say = (msg) => { if (status) status.textContent = msg; };
+    say(t('Preparing the sound…'));
+    full.rendering = renderWav((pct) => say(t('Preparing the sound… %d%', pct)))
+      .then((bytes) => { P.replaceSynth(bytes); say(''); })
+      .catch(() => say(t('Couldn’t prepare the sound of this file.')))
+      .finally(() => { full.rendering = null; if (full.again) resynthesize(); });
+  }
+  function setUpInstruments() {
+    const box = page.querySelector('.gp-sound');
+    const GI = window.GPInstruments;
+    if (!box || !GI) return;
+    const list = box.querySelector('.gp-sound-tracks');
+    const tracks = full.score.tracks.map((tr, i) => ({ tr, i })).filter(({ tr }) => !GI.isDrums(tr));
+    if (!tracks.length) return;
+    const status = box.querySelector('.gp-sound-status');
+    for (const { tr, i } of tracks) {
+      const row = el('label', 'gp-sound-track');
+      row.appendChild(el('span', 'gp-sound-name', tr.name || t('Track %d', i + 1)));
+      row.appendChild(GI.pickerFor(variantId, i, { onError: (e) => { status.textContent = e.message; } }));
+      list.appendChild(row);
+    }
+    full.soundBox = box;
+    if (full.synthDone) box.hidden = false;
+    document.addEventListener('songbooks:gp-instrument', (e) => {
+      if (e.detail.variantId !== String(variantId) || !full) return;
+      if (GI.apply(variantId, full.score)) resynthesize();
+    });
+    // An editor can write the choice into the file: a new version of it.
+    box.querySelector('.gp-sound-save')?.addEventListener('click', async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true;
+      status.textContent = t('Saving…');
+      try {
+        const raw = await loadScore(true);
+        GI.knowFile(variantId, raw);
+        GI.apply(variantId, raw);
+        await saveScore(raw);
+        await GI.savedInFile(variantId, raw);
+        status.textContent = t('Saved in the file: a new version of it (History).');
+      } catch (err) {
+        status.textContent = err.message || t('Saving failed');
+      } finally {
+        b.disabled = false;
+      }
+    });
+  }
+
   // The file's own sections (its markers), as played, for a song whose
   // chart counts its bars otherwise.
   function fileSections() {
@@ -500,6 +569,8 @@
     // none (timed by its sync points, read before they go).
     const own = mixMode() && score.backingTrack && score.backingTrack.rawAudioFile
       ? { bytes: score.backingTrack.rawAudioFile, times: fileBarTimes(score) } : null;
+    // The instruments chosen for this song (gp-instruments.js).
+    if (window.GPInstruments) GPInstruments.apply(variantId, score);
     // alphaTab's clock is the synthesizer's: no backing track, no sync points.
     score.backingTrack = null;
     for (const mb of score.masterBars) mb.syncPoints = undefined;
@@ -602,6 +673,7 @@
       }, 150);
     });
     if (mixMode()) full.mix = setUpMix(own);
+    setUpInstruments();
     renderFull(true);
     startFollowing();
   }

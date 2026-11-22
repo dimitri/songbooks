@@ -2252,6 +2252,40 @@ body:has(#sheet[data-render-mode="score"]:not([data-gp-only])) #audio-category-t
   .gp-tool { padding: 0 0.6rem; }
   .gp-tool-select { padding-right: 0.25rem; }
 }
+/* The instruments the score plays with (gp-instruments.js): a tool of the
+   sheet bar opening a small panel, a track a row: its name, the list. */
+.gp-sound { position: relative; padding: 0; }
+.gp-sound[hidden] { display: none; }
+.gp-sound > summary { display: inline-flex; align-items: center; gap: 0.35rem; height: 100%; padding: 0 0.7rem; list-style: none; cursor: pointer; }
+.gp-sound > summary::-webkit-details-marker { display: none; }
+.gp-sound[open] { border-color: var(--accent); color: var(--fg); }
+.gp-sound-panel {
+  position: absolute; z-index: 30; top: calc(100% + 0.35rem); right: 0; width: min(22rem, calc(100vw - 2rem));
+  display: flex; flex-direction: column; gap: 0.55rem; padding: 0.75rem 0.8rem; white-space: normal;
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16); color: var(--fg); cursor: default;
+}
+.gp-sound-tracks { display: flex; flex-direction: column; gap: 0.45rem; }
+.gp-sound-track { display: grid; grid-template-columns: minmax(0, 7rem) minmax(0, 1fr); align-items: center; gap: 0.5rem; margin: 0; font-size: 0.85rem; }
+.gp-sound .gp-sound-track span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gp-sound-track select { width: 100%; min-height: 2.2rem; font-size: 0.85rem; }
+.gp-sound-track select[data-by="file"] { color: var(--fg-muted); }
+.gp-sound-who, .gp-sound-status { margin: 0; font-size: 0.78rem; line-height: 1.35; color: var(--fg-muted); }
+.gp-sound-status:empty { display: none; }
+.gp-sound-save { align-self: flex-start; min-height: 2rem; font-size: 0.82rem; }
+@media (max-width: 600px) {
+  /* A phone: the panel across the bar, under it, over the sheet. */
+  .gp-sheet-bar:has(.gp-sound) { position: relative; }
+  .gp-sound { position: static; }
+  .gp-sound > summary { padding: 0 0.6rem; }
+  .gp-sound-panel { left: 0; right: 0; width: auto; }
+}
+/* In the full Mixer, the instrument next to the notation picker. */
+.daw-hdr-picks select { flex: 1 1 0; min-width: 0; }
+.daw-hdr .daw-instrument { height: 20px; min-height: 0; padding: 0 4px; border-radius: 4px; margin: 0; }
+@media (max-width: 720px) {
+  .daw-hdr-body > .daw-hdr-picks { display: flex; grid-column: 1 / -1; gap: 8px; }
+  .daw-hdr .daw-hdr-picks :is(.daw-instrument, .daw-notation) { height: 34px; font-size: 14px; border-radius: 8px; }
+}
 
 .mixer-page { display: none; padding: 0.4rem 0 1rem; }
 #sheet[data-render-mode="mixer"] ~ .mixer-page { display: block; }

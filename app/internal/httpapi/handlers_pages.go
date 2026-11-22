@@ -2949,6 +2949,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["GPFileName"] = gp.Meta.Filename
 		data["GPFileSHA"] = gp.Meta.SHA256
 		data["GPFactsMissing"] = gp.Facts == nil
+		data["GPInstruments"] = string(gpTrackProgramsJSON(gp.Meta))
 		data["GPOnly"] = isGPOnly(sg)
 		data["HasGPView"] = isGPOnly(sg) || anyGPRef(sections)
 		if canEdit {

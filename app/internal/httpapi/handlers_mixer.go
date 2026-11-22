@@ -87,6 +87,7 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 	}
 	if gp.Meta != nil {
 		resp["hasGPFile"] = true
+		resp["gpInstruments"] = gpTrackProgramsJSON(gp.Meta)
 	}
 	// A song that points into its Guitar Pro file plays the file itself:
 	// gpOrder says which written bar of the file each performed bar is

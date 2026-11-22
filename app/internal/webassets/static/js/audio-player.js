@@ -2260,7 +2260,10 @@ window.songbooksDecodable = function (buf) {
   //                                          or to none (the view left);
   //   .source()                            'synth' or the recording's
   //                                          category;
-  //   .setLevel(v)                         the dock's level, 0..1.
+  //   .setLevel(v)                         the dock's level, 0..1;
+  //   .replaceSynth(bytes)                 the file's sound rendered again
+  //                                          (another instrument), played
+  //                                          on from the same place.
   let readyResolve;
   let beforeSynth = null; // the recording the Score view's file took over from
   const ready = new Promise((r) => { readyResolve = r; });
@@ -2354,6 +2357,21 @@ window.songbooksDecodable = function (buf) {
     },
     source: () => activeCategory,
     setLevel(v) { synthLevel = Math.max(0, Math.min(1, v)); if (activeCategory === 'synth') audio.volume = synthLevel; },
+    // The file's sound rendered again (another instrument, gp-view.js):
+    // the same bars, new bytes; playing on from where it was.
+    replaceSynth(bytes) {
+      if (!synth) return false;
+      synth.bytes = bytes;
+      if (activeCategory !== 'synth') return true;
+      const at = audio.currentTime, was = isPlaying();
+      audio.addEventListener('loadedmetadata', () => {
+        if (was) startAt(at); else try { audio.currentTime = at; } catch (e) { /* from the start */ }
+      }, { once: true });
+      pause();
+      audio.dataset.blobFor = '';
+      decodeWaveform();
+      return true;
+    },
     speed: () => prefs.speed,
     playing: () => isPlaying(),
     cycle: () => (prefs.cycle && prefs.cycle.on && hasBars() ? { from: prefs.cycle.from, to: prefs.cycle.to } : null),

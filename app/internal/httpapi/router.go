@@ -226,6 +226,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/audio/gp/sync-points", s.requireVariantRole("editor", s.handlePutGPBarSyncPoints))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/facts", s.requireVariantRole("viewer", s.handlePutSongGPFileFacts))
+	mux.HandleFunc("PUT /api/songs/{id}/gp-file/instruments", s.requireVariantRole("editor", s.handlePutSongGPFileInstruments))
 	mux.HandleFunc("PUT /api/songs/{id}/sections/{index}/gp", s.requireVariantRole("editor", s.handlePutSectionGP))
 	mux.HandleFunc("DELETE /api/songs/{id}/sections/{index}/gp", s.requireVariantRole("editor", s.handleDeleteSectionGP))
 	mux.HandleFunc("POST /api/songs/{id}/gp-check", s.requireVariantRole("editor", s.handlePostGPCheck))

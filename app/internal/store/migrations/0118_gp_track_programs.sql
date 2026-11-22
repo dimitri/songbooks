@@ -1,0 +1,13 @@
+-- The instrument each track of a song's Guitar Pro file plays with,
+-- chosen by the song's editors (gp-instruments.js): the file's own MIDI
+-- program is often not the one wanted (GProTab files often carry a
+-- nylon guitar or a piano for anything), and changing it shouldn't take
+-- a new version of the file. Everyone who plays the score hears it; a
+-- listener's own choice stays in their browser.
+--
+-- A JSON array of {track, name, program}: track is the file's track index
+-- (0-based), name the track's name when it was chosen (a replaced file
+-- whose track has another name keeps the file's program), program a
+-- General MIDI program 0..127. NULL or [] when nothing is chosen. It stays
+-- across a new version of the file, like the song's own settings.
+ALTER TABLE song_gp_source_file ADD COLUMN track_programs jsonb;

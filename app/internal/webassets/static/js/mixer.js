@@ -379,10 +379,16 @@
       tr.notation = notationOf(tr.instrument);
       const tt = window.t; // t is the track here
       const how = tr.instrument === 'bass' ? tt('how you read bass parts, on every song (just for you)') : tt('how you read guitar parts, on every song (just for you)');
-      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="${escapeHTML(tt('notation'))}" title="${escapeHTML(how)}">
+      const pick = t.drums ? '' : `<div class="daw-hdr-row daw-hdr-picks"><select class="daw-notation" aria-label="${escapeHTML(tt('notation'))}" title="${escapeHTML(how)}">
           <option value="tab">${escapeHTML(tt('Tab'))}</option><option value="staff">${escapeHTML(tt('notation|Staff'))}</option><option value="both">${escapeHTML(tt('Staff + tab'))}</option></select></div>`;
-      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, `${escapeHTML(tt(GM[t.program] || 'MIDI'))} · ${escapeHTML(tt('score (MIDI)'))}`, pick));
+      // A track of the song's Guitar Pro file: its instrument can be
+      // chosen here (gp-instruments.js); the picker shows it.
+      const choosable = !t.drums && t.fileTrack >= 0 && !!window.GPInstruments;
+      const sub = choosable ? escapeHTML(tt('score (MIDI)')) : `${escapeHTML(tt(GM[t.program] || 'MIDI'))} · ${escapeHTML(tt('score (MIDI)'))}`;
+      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, sub, pick));
       tr.hdr = row.hdr; tr.lane = row.lane;
+      tr.fileTrack = choosable ? t.fileTrack : -1;
+      if (choosable) row.hdr.querySelector('.daw-hdr-picks')?.appendChild(GPInstruments.pickerFor(variantId, t.fileTrack, { className: 'daw-instrument', onError: (e) => setStatus(e.message) }));
       tracks.push(tr);
       wireTrackHeader(tr);
       const sel = tr.hdr.querySelector('.daw-notation');
@@ -1008,8 +1014,16 @@
         const imp = new alphaTab.importer.AlphaTexImporter();
         imp.initFromString(data.alphaTex, settings);
         score = imp.readScore();
-        score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
+        // The file's instrument (applyGPInstruments): alphaTab plays the
+        // first beat's Instrument automation, which the alphaTeX wrote from
+        // the name's guess, so playbackInfo alone isn't heard.
+        score.tracks.forEach((st, i) => {
+          const p = data.tracks[i] && data.tracks[i].program;
+          if (!(p >= 0)) return;
+          if (window.GPInstruments) GPInstruments.setProgram(st, p); else st.playbackInfo.program = p;
+        });
       }
+      if (isPlayer) applyInstruments(score);
       setStaffNotation(score, tr);
       applyBarWidths(score, target);
       tr.renderedPx = target;
@@ -1027,13 +1041,36 @@
       api.postRenderFinished.on(() => fitNotation(tr));
       if (isPlayer) {
         playerApi = api;
-        api.playerReady.on(() => { synthReady = true; applyMix(); if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
+        api.playerReady.on(() => { synthReady = true; applyMix(); if (resumeAfterMidi) { resumeAfterMidi = false; play(); } if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
         api.playerStateChanged.on((e) => { synthPlaying = e.state === 1; });
         api.playerFinished.on(() => { if (!hasAudio()) pause(); });
       }
       api.renderScore(score, [tr.index]);
     }
   }
+
+  // ---- Instruments (gp-instruments.js) ------------------------------------
+  // The score plays each file track with the instrument chosen for the
+  // song (by its editors, or by this person); a new choice reloads the
+  // synthesizer's MIDI, playing on from where it was.
+  let resumeAfterMidi = false;
+  function applyInstruments(score) {
+    if (!window.GPInstruments) return false;
+    let changed = false;
+    (data.tracks || []).forEach((t, i) => {
+      if (t.drums || !(t.fileTrack >= 0) || !score.tracks[i]) return;
+      if (GPInstruments.setProgram(score.tracks[i], GPInstruments.programFor(variantId, t.fileTrack))) changed = true;
+    });
+    return changed;
+  }
+  document.addEventListener('songbooks:gp-instrument', (e) => {
+    if (e.detail.variantId !== String(variantId) || !playerApi || !playerApi.score) return;
+    if (!applyInstruments(playerApi.score)) return;
+    // With no recording the synthesizer is the clock: it stops to reload.
+    if (playing && !hasAudio()) { pause(); resumeAfterMidi = true; }
+    synthReady = false;
+    playerApi.loadMidiForScore();
+  });
 
   // Line the rendered staff up with the lane: bar 0's own x inside the
   // SVG goes to barTimes[0] on the timeline; crop to the staff system
@@ -1878,6 +1915,8 @@
     const res = await fetch(`/song/${variantId}/gp-file`);
     if (!res.ok) throw new Error(t('could not load the Guitar Pro file'));
     const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()), new alphaTab.Settings());
+    if (window.GPInstruments) GPInstruments.knowFile(variantId, file);
+    data.tracks.forEach((t, i) => { if (file.tracks[i]) t.fileTrack = i; });
     const obj = JSON.parse(alphaTab.model.JsonConverter.scoreToJson(file));
     const copy = (x) => JSON.parse(JSON.stringify(x));
     const order = data.gpOrder.map((n) => n - 1);
@@ -1952,10 +1991,14 @@
       const res = await fetch(`/song/${variantId}/gp-file`);
       if (!res.ok) return;
       const gp = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()));
+      if (window.GPInstruments) GPInstruments.knowFile(variantId, gp);
       const byName = new Map(gp.tracks.map((t) => [String(t.name).trim().toLowerCase(), t]));
       for (const t of data.tracks) {
         const g = byName.get(String(t.name).trim().toLowerCase());
-        if (g && !t.drums && !(g.staves[0] && g.staves[0].isPercussion)) t.program = g.playbackInfo.program;
+        if (g && !t.drums && !(g.staves[0] && g.staves[0].isPercussion)) {
+          t.program = g.playbackInfo.program;
+          t.fileTrack = gp.tracks.indexOf(g);
+        }
       }
     } catch (e) { /* keep the name-based guess */ }
   }
@@ -1968,6 +2011,7 @@
         fetch(`/api/songs/${variantId}/audio`).then((r) => (r.ok ? r.json() : { categories: [] })),
       ]);
       data = mx;
+      if (window.GPInstruments) GPInstruments.setStored(variantId, mx.gpInstruments);
       await Promise.all([applyGPInstruments(), loadGPScore(), loadPrefs()]);
       audioCats = {};
       (au.categories || []).forEach((c) => { audioCats[c.category] = c; });
@@ -2011,6 +2055,7 @@
     bar: barAt(position), synthBar: playerApi && synthReady ? barAtTick(playerApi.tickPosition) : null,
     synthPlaying, synthSpeed: playerApi ? playerApi.playbackSpeed : null,
     semitones, keyRouted: !!(keyGraph && keyGraph.routed), keyCtx: keyGraph ? keyGraph.ctx.state : null,
+    synthReady, programs: playerApi && playerApi.score ? playerApi.score.tracks.map((x) => x.playbackInfo.program) : null,
   });
   // Dry run of auto-align for debugging: the analysis without applying it.
   page.mixerAnalyze = () => (analysis && window.SongbooksAutoAlign ? window.SongbooksAutoAlign.analyze(analysis, songForAlign()) : null);
