@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 
 	"app/internal/song"
 	"app/internal/store"
@@ -129,7 +130,14 @@ func (s *Server) handlePutMeta(w http.ResponseWriter, r *http.Request) {
 		writeSaveErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+	out := map[string]string{"version": newVersion}
+	// A new reference: its video's or page's title, at once (a few
+	// seconds at most, reftitle.Timeout), for the header and the
+	// Reference view.
+	if req.Key == "reference" && strings.TrimSpace(req.Value) != "" {
+		out["referenceTitle"] = s.fetchRefTitle(r.Context(), id, req.Value)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func writeSaveErr(w http.ResponseWriter, err error) {

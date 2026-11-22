@@ -1702,6 +1702,9 @@ const ICONS = {
     const headBtn = document.getElementById('topbar-ref-btn');
     const headName = document.getElementById('topbar-ref-name');
     let hasBand = head?.dataset.kind === 'band';
+    // The video's or page's title, fetched by the server when the link is
+    // saved (handlePutMeta's referenceTitle, reference_title.go).
+    let refTitle = headName?.dataset.title || '';
     function refSiteName(url) {
       try {
         const host = new URL(url).hostname.toLowerCase().replace(/^(www|m)\./, '');
@@ -1718,7 +1721,10 @@ const ICONS = {
       const label = kind ? headBtn.dataset.openLabel : headBtn.dataset.addLabel;
       headBtn.title = label;
       headBtn.setAttribute('aria-label', label);
-      if (headName) headName.textContent = kind === 'band' ? (head.dataset.bandLabel || '') : url ? refSiteName(url.trim()) : '';
+      if (headName) {
+        headName.textContent = kind === 'band' ? (head.dataset.bandLabel || '') : url ? (refTitle || refSiteName(url.trim())) : '';
+        if (refTitle && kind !== 'band') headName.title = refTitle; else headName.removeAttribute('title');
+      }
       const thumb = head.querySelector('.topbar-ref-thumb');
       let img = thumb.querySelector('img');
       if (kind !== 'youtube') { img?.remove(); return; }
@@ -1757,9 +1763,12 @@ const ICONS = {
         if (res.status === 403) throw new Error(t("You can't change this song's reference video."));
         if (res.status === 409) throw new Error(t('This song changed since you opened it. Reload the page, then save the link again.'));
         if (!res.ok) throw new Error(t("Couldn't save the link. Try again."));
+        const saved = await res.json().catch(() => ({}));
+        refTitle = (url && saved.referenceTitle) || '';
         block.dataset.url = url;
         linkEl.href = url;
         linkEl.hidden = !url;
+        linkEl.textContent = (refTitle || linkEl.dataset.defaultLabel || '') + ' \u2197';
         const label = url ? t('Change the reference video') : t('Add a reference video');
         editBtn.title = label;
         editBtn.setAttribute('aria-label', label);

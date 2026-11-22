@@ -1005,17 +1005,23 @@ a.topbar-cell:hover { border-color: var(--border-strong); text-decoration: none;
 .topbar-ref { display: flex; min-width: 0; }
 .topbar-ref[hidden] { display: none; }
 .topbar-ref-btn {
-  display: flex; align-items: center; gap: 0.6rem; min-width: 0; max-width: 15rem; min-height: 0;
+  display: flex; align-items: center; gap: 0.6rem; min-width: 0; max-width: 17rem; min-height: 0;
   padding: 0.3rem 0.75rem 0.3rem 0.3rem; border: 1px solid var(--border); border-radius: 10px;
   background: var(--bg-raised); color: var(--fg); font: inherit; line-height: 1.25; text-align: left; cursor: pointer;
 }
 .topbar-ref-btn:hover:not(:disabled) { border-color: var(--border-strong); }
 .topbar-ref-btn .icon { margin-right: 0; }
 .topbar-ref-thumb, .topbar-ref-icon { display: none; }
+/* The thumbnail square, no rounded corners. */
 .topbar-ref-thumb, .topbar-ref-icon {
   position: relative; flex: none; width: 96px; aspect-ratio: 16 / 9; overflow: hidden;
-  border-radius: 6px; background: var(--bg-sunken);
+  border-radius: 0; background: var(--bg-sunken);
 }
+/* A brand's pill-shaped buttons would round the square thumbnail off. */
+body.branded .topbar-ref-btn { border-radius: min(var(--radius-control, 8px), 10px); }
+/* The Reference view's link, named by its video's title: one line. */
+#reference-link { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+#reference-link[hidden] { display: none; }
 .topbar-ref-icon { align-items: center; justify-content: center; color: var(--fg-muted); }
 .topbar-ref-icon .icon { width: 1.3rem; height: 1.3rem; }
 .topbar-ref[data-kind="youtube"] .topbar-ref-thumb { display: block; }
