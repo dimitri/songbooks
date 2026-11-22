@@ -217,7 +217,7 @@
       results.appendChild(li);
     }
   }
-  async function addSong(song, btn) {
+  async function addSong(song, btn, variantId = song.variantId) {
     Forms.busy(btn, true);
     const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
     const data = res && res.ok ? await res.json() : null;
@@ -225,12 +225,21 @@
       const sets = data.setlist.sets || (data.setlist.sets = []);
       if (!sets.length) sets.push({label: 'Set 1', entries: []});
       const last = sets[sets.length - 1];
-      (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: song.variantId, note: ''});
+      (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: variantId, note: ''});
       const put = await fetch(`/api/setlists/${setlistID}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
       }).catch(() => null);
       if (put && put.ok) { location.reload(); return; }
+      // A band's set list: another band's song is never taken; its
+      // catalogue version, if asked.
+      if (put && put.status === 409) {
+        const r = await Forms.bandRefusal(put);
+        if (r.retryId) return addSong(song, btn, r.retryId);
+        Forms.busy(btn, false);
+        if (r.message) Forms.status(addForm, r.message, 'error');
+        return;
+      }
     }
     Forms.busy(btn, false);
     Forms.status(addForm, t('Couldn’t add “%s”. Try again.', song.title), 'error');

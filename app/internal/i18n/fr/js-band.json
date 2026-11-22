@@ -108,5 +108,6 @@
   "reject failed": "échec du refus",
   "this song": "ce morceau",
   "vote failed": "échec du vote",
-  "“%s”": "« %s »"
+  "“%s”": "« %s »",
+  "Not added.": "Pas ajouté."
 }

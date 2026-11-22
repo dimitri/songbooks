@@ -409,7 +409,7 @@ func (s *Server) handleAddSongbookEntry(w http.ResponseWriter, r *http.Request) 
 	// every member then changes for the band.
 	if sb, err := s.store.GetSongbook(r.Context(), id); err == nil && sb.OwnerKind == "band" && sb.OwnerBandID != 0 {
 		variantID, err = s.adoptIntoBand(r.Context(), sb.OwnerBandID, req.VariantID, p)
-		if !writeAdoptErr(w, err) {
+		if !s.writeAdoptErr(w, r, err) {
 			return
 		}
 	}

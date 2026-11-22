@@ -3161,6 +3161,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 // catalogue song only (opened from home or a search, say) — a person's own
 // song opened from their own songbook is theirs to edit.
 func (s *Server) bandEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant) *store.BandHold {
+	// Another band's song is never offered as this band's (a band doesn't
+	// take another band's song): it's that band's, edited by its members.
+	if variant.Visibility == "band" {
+		return nil
+	}
 	holds, err := s.store.BandsHolding(r.Context(), personID, variant.VariantID)
 	if err != nil || len(holds) == 0 {
 		return nil

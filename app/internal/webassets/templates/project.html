@@ -73,7 +73,7 @@
   </section>
 </main>
 
-<dialog id="song-wizard" data-songbook-id="{{.Songbook.ID}}" aria-labelledby="song-wizard-title">
+<dialog id="song-wizard" data-songbook-id="{{.Songbook.ID}}"{{if eq .Songbook.OwnerKind "band"}} data-band-id="{{.Songbook.OwnerBandID}}"{{end}} aria-labelledby="song-wizard-title">
   {{/* One <form> around every step: Enter in a field moves to the next
        step (or creates the song on the last), see project.js. novalidate:
        project.js checks only the step on screen (Forms.validate), since a

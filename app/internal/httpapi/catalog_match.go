@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -50,7 +51,9 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	for i, m := range matches {
 		ids[i] = m.VariantID
 	}
-	versions, err := s.store.BandVersionsOfCatalogSongs(r.Context(), person.ID, ids)
+	// ?band=N: a band's add dialog — its own version, never another band's.
+	onlyBand, _ := strconv.ParseInt(r.URL.Query().Get("band"), 10, 64)
+	versions, err := s.store.BandVersionsOfCatalogSongsFor(r.Context(), person.ID, ids, onlyBand)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

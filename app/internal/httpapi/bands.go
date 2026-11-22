@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/store"
 	"app/internal/webassets"
 )
@@ -898,7 +899,7 @@ func (s *Server) handleAddBandCatalogEntry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	newID, err := s.adoptIntoBand(r.Context(), bandID, req.VariantID, personFromContext(r))
-	if !writeAdoptErr(w, err) {
+	if !s.writeAdoptErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"added": true, "variantId": newID})
@@ -934,7 +935,7 @@ func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	newID, err := s.adoptIntoBand(r.Context(), bandID, variantID, personFromContext(r))
-	if !writeAdoptErr(w, err) {
+	if !s.writeAdoptErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
@@ -963,11 +964,26 @@ func (s *Server) adoptIntoBand(ctx context.Context, bandID, variantID int64, act
 }
 
 // writeAdoptErr answers adoptIntoBand's error, if any, and says whether
-// there was none.
-func writeAdoptErr(w http.ResponseWriter, err error) bool {
+// there was none. Another band's song is a 409 that says whose it is, and
+// offers the catalogue's version of the work when there is one
+// (catalogVariantId, question): a band never takes another band's song —
+// an original band's songs stay theirs; covers come from the catalogue.
+func (s *Server) writeAdoptErr(w http.ResponseWriter, r *http.Request, err error) bool {
+	var other *store.OtherBandSongError
 	switch {
 	case err == nil:
 		return true
+	case errors.As(err, &other):
+		lang := s.langOfRequest(r)
+		out := map[string]any{"error": "another band's song", "band": other.BandName}
+		if other.CatalogVariantID != 0 {
+			out["catalogVariantId"] = other.CatalogVariantID
+			out["message"] = i18n.T(lang, "This is %s’s song: a band doesn’t take another band’s song.", other.BandName)
+			out["question"] = i18n.T(lang, "This is %s’s song. Add the catalogue’s version instead?", other.BandName)
+		} else {
+			out["message"] = i18n.T(lang, "This is %s’s own song: %s’s originals stay theirs, and can’t be added to another band.", other.BandName, other.BandName)
+		}
+		writeJSON(w, http.StatusConflict, out)
 	case errors.Is(err, store.ErrNotFound):
 		httpError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, store.ErrForbidden):

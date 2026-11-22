@@ -460,6 +460,24 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A band's set list never takes another band's song (refused before
+	// anything is saved, with the catalogue's version offered when there
+	// is one — writeAdoptErr).
+	if meta.Scope == "band" && meta.OwnerBandID != nil {
+		had := map[int64]bool{}
+		for _, v := range store.SetlistVariantIDs(before) {
+			had[v] = true
+		}
+		for _, v := range store.SetlistVariantIDs(l) {
+			if had[v] {
+				continue
+			}
+			if err := s.store.BandMayTake(r.Context(), *meta.OwnerBandID, v); err != nil && !errors.Is(err, store.ErrNotFound) {
+				s.writeAdoptErr(w, r, err)
+				return
+			}
+		}
+	}
 	newVersion, err := s.store.SaveSetlistByID(r.Context(), id, l, req.Title, req.Notes, req.Version, person.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {

@@ -150,9 +150,11 @@ func (st *Store) VariantOwnerOf(ctx context.Context, variantID int64) (*VariantO
 // AdoptIntoBand makes variantID the band's own song and returns that
 // song's id: variantID itself when the band owns it already; else the
 // band's copy of it when it has one (forked_from_id); else a new copy for
-// the band (content and media, as ForkVariant copies them) — whether
-// variantID is the catalogue's, a person's or another band's: a band's
-// songbook and set lists never point at another band's song. Then, when the
+// the band (content and media, as ForkVariant copies them), from the
+// catalogue's song or a person's. Another band's song is refused
+// (*OtherBandSongError): a band never takes another band's song, neither
+// as a pointer nor as a copy — an original band's songs stay theirs, and
+// covers come from the catalogue. Then, when the
 // band's song isn't variantID, everything of the band's that pointed at
 // variantID points at the band's song: its songbooks' entries (in place,
 // keeping their order, key and lesson), its set lists' items (a revision
@@ -197,6 +199,9 @@ func (st *Store) AdoptIntoBand(ctx context.Context, bandID, variantID, actorPers
 	switch {
 	case visibility == "band" && ownerBandID != nil && *ownerBandID == bandID:
 		bandSongID = variantID
+	case visibility == "band":
+		tx.Rollback(ctx)
+		return 0, false, st.otherBandSongError(ctx, variantID)
 	default:
 		err = tx.QueryRow(ctx, `
 			SELECT id FROM songs WHERE visibility = 'band' AND owner_band_id = $1 AND forked_from_id = $2
@@ -234,6 +239,58 @@ func (st *Store) AdoptIntoBand(ctx context.Context, bandID, variantID, actorPers
 		return 0, false, err
 	}
 	return bandSongID, created, nil
+}
+
+// OtherBandSongError is AdoptIntoBand refusing another band's song: whose
+// it is, and the catalogue's version of the same work when there is one
+// (CatalogVariantID, 0 for an original), which the band may take instead.
+// It wraps ErrForbidden.
+type OtherBandSongError struct {
+	BandName         string
+	CatalogVariantID int64
+}
+
+func (e *OtherBandSongError) Error() string {
+	return fmt.Sprintf("this is %s's song: a band doesn't take another band's song", e.BandName)
+}
+
+func (e *OtherBandSongError) Unwrap() error { return ErrForbidden }
+
+// BandMayTake is nil when bandID may take variantID into its songbook or
+// set lists (its own song, the catalogue's, a person's), else AdoptIntoBand's
+// refusal: *OtherBandSongError for another band's song.
+func (st *Store) BandMayTake(ctx context.Context, bandID, variantID int64) error {
+	var visibility string
+	var owner *int64
+	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_band_id FROM songs WHERE id = $1`, variantID).Scan(&visibility, &owner)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
+	}
+	if err != nil {
+		return err
+	}
+	if visibility == "band" && (owner == nil || *owner != bandID) {
+		return st.otherBandSongError(ctx, variantID)
+	}
+	return nil
+}
+
+// otherBandSongError says whose band song variantID is, and its work's
+// catalogue version: the one it was copied from when that's the
+// catalogue's, else the oldest of the work's.
+func (st *Store) otherBandSongError(ctx context.Context, variantID int64) error {
+	e := &OtherBandSongError{}
+	err := st.db.QueryRow(ctx, `
+		SELECT coalesce(b.name, ''),
+		       coalesce((SELECT g.id FROM songs g
+		                 WHERE g.visibility = 'global' AND (g.id = s.forked_from_id OR g.work_id = s.work_id)
+		                 ORDER BY (g.id = s.forked_from_id) DESC, g.id LIMIT 1), 0)
+		FROM songs s LEFT JOIN bands b ON b.id = s.owner_band_id
+		WHERE s.id = $1`, variantID).Scan(&e.BandName, &e.CatalogVariantID)
+	if err != nil {
+		return err
+	}
+	return e
 }
 
 // repointBandSong points everything of bandID's at from to `to` instead
@@ -351,11 +408,10 @@ func SetlistVariantIDs(l *setlist.Setlist) []int64 {
 
 // BandAdoption is one song a band uses without owning it, as cmd/bandsongs
 // plans it: Action is "copy" (a new copy for the band), "reuse" (the band
-// already has its copy; only the pointers move), or "skip" (a
-// community's song: its songbooks may be private or sold, so it isn't
-// copied without a person deciding). Another band's song is copied like a
-// catalogue one: a band's songbook and set lists never point at another
-// band's song.
+// already has its copy; only the pointers move), or "skip" (another
+// band's song — a band never takes another band's song, a person decides
+// what to do with it — or a community's, whose songbooks may be private
+// or sold).
 type BandAdoption struct {
 	BandID       int64
 	BandName     string
@@ -463,7 +519,7 @@ func (st *Store) PlanBandAdoptions(ctx context.Context) ([]BandAdoption, error) 
 			return nil, err
 		}
 		switch a.Visibility {
-		case "global", "user", "band":
+		case "global", "user":
 			err := st.db.QueryRow(ctx, `
 				SELECT id FROM songs WHERE visibility = 'band' AND owner_band_id = $1 AND forked_from_id = $2
 				ORDER BY id LIMIT 1`, a.BandID, a.VariantID).Scan(&a.BandSongID)
@@ -514,6 +570,13 @@ type BandSongRef struct {
 // Search and the library show a member these in place of the catalogue's
 // song (PreferBandVersions): the band's version is the one they play.
 func (st *Store) BandVersionsOfCatalogSongs(ctx context.Context, personID int64, variantIDs []int64) (map[int64][]BandSongRef, error) {
+	return st.BandVersionsOfCatalogSongsFor(ctx, personID, variantIDs, 0)
+}
+
+// BandVersionsOfCatalogSongsFor is BandVersionsOfCatalogSongs for one band
+// only when onlyBand isn't 0: what a band's add dialogs show (its own
+// version of a song, else the catalogue's — never another band's).
+func (st *Store) BandVersionsOfCatalogSongsFor(ctx context.Context, personID int64, variantIDs []int64, onlyBand int64) (map[int64][]BandSongRef, error) {
 	out := map[int64][]BandSongRef{}
 	if len(variantIDs) == 0 {
 		return out, nil
@@ -525,10 +588,10 @@ func (st *Store) BandVersionsOfCatalogSongs(ctx context.Context, personID int64,
 		  JOIN songs bs ON bs.visibility = 'band' AND bs.work_id = g.work_id
 		  JOIN bands b ON b.id = bs.owner_band_id
 		  JOIN band_members bm ON bm.band_id = b.id AND bm.person_id = $1 AND upper_inf(bm.validity)
-		  WHERE g.id = ANY($2) AND g.visibility = 'global'
+		  WHERE g.id = ANY($2) AND g.visibility = 'global' AND ($3 = 0 OR b.id = $3)
 		  ORDER BY g.id, b.id, (bs.forked_from_id IS NOT DISTINCT FROM g.id) DESC, bs.id
 		) v
-		ORDER BY g, band_name, band_id`, personID, variantIDs)
+		ORDER BY g, band_name, band_id`, personID, variantIDs, onlyBand)
 	if err != nil {
 		return nil, err
 	}
@@ -549,11 +612,17 @@ func (st *Store) BandVersionsOfCatalogSongs(ctx context.Context, personID int64,
 // labelled with its band (BandName), in its place; a song already listed
 // isn't listed twice.
 func (st *Store) PreferBandVersions(ctx context.Context, personID int64, vs []CatalogVariant) ([]CatalogVariant, error) {
+	return st.PreferBandVersionsFor(ctx, personID, vs, 0)
+}
+
+// PreferBandVersionsFor is PreferBandVersions for one band only when
+// onlyBand isn't 0 (BandVersionsOfCatalogSongsFor).
+func (st *Store) PreferBandVersionsFor(ctx context.Context, personID int64, vs []CatalogVariant, onlyBand int64) ([]CatalogVariant, error) {
 	ids := make([]int64, len(vs))
 	for i, v := range vs {
 		ids[i] = v.VariantID
 	}
-	versions, err := st.BandVersionsOfCatalogSongs(ctx, personID, ids)
+	versions, err := st.BandVersionsOfCatalogSongsFor(ctx, personID, ids, onlyBand)
 	if err != nil || len(versions) == 0 {
 		return vs, err
 	}
