@@ -47,6 +47,9 @@ test('lining a section up moves the whole chart by its shift, within the file', 
 test('what is left: a shift that follows from an earlier bar count is not counted twice', () => {
   assert.deepEqual(A.remaining(fromBar1, [{ fact: 'tempo' }, { fact: 'key' }], new Set(['tempo'])), { sections: 2, header: 1, total: 3 });
   assert.deepEqual(A.remaining({ sections: [{ status: 'ok' }] }, [], null), { sections: 0, header: 0, total: 0 });
+  // The server's items count as drift will: where the chart starts is one,
+  // on top of the first section's own bar count.
+  assert.deepEqual(A.remaining(fromBar1, [], null, [{ fact: 'start' }, { fact: 'bars:1' }]), { sections: 2, header: 0, total: 2 });
 });
 
 test('the timeline: the chart above, the file below with its lead-in, on one bar axis', () => {

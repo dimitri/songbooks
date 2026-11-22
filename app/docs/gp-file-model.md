@@ -101,6 +101,40 @@ key, time) the library, search, set lists and the click track read.
 text). `tempo:`, `time:`, `key:`, `swing:` and `chord:` lines keep their
 meaning; when a file is attached they are also checked against it (§4).
 
+### 3.4 The full score next to the chart
+
+A song can also keep its file *next to* its chart, with no `gp[...]`
+lines: a full transcription of a song played from its chart. The chart is
+laid over the file bar for bar, from one header line:
+
+```
+gp_start: 3
+```
+
+the file's bar, as played, where the chart's first bar starts (here the
+file has two bars before it: a count-in, a silent lead-in). Absent, the
+chart starts on the file's first bar.
+
+The GP import checks the file against the chart before keeping it (its
+step 3, *Check*): the chart's sections over the file's bars from
+`gp_start`, their bar counts against the file's own section markers
+(repeats and alternate endings played out; a marker played again through
+a repeat is one section), the chords over each bar, time signature, tempo
+and key. It shows two timelines on one bar axis (the chart's sections,
+the file's), a row per section, and the chords and the file's notation of
+the section picked. What the app can do is one tap: where the chart
+starts (lining a section up with the file's marker, after the file's
+silent bars, where the chords line up best when the file has no markers)
+and the header facts; the rest is said in plain words ("the file's
+Verse 2 has 2 more bars: add them to the chart's Verse 2, or edit the
+file in Guitar Pro"). Nothing changes until *Import*.
+
+The comparison is the server's (`gpalign.go`, `POST …/gp-check`) and
+drift uses it for a song with no `gp[...]` lines (§4), so what the check
+leaves and what "Out of step" shows after the import are the same items.
+The GProTab.net search results use it too: each has a *Preview* (the
+whole score, played, its facts next to the song's, how it lines up).
+
 ## 4. Facts in both places, and drift
 
 ### 4.1 What's compared
@@ -115,6 +149,7 @@ meaning; when a file is attached they are also checked against it (§4).
 | Chords | `grid:` bars | chord names on beats |
 | Chord diagrams | `chord:` lines | the file's chord diagrams (§6) |
 | References | `gp[...]` lines | the track exists, the bars exist, the range's played length equals the section's bar count |
+| Next to the chart (§3.4) | each section from `gp_start:` | the file's section marker there and its bar count, chords per bar, time signature |
 
 ### 4.2 How it's checked
 
@@ -160,7 +195,19 @@ with the facts and stores the differences.
 - Stage mode, the Drummer view and set lists work for both kinds.
 - **Mixer:** a song with a file plays the file itself (every track, every
   effect, its own backing track) instead of alphaTeX rebuilt from voices.
-  A song without one keeps playing its LilyPond voices.
+  A song without one keeps playing its LilyPond voices. A file next to the
+  chart (§3.4) is played from `gp_start`.
+- **Where the file plays.** A file next to the chart (or inside it) plays
+  in the Score view only. The song's other views play its own recordings,
+  as a song with no file does (the recording taken from the file is left
+  out of the practice player). The Score view plays the file's tracks,
+  with a simplified mixer on its control bar: *Recording* (the song's
+  reference recording, following the score bar by bar through its bar
+  sync points or section markers and `gp_start`; with none, the file's own
+  recording through its sync points) and *Score*, each a mute and a level;
+  the full Mixer is one tap away. A recording not lined up with the
+  song's bars says so, Recording off. Leaving the Score view stops it.
+  A `content: gp` song plays the file's own recording there, as before.
 
 ## 6. Chord diagrams from the file
 

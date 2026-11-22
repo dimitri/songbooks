@@ -27,6 +27,8 @@ type alignMarker struct {
 	From int    `json:"from"`
 	Bars int    `json:"bars"`
 	Bar  int    `json:"bar"` // its written bar, as Guitar Pro numbers it
+	// Written are its written bars, as ranges, for drawing it.
+	Written [][2]int `json:"written,omitempty"`
 }
 
 // alignSection is one section of the chart, in performed order, laid over
@@ -116,6 +118,9 @@ func fileMarkers(f *gpfacts.Facts) []alignMarker {
 	}
 	if n := len(out); n > 0 {
 		out[n-1].Bars = len(f.Played) + 1 - out[n-1].From
+	}
+	for i := range out {
+		out[i].Written = writtenRanges(f, out[i].From, out[i].Bars)
 	}
 	return out
 }
@@ -341,7 +346,13 @@ func alignDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, add f
 	if anyGPLine(sg) || anyScoreVoice(sg) || len(f.Played) == 0 {
 		return
 	}
-	start := gpStart(sg)
+	alignItems(sg, sections, f, gpStart(sg), add)
+}
+
+// alignItems are the differences of the chart laid over the file from
+// start, as drift items: what alignDrift reports, and what the check step
+// counts before the import.
+func alignItems(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, start int, add func(driftItem)) {
 	al := alignChart(sg, sections, f, start)
 	if len(al.Sections) == 0 {
 		return
@@ -429,8 +440,13 @@ func (s *Server) handlePostGPCheck(w http.ResponseWriter, r *http.Request) {
 			header = append(header, it)
 		}
 	}
+	// The differences drift will show for the sections once the file is
+	// kept with this start: what's left, as the check step counts it.
+	var items []driftItem
+	alignItems(sg, sections, req.Facts, start, func(it driftItem) { items = append(items, it) })
 	writeJSON(w, http.StatusOK, map[string]any{
 		"header":    nonNilDrift(header),
+		"items":     nonNilDrift(items),
 		"alignment": alignChart(sg, sections, req.Facts, start),
 	})
 }

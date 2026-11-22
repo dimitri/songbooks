@@ -1912,10 +1912,18 @@ button.link-like { border: 0; background: none; padding: 0; min-height: 0; min-w
 .gp-mix-why { color: var(--fg-muted); font-size: 0.8rem; flex: 1 1 12rem; line-height: 1.3; }
 .gp-mix-full { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: auto; color: var(--fg-muted); font-size: 0.85rem; }
 .gp-mix-full .icon { width: 1rem; height: 1rem; }
+/* A phone keeps both levels on one row: the sliders share what's left,
+   the full Mixer is its icon. */
 @media (max-width: 720px) {
-  .gp-mix { gap: 0.3rem 0.6rem; }
-  .gp-mix-vol { width: 4.5rem; }
-  .gp-mix-on { padding: 0.15rem 0.45rem; }
+  .gp-mix { gap: 0.3rem 0.4rem; }
+  .gp-mix-ch { flex: 1 1 0; min-width: 0; gap: 0.25rem; }
+  .gp-mix-vol { flex: 1 1 2rem; width: auto; min-width: 2rem; }
+  .gp-mix-on { padding: 0.15rem 0.4rem; font-size: 0.78rem; gap: 0.2rem; flex: none; }
+  .gp-mix-full { margin-left: 0; flex: none; min-width: 2.2rem; min-height: 2.2rem; justify-content: center; }
+  .gp-mix-full-label { display: none; }
+  .gp-mix-why { order: 5; flex-basis: 100%; }
+  /* Room for "Enregistrement": the name alone, crossed out when muted. */
+  .gp-mix-ch .gp-mix-icon, .gp-mix-ch.is-muted .gp-mix-icon.off { display: none; }
 }
 /* Next to a chart the Score view has its own player: the practice player
    and the structure strip above would play the song's recording again. */
@@ -6292,7 +6300,9 @@ button.gpimport-twin-block { cursor: pointer; }
 .gpimport-check-table tr.is-off .gpimport-check-status { color: var(--warn); font-weight: 600; }
 .gpimport-check-table tr.is-ok .gpimport-check-status { color: var(--ok); }
 .gpimport-check-table tr.is-follow .gpimport-check-status { color: var(--fg-muted); }
-.gpimport-check-what { display: grid; gap: 0.25rem; justify-items: start; }
+.gpimport-check-what .gpimport-check-status, .gpimport-check-what .gpimport-check-advice { display: block; }
+.gpimport-check-what .gpimport-check-advice { margin-top: 0.2rem; }
+.gpimport-check-what .gpimport-fix { margin-top: 0.3rem; }
 .gpimport-check-advice { font-size: 0.84rem; color: var(--fg-muted); line-height: 1.35; }
 .gpimport-chords { margin: 0.5rem 0 0.7rem; }
 .gpimport-chords h4 { margin: 0 0 0.35rem; font-size: 0.95rem; }

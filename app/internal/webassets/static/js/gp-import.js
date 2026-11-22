@@ -355,7 +355,7 @@
     prev.querySelector('.gpprev-facts').hidden = false;
 
     const fit = prev.querySelector('.gpprev-fit');
-    const left = GPAlign.remaining(al, out.header, null);
+    const left = GPAlign.remaining(al, out.header, null, out.items);
     if (!al.sections.length) {
       fit.textContent = t('The song has no bars yet to compare the file with.');
     } else if (!left.total) {
@@ -1301,7 +1301,7 @@
   function renderCheckSummary() {
     if (!check || !checkSummaryEl) return;
     const al = check.alignment;
-    const left = GPAlign.remaining(al, check.header, takenFacts());
+    const left = GPAlign.remaining(al, check.header, takenFacts(), check.items);
     checkSummaryEl.className = 'gpimport-check-summary ' + (left.total ? 'is-off' : 'is-ok');
     if (!al.sections.length) {
       checkSummaryEl.textContent = left.header
@@ -1345,9 +1345,11 @@
 
   // The bars of the picked section in the file, as Guitar Pro numbers them,
   // in one track (the one with the chord names, else the first).
+  // A section paired with one of the file's draws that one, all its bars.
   function drawCheckNotation() {
     const row = check && check.alignment.sections[checkPicked];
-    checkNotation.hidden = !row || !row.written || !row.written.length;
+    const written = row && ((row.match && row.match.written) || row.written);
+    checkNotation.hidden = !written || !written.length;
     if (checkNotation.hidden) return;
     if (!detailTrack.options.length) {
       score.tracks.forEach((tr, i) => detailTrack.add(new Option(tr.name || t('Track %d', i + 1), i)));
@@ -1355,9 +1357,9 @@
       detailTrack.value = String(ct ? ct - 1 : 0);
       detailTrack.closest('label').hidden = score.tracks.length < 2;
     }
-    detailBars.textContent = t('%s in the file: bars %s', row.label, row.written.map(([a, b]) => (a === b ? a : `${a}–${b}`)).join(', '));
+    detailBars.textContent = t('%s in the file: bars %s', row.match ? `“${row.match.text}”` : row.label, written.map(([a, b]) => (a === b ? a : `${a}–${b}`)).join(', '));
     detailNotation.replaceChildren();
-    for (const [a, b] of row.written) {
+    for (const [a, b] of written) {
       const mount = document.createElement('div');
       detailNotation.appendChild(mount);
       try { drawFileBars(mount, Number(detailTrack.value) || 0, a - 1, b - a + 1); } catch (e) { mount.textContent = t('Preview failed: %s', e.message); }
@@ -1503,7 +1505,7 @@
       ? t('The song keeps opening on its chart; this file goes in its Score tab: %s (%s), %s.', ...what)
       : t('The song will open on this file’s score: %s (%s), %s. Its sections, chords and lyrics stay as they are, as extras.', ...what);
     if (checkStart > 1) text += ' ' + t('The chart starts at the file’s bar %d.', checkStart);
-    const left = check ? GPAlign.remaining(check.alignment, check.header, takenFacts()).total : 0;
+    const left = check ? GPAlign.remaining(check.alignment, check.header, takenFacts(), check.items).total : 0;
     if (left) text += ' ' + tn(left, '%d difference with the file is left: the song will show it.', '%d differences with the file are left: the song will show them.');
     summary.textContent = text;
     previewHolder.replaceChildren();

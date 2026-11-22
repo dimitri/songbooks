@@ -117,3 +117,35 @@ func TestGPBarOrderNextToTheChart(t *testing.T) {
 		t.Errorf("gp_start 1 should be taken off: %q", sg.Get("gp_start"))
 	}
 }
+
+// The check step counts what drift will show: the same items, before the
+// file is kept.
+func TestCheckItemsAreDrift(t *testing.T) {
+	for _, start := range []int{1, 3} {
+		text := besideChart
+		if start > 1 {
+			text = "title: X\ngp_start: 3\n" + besideChart[len("title: X\n"):]
+		}
+		sg := song.Parse(text)
+		f := besideFacts()
+		secs := buildSections(withGPOnlyBars(sg, f))
+		var check []string
+		alignItems(sg, secs, f, start, func(it driftItem) { check = append(check, it.Fact) })
+		var drift []string
+		for _, it := range computeDrift(sg, secs, f, nil) {
+			switch it.Fact {
+			case "tempo", "time", "key", "swing":
+				continue
+			}
+			drift = append(drift, it.Fact)
+		}
+		if len(check) == 0 || len(check) != len(drift) {
+			t.Fatalf("start %d: check %v, drift %v", start, check, drift)
+		}
+		for i := range check {
+			if check[i] != drift[i] {
+				t.Errorf("start %d: check %v, drift %v", start, check, drift)
+			}
+		}
+	}
+}

@@ -53,13 +53,15 @@
     return out;
   }
 
-  // What's left to look at: sections differing on their own (a shift that
-  // follows from an earlier section's bar count is that section's), and
-  // header facts the import won't take from the file.
-  function remaining(al, header, taken) {
-    const own = (al.sections || []).filter((s) => s.status !== 'ok' && !(s.status === 'shifted' && !s.own));
+  // What's left to look at: the differences drift will show once the file
+  // is kept (items: the check's answer, gpalign.go alignItems), and the
+  // header facts the import won't take from the file. Without items (an
+  // older answer), the sections differing on their own: a shift that
+  // follows from an earlier section's bar count is that section's.
+  function remaining(al, header, taken, items) {
+    const own = items ? items.length : (al.sections || []).filter((s) => s.status !== 'ok' && !(s.status === 'shifted' && !s.own)).length;
     const facts = (header || []).filter((h) => !(taken && taken.has(h.fact)));
-    return { sections: own.length, header: facts.length, total: own.length + facts.length };
+    return { sections: own, header: facts.length, total: own + facts.length };
   }
 
   // The two rows of the timeline on one bar axis, in played bars of the
