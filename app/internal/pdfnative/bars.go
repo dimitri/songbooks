@@ -322,6 +322,11 @@ func (c *canvas) barRow(measures []song.Measure, slots int, pickup int, size flo
 		// "%%" additionally getting a small repeat-count badge (matching
 		// the web chart's own .simile-count, which shows "2" there).
 		toks := m.Tokens
+		if m.Lead && tab.SilentBar(toks) {
+			// A chordless lead bar: a whole-bar rest, as the web draws it.
+			c.filledRect(bx+boxW/2-size*0.3, baseline-size*0.55, size*0.6, size*0.25, c.th.faint)
+			continue
+		}
 		if len(toks) == 1 && (toks[0] == "%" || toks[0] == "%%") {
 			c.drawBarRepeatGlyph(bx+boxW/2, baseline, chordH*0.7, c.th.faint)
 			if toks[0] == "%%" {
@@ -483,6 +488,12 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup int, rif
 		}
 
 		toks := m.Tokens
+		if m.Lead && tab.SilentBar(toks) {
+			// A chordless lead bar: a whole-bar rest hanging from the
+			// staff's second line, as the web draws it.
+			c.filledRect(bx+boxW/2-staffH*0.3, staffTop+staffH/4, staffH*0.6, staffH/8, c.th.ink)
+			continue
+		}
 		if len(toks) == 1 && (toks[0] == "%" || toks[0] == "%%") {
 			c.drawBarRepeatGlyph(bx+boxW/2, (staffTop+staffBottom)/2+size*0.2, chordH*0.7, c.th.faint)
 			if toks[0] == "%%" {
