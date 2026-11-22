@@ -64,7 +64,7 @@ func (st *Store) FindDuplicates(ctx context.Context) ([]DuplicateGroup, error) {
 		       coalesce(b.name, CASE WHEN c.kind = 'global' THEN '' ELSE c.name END, p.display_name, ''),
 		       coalesce(c.kind = 'global', false), s.reference_url, s.version, s.created_at,
 		       (SELECT count(*) FROM songbook_entries se WHERE se.variant_id = s.id),
-		       (SELECT count(*) FROM setlists sl WHERE sl.body ~ ('variant:\s*' || s.id::text || '(\D|$)')),
+		       (SELECT count(DISTINCT si.setlist_id) FROM setlist_items si WHERE si.variant_id = s.id),
 		       (SELECT count(*) FROM band_recordings br WHERE br.variant_id = s.id),
 		       (SELECT count(*) FROM songs v WHERE v.forked_from_id = s.id),
 		       (SELECT count(*) FROM song_audio a WHERE a.variant_id = s.id)
