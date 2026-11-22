@@ -8529,6 +8529,12 @@ a.song-action:hover { text-decoration: none; border-color: var(--border-strong);
   /* The bell sits at the top right (#song-toolbar-notifications). */
   .song-crumb { padding-right: 3rem; }
 }
+/* A tablet: the reference's thumbnail alone (its name stays in its
+   label), the room going to the previous and next songs' titles. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .topbar-ref:not([data-kind=""]) .topbar-ref-text { display: none; }
+  .topbar-ref:not([data-kind=""]) .topbar-ref-btn { padding: 0.3rem; }
+}
 /* A phone: ‹ the title (its artist and key under it) › on one row, the
    reference under them as a strip. */
 @media (max-width: 600px) {
