@@ -31,8 +31,12 @@ type barRow struct {
 // pickup; the author wrote "bars:"; fit / fitFirst, the most regular bars
 // a row / the first row can hold (0: no limit, as on paper).
 type barRowOpts struct {
-	PerRow   int  `json:"perRow"`
-	Pickup   bool `json:"pickup"`
+	PerRow int  `json:"perRow"`
+	Pickup bool `json:"pickup"`
+	// Leads is how many pickups the section opens with: the song's
+	// "lead:" bars (song.WithLeads), which "bars:" doesn't count — they
+	// ride on the first row on top of it. Overrides Pickup when > 0.
+	Leads    int  `json:"leads,omitempty"`
 	Explicit bool `json:"explicit"`
 	Fit      int  `json:"fit"`
 	FitFirst int  `json:"fitFirst"`
@@ -84,6 +88,9 @@ func planBarRows(rows []int, o barRowOpts) []barRow {
 	if o.Pickup {
 		pickup = 1
 	}
+	if o.Leads > 0 {
+		pickup = o.Leads
+	}
 	fit := o.Fit
 	if fit <= 0 {
 		fit = noFit
@@ -110,6 +117,9 @@ func planBarRows(rows []int, o barRowOpts) []barRow {
 			out = append(out, r)
 		}
 		return out
+	}
+	if pickup > 1 {
+		return planLeadRows(counts, pickup, p, fitFirst, fit)
 	}
 	pe := p
 	longest := 0
@@ -140,30 +150,92 @@ func planBarRows(rows []int, o barRowOpts) []barRow {
 	return out
 }
 
+// planLeadRows is planBarRows' author's rows ("bars:") for a section
+// opening with several pickups (a "lead:" line, see bar-rows.js' plan):
+// the first row is split without them, then they ride on its first piece.
+func planLeadRows(counts []int, pickup, p, fitFirst, fit int) []barRow {
+	own := append([]int(nil), counts...)
+	own[0] = max(0, own[0]-pickup)
+	pl := 1
+	for _, c := range own {
+		pl = max(pl, c)
+	}
+	pl = min(p, pl)
+	var out []barRow
+	for i, r := range own {
+		ff := fit
+		if i == 0 {
+			ff = fitFirst
+		}
+		s := []int{0}
+		if r > 0 {
+			s = rowSizes(r, pl, ff, fit, true)
+		}
+		for j, b := range s {
+			pk := 0
+			if i == 0 && j == 0 {
+				pk = pickup
+			}
+			c := pl
+			if b >= pl {
+				c = max(1, b)
+			}
+			out = append(out, barRow{Bars: b + pk, Cap: c})
+		}
+	}
+	return out
+}
+
 // sectionBarRows is the PDF's rows for a section of n bars: the author's
 // "bars:" rows when it has some, else phrases; pickup when it opens with
 // the song's pickup bar (tab.StartsWithPickup).
 func sectionBarRows(barsPerLine []int, n int, pickup bool) []barRow {
-	if len(barsPerLine) == 0 {
-		return planBarRows([]int{n}, barRowOpts{PerRow: phraseBars, Pickup: pickup})
+	return sectionBarRowsN(barsPerLine, n, pickup, 0)
+}
+
+// sectionBarRowsN is sectionBarRows for a section opening with the song's
+// pickup bar (pickup, one of its "bars:") or with its "lead:" bars (leads
+// of them, song.WithLeads), which "bars:" doesn't count: they ride on the
+// first row on top of it.
+func sectionBarRowsN(barsPerLine []int, n int, pickup bool, leads int) []barRow {
+	o := barRowOpts{PerRow: phraseBars, Pickup: pickup || leads == 1}
+	if leads > 1 {
+		o.Leads = leads
 	}
+	if len(barsPerLine) == 0 {
+		return planBarRows([]int{n}, o)
+	}
+	lead := leads
 	var rows []int
 	for start, li := 0, 0; start < n; li++ {
 		want := barsPerLine[len(barsPerLine)-1]
 		if li < len(barsPerLine) {
 			want = barsPerLine[li]
 		}
+		if li == 0 {
+			want += lead
+		}
 		k := min(max(want, 1), n-start)
 		rows = append(rows, k)
 		start += k
 	}
-	return planBarRows(rows, barRowOpts{PerRow: phraseBars, Pickup: pickup, Explicit: true})
+	o.Explicit = true
+	return planBarRows(rows, o)
 }
 
 // capBarRows splits rows wider than limit regular bars into rows of at
 // most limit, each drawn limit bars wide; the song's pickup bar (on the
 // first row) rides on top of the first piece.
 func capBarRows(rows []barRow, limit int, pickup bool) []barRow {
+	pk := 0
+	if pickup {
+		pk = 1
+	}
+	return capBarRowsN(rows, limit, pk)
+}
+
+// capBarRowsN is capBarRows with pickups pickups on the first row.
+func capBarRowsN(rows []barRow, limit int, pickups int) []barRow {
 	var out []barRow
 	for i, r := range rows {
 		if r.Cap <= limit {
@@ -171,8 +243,8 @@ func capBarRows(rows []barRow, limit int, pickup bool) []barRow {
 			continue
 		}
 		extra := 0
-		if i == 0 && pickup {
-			extra = 1
+		if i == 0 {
+			extra = pickups
 		}
 		for left := r.Bars; left > 0; {
 			k := min(limit+extra, left)

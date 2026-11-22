@@ -198,7 +198,7 @@ func (c *canvas) drawQuarterNote(x, baselineY, size float64, dotted bool, col rg
 	return w
 }
 
-func (c *canvas) barRow(measures []song.Measure, slots int, pickup bool, size float64, jazz bool, firstStaff bool, tempo, timeNum, timeDen string) {
+func (c *canvas) barRow(measures []song.Measure, slots int, pickup int, size float64, jazz bool, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
@@ -234,7 +234,7 @@ func (c *canvas) barRow(measures []song.Measure, slots int, pickup bool, size fl
 	// own count, or more for a short last row, whose bars stay as wide as
 	// a full row's and whose staff ends at its last bar (rowEnd); a pickup
 	// takes half a bar's width beside them (barGeometry).
-	xs, ws := barGeometry(len(measures), slots, pickup, c.colW-tsW)
+	xs, ws := barGeometryN(len(measures), slots, pickup, c.colW-tsW)
 	rowEnd := barsX0 + xs[len(xs)-1] + ws[len(ws)-1]
 	baseline := c.y + chordH
 	ruleY := baseline + ruleGap*0.5
@@ -265,6 +265,7 @@ func (c *canvas) barRow(measures []song.Measure, slots int, pickup bool, size fl
 	pendingRepeatCount := 0
 	for i, m := range measures {
 		bx, boxW := barsX0+xs[i], ws[i]
+		c.leadTag(measures, i, bx, ruleY, size)
 
 		// A divider between bars — not a box, just the one edge that
 		// actually separates two measures (the row's own left/right
@@ -369,7 +370,7 @@ func (c *canvas) barRow(measures []song.Measure, slots int, pickup bool, size fl
 // and size, line weight) are carried over from the web CSS's own tuned
 // values, not re-guessed — matching an already-approved design beats a
 // fresh attempt at the same idea.
-func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup bool, riffBars []*tab.Bar, tuning []int, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
+func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup int, riffBars []*tab.Bar, tuning []int, size float64, beatsPerBar int, firstStaff bool, tempo, timeNum, timeDen string) {
 	if len(measures) == 0 {
 		return
 	}
@@ -423,7 +424,7 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup bool, ri
 	// own count, or more for a short last row, whose bars stay as wide as
 	// a full row's and whose staff ends at its last bar (rowEnd); a pickup
 	// takes half a bar's width beside them (barGeometry).
-	xs, ws := barGeometry(len(measures), slots, pickup, c.colW-tsW)
+	xs, ws := barGeometryN(len(measures), slots, pickup, c.colW-tsW)
 	rowEnd := barsX0 + xs[len(xs)-1] + ws[len(ws)-1]
 	baseline := c.y + chordH
 	staffTop := baseline + size*0.18
@@ -451,6 +452,7 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup bool, ri
 	pendingRepeatCount := 0
 	for i, m := range measures {
 		bx, boxW := barsX0+xs[i], ws[i]
+		c.leadTag(measures, i, bx, staffBottom, size)
 
 		if i < len(riffBars) && riffBars[i] != nil {
 			c.drawTabBar(riffBars[i], tuning, bx, boxW, rowTop, tabH, size)
@@ -645,22 +647,42 @@ const pickupWidth = 0.5
 // width, its regular bars slots to the width (more than n for a short
 // row), a pickup (the first bar, when pickup) pickupWidth of one.
 func barGeometry(n, slots int, pickup bool, width float64) (xs, ws []float64) {
-	pk := 0.0
-	if pickup && n > 1 {
+	pk := 0
+	if pickup {
 		pk = 1
+	}
+	return barGeometryN(n, slots, pk, width)
+}
+
+// barGeometryN is barGeometry for a row opening with pickups pickups (a
+// "lead:" line's bars, song.WithLeads), each pickupWidth wide.
+func barGeometryN(n, slots, pickups int, width float64) (xs, ws []float64) {
+	pk := 0.0
+	if pickups > 0 && n > pickups {
+		pk = float64(pickups)
 	}
 	regular := float64(n) - pk
 	unit := width / (math.Max(regular, float64(slots)) + pk*pickupWidth)
 	x := 0.0
 	for i := 0; i < n; i++ {
 		w := unit
-		if i == 0 && pk > 0 {
+		if float64(i) < pk {
 			w = unit * pickupWidth
 		}
 		xs, ws = append(xs, x), append(ws, w)
 		x += w
 	}
 	return xs, ws
+}
+
+// leadTag prints a small "lead" under the first of a run of "lead:" bars
+// (song.WithLeads): played before the section's first bar, not counted —
+// the web chart's .lead-tag.
+func (c *canvas) leadTag(measures []song.Measure, i int, bx, below, size float64) {
+	if !measures[i].Lead || (i > 0 && measures[i-1].Lead) {
+		return
+	}
+	c.textAt(bx+1.5, below+size*0.55, "lead", faceSans, size*0.48, c.th.faint)
 }
 
 // phraseBars is the print chart's default row: 4 bars, the lead-sheet
@@ -687,6 +709,14 @@ const phraseBars = 4
 // line gets the tempo+time-signature cell before its opening barline —
 // see renderSongBody's one-shot firstStaffDrawn tracking.
 func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float64, mode Mode, hideNotes bool, globalBeats int, firstStaff, pickup bool, tempo, timeNum, timeDen string) {
+	// The song's opening section: its pickup bar, or its "lead:" bars
+	// (song.WithLeads), as many as it has — on the first row, on top of
+	// its "bars:" count.
+	leads, pickups := 0, 0
+	if pickup {
+		leads = song.LeadBars(sec.Measures)
+		pickups = max(1, leads)
+	}
 	if mode != ModeLyrics && len(sec.Measures) > 0 {
 		beatsPerBar := globalBeats
 		if sec.Time != "" {
@@ -701,9 +731,12 @@ func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float
 		if riff != nil {
 			tuning = riff.Tuning
 			riffBars = make([]*tab.Bar, len(sec.Measures))
+			// The score starts on the section's first written bar, after
+			// its "lead:" bars.
+			lead := song.LeadBars(sec.Measures)
 			for i := range riff.Bars {
-				if i < len(riffBars) {
-					riffBars[i] = &riff.Bars[i]
+				if i+lead < len(riffBars) {
+					riffBars[i+lead] = &riff.Bars[i]
 				}
 			}
 		}
@@ -713,19 +746,22 @@ func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float
 		// pickup riding on the first row, a short last row keeping a full
 		// row's bar width.
 		start := 0
-		rows := sectionBarRows(sec.BarsPerLine, len(sec.Measures), pickup)
+		rows := sectionBarRowsN(sec.BarsPerLine, len(sec.Measures), pickup && leads == 0, leads)
 		// In a half-width column (the two-column Song/Lyrics layout) a
 		// staff row holds at most 4 bars, scaled to the column — the web
 		// Song view's own cap (song.js reflowStaffLines, modeCap 4) — so a
 		// section authored "bars: 8" for a full-width page doesn't cram 8
 		// bars into half the width. Jazz keeps its own density, as on the web.
 		if mode != ModeJazz && c.colW < contentWidth()-1 {
-			rows = capBarRows(rows, 4, pickup)
+			rows = capBarRowsN(rows, 4, pickups)
 		}
 		for lineIdx, row := range rows {
 			end := min(start+row.Bars, len(sec.Measures))
 			showTS := firstStaff && lineIdx == 0
-			rowPickup := pickup && lineIdx == 0
+			rowPickup := 0
+			if lineIdx == 0 {
+				rowPickup = pickups
+			}
 			if mode == ModeJazz {
 				c.barRow(sec.Measures[start:end], row.Cap, rowPickup, bodySize, true, showTS, tempo, timeNum, timeDen)
 			} else {

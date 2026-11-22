@@ -39,6 +39,10 @@ func renderSongMap(doc *gopdf.GoPdf, s *song.Song, th theme, hideNotes bool) err
 			}
 			line += fmt.Sprintf("  —  %d %s", n, unit)
 		}
+		if n := sec.Lead; n > 0 && !sec.Repeat {
+			// Played before the section's bar 1, not counted in its bars.
+			line += fmt.Sprintf("  (+ %d lead)", n)
+		}
 		if sec.Repeat {
 			line += "  (repeat)"
 		}

@@ -120,10 +120,13 @@ func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize 
 		}
 	}
 	firstStaffDrawn := false
-	// The song's pickup bar, when its first grid opens with one: on the
-	// first row on top of its 4-bar phrase, as the web chart has it.
+	// The song's pickup bar, when its first grid opens with one, or its
+	// "lead:" bars: on the first row on top of its 4-bar phrase, as the
+	// web chart has it.
 	pickupSec := tab.FirstGridSection(s)
-	if !tab.StartsWithPickup(s, pickupSec) {
+	if s.LeadIn() > 0 {
+		pickupSec = s.OpeningSection()
+	} else if !tab.StartsWithPickup(s, pickupSec) {
 		pickupSec = -1
 	}
 	marks := map[string]string{}
@@ -224,6 +227,8 @@ func renderSong(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th the
 	if mode == ModeMap {
 		return renderSongMap(doc, s, th, hideNotes)
 	}
+	// "lead:" bars drawn ahead of their section's first bar.
+	s = song.WithLeads(s)
 	cols = songCols(s, mode, cols)
 	size, allowPage2 := fitSongToPage(doc, s, scores, th, mode, hideNotes, cols)
 	doc.AddPage()
