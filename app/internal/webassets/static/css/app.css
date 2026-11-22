@@ -4590,7 +4590,10 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
 }
 @media (min-width: 600px) and (max-width: 900px) {
   /* The rail: the tab bar's entries, stacked down the left edge. */
-  body:not(:has(.song-context-bar)) { --tabbar-h: 0px; --rail-w: 5.25rem; padding-left: var(--rail-w); }
+  /* No bar along the bottom then: the bars fixed there (the player's,
+     the click track's) sit on the screen's edge, not a tab bar's height
+     above it. */
+  body:not(:has(.song-context-bar)) { --tabbar-h: 0px; --context-h: 0px; --rail-w: 5.25rem; padding-left: var(--rail-w); }
   .global-tabbar {
     top: 0; bottom: 0; left: 0; right: auto; width: var(--rail-w, 5.25rem); height: auto;
     flex-direction: column; justify-content: flex-start; gap: 0.35rem;
