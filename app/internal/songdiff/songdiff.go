@@ -183,6 +183,9 @@ func compareSection(where string, a, b *song.Section) []Change {
 	if a.Times != b.Times {
 		add("played %s → %s", timesText(a.Times), timesText(b.Times))
 	}
+	if la, lb := leadText(a), leadText(b); la != lb {
+		add("lead-in %s → %s", la, lb)
+	}
 	out = append(out, barChanges(where, a.Measures, b.Measures)...)
 	if c := lineChanges(lyricLines(a), lyricLines(b)); c != "" {
 		add("lyrics: %s", c)
@@ -459,6 +462,17 @@ func orNone(s string) string {
 		return "the song's"
 	}
 	return s
+}
+
+// leadText is a section's "lead:" line as a diff reads it.
+func leadText(sec *song.Section) string {
+	switch {
+	case sec.Lead <= 0:
+		return "none"
+	case len(sec.LeadGrid) > 0:
+		return sec.LeadLine()
+	}
+	return plural(sec.Lead, "bar")
 }
 
 func timesText(n int) string {

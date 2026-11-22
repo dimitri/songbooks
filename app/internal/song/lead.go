@@ -1,5 +1,7 @@
 package song
 
+import "strconv"
+
 // A section's "lead:" line: bars played before its first bar — a count-in,
 // a drummer's sticks, a guitar's pickup into the intro — written without
 // an extra section or an extra counted bar:
@@ -22,6 +24,19 @@ package song
 // maxLead bounds a "lead: N" count: a lead-in is a bar or two, and a
 // typo ("lead: 1000") mustn't draw a thousand bars.
 const maxLead = 16
+
+// LeadLine is the value of the section's "lead:" line as Write writes it:
+// the bars as a grid when they have chords, else the bare count; "" for
+// none.
+func (sec *Section) LeadLine() string {
+	switch {
+	case sec.Lead <= 0:
+		return ""
+	case len(sec.LeadGrid) > 0:
+		return writeGrid(sec.LeadGrid)
+	}
+	return strconv.Itoa(sec.Lead)
+}
 
 // LeadMeasures is the section's lead bars, each marked Lead: the written
 // ones ("lead: | G |"), or Lead bars of rest ("lead: 2").
