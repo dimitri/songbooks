@@ -27,7 +27,7 @@ func TestSpaceTabsByRole(t *testing.T) {
 		gear string
 	}{
 		// A band has six sections: Proposals and Discover are views of its
-		// Repertoire, Rehearsals and Concerts of its Recordings.
+		// Songbook, Rehearsals and Concerts of its Recordings.
 		{spaceBand, spaceRole{}, "overview catalog setlists events recordings members", "settings"},
 		{spaceBand, spaceRole{Staff: true}, "overview catalog setlists events recordings members", "settings"},
 		// A jam's community: its events first, then songbooks, resources.
@@ -166,10 +166,10 @@ func TestSpaceFilters(t *testing.T) {
 		}
 	}
 	if len(nav.Filters) != 3 || strings.Join(on, ",") != "vote" {
-		t.Errorf("Repertoire's views: %+v", nav.Filters)
+		t.Errorf("Songbook's views: %+v", nav.Filters)
 	}
-	if nav.SectionLabel() != "Repertoire" || !nav.Sections[1].Current {
-		t.Errorf("To vote isn't in the Repertoire: %q", nav.SectionLabel())
+	if nav.SectionLabel() != "Songbook" || !nav.Sections[1].Current {
+		t.Errorf("To vote isn't in the Songbook: %q", nav.SectionLabel())
 	}
 	nav = newSpaceNav(spaceBand, 14, "Night Owls", spaceRole{}, "recordings")
 	if len(nav.Filters) != 2 || !nav.Filters[0].Current || nav.Sections[4].Href != "/bands/14/recordings/rehearsals" {
@@ -210,5 +210,42 @@ func TestCoachingSections(t *testing.T) {
 	nav = newSpaceNav(spaceCoaching, 7, "Studio", spaceRole{PersonID: 9}, "overview")
 	if nav.SectionLabel() != "" || nav.Sections[0].Label != "My week" {
 		t.Errorf("a student's home: %q %q", nav.SectionLabel(), nav.Sections[0].Label)
+	}
+}
+
+// A band's Songbook draws its views itself, as chips at the head of its
+// list with their counts, To vote marked while votes wait: no second row
+// of tabs under the space's.
+func TestSongbookViewsInPage(t *testing.T) {
+	nav := newSpaceNav(spaceBand, 14, "The Paper Lanterns", spaceRole{}, "catalog/all")
+	if !nav.ViewsInPage {
+		t.Fatalf("the Songbook's views are under the tabs: %+v", nav)
+	}
+	nav.Filters[0].Hint = "43"
+	nav.Filters[1].Hint, nav.Filters[1].Due = "3", true
+	var buf bytes.Buffer
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&buf, "space-nav", nav); err != nil {
+		t.Fatal(err)
+	}
+	if html := buf.String(); strings.Contains(html, "space-filters") || !strings.Contains(html, ">Songbook</a>") {
+		t.Errorf("the Songbook's tab or its views:\n%s", html)
+	}
+	buf.Reset()
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&buf, "space-views", nav); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		`href="/bands/14/catalog" class="space-view active" aria-current="page">Morceaux <span class="space-view-count">43</span>`,
+		`href="/bands/14/catalog/vote" class="space-view is-due">À voter <span class="space-view-count">3</span>`,
+		`href="/bands/14/catalog/discover" class="space-view">`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("space-views lacks %q:\n%s", want, html)
+		}
+	}
+	// The Recordings keep their views under the tabs.
+	if nav := newSpaceNav(spaceBand, 14, "The Paper Lanterns", spaceRole{}, "recordings"); nav.ViewsInPage {
+		t.Errorf("the Recordings' views moved into the page")
 	}
 }

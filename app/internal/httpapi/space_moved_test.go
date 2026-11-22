@@ -54,11 +54,12 @@ func TestBandSections(t *testing.T) {
 			t.Errorf("GET %s: %d to %q, want 301 to %q", from, w.Code, w.Header().Get("Location"), to)
 		}
 	}
+	// The Songbook's views are chips at the head of its list.
 	for path, want := range map[string][]string{
 		b:                            {`class="space-tab active" href="` + b + `" aria-current="page"`},
-		b + "/catalog":               {`href="` + b + `/catalog" class="active" aria-current="page"`},
-		b + "/catalog/vote":          {`href="` + b + `/catalog/vote" class="active" aria-current="page"`, `class="space-tab active" href="` + b + `/catalog"`},
-		b + "/catalog/discover":      {`href="` + b + `/catalog/discover" class="active" aria-current="page"`},
+		b + "/catalog":               {`href="` + b + `/catalog" class="space-view active" aria-current="page"`},
+		b + "/catalog/vote":          {`href="` + b + `/catalog/vote" class="space-view active" aria-current="page"`, `class="space-tab active" href="` + b + `/catalog"`},
+		b + "/catalog/discover":      {`href="` + b + `/catalog/discover" class="space-view active" aria-current="page"`},
 		b + "/recordings/concerts":   {`href="` + b + `/recordings/concerts" class="active" aria-current="page"`, `class="space-tab active" href="` + b + `/recordings/rehearsals"`},
 		b + "/recordings/rehearsals": {`href="` + b + `/recordings/rehearsals" class="active" aria-current="page"`},
 	} {

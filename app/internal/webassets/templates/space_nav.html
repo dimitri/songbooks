@@ -22,17 +22,28 @@
   {{range .Sections}}<a class="space-tab{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "space-section-label" (dict "S" . "ID" $.ID)}}</a>
   {{end}}
 </nav>
-{{template "space-filters" .}}
+{{if not .ViewsInPage}}{{template "space-filters" .}}{{end}}
 {{end}}{{end}}
 
-{{/* The open section's views (a band's Repertoire: Songs, To vote,
-     Discover), a segmented control under the tabs. Called with .Space. */}}
+{{/* The open section's views (a band's Recordings: Rehearsals,
+     Concerts), a segmented control under the tabs. Called with .Space. */}}
 {{define "space-filters"}}{{with .Filters}}
 <nav class="space-filters" aria-label="{{t "Views"}}">
   {{range .}}<a href="{{.Href}}"{{if .Current}} class="active" aria-current="page"{{end}}>{{t .Label}}</a>
   {{end}}
 </nav>
 {{end}}{{end}}
+
+{{/* The open section's views as chips at the head of its list, when the
+     page draws them (ViewsInPage: a band's Songbook, its Songs, To vote,
+     Discover), each with its count; To vote stands out while proposals
+     wait for a vote. Called with .Space. */}}
+{{define "space-views"}}{{with .}}{{if .ViewsInPage}}{{with .Filters}}
+<nav class="space-views" aria-label="{{t "Views"}}">
+  {{range .}}<a href="{{.Href}}" class="space-view{{if .Due}} is-due{{end}}{{if .Current}} active{{end}}"{{if .Current}} aria-current="page"{{end}}>{{t .Label}}{{with .Hint}} <span class="space-view-count">{{.}}</span>{{end}}</a>
+  {{end}}
+</nav>
+{{end}}{{end}}{{end}}{{end}}
 
 {{/* The space's sections as a list, on its home below 900px: each row
      with where it stands, ⚙ apart at the end. Called with .Space. */}}
@@ -65,24 +76,13 @@
 {{define "space-title"}}{{with .}}{{if .SectionLabel}}{{template "space-section-name" .}} — {{end}}{{.Name}} — {{end}}Songbooks{{end}}
 {{define "space-section-name"}}{{with .}}{{if eq .Current "songbooks"}}{{t (shelfLabel "community" .ID)}}{{else}}{{t .SectionLabel}}{{end}}{{end}}{{end}}
 
-{{/* A section's Export menu (a spaceExport): the space's songbook as a
-     PDF, laid out as chosen (pdf-export.js), and its playlist. */}}
+{{/* A space's songbook as a PDF (a spaceExport): a PDF button that opens
+     the layout and notes choices, then one Download button
+     (pdf-export-dialog). The playlist is its own button, beside it
+     (space-playlist). */}}
 {{define "space-export"}}{{with .}}
-<details class="space-export">
-  <summary class="setlist-action">{{template "icon-download"}} {{t "Export"}} <span aria-hidden="true">▾</span></summary>
-  <div class="row-menu-panel">
-    <div class="pdf-mode-row">
-      <a class="pdf-export-link" href="{{.PDF}}" download>{{t "Songbook (PDF)"}}</a>
-      <select class="pdf-mode-select" aria-label="{{t "PDF layout"}}">
-        <option value="">{{t "Song"}}</option>
-        <option value="jazz">{{t "Jazz chart"}}</option>
-        <option value="map">{{t "Song map"}}</option>
-        <option value="lyrics">{{t "Lyrics only"}}</option>
-      </select>
-      <label class="pdf-notes-label"><input type="checkbox" class="pdf-notes-toggle" checked> {{t "Include notes"}}</label>
-    </div>
-    {{with .Playlist}}<a href="{{.}}">{{template "icon-play"}} {{t "Playlist"}}</a>{{end}}
-  </div>
-</details>
-<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<button type="button" class="setlist-action songbook-pdf-btn" data-pdf-open="songbook-pdf-dialog" aria-haspopup="dialog">{{template "icon-download"}} {{t "PDF"}}</button>
+{{template "pdf-export-dialog" (dict "ID" "songbook-pdf-dialog" "Href" .PDF "Title" "Songbook PDF" "Hint" "A cover, the list of the songs, then every song.")}}
 {{end}}{{end}}
+
+{{define "space-playlist"}}{{with .Playlist}}<a class="setlist-action" href="{{.}}">{{template "icon-play"}} {{t "Playlist"}}</a>{{end}}{{end}}
