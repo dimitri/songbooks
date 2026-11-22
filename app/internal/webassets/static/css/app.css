@@ -6121,8 +6121,27 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .group-card-link:focus-visible { outline: none; }
 .group-card:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .group-card-kind { margin: 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-faint); overflow-wrap: anywhere; }
-.group-card-facts, .group-card-next { margin: 0; font-size: 0.82rem; color: var(--fg-muted); overflow-wrap: anywhere; }
-.group-card-next { color: var(--fg); }
+.group-card-line { margin: 0.1rem 0 0; font-size: 0.82rem; color: var(--fg-muted); overflow-wrap: anywhere; }
+.group-card-line.is-waiting { color: var(--fg); font-weight: 600; }
+/* The two rows' heads: an icon, the title and a short hint. */
+.home-row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.45rem; }
+.home-row-title .icon { width: 1.15rem; height: 1.15rem; align-self: center; color: var(--accent-ink); }
+.home-row-hint { font-size: 0.86rem; font-weight: 400; color: var(--fg-faint); }
+.home-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
+.home-row-all { font-size: 0.88rem; font-weight: 600; white-space: nowrap; }
+
+/* A student's songbooks in their coaching communities, under their own
+   in the same card: one compact row each. */
+.home-lesson-books { grid-column: 1 / -1; list-style: none; margin: 0.2rem 0 0; padding: 0; }
+.home-lesson-book { display: grid; grid-template-columns: 4rem minmax(0, 1fr) auto; gap: 0.8rem; align-items: center; padding: 0.75rem 0 0; margin-top: 0.75rem; border-top: 1px solid var(--border); }
+.home-lesson-art { border-radius: 6px; }
+.home-lesson-art .home-pic-mark .icon { width: 1.6rem; height: 1.6rem; }
+.home-lesson-text { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.home-lesson-text h3 { margin: 0; font-size: 1.05rem; line-height: 1.25; overflow-wrap: anywhere; }
+.home-lesson-text h3 a { color: var(--fg); }
+.home-lesson-text .home-songbook-count { font-size: 0.86rem; }
+.home-lesson-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+.home-lesson-actions .home-btn { min-height: 2.5rem; padding: 0.35rem 0.75rem; }
 
 @media (max-width: 1100px) {
   .group-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -6147,7 +6166,9 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   .home-btn { padding-inline: 0.8rem; }
   .group-card-text { padding: 0.55rem 0.65rem 0.7rem; }
   .group-card h4 { font-size: 0.95rem; }
-  .group-card-facts { display: none; }
+  .home-lesson-book { grid-template-columns: 3.4rem minmax(0, 1fr); row-gap: 0.5rem; }
+  .home-lesson-actions { grid-column: 2; justify-content: flex-start; }
+  .home-row-hint { flex-basis: 100%; }
 }
 /* A band's settings: its card picture (card-image.js), the choices
    beside a live preview of its home card. */

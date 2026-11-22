@@ -128,9 +128,15 @@ const (
 	homeRecentSongs    = 3
 )
 
+// homeLessonBooks is how many student songbooks the songbook card shows
+// (one per coaching community); more say "All my songbooks".
+const homeLessonBooks = 3
+
 // mySongbookCard is "Your songbook": the person's own songbook (their
 // default one, "My songbook" unless renamed), the covers of its songs,
-// the songs they opened last, and their other songbooks.
+// the songs they opened last, and their other songbooks; then, for a
+// student, the songbook each of their coaching communities keeps for
+// them ("Lessons with Studio Lumen").
 type mySongbookCard struct {
 	ID     int64
 	Name   string
@@ -138,7 +144,21 @@ type mySongbookCard struct {
 	Mosaic []store.MosaicCover
 	Recent []store.RecentSong
 	Others []bookStats
+	// Lessons are the student songbooks, at most homeLessonBooks;
+	// MoreLessons, that there are more.
+	Lessons     []lessonBookCard
+	MoreLessons bool
 }
+
+// lessonBookCard is a student's songbook in a coaching community.
+type lessonBookCard struct {
+	store.StudentBook
+	Songs  int
+	Mosaic []store.MosaicCover
+}
+
+// MosaicClass is the mosaic's grid: "m1" or "m4".
+func (c lessonBookCard) MosaicClass() string { return fmt.Sprintf("m%d", len(c.Mosaic)) }
 
 // MosaicClass is the mosaic's grid: "m1", "m4" or "m9".
 func (c mySongbookCard) MosaicClass() string { return fmt.Sprintf("m%d", len(c.Mosaic)) }
@@ -177,6 +197,21 @@ func (s *Server) mySongbook(ctx context.Context, lang string, personID int64) (*
 	if err != nil {
 		return nil, err
 	}
+	lessons, err := s.store.ListStudentBooksForPerson(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	if len(lessons) > homeLessonBooks {
+		lessons, card.MoreLessons = lessons[:homeLessonBooks], true
+	}
+	for _, b := range lessons {
+		songs, err := s.store.SongbookCovers(ctx, b.ID)
+		if err != nil {
+			return nil, err
+		}
+		card.Lessons = append(card.Lessons, lessonBookCard{StudentBook: b, Songs: len(songs),
+			Mosaic: store.CardMosaic(store.CoverChoices(songs), store.CardImage{}, homeCardMosaic)})
+	}
 	return card, nil
 }
 
@@ -186,17 +221,61 @@ func (s *Server) mySongbook(ctx context.Context, lang string, personID int64) (*
 // at most when they're chosen for it (2×2); picked ones can be 3×3.
 const homeCardMosaic = 4
 
-// groupCard is a band's or community's card: the same for both.
+// groupCard is a band's or community's card: the same size and shape
+// for both, in two rows ("Your bands", "Your communities").
 type groupCard struct {
 	Kind      string // "band" or "community"
 	ID        int64
 	Name      string
 	Link      string
-	KindLabel string // "Band", "Community", "Coaching"
+	KindLabel string // "Band", "Community", "Lessons" (a coaching community)
 	Tagline   string
 	cardPicture
 	Songs, Members int
 	Next           *store.CalendarItem
+	// Line is the one line that matters for its kind (groupLine), in the
+	// page's language; Waiting, that it's something for the person.
+	Line    string
+	Waiting bool
+}
+
+// groupFacts is what groupLine chooses from.
+type groupFacts struct {
+	Next              *store.CalendarItem
+	OpenVotes         int // a band's songs to vote on
+	Lessons, NewSongs int // a community's, for the person, this week
+	Songs, Members    int
+}
+
+// groupLine is a card's one line. A band: its next date ("Next:
+// rehearsal Wed 25, 20:00"), else its songs to vote on. A community:
+// what's waiting for the person this week (their lessons, new songs).
+// Else, for both, its songs and members.
+func groupLine(lang, kind string, f groupFacts, now time.Time) (string, bool) {
+	if kind == "band" {
+		if it := f.Next; it != nil {
+			when := i18n.Date(lang, it.Starts.In(now.Location()), "Mon 2")
+			if !it.AllDay {
+				when += ", " + it.Starts.In(now.Location()).Format("15:04")
+			}
+			return i18n.T(lang, "Next: %s %s", strings.ToLower(i18n.T(lang, it.KindLabel())), when), true
+		}
+		if f.OpenVotes > 0 {
+			return i18n.N(lang, f.OpenVotes, "%d song to vote on", "%d songs to vote on"), true
+		}
+	} else {
+		var parts []string
+		if f.Lessons > 0 {
+			parts = append(parts, i18n.N(lang, f.Lessons, "%d lesson this week", "%d lessons this week"))
+		}
+		if f.NewSongs > 0 {
+			parts = append(parts, i18n.N(lang, f.NewSongs, "%d new song this week", "%d new songs this week"))
+		}
+		if len(parts) > 0 {
+			return strings.Join(parts, " · "), true
+		}
+	}
+	return i18n.N(lang, f.Songs, "%d song", "%d songs") + " · " + i18n.N(lang, f.Members, "%d member", "%d members"), false
 }
 
 // cardPicture is what fills a card's picture: the logo, else the
@@ -266,10 +345,11 @@ func (s *Server) groupPicture(ctx context.Context, kind string, id int64, name s
 }
 
 // homeGroupCards makes the cards of every band and community the person
-// is in. Those with a date coming up come first, soonest first (the
-// order of "This week"), then the others by name: the order a musician
-// needs them in this week, the same on every load until a date passes.
-func (s *Server) homeGroupCards(ctx context.Context, bands []bandCardView, communities []communityCardView, calendar []store.CalendarItem, now time.Time) ([]groupCard, error) {
+// is in, bands and communities apart. In each, those with a date coming
+// up come first, soonest first (the order of "This week"), then the
+// others by name: the order a musician needs them in this week, the same
+// on every load until a date passes.
+func (s *Server) homeGroupCards(ctx context.Context, lang string, personID int64, bands []bandCardView, communities []communityCardView, calendar []store.CalendarItem, now time.Time) (bandCards, communityCards []groupCard, err error) {
 	next := func(kind string, id int64) *store.CalendarItem {
 		for i, it := range calendar {
 			if !it.AllDay && !it.Starts.After(now.Add(-todayStartedFor)) || it.AllDay && daysFrom(it.Starts, now) < 0 {
@@ -281,44 +361,58 @@ func (s *Server) homeGroupCards(ctx context.Context, bands []bandCardView, commu
 		}
 		return nil
 	}
-	var ids []int64
+	var bandIDs, communityIDs []int64
 	for _, b := range bands {
-		ids = append(ids, b.ID)
+		bandIDs = append(bandIDs, b.ID)
 	}
-	stats, err := s.store.ListBandCardStats(ctx, ids)
+	for _, c := range communities {
+		communityIDs = append(communityIDs, c.ID)
+	}
+	stats, err := s.store.ListBandCardStats(ctx, bandIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var cards []groupCard
-	add := func(kind string, id int64, name, link, label string, songs, members int) error {
+	newSongs, err := s.store.CountNewCommunitySongs(ctx, personID, communityIDs, now.AddDate(0, 0, -homeWeekDays))
+	if err != nil {
+		return nil, nil, err
+	}
+	card := func(kind string, id int64, name, link, label string, f groupFacts) (groupCard, error) {
 		choice, err := s.store.GetCardImage(ctx, kind, id)
 		if err != nil {
-			return err
+			return groupCard{}, err
 		}
 		pic, tagline, err := s.groupPicture(ctx, kind, id, name, choice)
 		if err != nil {
-			return err
+			return groupCard{}, err
 		}
-		cards = append(cards, groupCard{Kind: kind, ID: id, Name: name, Link: link, KindLabel: label, Tagline: tagline,
-			cardPicture: pic, Songs: songs, Members: members, Next: next(kind, id)})
-		return nil
+		c := groupCard{Kind: kind, ID: id, Name: name, Link: link, KindLabel: label, Tagline: tagline,
+			cardPicture: pic, Songs: f.Songs, Members: f.Members, Next: f.Next}
+		c.Line, c.Waiting = groupLine(lang, kind, f, now)
+		return c, nil
 	}
 	for _, b := range bands {
-		if err := add("band", b.ID, b.Name, fmt.Sprintf("/bands/%d", b.ID), "Band", stats[b.ID].SongCount, b.Members); err != nil {
-			return nil, err
+		c, err := card("band", b.ID, b.Name, fmt.Sprintf("/bands/%d", b.ID), "Band",
+			groupFacts{Next: next("band", b.ID), OpenVotes: b.OpenVotes, Songs: stats[b.ID].SongCount, Members: b.Members})
+		if err != nil {
+			return nil, nil, err
 		}
+		bandCards = append(bandCards, c)
 	}
-	for _, c := range communities {
+	for _, cm := range communities {
 		label := "Community"
-		if c.IsCoaching() {
-			label = "Coaching"
+		if cm.IsCoaching() {
+			label = "Lessons"
 		}
-		if err := add("community", c.ID, c.Name, fmt.Sprintf("/communities/%d", c.ID), label, c.SongCount, c.MemberCount); err != nil {
-			return nil, err
+		c, err := card("community", cm.ID, cm.Name, fmt.Sprintf("/communities/%d", cm.ID), label,
+			groupFacts{Next: next("community", cm.ID), Lessons: cm.LessonsThisWeek, NewSongs: newSongs[cm.ID], Songs: cm.SongCount, Members: cm.MemberCount})
+		if err != nil {
+			return nil, nil, err
 		}
+		communityCards = append(communityCards, c)
 	}
-	sortGroupCards(cards)
-	return cards, nil
+	sortGroupCards(bandCards)
+	sortGroupCards(communityCards)
+	return bandCards, communityCards, nil
 }
 
 // sortGroupCards: a date coming up first, soonest first; then by name.
