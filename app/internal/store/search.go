@@ -28,6 +28,8 @@ type SearchHit struct {
 	EventType string
 	// A student's songbook's student, or a student hit's person.
 	PersonID int64
+	// A band's song: the band's name ("Mercy" for Mercy's version).
+	BandName string
 }
 
 // searchCandidates is how many rows each kind reads before the access
@@ -84,7 +86,8 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	title, order := matchSQL("s.title")
 	artist, _ := matchSQL("s.artist")
 	rows, err := st.db.Query(ctx, searchScope+`
-		SELECT s.id, s.title, s.artist, s.visibility::text, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0)
+		SELECT s.id, s.title, s.artist, s.visibility::text, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0),
+		       coalesce((SELECT b.name FROM bands b WHERE s.visibility = 'band' AND b.id = s.owner_band_id), '')
 		FROM songs s
 		WHERE (s.visibility = 'global'
 		       OR (s.visibility = 'user' AND s.owner_person_id = $1)
@@ -104,7 +107,7 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	for rows.Next() {
 		var c cand
 		c.hit.Kind = "song"
-		if err := rows.Scan(&c.hit.ID, &c.hit.Title, &c.hit.Subtitle, &c.visibility, &c.hit.BandID, &c.hit.CommunityID); err != nil {
+		if err := rows.Scan(&c.hit.ID, &c.hit.Title, &c.hit.Subtitle, &c.visibility, &c.hit.BandID, &c.hit.CommunityID, &c.hit.BandName); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -113,6 +116,42 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	// A band member finds their band's version of a song in place of the
+	// catalogue's, one per band (BandVersionsOfCatalogSongs).
+	var globals []int64
+	for _, c := range cands {
+		if c.visibility == "global" {
+			globals = append(globals, c.hit.ID)
+		}
+	}
+	versions, err := st.BandVersionsOfCatalogSongs(ctx, personID, globals)
+	if err != nil {
+		return nil, err
+	}
+	if len(versions) > 0 {
+		listed := map[int64]bool{}
+		for _, c := range cands {
+			if versions[c.hit.ID] == nil {
+				listed[c.hit.ID] = true
+			}
+		}
+		var with []cand
+		for _, c := range cands {
+			refs := versions[c.hit.ID]
+			if refs == nil {
+				with = append(with, c)
+				continue
+			}
+			for _, b := range refs {
+				if listed[b.VariantID] {
+					continue // found by its own title already
+				}
+				listed[b.VariantID] = true
+				with = append(with, cand{hit: SearchHit{Kind: "song", ID: b.VariantID, Title: b.Title, Subtitle: b.Artist, BandID: b.BandID, BandName: b.BandName}, visibility: "band"})
+			}
+		}
+		cands = with
 	}
 	var out []SearchHit
 	for _, c := range cands {

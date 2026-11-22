@@ -73,6 +73,10 @@ func searchHitItem(lang string, h store.SearchHit, now time.Time) searchItem {
 	it := searchItem{Kind: h.Kind, Title: h.Title, Subtitle: h.Subtitle}
 	switch h.Kind {
 	case "song":
+		// A band's song says whose version it is.
+		if h.BandName != "" {
+			it.Subtitle = strings.TrimPrefix(it.Subtitle+" · "+i18n.T(lang, "sentence|%s’s version", h.BandName), " · ")
+		}
 		it.URL = fmt.Sprintf("/song/%d", h.ID)
 		if h.BandID != 0 {
 			it.URL += fmt.Sprintf("?band=%d", h.BandID)
