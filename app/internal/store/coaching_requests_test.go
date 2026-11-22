@@ -120,21 +120,35 @@ func TestVoiceProfile(t *testing.T) {
 	if p, err := st.StudentVoiceProfile(ctx, c, student); err != nil || p.VoiceType != "" {
 		t.Fatalf("no profile yet: %+v %v", p, err)
 	}
-	if err := st.SetStudentVoiceAssessment(ctx, c, student, "falsetto", nil, nil, "", coach); err == nil {
+	va := func(t string, leaning bool, lo, hi *int, note string) VoiceAssessment {
+		return VoiceAssessment{VoiceType: t, Leaning: leaning, TessituraLow: lo, TessituraHigh: hi, Note: note}
+	}
+	if err := st.SetStudentVoiceAssessment(ctx, c, student, va("falsetto", false, nil, nil, ""), coach); err == nil {
 		t.Fatal("an unknown voice type was taken")
 	}
+	if err := st.SetStudentVoiceAssessment(ctx, c, student, VoiceAssessment{Timbre: "shiny"}, coach); err == nil {
+		t.Fatal("an unknown timbre was taken")
+	}
 	hi, lo := 67, 55
-	must(st.SetStudentVoiceAssessment(ctx, c, student, "baritone", &hi, &lo, "warm, light top", coach))
+	must(st.SetStudentVoiceAssessment(ctx, c, student, va("baritone", true, &hi, &lo, "warm, light top"), coach))
 	p, err := st.StudentVoiceProfile(ctx, c, student)
 	must(err)
-	if p.VoiceType != "baritone" || *p.TessituraLow != 55 || *p.TessituraHigh != 67 || p.Assessment != "warm, light top" {
+	if p.VoiceType != "baritone" || !p.Leaning || *p.TessituraLow != 55 || *p.TessituraHigh != 67 || p.Assessment != "warm, light top" || p.LabelAt == nil {
 		t.Fatalf("profile: %+v", p)
 	}
 	// The same again: nothing new. Only the words: one "assessment" line.
-	must(st.SetStudentVoiceAssessment(ctx, c, student, "baritone", &lo, &hi, "warm, light top", coach))
-	must(st.SetStudentVoiceAssessment(ctx, c, student, "baritone", &lo, &hi, "warm; the top opens up", coach))
-	// The type moves: its old and new values, the note with it.
-	must(st.SetStudentVoiceAssessment(ctx, c, student, "tenor", &lo, &hi, "more tenor than we thought", coach))
+	must(st.SetStudentVoiceAssessment(ctx, c, student, va("baritone", true, &lo, &hi, "warm, light top"), coach))
+	must(st.SetStudentVoiceAssessment(ctx, c, student, va("baritone", true, &lo, &hi, "warm; the top opens up"), coach))
+	// Settled: leaning baritone to tenor, firm; its old and new values,
+	// the note with it.
+	must(st.SetStudentVoiceAssessment(ctx, c, student, va("tenor", false, &lo, &hi, "more tenor than we thought"), coach))
+	// The descriptors: a timbre, the passages (in order).
+	p1, p2 := 64, 52
+	must(st.SetStudentVoiceAssessment(ctx, c, student, VoiceAssessment{VoiceType: "tenor", TessituraLow: &lo, TessituraHigh: &hi,
+		Timbre: "bright", PassaggioLow: &p1, PassaggioHigh: &p2, Note: "bright, breaks at E3 and E4"}, coach))
+	if p, _ := st.StudentVoiceProfile(ctx, c, student); p.Timbre != "bright" || *p.PassaggioLow != 52 || *p.PassaggioHigh != 64 || p.Leaning {
+		t.Fatalf("descriptors: %+v", p)
+	}
 	cl, ch := 48, 64
 	must(st.SetStudentRange(ctx, c, student, VoiceRange{Register: "chest", Low: &cl, High: &ch}, coach))
 	must(st.SetStudentRange(ctx, c, student, VoiceRange{Register: "chest", Low: &cl, High: &ch, Note: "same"}, coach))
@@ -146,10 +160,12 @@ func TestVoiceProfile(t *testing.T) {
 	}
 	want := []string{
 		"chest:>48-64//Cora Coach",
-		"voice_type:baritone>tenor/more tenor than we thought/Cora Coach",
+		"passaggi:>52-64/bright, breaks at E3 and E4/Cora Coach",
+		"timbre:>bright/bright, breaks at E3 and E4/Cora Coach",
+		"voice_type:~baritone>tenor/more tenor than we thought/Cora Coach",
 		"assessment:warm, light top>warm; the top opens up/warm; the top opens up/Cora Coach",
 		"tessitura:>55-67/warm, light top/Cora Coach",
-		"voice_type:>baritone/warm, light top/Cora Coach",
+		"voice_type:>~baritone/warm, light top/Cora Coach",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("history: %q", got)
@@ -159,10 +175,15 @@ func TestVoiceProfile(t *testing.T) {
 			t.Errorf("history[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
-	types, err := st.CommunityVoiceTypes(ctx, c)
+	must(st.SetStudentVoiceAssessment(ctx, c, student, VoiceAssessment{Leaning: true, TessituraLow: &lo, TessituraHigh: &hi,
+		Timbre: "bright", PassaggioLow: &p1, PassaggioHigh: &p2, Note: "let's not label it yet"}, coach))
+	profiles, err := st.CommunityVoiceProfiles(ctx, c)
 	must(err)
-	if types[student] != "tenor" {
-		t.Fatalf("types: %v", types)
+	if pr := profiles[student]; pr.VoiceType != "" || pr.Leaning || *pr.TessituraLow != 55 {
+		t.Fatalf("profiles: %+v", profiles)
+	}
+	if l, lean := ParseLabelText("~mezzo"); l != "mezzo" || !lean {
+		t.Fatalf("ParseLabelText: %q %v", l, lean)
 	}
 }
 

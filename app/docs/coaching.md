@@ -54,27 +54,36 @@ else's cookie counts for nothing, and the switch (`GET
 ## Voice types
 
 On a student's page, under *Voice* (the C2–C7 strip): the coach's
-assessment (migration 0108, coaching_voice.go, store/voice_profile.go).
+assessment (migrations 0108, 0109, 0111; coaching_voice.go,
+store/voice_profile.go). The range comes first, the label second: most
+coaches of pop singers keep no fixed label (see below).
 
-- **A voice type**, or *not classified yet*: soprano, mezzo-soprano,
-  contralto, countertenor, tenor, baritone, bass (French: soprano,
-  mezzo-soprano, contralto, contre-ténor, ténor, baryton, basse).
-- **The range** is the registers' (chest, mixed, head), as before: no
-  second range. Their lowest to highest note is said in words ("range
-  do2–la4").
-- **The tessitura**, optional: the comfortable part of the range, a
-  striped bar under the registers. In French *zone de confort*, since
-  the app already says *tessiture* for the range (French speakers
-  often do; strictly it's the *étendue*).
+- **The range** leads ("Range do2–la4"): the registers' (chest, mixed,
+  head), as before, no second range. The registers are named the way a
+  pop coach also says them: *Chest / belt*, *Mix*, *Head / falsetto*.
+- **The comfortable zone** (the tessitura), beside it ("comfortable
+  sol2–la3"), a striped bar under the registers. In French *zone de
+  confort*, since the app already says *tessiture* for the range
+  (French speakers often do; strictly it's the *étendue*).
+- **The working label**, second and optional: *not classified yet*
+  unless the coach says otherwise; a type (soprano, mezzo-soprano,
+  contralto, countertenor, tenor, baritone, bass; French: soprano,
+  mezzo-soprano, contralto, contre-ténor, ténor, baryton, basse),
+  either *leaning* (a working opinion, the default: "leaning baritone ·
+  Nov 2026", *plutôt baryton · nov. 2026*) or firm ("Baritone · Nov
+  2026"), dated by its last change. Types noted before 0111 stay firm.
+- **A few words beside it**, each optional: the timbre (bright, warm,
+  dark) and where the two passages sit ("passages at mi3 and si3").
 - **The assessment**: a few words (what she hears, what to work on).
-- **The history**: every change to the type, the tessitura, the
-  assessment and each register's range, with when, who, old → new and
-  the note; the latest first.
-- **The student** reads it all: their type, range and tessitura, the
-  assessment and its history (migration 0109 dropped the switch that
-  kept the assessment the coach's: it's what they make progress with).
-- **The coach's cards** (the Songbooks tab) show the type, then the
-  range.
+- **The history**: every change to the label, the comfortable zone,
+  the timbre, the passages, the assessment and each register's range,
+  with when, who, old → new and the note; the latest first.
+- **The student** reads it all: their range and comfortable zone, the
+  label, the assessment and its history (migration 0109 dropped the
+  switch that kept the assessment the coach's: it's what they make
+  progress with).
+- **The coach's cards** (the Songbooks tab) show the range and the
+  comfortable zone, then the working label.
 
 ### What the types mean
 

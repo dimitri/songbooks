@@ -571,9 +571,11 @@
 
   <section class="home-section" id="voice">
     <div class="home-section-head"><h3>{{t "Voice"}}</h3><span class="hint">{{t "ranges overlap: the mixed voice bridges chest and head"}}</span></div>
-    {{/* The voice type and the whole range, then the tessitura (the
-         comfortable part), a striped bar under the registers. */}}
-    <p class="voice-type-line"><strong class="voice-type-name">{{with .VoiceTypeLabel}}{{t .}}{{else}}{{t "Voice type not classified yet"}}{{end}}</strong>{{with .VoiceSpan}}<span>{{t "range %s" .}}</span>{{end}}{{with .Tessitura}}<span>{{t "comfortable %s" (printf "%s–%s" .LowName .HighName)}}</span>{{end}}</p>
+    {{/* The range and the comfortable zone (the tessitura, a striped bar
+         under the registers) lead; the type is the coach's working label,
+         dated, optional, with a few words beside it. */}}
+    <p class="voice-range-line"><strong class="voice-span">{{with .VoiceSpan}}{{t "Range %s" .}}{{else}}{{t "Range not noted yet"}}{{end}}</strong>{{with .Tessitura}}<span class="voice-comfort">{{t "comfortable %s" (printf "%s–%s" .LowName .HighName)}}</span>{{end}}</p>
+    <p class="voice-label-line"><span class="voice-label-kind">{{t "Working label"}}</span>{{with .VoiceLabel}}<strong class="voice-type-name">{{.}}</strong>{{with $.VoiceLabelDate}}<span>{{.}}</span>{{end}}{{else}}<span>{{t "not classified yet"}}</span>{{end}}{{with .TimbreLabel}}<span>{{t .}}</span>{{end}}{{with .Passaggi}}<span>{{.}}</span>{{end}}</p>
     {{template "voice-chart" .ChartRanges}}
     <div class="voice-ranges">
       {{range .Ranges}}
@@ -596,12 +598,23 @@
          few words; each change kept in the history below. */}}
     <form class="voice-assess form-stack">
       <div class="voice-assess-row">
-        <div class="field"><label for="voice-type">{{t "Voice type"}}</label>
-          <select id="voice-type" name="voiceType">{{$vt := .Voice.VoiceType}}{{range .VoiceTypes}}<option value="{{.Value}}"{{if eq .Value $vt}} selected{{end}}>{{t .Label}}</option>{{end}}</select></div>
         <div class="field"><label for="voice-tess-low">{{t "Comfortable from"}}</label>
           <select id="voice-tess-low" name="tessLow"><option value="">—</option>{{$tl := .TessLow}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $tl}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
         <div class="field"><label for="voice-tess-high">{{t "to"}}</label>
           <select id="voice-tess-high" name="tessHigh"><option value="">—</option>{{$th := .TessHigh}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $th}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+      </div>
+      <div class="voice-assess-row">
+        <div class="field"><label for="voice-type">{{t "Working label"}}</label>
+          <select id="voice-type" name="voiceType">{{$vt := .Voice.VoiceType}}{{range .VoiceTypes}}<option value="{{.Value}}"{{if eq .Value $vt}} selected{{end}}>{{t .Label}}</option>{{end}}</select>
+          <label class="check"><input type="checkbox" name="leaning"{{if or .Voice.Leaning (not .Voice.VoiceType)}} checked{{end}}> {{t "leaning: a working opinion"}}</label></div>
+        <div class="field"><label for="voice-timbre">{{t "Timbre"}}</label>
+          <select id="voice-timbre" name="timbre"><option value="">—</option>{{$tb := .Voice.Timbre}}{{range .Timbres}}<option value="{{.}}"{{if eq . $tb}} selected{{end}}>{{t (printf "%s timbre" .)}}</option>{{end}}</select></div>
+      </div>
+      <div class="voice-assess-row">
+        <div class="field"><label for="voice-pass-low">{{t "First passage"}}</label>
+          <select id="voice-pass-low" name="passLow"><option value="">—</option>{{$pl := .PassLow}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $pl}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        <div class="field"><label for="voice-pass-high">{{t "Second passage"}}</label>
+          <select id="voice-pass-high" name="passHigh"><option value="">—</option>{{$ph := .PassHigh}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $ph}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
       </div>
       <div class="field"><label for="voice-note">{{t "Your assessment"}}</label>
         <textarea id="voice-note" name="note" rows="2" placeholder="{{t "What you hear: range, timbre, where the voice changes register, what to work on…"}}">{{.Voice.Assessment}}</textarea></div>
@@ -617,7 +630,7 @@
       <ol>
       {{range .VoiceHistory}}
         <li><span class="hint">{{date .At "2 Jan 2006"}}{{with .By}} · {{.}}{{end}}</span>
-          {{if .IsNoteOnly}}<strong>{{t .Field}}</strong>{{else}}<strong>{{t .Field}}</strong>{{t "voice-history|:"}} {{if .Old}}{{if .IsType}}{{t .Old}}{{else}}{{.Old}}{{end}}{{else}}—{{end}} → {{if .New}}{{if .IsType}}{{t .New}}{{else}}{{.New}}{{end}}{{else}}—{{end}}{{end}}
+          {{if .IsNoteOnly}}<strong>{{t .Field}}</strong>{{else}}<strong>{{t .Field}}</strong>{{t "voice-history|:"}} {{with .Old}}{{.}}{{else}}—{{end}} → {{with .New}}{{.}}{{else}}—{{end}}{{end}}
           {{with .Note}}<div class="voice-history-note">{{.}}</div>{{end}}</li>
       {{end}}
       </ol>
@@ -743,7 +756,10 @@
     const num = (v) => (v === '' ? null : Number(v));
     Forms.run(assess, assess.querySelector('button[type="submit"]'), async () => {
       await send(`${api}/voice`, 'PUT', {
-        voiceType: assess.voiceType.value, tessituraLow: num(assess.tessLow.value), tessituraHigh: num(assess.tessHigh.value), note: assess.note.value,
+        voiceType: assess.voiceType.value, leaning: assess.leaning.checked,
+        tessituraLow: num(assess.tessLow.value), tessituraHigh: num(assess.tessHigh.value),
+        timbre: assess.timbre.value, passaggioLow: num(assess.passLow.value), passaggioHigh: num(assess.passHigh.value),
+        note: assess.note.value,
       }).catch(() => { throw new Error(t('Couldn’t save the assessment.')); });
       location.reload();
     });

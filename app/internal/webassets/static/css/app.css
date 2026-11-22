@@ -7867,13 +7867,20 @@ body.branded :is(.rec-play, .rp-btn) { border-radius: 50%; }
 /* A student's voice type (coaching.html "Voice"): the type and the range
    in words, the tessitura as a striped bar under the registers, the
    coach's assessment and its history. */
-.voice-type-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.8rem; margin: 0 0 0.4rem; color: var(--fg-muted); }
-.voice-type-name { font-size: 1.1rem; color: var(--fg); }
+.voice-type-name { color: var(--fg); }
 .voice-chart-bar.is-tessitura { background: repeating-linear-gradient(-45deg, var(--accent), var(--accent) 4px, color-mix(in srgb, var(--accent) 45%, transparent) 4px, color-mix(in srgb, var(--accent) 45%, transparent) 8px); }
-.voice-tag.is-type { background: var(--accent-bg); color: var(--accent-ink); }
 .voice-assess { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
-.voice-assess-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0.6rem; }
-@media (max-width: 720px) { .voice-assess-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .voice-assess-row > :first-child { grid-column: 1 / -1; } }
+.voice-assess-row { display: grid; grid-template-columns: repeat(2, minmax(0, 14rem)); gap: 0.6rem; }
+.voice-assess-row .check { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.35rem; font-size: 0.88rem; }
+.voice-range-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.9rem; margin: 0 0 0.25rem; }
+.voice-span { font-size: 1.1rem; }
+.voice-comfort { font-weight: 600; color: var(--accent-ink); }
+.voice-label-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin: 0 0 0.5rem; color: var(--fg-muted); font-size: 0.9rem; }
+.voice-label-line > span + span::before, .voice-label-line > strong + span::before { content: "· "; }
+.voice-label-kind { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.voice-label-line .voice-type-name { font-size: 0.95rem; }
+.voice-tag.is-comfort { background: var(--accent-bg); color: var(--accent-ink); }
+.cbook-card-label { font-size: 0.8rem; font-style: italic; }
 .voice-shared-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
 .voice-assessment { margin: 0.8rem 0 0; padding: 0.5rem 0.8rem; border-left: 3px solid var(--accent); background: var(--bg-sunken); white-space: pre-line; }
 .voice-history { margin-top: 0.8rem; }

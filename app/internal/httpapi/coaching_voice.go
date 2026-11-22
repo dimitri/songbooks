@@ -3,15 +3,49 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"app/internal/i18n"
 	"app/internal/store"
 )
 
-// A coaching student's voice type (docs/coaching.md, "Voice types"): the
-// coach's assessment on the student's page (a type or none yet, the
-// tessitura, a few words) and its history, which the student reads too.
+// A coaching student's voice (docs/coaching.md, "Voice types"): the range
+// and the comfortable zone first; the type a working label, the coach's
+// dated opinion (firm, or "leaning"), optional; a few words beside it
+// (timbre, where the passages sit); her assessment; and its history,
+// which the student reads too.
+
+// timbreLabels name the timbres (English keys, translated where printed).
+var timbreLabels = map[string]string{"bright": "bright timbre", "warm": "warm timbre", "dark": "dark timbre"}
+
+// voiceLabelText is the working label in words, in lang: "leaning
+// baritone", "Baritone"; "" when not classified.
+func voiceLabelText(lang, voiceType string, leaning bool) string {
+	label, ok := voiceTypeLabels[voiceType]
+	if !ok {
+		return ""
+	}
+	name := i18n.T(lang, label)
+	if leaning {
+		return i18n.T(lang, "leaning %s", strings.ToLower(name))
+	}
+	return name
+}
+
+// passaggiText says where the passages sit, in lang: "passages at mi3 and
+// si3", "a passage at mi3"; "" when none is noted.
+func passaggiText(lang string, low, high *int) string {
+	switch {
+	case low != nil && high != nil:
+		return i18n.T(lang, "passages at %s and %s", i18n.NoteName(lang, *low), i18n.NoteName(lang, *high))
+	case low != nil:
+		return i18n.T(lang, "a passage at %s", i18n.NoteName(lang, *low))
+	case high != nil:
+		return i18n.T(lang, "a passage at %s", i18n.NoteName(lang, *high))
+	}
+	return ""
+}
 
 // voiceTypeLabels name the voice types (English keys, translated where
 // printed).
@@ -45,19 +79,20 @@ type voiceChangeView struct {
 	At         time.Time
 	By         string
 	Field      string // English label
-	IsType     bool
 	Old, New   string
 	Note       string
 	IsNoteOnly bool
 }
 
 var voiceFieldLabels = map[string]string{
-	"voice_type": "Voice type",
+	"voice_type": "Working label",
 	"tessitura":  "Tessitura",
+	"timbre":     "Timbre",
+	"passaggi":   "Passages",
 	"assessment": "Assessment",
-	"chest":      "Chest voice",
-	"mixed":      "Mixed voice",
-	"head":       "Head voice",
+	"chest":      "Chest / belt",
+	"mixed":      "voice|Mix",
+	"head":       "Head / falsetto",
 }
 
 // spanName is a range as "do3–la4" in lang, "" when not noted.
@@ -74,8 +109,17 @@ func voiceChangeViews(cs []store.VoiceChange, lang string) []voiceChangeView {
 		v := voiceChangeView{At: c.ChangedAt, By: c.ChangedBy, Field: voiceFieldLabels[c.Field], Note: c.Note}
 		switch c.Field {
 		case "voice_type":
-			v.IsType = true
-			v.Old, v.New = voiceTypeLabels[c.Old], voiceTypeLabels[c.New]
+			ot, ol := store.ParseLabelText(c.Old)
+			nt, nl := store.ParseLabelText(c.New)
+			v.Old, v.New = voiceLabelText(lang, ot, ol), voiceLabelText(lang, nt, nl)
+		case "timbre":
+			v.Old, v.New = i18n.T(lang, timbreLabels[c.Old]), i18n.T(lang, timbreLabels[c.New])
+			if c.Old == "" {
+				v.Old = ""
+			}
+			if c.New == "" {
+				v.New = ""
+			}
 		case "assessment":
 			v.IsNoteOnly = true
 		default:
@@ -116,7 +160,22 @@ func (s *Server) voiceData(r *http.Request, communityID, studentID int64, coach 
 	}
 	data["Voice"] = p
 	data["VoiceTypeLabel"] = voiceTypeLabels[p.VoiceType]
+	data["VoiceLabel"] = voiceLabelText(lang, p.VoiceType, p.Leaning)
+	if p.LabelAt != nil {
+		data["VoiceLabelDate"] = i18n.Date(lang, *p.LabelAt, "Jan 2006")
+	}
 	data["VoiceTypes"] = voiceTypeOptions()
+	data["Timbres"] = store.Timbres
+	data["TimbreLabel"] = timbreLabels[p.Timbre]
+	data["Passaggi"] = passaggiText(lang, p.PassaggioLow, p.PassaggioHigh)
+	pl, ph := 0, 0
+	if p.PassaggioLow != nil {
+		pl = *p.PassaggioLow
+	}
+	if p.PassaggioHigh != nil {
+		ph = *p.PassaggioHigh
+	}
+	data["PassLow"], data["PassHigh"] = pl, ph
 	chart := append([]rangeView{}, ranges...)
 	if t := tessituraView(p, lang); t != nil {
 		data["Tessitura"] = t
@@ -152,8 +211,8 @@ func (s *Server) voiceData(r *http.Request, communityID, studentID int64, coach 
 }
 
 // handlePutStudentVoice is PUT /api/communities/{id}/students/{personID}/voice
-// {voiceType, tessituraLow, tessituraHigh, note}: the coach's assessment,
-// each change kept.
+// {voiceType, leaning, tessituraLow, tessituraHigh, timbre, passaggioLow,
+// passaggioHigh, note}: the coach's assessment, each change kept.
 func (s *Server) handlePutStudentVoice(w http.ResponseWriter, r *http.Request) {
 	community, student, ok := s.coachRequest(w, r)
 	if !ok {
@@ -161,21 +220,27 @@ func (s *Server) handlePutStudentVoice(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		VoiceType     string `json:"voiceType"`
+		Leaning       bool   `json:"leaning"`
 		TessituraLow  *int   `json:"tessituraLow"`
 		TessituraHigh *int   `json:"tessituraHigh"`
+		Timbre        string `json:"timbre"`
+		PassaggioLow  *int   `json:"passaggioLow"`
+		PassaggioHigh *int   `json:"passaggioHigh"`
 		Note          string `json:"note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	for _, n := range []*int{req.TessituraLow, req.TessituraHigh} {
+	for _, n := range []*int{req.TessituraLow, req.TessituraHigh, req.PassaggioLow, req.PassaggioHigh} {
 		if n != nil && (*n < 24 || *n > 108) {
 			httpError(w, http.StatusBadRequest, "a note out of range")
 			return
 		}
 	}
-	if err := s.store.SetStudentVoiceAssessment(r.Context(), community.ID, student.PersonID, req.VoiceType, req.TessituraLow, req.TessituraHigh, req.Note, personFromContext(r).ID); err != nil {
+	a := store.VoiceAssessment{VoiceType: req.VoiceType, Leaning: req.Leaning, TessituraLow: req.TessituraLow, TessituraHigh: req.TessituraHigh,
+		Timbre: req.Timbre, PassaggioLow: req.PassaggioLow, PassaggioHigh: req.PassaggioHigh, Note: req.Note}
+	if err := s.store.SetStudentVoiceAssessment(r.Context(), community.ID, student.PersonID, a, personFromContext(r).ID); err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}

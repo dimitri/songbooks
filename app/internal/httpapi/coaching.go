@@ -44,7 +44,9 @@ type rangeView struct {
 // rangeViews are a student's ranges to show, the notes named in lang;
 // the labels stay English, translated where printed ({{t .Label}}).
 func rangeViews(rs []store.VoiceRange, lang string) []rangeView {
-	labels := map[string]string{"chest": "Chest voice", "mixed": "Mixed voice", "head": "Head voice"}
+	// A pop coach's words too: the chest voice where the belt is, the
+	// head voice where the falsetto is.
+	labels := map[string]string{"chest": "Chest / belt", "mixed": "voice|Mix", "head": "Head / falsetto"}
 	out := make([]rangeView, len(rs))
 	for i, r := range rs {
 		out[i] = rangeView{VoiceRange: r, Label: labels[r.Register]}
