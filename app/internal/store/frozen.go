@@ -233,15 +233,46 @@ func (st *Store) freezeLinks(ctx context.Context, tx pgx.Tx, songID int64, forDe
 	return out, nil
 }
 
+// keepPractice keeps the practice of songID, about to be deleted: a
+// person's days of it (practice_logs) and checked takes (practice_takes)
+// go to the frozen copy made for that person (copies); the days of
+// everyone else keep the song's title and artist (migration 0119), their
+// takes go with the song — the day keeps how many there were and the last
+// scores. Notes on the song (annotations) go with it.
+func keepPractice(ctx context.Context, tx pgx.Tx, songID int64, copies map[Owner]int64) error {
+	for o, copyID := range copies {
+		if o.Kind != "person" {
+			continue
+		}
+		for _, q := range []string{
+			`UPDATE practice_logs SET variant_id = $3 WHERE variant_id = $1 AND person_id = $2`,
+			`UPDATE practice_takes SET variant_id = $3 WHERE variant_id = $1 AND person_id = $2`,
+		} {
+			if _, err := tx.Exec(ctx, q, songID, o.ID, copyID); err != nil {
+				return err
+			}
+		}
+	}
+	_, err := tx.Exec(ctx, `
+		UPDATE practice_logs l SET song_title = s.title, song_artist = s.artist
+		FROM songs s WHERE s.id = $1 AND l.variant_id = s.id`, songID)
+	return err
+}
+
 // DeleteSong deletes songID for actorID (who may: the router's check),
-// every other owner linking it keeping a frozen copy first.
+// every other owner linking it keeping a frozen copy first, and the
+// practice of it kept (keepPractice).
 func (st *Store) DeleteSong(ctx context.Context, songID, actorID int64) error {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := st.freezeLinks(ctx, tx, songID, true, actorID); err != nil {
+	copies, err := st.freezeLinks(ctx, tx, songID, true, actorID)
+	if err != nil {
+		return err
+	}
+	if err := keepPractice(ctx, tx, songID, copies); err != nil {
 		return err
 	}
 	if err := deleteSong(ctx, tx, songID); err != nil {

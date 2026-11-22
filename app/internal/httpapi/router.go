@@ -335,6 +335,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/variants/{id}/original-change", s.requireAuth(s.handleSyncWithOriginal))
 	mux.HandleFunc("GET /api/variants/{id}/uses", s.requireVariantRole("editor", s.handleSongUses))
 	mux.HandleFunc("GET /song/{id}/recordings", s.requireVariantRole("viewer", s.handleSongRecordingsPage))
+	// A band's recording through the app, for who may hear it
+	// (recordings_stream.go): its folder link stays on the server.
+	mux.HandleFunc("GET /recordings/{id}/audio", s.requireAuth(s.handleRecordingAudio))
 	mux.HandleFunc("POST /api/bands/{id}/recordings/{recID}/public", s.requireBandMember(s.handleSetBandRecordingPublic))
 	mux.HandleFunc("POST /api/songbooks/{id}/public", s.requireAuth(s.handleSetSongbookPublic))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
