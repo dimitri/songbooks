@@ -79,6 +79,9 @@ type jzCellView struct {
 	Simile int  // 1: "%", 2: "%%" drawn in one bar
 	Pair2  bool // the two-bar repeat sign, straddling this bar's left barline
 	Rest   bool // a whole-bar rest
+	// Lead: a bar of the section's "lead:" line (song.WithLeads), played
+	// before its first bar and not counted; LeadTag on the first of them.
+	Lead, LeadTag bool
 }
 
 type jzText struct {
@@ -163,12 +166,23 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 			continue
 		}
 		exp := jzExpand(measures[g])
-		if len(exp) == 0 {
+		// The grid's "lead:" bars (song.WithLeads) are played once, by the
+		// section that writes them: not again on each pass, nor by another
+		// section playing the same grid.
+		lead := song.LeadBars(measures[g])
+		var leadExp []int
+		if lead > 0 && len(exp) >= lead {
+			if g == vs.Index {
+				leadExp = exp[:lead]
+			}
+			exp = exp[lead:]
+		}
+		if len(exp) == 0 && len(leadExp) == 0 {
 			continue
 		}
-		reps := vs.BarCount / len(exp)
-		if reps < 1 {
-			reps = 1
+		reps := 1
+		if len(exp) > 0 {
+			reps = max(1, (vs.BarCount-len(leadExp))/len(exp))
 		}
 		norm := jzNormLabel(vs.Label)
 		// One printed section per grid, whatever the sections playing it
@@ -179,8 +193,13 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 			cl = len(classes)
 			classes[ck] = cl
 		}
-		occs = append(occs, jzOcc{sec: i, label: vs.Label, norm: norm, grid: canon[g], reps: reps, class: cl, bars: reps * len(exp)})
+		occs = append(occs, jzOcc{sec: i, label: vs.Label, norm: norm, grid: canon[g], reps: reps, class: cl, bars: len(leadExp) + reps*len(exp)})
 		k := 0
+		for _, b := range leadExp {
+			expected = append(expected, [2]int{g, b})
+			globalOf = append(globalOf, vs.StartBar+k)
+			k++
+		}
 		for r := 0; r < reps; r++ {
 			for _, b := range exp {
 				expected = append(expected, [2]int{g, b})
@@ -481,7 +500,7 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 			i := s.cell
 			c := cells[i]
 			m := measures[c.sec][c.bar]
-			v := jzCellView{}
+			v := jzCellView{Lead: m.Lead, LeadTag: m.Lead && (c.bar == 0 || !measures[c.sec][c.bar-1].Lead)}
 			if ps := played[i]; len(ps) > 0 {
 				strs := make([]string, len(ps))
 				for k, p := range ps {
@@ -633,6 +652,9 @@ func jzResolved(ms []song.Measure) []string {
 	return out
 }
 
+// jzSilent: a bar naming no chord ("?", ".", N.C.).
+func jzSilent(tokens []string) bool { return isSilentBar(tokens) }
+
 // jzFillContent places a bar's chords on its beat cells.
 func jzFillContent(v *jzCellView, c jzCell, measures map[int][]song.Measure, cells []jzCell, i int, prevOnLine bool, m song.Measure, sg *song.Song, globalTime string) {
 	tokens := m.Tokens
@@ -669,6 +691,11 @@ func jzFillContent(v *jzCellView, c jzCell, measures map[int][]song.Measure, cel
 			v.Rest = true
 			return
 		}
+	}
+	if m.Lead && jzSilent(tokens) {
+		// A chordless lead bar ("lead: 1"): a whole-bar rest.
+		v.Rest = true
+		return
 	}
 	meter := m.Meter
 	if meter == "" {

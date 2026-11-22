@@ -25,6 +25,10 @@
     { "name": "bars: 5 with a pickup, no room: 3 + 2, never a lone bar", "rows": [5, 5], "opts": { "perRow": 4, "explicit": true, "pickup": true, "fitFirst": 3, "fit": 4 }, "want": [{ "bars": 3, "cap": 4 }, { "bars": 2, "cap": 4 }, { "bars": 3, "cap": 4 }, { "bars": 2, "cap": 4 }] },
     { "name": "bars: 6 splits 4 + 2", "rows": [6], "opts": { "perRow": 4, "explicit": true }, "want": [{ "bars": 4, "cap": 4 }, { "bars": 2, "cap": 4 }] },
     { "name": "bars: 4 with a count-in, the pickup one of the 4", "rows": [4, 4, 4, 4, 1], "opts": { "perRow": 4, "explicit": true, "pickup": true }, "want": [{ "bars": 4, "cap": 3 }, { "bars": 4, "cap": 4 }, { "bars": 4, "cap": 4 }, { "bars": 4, "cap": 4 }, { "bars": 1, "cap": 4 }] },
+    { "name": "lead: 2, then 8 bars: the lead on the first row", "rows": [10], "opts": { "perRow": 4, "leads": 2 }, "want": [{ "bars": 6, "cap": 4 }, { "bars": 4, "cap": 4 }] },
+    { "name": "lead: 2 and bars: 4, the lead not one of the 4", "rows": [6, 4], "opts": { "perRow": 4, "explicit": true, "leads": 2 }, "want": [{ "bars": 6, "cap": 4 }, { "bars": 4, "cap": 4 }] },
+    { "name": "lead: 1 and bars: 4, the lead not one of the 4", "rows": [5, 4], "opts": { "perRow": 4, "explicit": true, "pickup": true }, "want": [{ "bars": 5, "cap": 4 }, { "bars": 4, "cap": 4 }] },
+    { "name": "lead: 2 and bars: 6: 4 + 2, the lead on the first", "rows": [8, 6], "opts": { "perRow": 4, "explicit": true, "leads": 2 }, "want": [{ "bars": 6, "cap": 4 }, { "bars": 2, "cap": 4 }, { "bars": 4, "cap": 4 }, { "bars": 2, "cap": 4 }] },
     { "name": "nothing", "rows": [], "opts": { "perRow": 4 }, "want": [] }
   ]
 }

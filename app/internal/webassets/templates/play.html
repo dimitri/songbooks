@@ -31,7 +31,7 @@
      that floor (reflowStaffLines(), song.js, only ever narrows rows
      down TO it) — each one just collided with its neighbor instead
      of the row ever being flagged as needing to wrap further. */}}
-<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Lead}} bar-lead{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
   {{/* The bar's "score:" riff, if this bar has one. When its whole
        display row is fully covered (.TabOnly), the riff REPLACES the
        normal staff/slash content below — real tab notation, not an
@@ -54,6 +54,9 @@
        .bar (already position:relative), not a preceding sibling, so it
        anchors to exactly the bar it annotates via plain CSS, no JS
        positioning needed, and adds no width/height to the row's flow. */}}
+  {{/* A "lead:" bar (song.WithLeads): played before the section's first
+       bar, not counted — tagged so it doesn't read as bar 1. */}}
+  {{if .Lead}}<span class="lead-tag" title="{{t "lead-in: played before bar 1, not counted"}}">{{t "lead"}}</span>{{end}}
   {{if .MapAnnotate}}<span class="map-sec-badge">{{if .MapMark}}<span class="rehearsal-mark">{{.MapMark}}</span>{{end}}{{label .MapLabel}}</span>{{end}}
   {{if .Open}}<span class="repeat-dots" title="{{t "repeat starts"}}"></span>{{end}}
   {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
@@ -160,7 +163,8 @@
       </div>
       {{range .Lines}}
       <div class="jz-sys{{if .Gap}} gap{{end}}{{if .Coda}} coda{{end}}">
-        {{range .Cells}}{{if .Pad}}<div class="jz-bar jz-pad"></div>{{else}}<div class="jz-bar"{{if .HasPlayed}} data-global-bar="{{.First}}" data-played="{{.Played}}"{{end}}>
+        {{range .Cells}}{{if .Pad}}<div class="jz-bar jz-pad"></div>{{else}}<div class="jz-bar{{if .Lead}} jz-lead{{end}}"{{if .HasPlayed}} data-global-bar="{{.First}}" data-played="{{.Played}}"{{end}}>
+          {{if .LeadTag}}<span class="jz-lead-tag" title="{{t "lead-in: played before bar 1, not counted"}}">{{t "lead"}}</span>{{end}}
           {{if .Left}}<div class="jz-lineL{{if ne .Left "single"}} wide{{end}}{{if eq .Left "rep-both"}} both{{end}}"{{if eq .Left "rep-start" "rep-both"}} role="img" aria-label="{{t "Repeat start"}}"{{end}}>{{template "jz-barline" .Left}}</div>{{end}}
           {{if .Right}}<div class="jz-lineR{{if ne .Right "single"}} wide{{end}}"{{if eq .Right "rep-end"}} role="img" aria-label="{{t "Repeat close"}}"{{end}}>{{template "jz-barline" .Right}}</div>{{end}}
           {{if .Segno}}<div class="jz-sym jz-segno" role="img" aria-label="{{t "Segno"}}" title="{{t "Segno"}}">&#xE047;</div>{{end}}
@@ -214,7 +218,7 @@
      repeated bars. Hidden outside map mode by CSS ([data-render-mode]). */}}
 <div class="map-score">
   {{range .MapLines}}
-  <div class="staff-line">
+  <div class="staff-line"{{with .Pickups}} style="--pickups: {{.}}"{{end}}>
     {{range .Cells}}
     {{if .IsRecall}}
     {{/* Anchored to the row's shared staff baseline exactly like a real
@@ -303,7 +307,7 @@
          bounded by real repeat barlines, already shows the "twice"; the
          chip's job is just the one number a musician actually asks for
          ("how many bars is this"). */}}
-    <span class="chip-bars">{{.BarCount}}</span>
+    <span class="chip-bars">{{.CountedBars}}{{with .LeadIn}} <small title="{{t "lead-in: played before bar 1, not counted"}}">+{{.}}</small>{{end}}</span>
     {{end}}
   </div>
   {{if .GPOnly}}
@@ -361,7 +365,7 @@
       {{end}}
     </div>
     {{else}}
-    <div class="staff-line" style="--cap: {{.Capacity}}">
+    <div class="staff-line" style="--cap: {{.Capacity}}{{with .Pickups}}; --pickups: {{.}}{{end}}">
       {{range .Measures}}
       {{template "chart-bar" .}}
       {{end}}
@@ -1607,10 +1611,10 @@
         {{range .Sections}}
         <button class="structure-seg{{if or .Repeat .IsReference}} is-reference{{end}}" type="button"
           data-section-index="{{.Index}}" style="--bars: {{if .BarCount}}{{.BarCount}}{{else}}1{{end}}"
-          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{tn .BarCount "%d bar" "%d bars"}}{{end}}">
+          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{tn .CountedBars "%d bar" "%d bars"}}{{with .LeadIn}} ({{tn . "+ %d lead bar" "+ %d lead bars"}}){{end}}{{end}}">
           {{if .ChordSummary}}<span class="structure-seg-chords" title="{{.ChordSummary}}">{{.ChordSummary}}</span>{{end}}
           <span class="structure-seg-tick"></span>
-          <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.BarCount}}</span>{{end}}</span>
+          <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.CountedBars}}</span>{{end}}</span>
         </button>
         {{end}}
       </div>

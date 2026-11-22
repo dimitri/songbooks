@@ -770,7 +770,13 @@ type viewerMeasure struct {
 	// (songStartsWithPickup). The chart puts it in the first row ON TOP of
 	// that row's usual bar count, so the rest keeps its natural phrasing:
 	// a 16-bar blues reads 5 / 4 / 4 / 4, not ? B E B / . . . F# / ….
+	// A "lead:" line's bars on the song's opening section are pickups
+	// too, as many as it has (song.WithLeads).
 	Pickup bool
+	// Lead marks a bar from the section's "lead:" line (song.WithLeads):
+	// drawn lighter, with a small "lead" tag over the first. Its Index is
+	// negative (it isn't one of the section's written bars).
+	Lead bool
 	// MapAnnotate/MapMark/MapLabel are set ONLY by buildMapLines, on
 	// whichever measure is the first bar of its section in Song Map's
 	// flattened continuous score — every other mode's per-section
@@ -1406,11 +1412,14 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
 func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, swing, instrument string) {
-	// A song opening with a pickup numbers it 0 (see viewerMeasure.Pickup).
-	songPickup := false
+	// A song opening with a pickup numbers it 0 (see viewerMeasure.Pickup),
+	// a lead-in of several bars -1, 0.
+	songPickup := 0
 	for _, sec := range sections {
 		if len(sec.Measures) > 0 {
-			songPickup = sec.Measures[0].Pickup
+			for songPickup < len(sec.Measures) && sec.Measures[songPickup].Pickup {
+				songPickup++
+			}
 			break
 		}
 	}
@@ -1519,10 +1528,7 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 					tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
 				}
 				if line := &sections[si].Lines[li]; len(line.Measures) > 0 {
-					line.BarShift = line.Measures[0].GlobalBar
-					if songPickup {
-						line.BarShift--
-					}
+					line.BarShift = line.Measures[0].GlobalBar - songPickup
 				}
 				// Fixed rows of 4 bars, like the chord chart (a 12-bar blues
 				// reads as three rows of four), a pickup riding along in the
@@ -1555,9 +1561,15 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 // withRiffOnlyBars gives a section that has a score but no chord bars
 // (an intro riff, a drum pattern written down on its own) as many empty
 // bars as its first voice has, so the chart has bars to draw the score
-// on. The song itself is left untouched: the copy shares everything but
-// the filled sections' measures.
+// on, and writes every section's "lead:" bars into its grid
+// (song.WithLeads), so the chart draws and times them. The song itself
+// is left untouched: the copy shares everything but the filled sections'
+// measures.
 func withRiffOnlyBars(sg *song.Song) *song.Song {
+	return song.WithLeads(withRiffOnlyBars1(sg))
+}
+
+func withRiffOnlyBars1(sg *song.Song) *song.Song {
 	var out *song.Song
 	for i, sec := range sg.Sections {
 		if len(sec.Measures) > 0 || sec.Repeat || len(sec.Scores) == 0 {
@@ -1864,6 +1876,10 @@ type viewerSection struct {
 	// writes one, the earlier section a bare repeat, a "chords continue"
 	// section or an inferred Solo borrows its bars from; -1 for none.
 	GridFrom int
+	// LeadBars is how many of Measures are the section's "lead:" bars
+	// (song.WithLeads), played once ahead of its passes; a section playing
+	// this one's grid again (a bare repeat, a Solo) doesn't play them.
+	LeadBars int
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
@@ -1900,6 +1916,35 @@ type viewerLine struct {
 	// draws it the way the viewer reads that instrument (tab, staff or both,
 	// store.NotationPrefs).
 	Instrument string
+}
+
+// LeadIn is how many of the section's bars are the song's lead-in (its
+// "lead:" bars on the opening section): played, but not counted.
+func (s viewerSection) LeadIn() int {
+	n := 0
+	for _, m := range s.Measures {
+		if m.Lead && m.Pickup {
+			n++
+		}
+	}
+	return n
+}
+
+// CountedBars is BarCount without the song's lead-in: the bars a
+// musician counts ("the Intro is 8 bars").
+func (s viewerSection) CountedBars() int { return s.BarCount - s.LeadIn() }
+
+// Pickups is how many of the row's bars are pickups (the song's
+// lead-in, viewerMeasure.Pickup): the row's regular bars share what their
+// narrow cells leave (--pickups, app.css).
+func (l viewerLine) Pickups() int {
+	n := 0
+	for _, m := range l.Measures {
+		if m.Pickup {
+			n++
+		}
+	}
+	return n
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -1963,6 +2008,18 @@ type mapCell struct {
 
 type mapLine struct {
 	Cells []mapCell
+}
+
+// Pickups is how many of the row's bars are the song's lead-in (see
+// viewerLine.Pickups).
+func (l mapLine) Pickups() int {
+	n := 0
+	for _, c := range l.Cells {
+		if !c.IsRecall && c.Measure.Pickup {
+			n++
+		}
+	}
+	return n
 }
 
 // buildMapLines flattens every section's bars into ONE continuous bar
@@ -2206,8 +2263,13 @@ func buildSections(sg *song.Song) []viewerSection {
 	// re-render that label WITH its number ("Verse 1", not bare "Verse")
 	// once numbering is known, without re-running the comparison.
 	var dupSrc []int
+	opening := sg.OpeningSection()
 	for si, sec := range sg.Sections {
 		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times, GridFrom: -1}
+		// The section's "lead:" bars, ahead of its written ones
+		// (song.WithLeads): played once, before its passes.
+		lead := song.LeadBars(sec.Measures)
+		vs.LeadBars = lead
 		if len(sec.Measures) > 0 {
 			vs.GridFrom = si
 		}
@@ -2243,8 +2305,13 @@ func buildSections(sg *song.Song) []viewerSection {
 				// reference section's inherited one) is known. See that
 				// pass's own comment for why this can't just be a running
 				// counter incremented in this loop.
-				Index: mi, Beats: expandBeats(m.Tokens, beatsPerBar), IsRepeat: isRepeat, RepeatCount: repeatCount, IsRest: isRest,
+				Index: mi - lead, Beats: expandBeats(m.Tokens, beatsPerBar), IsRepeat: isRepeat, RepeatCount: repeatCount, IsRest: isRest,
 				Volta: m.Volta, VoltaFirst: voltaFirst, Meter: m.Meter, Open: m.Open, Close: m.Close,
+			}
+			if m.Lead {
+				// A chordless lead bar reads as a whole-bar rest.
+				vm.Lead = true
+				vm.IsRest = vm.IsRest || isSilentBar(m.Tokens)
 			}
 			if m.Close && pendingBracketRepeatCount > 0 {
 				vm.BracketRepeatCount = pendingBracketRepeatCount
@@ -2257,8 +2324,8 @@ func buildSections(sg *song.Song) []viewerSection {
 			}
 			vs.Measures = append(vs.Measures, vm)
 		}
-		vs.BarCount = realBarCount(sec.Measures)
-		if written, ok := simpleRepeatSpan(sec.Measures); ok {
+		vs.BarCount = realBarCount(sec.Measures) - lead
+		if written, ok := simpleRepeatSpan(sec.Measures[lead:]); ok {
 			vs.RepeatSegmentBars = written
 		}
 		// A section's own grid, played through "times:" N times (distinct
@@ -2267,12 +2334,13 @@ func buildSections(sg *song.Song) []viewerSection {
 		// becomes the side-by-side multi-rest segment length (same display
 		// as a literal repeat bracket), and BarCount scales by N for the
 		// song-map/structure view and the metronome's real timing.
-		if sec.Times > 1 && len(sec.Measures) > 0 {
+		if sec.Times > 1 && len(sec.Measures) > lead {
 			if vs.RepeatSegmentBars == 0 {
 				vs.RepeatSegmentBars = vs.BarCount
 			}
 			vs.BarCount *= sec.Times
 		}
+		vs.BarCount += lead
 		// A duplicate grid: an EARLIER section (already appended to
 		// `sections`, since this loop processes in order) wrote the exact
 		// same measures this one just did. Compared on the raw, pre-beat-
@@ -2311,6 +2379,23 @@ func buildSections(sg *song.Song) []viewerSection {
 			}
 		}
 		barsPerLine := sec.BarsPerLine
+		if si == opening && lead > 0 {
+			// The song's lead-in: pickups, as many as the "lead:" line
+			// has, riding on the first row on top of its "bars:" count.
+			pickupSeen = true
+			for k := 0; k < lead; k++ {
+				vs.Measures[k].Pickup = true
+			}
+			if len(barsPerLine) == 0 {
+				barsPerLine = []int{8 + lead, 8}
+			} else {
+				rest := barsPerLine[1:]
+				if len(rest) == 0 {
+					rest = barsPerLine // "bars: 4": 4 + the lead, then 4s
+				}
+				barsPerLine = append([]int{barsPerLine[0] + lead}, rest...)
+			}
+		}
 		if !pickupSeen && len(vs.Measures) > 0 {
 			pickupSeen = true
 			if songStartsWithPickup(sg, si) {
@@ -2459,7 +2544,8 @@ func annotateStructure(sections []viewerSection) {
 	for i := range sections {
 		sec := &sections[i]
 		label := strings.TrimSpace(sec.Label)
-		bare := len(sec.Measures) == 0 && len(sec.Lyrics) == 0
+		// Bare: nothing but, at most, a "lead:" into the bars it repeats.
+		bare := len(sec.Measures) == sec.LeadBars && len(sec.Lyrics) == 0
 		sec.IsSolo = strings.HasPrefix(strings.ToLower(label), "solo")
 
 		if bare {
@@ -2471,7 +2557,7 @@ func annotateStructure(sections []viewerSection) {
 			// bare word.
 			if strings.HasPrefix(strings.ToLower(label), "solo") {
 				if j := nearestDefiningSectionLabeled(sections, i, soloReferenceLabel(label)); j >= 0 {
-					bars := sections[j].BarCount
+					bars := sections[j].BarCount - sections[j].LeadBars
 					times := sec.Times
 					if times < 1 {
 						times = 1
@@ -2497,6 +2583,7 @@ func annotateStructure(sections []viewerSection) {
 					// is purely the inferred fallback.
 					sec.Lines = placeholderLines(sections[j].Lines)
 					sec.BarCount = bars * times
+					sec.LeadBars = 0
 					// A "times:" > 1 bare solo reuses the referenced
 					// section's own single-pass length as its repeat-segment
 					// span — same side-by-side multi-rest display (two "12"
@@ -2527,9 +2614,12 @@ func annotateStructure(sections []viewerSection) {
 					if times < 1 {
 						times = 1
 					}
-					sec.BarCount = sections[j].BarCount * times
+					// The bars it repeats, without the definition's own
+					// lead, after its own.
+					once := sections[j].BarCount - sections[j].LeadBars
+					sec.BarCount = once*times + sec.LeadBars
 					if times > 1 && sections[j].RepeatSegmentBars == 0 {
-						sec.RepeatSegmentBars = sections[j].BarCount
+						sec.RepeatSegmentBars = once
 					} else {
 						sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
 					}
@@ -2564,7 +2654,7 @@ func annotateStructure(sections []viewerSection) {
 		// reads as noise once seen a few times — just keep the section
 		// visible as a plain chip (see Compact's doc comment) without
 		// stating the obvious.
-		if len(sec.Measures) == 0 {
+		if len(sec.Measures) == sec.LeadBars {
 			if j := nearestDefiningSection(sections, i); j >= 0 {
 				sec.Compact = true
 				sec.GridFrom = sections[j].GridFrom
@@ -2572,9 +2662,10 @@ func annotateStructure(sections []viewerSection) {
 				if times < 1 {
 					times = 1
 				}
-				sec.BarCount = sections[j].BarCount * times
+				once := sections[j].BarCount - sections[j].LeadBars
+				sec.BarCount = once*times + sec.LeadBars
 				if times > 1 && sections[j].RepeatSegmentBars == 0 {
-					sec.RepeatSegmentBars = sections[j].BarCount
+					sec.RepeatSegmentBars = once
 				} else {
 					sec.RepeatSegmentBars = sections[j].RepeatSegmentBars
 				}
@@ -2590,17 +2681,24 @@ func annotateStructure(sections []viewerSection) {
 // belong to the section being quoted, not this stand-in for it); every beat
 // is a tie so it renders as dimmed rhythm slashes only.
 func placeholderLines(lines []viewerLine) []viewerLine {
-	out := make([]viewerLine, len(lines))
-	for li, line := range lines {
-		pl := viewerLine{Capacity: line.Capacity, Measures: make([]viewerMeasure, len(line.Measures))}
-		for mi, m := range line.Measures {
+	out := make([]viewerLine, 0, len(lines))
+	for _, line := range lines {
+		pl := viewerLine{Capacity: line.Capacity}
+		for _, m := range line.Measures {
+			if m.Lead {
+				// The quoted section's lead isn't played over again.
+				pl.Capacity--
+				continue
+			}
 			beats := make([]viewerBeat, len(m.Beats))
 			for bi := range beats {
 				beats[bi] = viewerBeat{IsTie: true}
 			}
-			pl.Measures[mi] = viewerMeasure{Index: mi, GlobalBar: m.GlobalBar, Beats: beats, Placeholder: true}
+			pl.Measures = append(pl.Measures, viewerMeasure{Index: len(pl.Measures), GlobalBar: m.GlobalBar, Beats: beats, Placeholder: true})
 		}
-		out[li] = pl
+		if len(pl.Measures) > 0 {
+			out = append(out, pl)
+		}
 	}
 	return out
 }
@@ -2610,7 +2708,7 @@ func placeholderLines(lines []viewerLine) []viewerLine {
 // a bare section that follows it.
 func nearestDefiningSection(sections []viewerSection, before int) int {
 	for j := before - 1; j >= 0; j-- {
-		if len(sections[j].Measures) != 0 {
+		if len(sections[j].Measures) > sections[j].LeadBars {
 			return j
 		}
 	}
@@ -2638,7 +2736,7 @@ func soloReferenceLabel(label string) string {
 func nearestDefiningSectionLabeled(sections []viewerSection, before int, wantLabel string) int {
 	if wantLabel != "" {
 		for j := before - 1; j >= 0; j-- {
-			if len(sections[j].Measures) != 0 && strings.EqualFold(strings.TrimSpace(sections[j].Label), wantLabel) {
+			if len(sections[j].Measures) > sections[j].LeadBars && strings.EqualFold(strings.TrimSpace(sections[j].Label), wantLabel) {
 				return j
 			}
 		}

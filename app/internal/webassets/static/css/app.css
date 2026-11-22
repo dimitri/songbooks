@@ -6613,8 +6613,8 @@ img.list-card-mark { object-fit: cover; border: none; }
 /* !important: the per-mode #sheet[data-render-mode=…] .bar rules (an ID
    selector) would otherwise win over these, and they apply in every mode. */
 .staff-line > .bar.bar-pickup { flex: 0 0 3.4em !important; min-width: 3.4em; padding: 0 0.3em; }
-.staff-line:has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 3.4em) / var(--cap, 4)) !important; }
-.staff-line:has(> .staff-timesig-cell):has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 5.9em) / var(--cap, 4)) !important; }
+.staff-line:has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - var(--pickups, 1) * 3.4em) / var(--cap, 4)) !important; }
+.staff-line:has(> .staff-timesig-cell):has(> .bar-pickup) > .bar:not(.bar-pickup) { flex-basis: calc((100% - 2.5em - var(--pickups, 1) * 3.4em) / var(--cap, 4)) !important; }
 
 /* Song listings: what each song holds, as small icons (song_badges.html). */
 .song-badges { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.6rem; vertical-align: middle; flex-wrap: wrap; }
@@ -9482,3 +9482,21 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .rec-public-note .icon { width: 1em; height: 1em; vertical-align: -0.15em; }
 .rec-public-toggle { flex: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; color: var(--fg-muted); }
 .rec-public { color: var(--accent-ink, var(--accent)); }
+
+/* A "lead:" bar (song.WithLeads): played before the section's first bar
+   and not counted. Lighter than the bars it leads into, a small "lead"
+   tag under it; on the song's opening section it is also a pickup
+   (.bar-pickup above), several of them sharing the first row's left
+   edge (--pickups). */
+.bar.bar-lead > .bar-body { opacity: 0.55; }
+.bar.bar-lead { position: relative; }
+.bar.bar-lead .lead-tag {
+  position: absolute; left: 0.3em; top: 100%; margin-top: 0.1em;
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--fg-muted); line-height: 1; pointer-events: none; white-space: nowrap;
+}
+.bar.bar-lead + .bar.bar-lead .lead-tag { display: none; }
+
+/* Set list click track: a song's "lead:" bars count in before its bar 1
+   (0.1, 0.2, …), in the muted colour of a count-in. */
+.ct-counters.is-lead .ct-barbeat { color: var(--fg-muted); }

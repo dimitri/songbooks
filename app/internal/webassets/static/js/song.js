@@ -236,10 +236,12 @@ const ICONS = {
       const hasClef = originalLines[0].hasClef;
       const clefEl = hasClef ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
       const maxSlots = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
-      const pickup = allBars[0].classList.contains('bar-pickup');
+      // The song's pickup bar, or its "lead:" bars (as many as it has).
+      let pickup = 0;
+      while (pickup < allBars.length && allBars[pickup].classList.contains('bar-pickup')) pickup++;
       const minBarPx = Math.max(7.2 * fontPx, maxSlots * 0.9 * fontPx);
       const floorPx = Math.max(2.6, maxSlots * 0.9 + 1) * fontPx;
-      const firstBudget = availW - (hasClef ? clefPx : 0) - (pickup ? 3.4 * fontPx : 0);
+      const firstBudget = availW - (hasClef ? clefPx : 0) - pickup * 3.4 * fontPx;
       const plan = window.SongbooksBarRows.plan(
         originalLines.map(l => l.template.querySelectorAll(':scope > .bar').length),
         {
@@ -260,6 +262,7 @@ const ICONS = {
         // width (.bar-pickup, app.css), so the bars next to it stay as wide
         // as every other row's.
         line.style.setProperty('--cap', String(cap));
+        if (row === 0 && pickup > 1) line.style.setProperty('--pickups', String(pickup));
         const budget = row === 0 ? firstBudget : availW;
         if (cap * minBarPx > budget) line.style.setProperty('--bar-w', Math.max(2.6 * fontPx, budget / cap) + 'px');
         if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
@@ -302,7 +305,8 @@ const ICONS = {
       const curCap = parseInt(line.style.getPropertyValue('--cap'), 10) || barEls.length;
       // A pickup rides on the first half: it has its own narrow width and
       // isn't counted in --cap.
-      const pickup = barEls[0].classList.contains('bar-pickup') ? 1 : 0;
+      let pickup = 0;
+      while (pickup < barEls.length && barEls[pickup].classList.contains('bar-pickup')) pickup++;
       if (barEls.length - pickup <= 1) {
         // A lone bar (already the shortest possible row — typically a
         // short trailing/volta row) can't be split further, but it may
@@ -341,6 +345,7 @@ const ICONS = {
         // so the row simply ends at its last bar instead of stretching
         // that bar across the line.
         l.style.setProperty('--cap', String(cap));
+        if (gi === 0 && pickup > 1) l.style.setProperty('--pickups', String(pickup));
         if (gi === 0 && clefEl) l.appendChild(clefEl);
         for (const b of g) l.appendChild(b);
         return l;
@@ -2059,7 +2064,7 @@ const ICONS = {
     if ((m = line.match(/^(\[.*?\])(.*)$/))) {
       return `<span class="tok-section">${escapeHTML(m[1])}</span>${escapeHTML(m[2])}`;
     }
-    if ((m = line.match(/^(grid|bars|time|score|chord):/))) {
+    if ((m = line.match(/^(grid|bars|time|score|chord|lead):/))) {
       l = l.replace(/^([a-z]+:)/, '<span class="tok-keyword">$1</span>');
     } else if ((m = line.match(/^([a-z][a-z0-9_-]*):\s/i))) {
       l = l.replace(/^([a-z][a-z0-9_-]*:)/i, '<span class="tok-header-key">$1</span>');

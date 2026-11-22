@@ -46,6 +46,9 @@
   //   rows: the bar counts of the server's rows (a pickup counted in the first)
   //   o.perRow:   bars to a row (4)
   //   o.pickup:   true when the section opens with the song's pickup bar
+  //     (or how many pickups it opens with)
+  //   o.leads:    how many pickups it opens with — a "lead:" line's bars,
+  //     which "bars:" doesn't count: they ride on the first row on top of it
   //   o.explicit: true when the author wrote "bars:"
   //   o.fit, o.fitFirst: the most regular bars a row / the first row (less
   //     the clef and the pickup) can hold at the legibility floor
@@ -53,7 +56,7 @@
     const counts = (rows || []).filter((r) => r > 0);
     if (!counts.length) return [];
     const P = Math.max(1, Math.floor(o.perRow) || 1);
-    const pickup = o.pickup ? 1 : 0;
+    const pickup = o.leads > 0 ? Math.floor(o.leads) : typeof o.pickup === 'number' ? Math.max(0, o.pickup) : (o.pickup ? 1 : 0);
     const fit = o.fit == null ? Infinity : o.fit;
     const fitFirst = o.fitFirst == null ? fit : o.fitFirst;
     if (!o.explicit) {
@@ -65,6 +68,21 @@
     // The author's rows, the pickup counted as one of the first row's bars
     // the way "bars:" counts it. A row only gets split when it holds more
     // than perRow; its bars are as wide as the author's longest row's.
+    // Several pickups (a "lead:" line) aren't in the author's count: the
+    // first row is split without them, then they ride on its first piece.
+    if (pickup > 1) {
+      const own = counts.map((r, i) => (i === 0 ? Math.max(0, r - pickup) : r));
+      const Pl = Math.min(P, Math.max(1, ...own));
+      const res = [];
+      own.forEach((r, i) => {
+        const s = r > 0 ? sizes(r, Pl, i === 0 ? fitFirst : fit, fit, true) : [0];
+        s.forEach((b, j) => {
+          const pk = i === 0 && j === 0 ? pickup : 0;
+          res.push({ bars: b + pk, cap: b >= Pl ? Math.max(1, b) : Pl });
+        });
+      });
+      return res;
+    }
     const Pe = Math.min(P, Math.max(...counts));
     const out = [];
     counts.forEach((r, i) => {
