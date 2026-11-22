@@ -2846,7 +2846,19 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	data["RefHead"] = songRefHeadFor(sg.Get("reference"), hasBand, canEdit)
+	refHead := songRefHeadFor(sg.Get("reference"), hasBand, canEdit)
+	// Its title, when fetched for this link; else fetched in the
+	// background for the next time (reference_title.go).
+	if ref := strings.TrimSpace(sg.Get("reference")); ref != "" {
+		if rt, err := s.store.ReferenceTitle(r.Context(), variantID); err == nil {
+			refHead.Title = rt.For(ref)
+			if rt.Due(ref, refTitleRetry, time.Now()) {
+				s.fillRefTitle(variantID, ref)
+			}
+		}
+	}
+	data["RefHead"] = refHead
+	data["RefTitle"] = refHead.Title
 	if gp.Meta != nil {
 		data["GPFileName"] = gp.Meta.Filename
 		data["GPFileSHA"] = gp.Meta.SHA256

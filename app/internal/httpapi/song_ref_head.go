@@ -20,7 +20,10 @@ type songRefHead struct {
 	// Name is the reference's name beside its thumbnail: the app keeps no
 	// video title, so the link's site ("YouTube", "open.spotify.com"); a
 	// band recording is named by the template.
-	Name    string
+	Name string
+	// Title is the video's or page's own title when it was fetched
+	// (reference_title.go), shown in place of Name.
+	Title   string
 	CanEdit bool
 }
 

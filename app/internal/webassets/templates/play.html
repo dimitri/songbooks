@@ -447,6 +447,7 @@
 {{/* The song's reference, the header's third column (songRefHead,
      song_ref_head.go): a YouTube video's thumbnail, or a tile with an icon
      for any other link or a band recording, "Reference" and its name (the
+     video's or page's title once fetched, reference_title.go; else the
      link's site; a band recording). It opens the Reference view, the ⋯
      menu's (song.js initReference keeps it in step when the link changes
      there). No reference: "+ Reference" for the song's editors (it opens
@@ -457,7 +458,7 @@
     <span class="topbar-ref-icon is-link">{{template "icon-ref-link"}}</span>
     <span class="topbar-ref-icon is-band">{{template "icon-speaker"}}</span>
     <span class="topbar-ref-icon is-add" aria-hidden="true">+</span>
-    <span class="topbar-ref-text"><span class="topbar-ref-label">{{t "Reference"}}</span><span class="topbar-ref-name" id="topbar-ref-name">{{if eq .Kind "band"}}{{t "Band recording"}}{{else}}{{.Name}}{{end}}</span></span>
+    <span class="topbar-ref-text"><span class="topbar-ref-label">{{t "Reference"}}</span><span class="topbar-ref-name" id="topbar-ref-name" data-title="{{.Title}}"{{if .Title}} title="{{.Title}}"{{end}}>{{if eq .Kind "band"}}{{t "Band recording"}}{{else if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</span></span>
   </button>
 </div>
 {{end}}
@@ -2172,7 +2173,7 @@
       <h3 class="reference-section-head">{{t "YouTube video"}}</h3>
       <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-variant-id="{{.VariantID}}">
         <div class="reference-row">
-          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener"{{if not .Reference}} hidden{{end}}>{{t "reference"}} &#8599;</a>
+          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener" data-default-label="{{t "reference"}}"{{if not .Reference}} hidden{{end}}>{{if .RefTitle}}{{.RefTitle}}{{else}}{{t "reference"}}{{end}} &#8599;</a>
           <button id="reference-edit-btn" type="button" class="icon-btn" aria-expanded="false" aria-controls="reference-edit-row" title="{{if .Reference}}{{t "Change the reference video"}}{{else}}{{t "Add a reference video"}}{{end}}" aria-label="{{if .Reference}}{{t "Change the reference video"}}{{else}}{{t "Add a reference video"}}{{end}}">{{template "icon-edit"}}</button>
         </div>
         <form class="reference-edit-row form-stack" id="reference-edit-row" hidden>

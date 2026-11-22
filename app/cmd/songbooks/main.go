@@ -25,6 +25,7 @@ import (
 	"app/internal/covers"
 	"app/internal/httpapi"
 	"app/internal/mailer"
+	"app/internal/reftitle"
 	"app/internal/store"
 )
 
@@ -175,6 +176,7 @@ func main() {
 
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
 	httpapi.Covers = covers.NewFinder()
+	httpapi.RefTitles = reftitle.New()
 	// A demo copy (the local stack, staging; never production) gets the
 	// admin page's demo data panel (docs/demo-data.md).
 	httpapi.DemoData = os.Getenv("SONGBOOKS_DEMO_DATA") == "1"
