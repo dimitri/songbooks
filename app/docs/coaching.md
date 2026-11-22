@@ -31,6 +31,112 @@ community's song is split in two parts only, voice and backing (the stems
 worker keeps vocals and no_vocals): the Voice control and the Mixer's
 Vocals and Backing lanes.
 
+## Who sees what
+
+A coaching community's pages are the coach's or the student's
+(coaching_viewer.go): the staff (a manage privilege) see the coach's; a
+student sees the student's, their own data only, **a site admin who is
+a student there too** (the app's owner, taking lessons); a site admin
+who isn't a member sees the coach's.
+
+**See as…** (site admins only, on every page of the studio: the
+Songbooks tab, the student pages, the lessons, groups, warm-ups, the
+overview): as themselves, as the coach, as one student by name, or as a
+member with nothing yet. It's remembered (a cookie, `coach_see_as`,
+for that community) until they leave it, and a striped banner says it's
+a preview. As a student or a member it's **read-only**: every change
+asked for on the studio's API is refused (409) while it's on, so
+nothing is asked, logged or changed for someone who didn't. As the
+coach, the admin acts as themselves, with the coach's pages. Anyone
+else's cookie counts for nothing, and the switch (`GET
+/communities/{id}/see-as`) answers 403.
+
+## Voice types
+
+On a student's page, under *Voice* (the C2–C7 strip): the coach's
+assessment (migration 0108, coaching_voice.go, store/voice_profile.go).
+
+- **A voice type**, or *not classified yet*: soprano, mezzo-soprano,
+  contralto, countertenor, tenor, baritone, bass (French: soprano,
+  mezzo-soprano, contralto, contre-ténor, ténor, baryton, basse).
+- **The range** is the registers' (chest, mixed, head), as before: no
+  second range. Their lowest to highest note is said in words ("range
+  do2–la4").
+- **The tessitura**, optional: the comfortable part of the range, a
+  striped bar under the registers. In French *zone de confort*, since
+  the app already says *tessiture* for the range (French speakers
+  often do; strictly it's the *étendue*).
+- **The assessment**: a few words (what she hears, what to work on).
+- **The history**: every change to the type, the tessitura, the
+  assessment and each register's range, with when, who, old → new and
+  the note; the latest first.
+- **The student** always sees their type, their range and their
+  tessitura. The assessment and its history are the coach's until she
+  ticks *{student} reads the assessment and its history* (off by
+  default: an assessment is often a working note).
+- **The coach's cards** (the Songbooks tab) show the type, then the
+  range.
+
+### What the types mean
+
+Classical singing names six or seven types (opera; choirs use the four
+SATB parts), the German *Fach* system subdividing them (coloratura,
+soubrette, lyric, spinto, dramatic; Heldentenor, Kavalierbariton…).
+Typical ranges and passaggi (Richard Miller's, as Wikipedia reports
+them; sources differ by a semitone or more):
+
+| Type | Typical range | Primo / secondo passaggio |
+|---|---|---|
+| Soprano | C4–C6 (coloratura up to F6) | E♭4 / F♯5 |
+| Mezzo-soprano | A3–A5 | E4 / E5–F5 |
+| Contralto | F3–F5 | G♯4–A4 / D5 |
+| Countertenor | about E3–E5 | no standard values |
+| Tenor | C3–C5 (some: B2–B4) | about C4–E4 / F4–A4 |
+| Baritone | A2–A4 (some: G2–G4) | lyric B3 / E4 |
+| Bass | E2–E4 | G3–A3 / C4–D4 |
+
+A type is more than a range: teachers weigh the **tessitura** (where the
+voice is comfortable and sounds best, individual, no standard values),
+the **timbre**, where the **passaggi** fall, and the voice's weight and
+agility. Singing long outside the tessitura (pushing chest voice up
+especially) strains the voice.
+
+Coaches of pop, rock and musical theatre (CCM) classify by range, timbre
+and where the voice changes register, but most keep no fixed *Fach*: a
+label is a working description that changes with training, and an
+untrained voice (chest carried too high, falsetto leaned on) can't be
+classified before its registers develop. Hence *not classified yet*,
+the assessment in words beside the type, and the history.
+
+French: *tessiture* (the comfortable notes; loosely, the range),
+*étendue* (the whole range), *passage* (passaggio), *registre* (voix de
+poitrine, voix mixte, voix de tête); *haute-contre* is a historical
+French high tenor, not the modern *contre-ténor* (mostly falsetto).
+French octaves: middle C (C4) is do3.
+
+Sources: [Voice type](https://en.wikipedia.org/wiki/Voice_type),
+[Passaggio](https://en.wikipedia.org/wiki/Passaggio) (values from R.
+Miller, *The Structure of Singing*, *Training Tenor Voices*, *Securing
+Baritone, Bass-Baritone, and Bass Voices*),
+[Fach](https://en.wikipedia.org/wiki/Fach),
+[Tessitura](https://en.wikipedia.org/wiki/Tessitura),
+[Countertenor](https://en.wikipedia.org/wiki/Countertenor),
+[Voice classification in non-classical music](https://en.wikipedia.org/wiki/Voice_classification_in_non-classical_music);
+I. Bartlett & M. L. Naismith, "An Investigation of Contemporary
+Commercial Music (CCM) Voice Pedagogy: A Class of its Own?", *Journal of
+Singing* 76/3 (2020),
+[NATS](https://www.nats.org/_Library/JOS_On_Point/JOS-076-3-2020-273_-_Bartlett-Naismith_-_An_Investigatin_of_CCM.pdf);
+A. Young, "Mixed Up and Upside Down", *Journal of Singing* 76/2 (2019),
+[NATS](https://nats.org/_Library/JOS_On_Point/JOS-076-2-2019-137_-_Mixed_Up_Registers_Young.PDF);
+A. Festeu, ["Voice classification: system or art?"](https://blog.oup.com/2018/03/voice-classification-system-singing/),
+OUPblog (2018); A. C. Merritt,
+["Determining Your Voice Type"](https://www.interlochen.org/online/determining-your-voice-type),
+Interlochen; [Voix (musique classique)](https://fr.wikipedia.org/wiki/Voix_(musique_classique)),
+[Tessiture](https://fr.wikipedia.org/wiki/Tessiture),
+[Haute-contre](https://fr.wikipedia.org/wiki/Haute-contre) (French
+Wikipedia); [Voix](https://www.larousse.fr/encyclopedie/musdico/voix/170577),
+Larousse, *Dictionnaire de la musique*.
+
 ## Groups
 
 `/communities/{id}/groups`: a year's class (September to June, the

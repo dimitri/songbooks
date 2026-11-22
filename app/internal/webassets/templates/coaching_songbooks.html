@@ -103,6 +103,7 @@
           <div class="cbook-card-meta">
             {{if eq .Kind "group"}}<span>{{if .IsYear}}{{t "year group"}}{{else}}{{t "one-off"}}{{end}} · {{tn .Members "%d student" "%d students"}}</span>{{end}}
             <span>{{tn .SongCount "%d song" "%d songs"}}</span>
+            {{with .VoiceType}}<span class="voice-tag is-type" title="{{t "Voice type"}}">{{t .}}</span>{{end}}
             {{with .Voice}}<span class="voice-tag" title="{{t "Range"}}">{{.}}</span>{{end}}
           </div>
           <p class="cbook-card-status">
@@ -217,7 +218,7 @@
           <span class="cbook-song-title"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></span>
           {{if .InBook}}<span class="cbook-state is-in">{{t "in your songbook"}}</span>
           {{else if .Asked}}<span class="cbook-state is-asked">{{t "Asked"}}</span>
-          {{else}}<button type="button" class="cbook-ask">{{t "Ask for it"}}</button>{{end}}
+          {{else}}<button type="button" class="cbook-ask"{{if $.ReadOnly}} disabled title="{{t "Read-only: a preview"}}"{{end}}>{{t "Ask for it"}}</button>{{end}}
         </li>
       {{else}}
         <li class="hint">{{t "No songs yet."}}</li>

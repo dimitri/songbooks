@@ -79,14 +79,34 @@ func (st *Store) SetStudentRange(ctx context.Context, communityID, personID int6
 	if r.Low != nil && r.High != nil && *r.Low > *r.High {
 		r.Low, r.High = r.High, r.Low
 	}
-	_, err := st.db.Exec(ctx, `
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	// A range changed is kept in the voice's history (voice_profile.go),
+	// with the register's own words as its note.
+	var oldLow, oldHigh *int
+	err = tx.QueryRow(ctx, `SELECT low_midi, high_midi FROM student_voice_ranges WHERE community_id = $1 AND person_id = $2 AND register = $3 FOR UPDATE`,
+		communityID, personID, r.Register).Scan(&oldLow, &oldHigh)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO student_voice_ranges (community_id, person_id, register, low_midi, high_midi, note, updated_by_person_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (community_id, person_id, register) DO UPDATE SET
 			low_midi = EXCLUDED.low_midi, high_midi = EXCLUDED.high_midi, note = EXCLUDED.note,
 			updated_by_person_id = EXCLUDED.updated_by_person_id, updated_at = now()`,
-		communityID, personID, r.Register, r.Low, r.High, r.Note, nullID(byPersonID))
-	return err
+		communityID, personID, r.Register, r.Low, r.High, r.Note, nullID(byPersonID)); err != nil {
+		return err
+	}
+	if o, n := rangeText(oldLow, oldHigh), rangeText(r.Low, r.High); o != n {
+		if err := insertVoiceChange(ctx, tx, communityID, personID, byPersonID, r.Register, o, n, strings.TrimSpace(r.Note)); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // StudentNotes is the coach's free text on a student.

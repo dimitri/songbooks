@@ -283,11 +283,20 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	viewerID, staff := person.ID, false
+	if community.IsCoaching() {
+		v, err := s.coachingViewerOf(r, communityID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		viewerID, staff = v.PersonID, v.Coach
+	}
 	songbookRows := make([]communitySongbookRow, 0, len(songbooks))
 	for _, sb := range songbooks {
 		// The students' songbooks are on their pages (coaching.go): a
-		// student sees their own here.
-		if sb.IsStudent() && sb.StudentPersonID != person.ID {
+		// student sees their own here (an admin's "See as…" student's).
+		if sb.IsStudent() && sb.StudentPersonID != viewerID {
 			continue
 		}
 		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
@@ -340,11 +349,15 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		}
 		hints["students"] = spaceHint{Text: i18n.N(lang, students, "%d student", "%d students")}
 	}
-	s.render(w, "community", map[string]any{
+	data := map[string]any{
 		"Me": person, "SpaceHints": hints, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
 		"IsStaff": canManage || person.IsAdmin, "Person": person, "Tab": "overview",
-	})
+	}
+	if community.IsCoaching() {
+		data["IsStaff"] = staff
+	}
+	s.render(w, "community", data)
 }
 
 // communitySongbookRow is a store.Songbook plus its song count, for the

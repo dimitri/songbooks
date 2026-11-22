@@ -7,6 +7,7 @@
      any, follow on every width. Called with .Space (a SpaceNav); nothing
      when the page isn't a space's. */}}
 {{define "space-nav"}}{{with .}}
+{{template "see-as" .SeeAs}}
 <div class="space-header{{if .IsHome}} is-home{{end}}">
   <a class="space-avatar" href="{{.Home}}" tabindex="-1" aria-hidden="true">{{with .Brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}<span class="space-mark">{{.Mark}}</span>{{else}}{{$.Initials}}{{end}}{{else}}{{.Initials}}{{end}}</a>
   <div class="space-id">

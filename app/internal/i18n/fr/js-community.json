@@ -118,5 +118,6 @@
   "has it, in %s": "l’a déjà, en %s",
   "No student or group to add it to.": "Aucun élève ni classe à qui l’ajouter.",
   "%d request": "%d demande",
-  "%d requests": "%d demandes"
+  "%d requests": "%d demandes",
+  "Couldn’t save the assessment.": "Impossible d’enregistrer l’évaluation."
 }
