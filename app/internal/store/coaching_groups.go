@@ -234,24 +234,49 @@ func (st *Store) SetLessonMode(ctx context.Context, eventID int64, mode string) 
 // Teaching notes ------------------------------------------------------------
 
 // TeachingNote is what the coach wrote about a student, on a day, maybe
-// about a lesson.
+// about a lesson or a song: private (the coach's and the staff's only)
+// or shared (the student reads it; migration 0109).
 type TeachingNote struct {
 	ID         int64
 	Body       string
 	EventID    *int64
 	EventName  string
 	EventStart *time.Time
+	VariantID  *int64
+	SongTitle  string
 	AuthorName string
 	CreatedAt  time.Time
+	Shared     bool
+	SharedAt   *time.Time
 }
 
-// AddTeachingNote writes a note about a student.
+// AddTeachingNote writes a private note about a student.
 func (st *Store) AddTeachingNote(ctx context.Context, communityID, personID int64, eventID *int64, body string, authorID int64) (int64, error) {
+	return st.AddStudentNote(ctx, communityID, personID, eventID, nil, body, false, authorID)
+}
+
+// AddStudentNote writes a note about a student, maybe about a lesson or
+// a song, private or shared with them.
+func (st *Store) AddStudentNote(ctx context.Context, communityID, personID int64, eventID, variantID *int64, body string, shared bool, authorID int64) (int64, error) {
 	var id int64
 	err := st.db.QueryRow(ctx, `
-		INSERT INTO teaching_notes (community_id, person_id, event_id, body, author_person_id)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id`, communityID, personID, eventID, body, nullID(authorID)).Scan(&id)
+		INSERT INTO teaching_notes (community_id, person_id, event_id, variant_id, body, author_person_id, shared, shared_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END) RETURNING id`,
+		communityID, personID, eventID, variantID, body, nullID(authorID), shared).Scan(&id)
 	return id, err
+}
+
+// ShareTeachingNote makes a private note of a student's shared with them:
+// ErrNotFound when there's no such note, or it's shared already. There's
+// no way back: the student may have read it.
+func (st *Store) ShareTeachingNote(ctx context.Context, communityID, personID, noteID int64) error {
+	tag, err := st.db.Exec(ctx, `
+		UPDATE teaching_notes SET shared = true, shared_at = now()
+		WHERE id = $3 AND community_id = $1 AND person_id = $2 AND NOT shared`, communityID, personID, noteID)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
 }
 
 // UpdateTeachingNote rewrites a note of a student's.
@@ -271,15 +296,28 @@ func (st *Store) DeleteTeachingNote(ctx context.Context, communityID, personID, 
 	return err
 }
 
-// ListTeachingNotes is a student's notes, the latest first.
+// ListTeachingNotes is a student's notes, private and shared, the latest
+// first: the coach's.
 func (st *Store) ListTeachingNotes(ctx context.Context, communityID, personID int64) ([]TeachingNote, error) {
+	return st.listTeachingNotes(ctx, communityID, personID, false)
+}
+
+// ListSharedTeachingNotes is the notes a student reads: the shared ones
+// only, the latest first.
+func (st *Store) ListSharedTeachingNotes(ctx context.Context, communityID, personID int64) ([]TeachingNote, error) {
+	return st.listTeachingNotes(ctx, communityID, personID, true)
+}
+
+func (st *Store) listTeachingNotes(ctx context.Context, communityID, personID int64, sharedOnly bool) ([]TeachingNote, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT n.id, n.body, n.event_id, coalesce(e.name, ''), e.starts_at, coalesce(p.display_name, ''), n.created_at
+		SELECT n.id, n.body, n.event_id, coalesce(e.name, ''), e.starts_at, n.variant_id, coalesce(s.title, ''),
+		       coalesce(p.display_name, ''), n.created_at, n.shared, n.shared_at
 		FROM teaching_notes n
 		LEFT JOIN events e ON e.id = n.event_id
+		LEFT JOIN songs s ON s.id = n.variant_id
 		LEFT JOIN people p ON p.id = n.author_person_id
-		WHERE n.community_id = $1 AND n.person_id = $2
-		ORDER BY coalesce(e.starts_at, n.created_at) DESC, n.id DESC`, communityID, personID)
+		WHERE n.community_id = $1 AND n.person_id = $2 AND (n.shared OR NOT $3)
+		ORDER BY coalesce(e.starts_at, n.created_at) DESC, n.id DESC`, communityID, personID, sharedOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +325,8 @@ func (st *Store) ListTeachingNotes(ctx context.Context, communityID, personID in
 	var out []TeachingNote
 	for rows.Next() {
 		var n TeachingNote
-		if err := rows.Scan(&n.ID, &n.Body, &n.EventID, &n.EventName, &n.EventStart, &n.AuthorName, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.Body, &n.EventID, &n.EventName, &n.EventStart, &n.VariantID, &n.SongTitle,
+			&n.AuthorName, &n.CreatedAt, &n.Shared, &n.SharedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, n)

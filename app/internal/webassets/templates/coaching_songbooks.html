@@ -210,7 +210,7 @@
 
     {{if .RepertoireID}}
     <section class="cbook-rep">
-      <p class="cbook-eyebrow">{{t "%s’s repertoire" .CoachFirstName}}</p>
+      <p class="cbook-eyebrow">{{t "%s’s repertoire" (ofName .CoachFirstName)}}</p>
       <p class="hint">{{t "The songs %s teaches: ask for one." .CoachFirstName}}</p>
       <ul class="cbook-rep-list">
       {{range .Repertoire}}

@@ -336,6 +336,7 @@ var funcMap = template.FuncMap{
 	// not per-request.
 	// fileSize shows a byte count the way a download list does: "84 MB".
 	"fileSize": func(n int64) string { return fileSize("en", n) },
+	"ofName":   func(name string) string { return name },
 	// pathSegment escapes a file name for its place in a URL's path.
 	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
@@ -441,6 +442,9 @@ func init() {
 			}
 			return ""
 		}
+		// ofName: a name after "from"/"of" in the page's language
+		// ("d’Inès", "de Chloé"; the name alone in English).
+		funcs["ofName"] = func(name string) string { return i18n.Of(l, name) }
 		// fileSize in the page's language: "84.0 MB", "84,0 Mo".
 		funcs["fileSize"] = func(n int64) string { return fileSize(l, n) }
 		templatesByLang[lang] = template.Must(template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html"))

@@ -356,6 +356,15 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 	}
 	if community.IsCoaching() {
 		data["IsStaff"] = staff
+		// A student's own overview: "New note from Chloé", when the coach
+		// shared one they haven't opened (never in an admin's preview:
+		// those are the student's notifications).
+		if !staff && viewerID == person.ID {
+			link := sharedNotesLink(communityID, viewerID)
+			if n, body, err := s.store.UnreadNotificationsAt(r.Context(), person.ID, "teaching_note_shared", link); err == nil && n > 0 {
+				data["NewNote"] = map[string]any{"Link": link, "Body": body, "More": n - 1}
+			}
+		}
 	}
 	s.render(w, "community", data)
 }

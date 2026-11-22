@@ -20,6 +20,7 @@
 <main class="index">
   {{template "space-nav" .Space}}
   {{template "space-hub" .Space}}
+  {{with .NewNote}}<a class="coach-new-note" href="{{.Link}}">{{template "icon-notes"}} {{.Body}}{{if .More}} <span class="hint">{{tn .More "+%d more note" "+%d more notes"}}</span>{{end}} &rarr;</a>{{end}}
 
   {{/* Its events first, as its sections: registering is what people come
        for (menu proposal §3.3). */}}

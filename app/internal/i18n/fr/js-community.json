@@ -119,5 +119,7 @@
   "No student or group to add it to.": "Aucun élève ni classe à qui l’ajouter.",
   "%d request": "%d demande",
   "%d requests": "%d demandes",
-  "Couldn’t save the assessment.": "Impossible d’enregistrer l’évaluation."
+  "Couldn’t save the assessment.": "Impossible d’enregistrer l’évaluation.",
+  "Couldn’t share the note.": "Impossible de partager la note.",
+  "Share this note with %s? They will read it, and it can’t be made private again.": "Partager cette note avec %s ? Cette personne la lira, et elle ne pourra plus redevenir privée."
 }

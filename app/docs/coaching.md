@@ -70,10 +70,9 @@ assessment (migration 0108, coaching_voice.go, store/voice_profile.go).
 - **The history**: every change to the type, the tessitura, the
   assessment and each register's range, with when, who, old → new and
   the note; the latest first.
-- **The student** always sees their type, their range and their
-  tessitura. The assessment and its history are the coach's until she
-  ticks *{student} reads the assessment and its history* (off by
-  default: an assessment is often a working note).
+- **The student** reads it all: their type, range and tessitura, the
+  assessment and its history (migration 0109 dropped the switch that
+  kept the assessment the coach's: it's what they make progress with).
 - **The coach's cards** (the Songbooks tab) show the type, then the
   range.
 
@@ -220,10 +219,23 @@ vocals:
 
 ## Teaching notes
 
-On a student's page, the coach's only: a few lines about the student (who
-they are as a singer, goals), and dated notes, each maybe about a lesson
-(what was worked on, what to practise next), the latest first, edited in
-place.
+On a student's page, two kinds of notes (migration 0109):
+
+- **Private**: the coach's and the staff's only. *About {student}* (a
+  few lines: who they are as a singer, goals) is always private, and so
+  is every note written before 0109.
+- **Shared**: the student reads them on their page (*Notes from
+  {coach}*, the latest first). The student is told: a notification
+  (*New note from Chloé*, `teaching_note_shared`), and a line on the
+  studio's overview until they open their page.
+
+The coach picks the kind when writing (private unless she says
+otherwise), and may tie a note to a lesson and a song. A private note
+can be shared later (*Share with {student}*, asked first); a shared
+note can be rewritten or deleted but never made private again: the
+student may have read it. A student never gets a private note: not on
+their page, not through the API, not in a site admin's *See as…* of
+them, not in search or their calendar feed (neither holds notes).
 
 ## Practice
 

@@ -99,8 +99,7 @@ func TestSongRequests(t *testing.T) {
 }
 
 // TestVoiceProfile: the coach's assessment of a student's voice, each
-// change kept with its note; a register's range changed is kept too; the
-// student doesn't read it until the coach shares it.
+// change kept with its note; a register's range changed is kept too.
 func TestVoiceProfile(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
@@ -118,7 +117,7 @@ func TestVoiceProfile(t *testing.T) {
 	must(err)
 	must(st.SetCommunityKind(ctx, c, "coaching"))
 
-	if p, err := st.StudentVoiceProfile(ctx, c, student); err != nil || p.VoiceType != "" || p.Shared {
+	if p, err := st.StudentVoiceProfile(ctx, c, student); err != nil || p.VoiceType != "" {
 		t.Fatalf("no profile yet: %+v %v", p, err)
 	}
 	if err := st.SetStudentVoiceAssessment(ctx, c, student, "falsetto", nil, nil, "", coach); err == nil {
@@ -128,7 +127,7 @@ func TestVoiceProfile(t *testing.T) {
 	must(st.SetStudentVoiceAssessment(ctx, c, student, "baritone", &hi, &lo, "warm, light top", coach))
 	p, err := st.StudentVoiceProfile(ctx, c, student)
 	must(err)
-	if p.VoiceType != "baritone" || *p.TessituraLow != 55 || *p.TessituraHigh != 67 || p.Assessment != "warm, light top" || p.Shared {
+	if p.VoiceType != "baritone" || *p.TessituraLow != 55 || *p.TessituraHigh != 67 || p.Assessment != "warm, light top" {
 		t.Fatalf("profile: %+v", p)
 	}
 	// The same again: nothing new. Only the words: one "assessment" line.
@@ -160,13 +159,57 @@ func TestVoiceProfile(t *testing.T) {
 			t.Errorf("history[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
-	must(st.SetStudentVoiceShared(ctx, c, student, true, coach))
-	if p, _ := st.StudentVoiceProfile(ctx, c, student); !p.Shared || p.VoiceType != "tenor" {
-		t.Fatalf("shared: %+v", p)
-	}
 	types, err := st.CommunityVoiceTypes(ctx, c)
 	must(err)
 	if types[student] != "tenor" {
 		t.Fatalf("types: %v", types)
+	}
+}
+
+// TestStudentNotes: a student's notes are private or shared; the
+// student's list has the shared ones only; a private note becomes shared,
+// never back, and only once.
+func TestStudentNotes(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	coach, err := st.CreatePerson(ctx, "coach", "Cora Coach", "coach@example.com")
+	must(err)
+	student, err := st.CreatePerson(ctx, "student", "Stan Student", "student@example.com")
+	must(err)
+	c, err := st.CreateCommunity(ctx, "Voice", coach)
+	must(err)
+	song, err := st.CreateVariant(ctx, OwnerPerson, coach, "Song", "", coach)
+	must(err)
+	private, err := st.AddTeachingNote(ctx, c, student, nil, "PRIVATE", coach)
+	must(err)
+	shared, err := st.AddStudentNote(ctx, c, student, nil, &song, "SHARED", true, coach)
+	must(err)
+	all, err := st.ListTeachingNotes(ctx, c, student)
+	must(err)
+	if len(all) != 2 {
+		t.Fatalf("the coach's notes: %+v", all)
+	}
+	theirs, err := st.ListSharedTeachingNotes(ctx, c, student)
+	must(err)
+	if len(theirs) != 1 || theirs[0].ID != shared || theirs[0].SongTitle != "Song" || theirs[0].SharedAt == nil || theirs[0].AuthorName != "Cora Coach" {
+		t.Fatalf("the student's notes: %+v", theirs)
+	}
+	must(st.ShareTeachingNote(ctx, c, student, private))
+	if err := st.ShareTeachingNote(ctx, c, student, private); err != ErrNotFound {
+		t.Fatalf("sharing twice: %v", err)
+	}
+	if err := st.ShareTeachingNote(ctx, c, coach, shared); err != ErrNotFound {
+		t.Fatalf("sharing another student's note: %v", err)
+	}
+	must(st.UpdateTeachingNote(ctx, c, student, private, "NOW SHARED"))
+	theirs, _ = st.ListSharedTeachingNotes(ctx, c, student)
+	if len(theirs) != 2 {
+		t.Fatalf("after sharing: %+v", theirs)
 	}
 }

@@ -459,7 +459,6 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/ranges/{register}", s.requireCommunityMember(s.handlePutStudentRange))
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/notes", s.requireCommunityMember(s.handlePutStudentNotes))
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/voice", s.requireCommunityMember(s.handlePutStudentVoice))
-	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/voice/shared", s.requireCommunityMember(s.handlePutStudentVoiceShared))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/songs", s.requireCommunityMember(s.handlePostCoachingSong))
 	mux.HandleFunc("PUT /api/communities/{id}/songbooks/{sbID}/songs/{variantID}/key", s.requireCommunityMember(s.handlePutCoachingSongKey))
 	// A site admin's "See as…" across a coaching community's pages (coaching_viewer.go).
@@ -474,6 +473,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/songs/{variantID}", s.requireCommunityMember(s.handleDeleteCoachingSong))
 	mux.HandleFunc("POST /api/communities/{id}/students/{personID}/teaching-notes", s.requireCommunityMember(s.handlePostTeachingNote))
 	mux.HandleFunc("PUT /api/communities/{id}/students/{personID}/teaching-notes/{noteID}", s.requireCommunityMember(s.handlePutTeachingNote))
+	mux.HandleFunc("POST /api/communities/{id}/students/{personID}/teaching-notes/{noteID}/share", s.requireCommunityMember(s.handlePostShareTeachingNote))
 	mux.HandleFunc("GET /communities/{id}/groups", s.requireCommunityMember(s.handleCoachingGroupsPage))
 	mux.HandleFunc("GET /communities/{id}/groups/{groupID}", s.requireCommunityMember(s.handleCoachingGroupPage))
 	mux.HandleFunc("POST /api/communities/{id}/groups", s.requireCommunityMember(s.handlePostCoachingGroup))

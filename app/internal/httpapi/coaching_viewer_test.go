@@ -15,8 +15,8 @@ import (
 // site admin's "See as…": an admin who is a student sees the student's
 // pages; only a site admin may look as someone else, a student's preview
 // is read-only and shows that student's data, never to anyone else; a
-// forged cookie does nothing. And the voice type: the coach's assessment,
-// its history the coach's until shared, the type on the coach's cards.
+// forged cookie does nothing. And the voice type: the coach's assessment
+// and its history, which the student reads too; the type on the cards.
 func TestSeeAsAndVoiceTypes(t *testing.T) {
 	st, h := newTestServer(t)
 	ctx := context.Background()
@@ -190,33 +190,137 @@ func TestSeeAsAndVoiceTypes(t *testing.T) {
 
 	// The voice type: the coach's, with its history; the student sees the
 	// type and range, the assessment once shared; the cards show the type.
-	if code, _ := do(coach, "PUT", voice, `{"voiceType":"tenor","tessituraLow":50,"tessituraHigh":64,"note":"PRIVATE-ASSESSMENT"}`); code != http.StatusNoContent {
+	if code, _ := do(coach, "PUT", voice, `{"voiceType":"tenor","tessituraLow":50,"tessituraHigh":64,"note":"THE-ASSESSMENT"}`); code != http.StatusNoContent {
 		t.Fatalf("the coach's assessment: %d", code)
 	}
 	if code, _ := do(olga, "PUT", voice, `{"voiceType":"bass"}`); code != http.StatusForbidden {
 		t.Errorf("a student sets another's voice type: %d", code)
 	}
-	if code, _ := do(stan, "PUT", fmt.Sprintf("/api/communities/%d/students/%d/voice/shared", c, stan), `{"shared":true}`); code != http.StatusForbidden {
-		t.Errorf("a student shares their own assessment: %d", code)
+	if code, _ := do(stan, "PUT", voice, `{"voiceType":"bass"}`); code != http.StatusForbidden {
+		t.Errorf("a student sets their own voice type: %d", code)
 	}
 	stanPage := fmt.Sprintf("/communities/%d/students/%d", c, stan)
 	_, body = do(coach, "GET", stanPage, "")
-	for _, want := range []string{"Tenor", "PRIVATE-ASSESSMENT", "by the admin", `class="voice-history"`, "Baritone"} {
+	for _, want := range []string{"Tenor", "THE-ASSESSMENT", "by the admin", `class="voice-history"`, "Baritone"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the coach's page of Stan: no %q", want)
 		}
 	}
 	_, body = do(stan, "GET", stanPage, "")
-	if !strings.Contains(body, `<strong class="voice-type-name">Tenor</strong>`) || strings.Contains(body, "PRIVATE-ASSESSMENT") || strings.Contains(body, "voice-history") {
-		t.Error("Stan's page: no type, or the unshared assessment shown")
+	if !strings.Contains(body, `<strong class="voice-type-name">Tenor</strong>`) || !strings.Contains(body, "THE-ASSESSMENT") || !strings.Contains(body, `class="voice-history"`) {
+		t.Error("Stan's page: no type, or no assessment and history")
 	}
-	if code, _ := do(coach, "PUT", voice+"/shared", `{"shared":true}`); code != http.StatusOK {
-		t.Fatalf("sharing: %d", code)
-	}
-	if _, body := do(stan, "GET", stanPage, ""); !strings.Contains(body, "PRIVATE-ASSESSMENT") || !strings.Contains(body, "voice-history") {
-		t.Error("Stan's page: the shared assessment isn't shown")
+	if strings.Contains(body, `class="voice-assess form-stack"`) {
+		t.Error("Stan's page: the coach's assessment form")
 	}
 	if _, body := do(coach, "GET", books, ""); !strings.Contains(body, `<span class="voice-tag is-type" title="Voice type">Tenor</span>`) {
 		t.Error("the coach's card doesn't show Stan's voice type")
+	}
+
+	// Notes: private (the coach's and the staff's) or shared (Stan reads
+	// them, and is told). A student never gets a private one: not on his
+	// page, not through the API, not in an admin's preview of him, not in
+	// search or his calendar feed.
+	must(st.SetStudentNotes(ctx, c, stan, "ABOUT-STAN-PRIVATE", coach))
+	notes := fmt.Sprintf("/api/communities/%d/students/%d/teaching-notes", c, stan)
+	if code, _ := do(coach, "POST", notes, `{"body":"PRIVATE-NOTE"}`); code != http.StatusOK {
+		t.Fatalf("a private note: %d", code)
+	}
+	if code, _ := do(coach, "POST", notes, fmt.Sprintf(`{"body":"SHARED-NOTE","shared":true,"variantId":%d}`, song)); code != http.StatusOK {
+		t.Fatalf("a shared note: %d", code)
+	}
+	if code, _ := do(coach, "POST", notes, `{"body":"x","variantId":999999}`); code != http.StatusBadRequest {
+		t.Errorf("a note about a song from elsewhere: %d", code)
+	}
+	all, err := st.ListTeachingNotes(ctx, c, stan)
+	must(err)
+	var privateID int64
+	for _, n := range all {
+		if n.Body == "PRIVATE-NOTE" {
+			privateID = n.ID
+		}
+	}
+	share := fmt.Sprintf("%s/%d/share", notes, privateID)
+	for _, who := range []int64{stan, olga} {
+		if code, _ := do(who, "POST", notes, `{"body":"mine","shared":true}`); code != http.StatusForbidden {
+			t.Errorf("a student writes a note: %d", code)
+		}
+		if code, _ := do(who, "POST", share, ""); code != http.StatusForbidden {
+			t.Errorf("a student shares a private note: %d", code)
+		}
+		if code, _ := do(who, "PUT", fmt.Sprintf("%s/%d", notes, privateID), `{"body":"changed"}`); code != http.StatusForbidden {
+			t.Errorf("a student rewrites a note: %d", code)
+		}
+	}
+	noPrivate := func(who string, body string) {
+		t.Helper()
+		for _, secret := range []string{"PRIVATE-NOTE", "ABOUT-STAN-PRIVATE"} {
+			if strings.Contains(body, secret) {
+				t.Errorf("%s: %s shown", who, secret)
+			}
+		}
+	}
+	_, body = do(coach, "GET", stanPage, "")
+	if !strings.Contains(body, "PRIVATE-NOTE") || !strings.Contains(body, "SHARED-NOTE") {
+		t.Error("the coach doesn't see both notes")
+	}
+	// Stan's overview says so, until he opens his page.
+	overview := fmt.Sprintf("/communities/%d", c)
+	_, body = do(stan, "GET", overview, "")
+	if !strings.Contains(body, `class="coach-new-note"`) || !strings.Contains(body, "New note from Cora") {
+		t.Error("Stan's overview doesn't say a note is new")
+	}
+	noPrivate("Stan's overview", body)
+	// An admin's preview of Stan: his shared notes, nothing private, and
+	// his "new" left as it is.
+	seeAs(dim, fmt.Sprintf("student:%d", stan))
+	_, body = do(dim, "GET", stanPage, "")
+	if !strings.Contains(body, "SHARED-NOTE") {
+		t.Error("the preview of Stan: no shared note")
+	}
+	noPrivate("the preview of Stan", body)
+	if code, _ := do(dim, "POST", share, ""); code != http.StatusConflict {
+		t.Errorf("sharing during a preview of Stan: %d", code)
+	}
+	seeAs(dim, "")
+	if n, _, _ := st.UnreadNotificationsAt(ctx, stan, "teaching_note_shared", sharedNotesLink(c, stan)); n != 1 {
+		t.Errorf("the preview marked Stan's note read: %d unread", n)
+	}
+	_, body = do(stan, "GET", stanPage, "")
+	if !strings.Contains(body, "SHARED-NOTE") || !strings.Contains(body, `id="notes"`) {
+		t.Error("Stan's page: no shared note")
+	}
+	noPrivate("Stan's page", body)
+	if _, body := do(stan, "GET", overview, ""); strings.Contains(body, `class="coach-new-note"`) {
+		t.Error("Stan's overview still says new after he read it")
+	}
+	if code, _ := do(olga, "GET", stanPage, ""); code != http.StatusNotFound {
+		t.Errorf("Olga opens Stan's page: %d", code)
+	}
+	_, body = do(stan, "GET", "/api/search?q=PRIVATE", "")
+	noPrivate("Stan's search", body)
+	tok, err := st.CalendarFeedToken(ctx, stan)
+	must(err)
+	_, body = do(stan, "GET", "/calendar/feed/"+tok+".ics", "")
+	noPrivate("Stan's calendar feed", body)
+	// Shared, the private note: Stan reads it and is told; once only.
+	if code, _ := do(coach, "POST", share, ""); code != http.StatusOK {
+		t.Fatalf("sharing the private note: %d", code)
+	}
+	if code, _ := do(coach, "POST", share, ""); code != http.StatusNotFound {
+		t.Errorf("sharing it twice: %d", code)
+	}
+	if _, body := do(stan, "GET", stanPage, ""); !strings.Contains(body, "PRIVATE-NOTE") {
+		t.Error("the note shared isn't on Stan's page")
+	}
+	inbox, _ := st.ListNotifications(ctx, stan, false)
+	told := 0
+	for _, n := range inbox {
+		if n.Kind == "teaching_note_shared" {
+			told++
+		}
+	}
+	if told != 2 {
+		t.Errorf("Stan was told %d times, want 2", told)
 	}
 }

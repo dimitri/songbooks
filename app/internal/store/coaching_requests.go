@@ -222,3 +222,14 @@ func (st *Store) SongbookKeys(ctx context.Context, songbookID int64) (map[int64]
 	}
 	return out, rows.Err()
 }
+
+// UnreadNotificationsAt is personID's unread notifications of a kind
+// pointing at link: how many, and the latest's text.
+func (st *Store) UnreadNotificationsAt(ctx context.Context, personID int64, kind, link string) (int, string, error) {
+	var n int
+	var body string
+	err := st.db.QueryRow(ctx, `
+		SELECT count(*), coalesce((array_agg(body ORDER BY created_at DESC, id DESC))[1], '')
+		FROM notifications WHERE person_id = $1 AND kind = $2 AND link = $3 AND read_at IS NULL`, personID, kind, link).Scan(&n, &body)
+	return n, body, err
+}

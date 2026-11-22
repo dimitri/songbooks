@@ -15,8 +15,8 @@ import (
 // A coaching student's voice type, as the coach assesses it (migration
 // 0108, docs/coaching.md "Voice types"): a classical type or none yet, a
 // few words, the comfortable part of the range (the tessitura; the range
-// itself is the registers', StudentRanges), and whether the student
-// reads the assessment and its history. Every change is kept.
+// itself is the registers', StudentRanges). The student reads it all,
+// its history too (migration 0109). Every change is kept.
 
 // VoiceTypes are the types a coach picks from, high to low; "" is none
 // yet (many coaches of pop singers keep no label, or not yet).
@@ -40,10 +40,7 @@ type VoiceProfile struct {
 	VoiceType                   string
 	Assessment                  string
 	TessituraLow, TessituraHigh *int
-	// Shared: the student reads the assessment and its history (they
-	// always see their type and their range).
-	Shared    bool
-	UpdatedAt *time.Time
+	UpdatedAt                   *time.Time
 }
 
 // VoiceChange is one change of the history.
@@ -92,9 +89,9 @@ func ParseRangeText(s string) (low, high *int) {
 func (st *Store) StudentVoiceProfile(ctx context.Context, communityID, personID int64) (VoiceProfile, error) {
 	var p VoiceProfile
 	err := st.db.QueryRow(ctx, `
-		SELECT voice_type, assessment, tessitura_low_midi, tessitura_high_midi, shared, updated_at
+		SELECT voice_type, assessment, tessitura_low_midi, tessitura_high_midi, updated_at
 		FROM student_voice_profiles WHERE community_id = $1 AND person_id = $2`, communityID, personID).
-		Scan(&p.VoiceType, &p.Assessment, &p.TessituraLow, &p.TessituraHigh, &p.Shared, &p.UpdatedAt)
+		Scan(&p.VoiceType, &p.Assessment, &p.TessituraLow, &p.TessituraHigh, &p.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return VoiceProfile{}, nil
 	}
@@ -184,16 +181,6 @@ func insertVoiceChange(ctx context.Context, q interface {
 	_, err := q.Exec(ctx, `
 		INSERT INTO student_voice_history (community_id, person_id, changed_by_person_id, field, old_value, new_value, note)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`, communityID, personID, nullID(byPersonID), field, old, new, note)
-	return err
-}
-
-// SetStudentVoiceShared says whether the student reads the assessment and
-// its history.
-func (st *Store) SetStudentVoiceShared(ctx context.Context, communityID, personID int64, shared bool, byPersonID int64) error {
-	_, err := st.db.Exec(ctx, `
-		INSERT INTO student_voice_profiles (community_id, person_id, shared, updated_by_person_id) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (community_id, person_id) DO UPDATE SET shared = EXCLUDED.shared`,
-		communityID, personID, shared, nullID(byPersonID))
 	return err
 }
 
