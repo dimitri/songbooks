@@ -15,7 +15,17 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.BackURL}}">{{template "icon-back"}} {{if eq .BackLabel "Set lists"}}{{t "Set lists"}}{{else}}{{.BackLabel}}{{end}}</a>
+  {{if .CanEdit}}
+  {{/* Renaming the set list: its title, or the pencil beside it. */}}
+  <span class="band-name-row setlist-name-row">
+    <h1 id="setlist-name-display">{{.Title}}</h1>
+    <input type="text" id="setlist-name-input" class="band-name-input" value="{{.Title}}" aria-label="{{t "Name of the set list"}}" autocomplete="off" enterkeyhint="done" hidden>
+    <button type="button" class="icon-btn setlist-rename-btn" id="setlist-rename" title="{{t "Rename"}}" aria-label="{{t "Rename the set list"}}">{{template "icon-edit"}}</button>
+  </span>
+  <span id="setlist-name-status" class="form-status" role="status"></span>
+  {{else}}
   <h1>{{.Title}}</h1>
+  {{end}}
 </header>
 
 {{if or .Date .Venue}}
@@ -34,15 +44,14 @@
     {{template "setlist-views" (dict "Path" .Path "Current" "order" "Playable" .Playable)}}
     <div class="setlist-actions">
       {{if .CanEdit}}<button type="button" id="reorder-toggle" class="setlist-action" aria-pressed="false">{{template "icon-edit"}} <span id="reorder-toggle-label">{{t "Reorder"}}</span></button>{{end}}
-      <details class="setlist-export">
-        <summary class="setlist-action">{{template "icon-download"}} {{t "Export"}} <span aria-hidden="true">▾</span></summary>
-        <div class="row-menu-panel">
-          <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>{{t "Running sheet"}}<small>{{t "the set list on one page (PDF)"}}</small></a>
-          <a href="/setlists/{{.SetlistID}}/export.pdf" download>{{t "Full songbook"}}<small>{{t "every song of the set list (PDF)"}}</small></a>
-        </div>
-      </details>
+      {{/* Two PDFs: the set list itself, on one page, straight away; and
+           its songbook (a cover, the list, every song), whose layout and
+           notes are chosen first. */}}
+      <a class="setlist-action" href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download title="{{t "the set list on one page (PDF)"}}">{{template "icon-download"}} {{t "Set list"}}</a>
+      <button type="button" class="setlist-action" data-pdf-open="setlist-songbook-pdf" aria-haspopup="dialog" title="{{t "every song of the set list (PDF)"}}">{{template "icon-download"}} {{t "Songbook"}}</button>
     </div>
   </div>
+  {{template "pdf-export-dialog" (dict "ID" "setlist-songbook-pdf" "Href" (printf "/setlists/%d/export.pdf" .SetlistID) "Title" "Songbook PDF" "Hint" "A cover, the set list, then every song in its order.")}}
   {{if .Choice}}
   <div class="pl-prefer setlist-prefer" role="group" aria-label="{{t "Play first"}}">
     <button type="button" data-prefer="rec" aria-pressed="true">{{t "Our recordings"}}</button>
@@ -138,7 +147,63 @@
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{if .CanEdit}}
+<script>
+// Rename: the pencil (or the title) swaps the title for a field; Enter
+// or leaving it saves, Escape gives up. The name is the set list's title,
+// and its body's own "title:" line when it has one (what the page shows).
+(function () {
+  const setlistID = {{.SetlistID}};
+  const display = document.getElementById('setlist-name-display');
+  const input = document.getElementById('setlist-name-input');
+  const pencil = document.getElementById('setlist-rename');
+  const status = document.getElementById('setlist-name-status');
+  let saving = false;
+  function startEdit() {
+    display.hidden = true; pencil.hidden = true;
+    input.hidden = false; input.value = display.textContent;
+    input.focus(); input.select();
+  }
+  function stopEdit() {
+    input.hidden = true; display.hidden = false; pencil.hidden = false;
+  }
+  async function save() {
+    if (saving || input.hidden) return;
+    const name = input.value.trim();
+    if (!name || name === display.textContent) { stopEdit(); Forms.status(status, '', ''); return; }
+    saving = true;
+    const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
+    const data = res && res.ok ? await res.json().catch(() => null) : null;
+    let put = null;
+    if (data) {
+      for (const f of data.setlist.meta || []) if (f.key === 'title') f.value = name;
+      put = await fetch(`/api/setlists/${setlistID}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({version: data.meta.version, title: name, notes: data.meta.notes, setlist: data.setlist}),
+      }).catch(() => null);
+    }
+    saving = false;
+    if (!put || !put.ok) {
+      // Keep the field open with what they typed; Escape gives up.
+      Forms.status(status, t('Couldn’t rename the set list. Press Enter to try again.'), 'error');
+      return;
+    }
+    display.textContent = name;
+    document.title = name + ' — Songbooks';
+    Forms.status(status, '', '');
+    stopEdit();
+    pencil.focus();
+  }
+  pencil.addEventListener('click', startEdit);
+  display.addEventListener('click', startEdit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    else if (e.key === 'Escape') { e.preventDefault(); stopEdit(); Forms.status(status, '', ''); pencil.focus(); }
+  });
+  input.addEventListener('blur', save);
+})();
+</script>
 <script>
 (function () {
   const setlistID = {{.SetlistID}};
@@ -196,7 +261,7 @@
     });
     const put = await fetch(`/api/setlists/${setlistID}`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
+      body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
     });
     if (put.ok) {
       const putData = await put.json();

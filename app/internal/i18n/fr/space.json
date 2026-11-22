@@ -3,12 +3,9 @@
   "Voice coaching": "Cours de chant",
   "My groups": "Mes groupes",
   "Views of the set list": "Vues de la set list",
-  "Running sheet": "Feuille de route",
   "the set list on one page (PDF)": "la set list sur une page (PDF)",
-  "Full songbook": "Songbook complet",
   "every song of the set list (PDF)": "tous les morceaux de la set list (PDF)",
   "To vote": "À voter",
-  "Songbook (PDF)": "Songbook (PDF)",
   "rehearsals, concerts": "répétitions, concerts",
   "Resources": "Ressources",
   "All the resources": "Toutes les ressources",
@@ -16,5 +13,11 @@
   "My progress": "Mon suivi",
   "By song": "Par chanson",
   "%d student": "%d élève",
-  "%d students": "%d élèves"
+  "%d students": "%d élèves",
+  "PDF": "PDF",
+  "Songbook PDF": "Songbook en PDF",
+  "A cover, the list of the songs, then every song.": "Une couverture, la liste des morceaux, puis chaque morceau.",
+  "A cover, the set list, then every song in its order.": "Une couverture, la set list, puis chaque morceau dans l’ordre.",
+  "Name of the set list": "Nom de la set list",
+  "Rename the set list": "Renommer la set list"
 }

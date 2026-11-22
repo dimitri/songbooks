@@ -116,5 +116,6 @@
   "reject failed": "échec du refus",
   "this song": "ce morceau",
   "vote failed": "échec du vote",
-  "“%s”": "« %s »"
+  "“%s”": "« %s »",
+  "Couldn’t rename the set list. Press Enter to try again.": "Impossible de renommer la set list. Appuyez sur Entrée pour réessayer."
 }
