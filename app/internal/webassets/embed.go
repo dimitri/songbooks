@@ -325,7 +325,19 @@ var funcMap = template.FuncMap{
 	// pathSegment escapes a file name for its place in a URL's path.
 	"pathSegment":   url.PathEscape,
 	"staticVersion": func() string { return staticVersion },
+	// soundfontID names the bank scores play with (gp-soundfont.js), ""
+	// for alphaTab's own Sonivox: docs/soundfont.md.
+	"soundfontID": func() string {
+		if SoundfontID == nil {
+			return ""
+		}
+		return SoundfontID()
+	},
 }
+
+// SoundfontID is set by the server (httpapi.SoundFonts): the id of the
+// bank whose subsets scores play with, "" for none.
+var SoundfontID func() string
 
 // fileSize shows a byte count the way a download list does, in lang:
 // "84.0 MB" ("84,0 Mo" in French).

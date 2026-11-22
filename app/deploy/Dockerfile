@@ -112,6 +112,25 @@ RUN set -eux; \
 # of the build — fail fast in `docker compose build`, not at request time.
 RUN which lilypond && lilypond --version
 
+# GeneralUser GS (docs/soundfont.md): the General MIDI bank Guitar Pro
+# scores play with, served cut down to each score's presets
+# (internal/soundfont). 30 MB, so fetched here rather than kept in git:
+# its author's own GitHub repository at a pinned commit (it has no
+# release tags; this commit is v2.0.3), checked against the SHA-256s
+# below, its license next to it. deploy/fetch-soundfont.sh reads these
+# ARG lines to fetch the same files for a run outside Docker.
+ARG GUGS_VERSION=2.0.3
+ARG GUGS_COMMIT=684543d5e5efaef08d02be50dcda8d552478fa60
+ARG GUGS_SF2_SHA256=9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe
+ARG GUGS_LICENSE_SHA256=7b32efefdf95ce38a043799f0659853ddc00fbaa14d8c50f0aca16b9b8b405be
+RUN set -eux; \
+    d=/usr/local/share/songbooks; mkdir -p "$d"; \
+    base="https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/${GUGS_COMMIT}"; \
+    curl -fsSL -o "$d/GeneralUser-GS.sf2" "$base/GeneralUser-GS.sf2"; \
+    curl -fsSL -o "$d/GeneralUser-GS-LICENSE.txt" "$base/documentation/LICENSE.txt"; \
+    echo "${GUGS_SF2_SHA256}  $d/GeneralUser-GS.sf2" | sha256sum -c -; \
+    echo "${GUGS_LICENSE_SHA256}  $d/GeneralUser-GS-LICENSE.txt" | sha256sum -c -
+
 COPY --from=builder /out/songbooks /usr/local/bin/songbooks
 COPY --from=builder /out/backfillaudio /usr/local/bin/backfillaudio
 COPY --from=builder /out/bandscampredo /usr/local/bin/bandscampredo
