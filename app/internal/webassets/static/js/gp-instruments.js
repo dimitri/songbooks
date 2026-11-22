@@ -69,7 +69,9 @@
   }
 
   // ---- Whose choice ---------------------------------------------------------
-  const sheet = () => (typeof document !== 'undefined' ? document.getElementById('sheet') : null);
+  // The song's choice and whether this person makes it for everyone: on
+  // the Score view's Instruments tool (play.html).
+  const dataEl = () => (typeof document !== 'undefined' ? document.querySelector('[data-gp-instruments]') : null);
   const localKey = (variantId) => `songbooks:gp-instruments:${variantId}`;
   function readLocal(variantId) {
     try { return JSON.parse(localStorage.getItem(localKey(variantId)) || '{}') || {}; } catch (e) { return {}; }
@@ -87,7 +89,7 @@
   function state(variantId) {
     let s = songs.get(String(variantId));
     if (s) return s;
-    const el = sheet();
+    const el = dataEl();
     let stored = [];
     try { stored = JSON.parse((el && el.dataset.gpInstruments) || '[]') || []; } catch (e) { stored = []; }
     s = {
@@ -103,7 +105,7 @@
   // The Mixer's data (gpInstruments), when the page didn't say (the page's
   // is kept: a choice made since is in it).
   function setStored(variantId, list) {
-    const el = sheet();
+    const el = dataEl();
     if (el && el.dataset.gpInstruments !== undefined) return;
     if (Array.isArray(list)) state(variantId).stored = list;
   }

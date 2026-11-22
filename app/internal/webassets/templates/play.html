@@ -1956,7 +1956,7 @@
       </label>
       <span class="follow-hint" id="follow-hint"></span>
     </div>
-    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}} data-gp-instruments="{{.GPInstruments}}"{{if .CanEdit}} data-gp-instruments-edit="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
+    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
     {{/* Scrolled away by hand while the music plays: following holds,
@@ -2069,7 +2069,7 @@
           {{/* The instrument each track plays with (gp-instruments.js):
                for everyone when an editor chooses, else just for this
                person. Shown once the score sounds (gp-view.js). */}}
-          <details class="gp-tool gp-sound" hidden>
+          <details class="gp-tool gp-sound" hidden data-gp-instruments="{{.GPInstruments}}"{{if .CanEdit}} data-gp-instruments-edit="1"{{end}}>
             <summary title="{{t "the instrument each track plays with"}}">{{template "icon-speaker"}}<span>{{t "Instruments"}}</span></summary>
             <div class="gp-sound-panel">
               <div class="gp-sound-tracks"></div>
