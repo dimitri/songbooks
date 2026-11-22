@@ -318,6 +318,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))
 
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
+	mux.HandleFunc("POST /api/variants/{id}/versions", s.requireAuth(s.handleNewVersion))
+	mux.HandleFunc("POST /api/variants/{id}/public", s.requireAuth(s.handleSetSongPublic))
+	mux.HandleFunc("POST /api/songbooks/{id}/public", s.requireAuth(s.handleSetSongbookPublic))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
 	mux.HandleFunc("PUT /api/variants/{id}", s.requireAuth(s.handleUpdateVariant))
 	mux.HandleFunc("GET /api/revisions", s.requireAuth(s.handleListRevisions))
@@ -427,7 +430,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// staff-only, same gate as the admin page.
 	mux.HandleFunc("GET /communities/{id}/songbooks/{sbID}/access", s.requireCommunityAnyManagePrivilege(s.handleSongbookAccessPage))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/requires-grant", s.requireCommunityAnyManagePrivilege(s.handleSetSongbookRequiresGrant))
-	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/shared", s.requireCommunityAnyManagePrivilege(s.handleSetSongbookShared))
+	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/closed", s.requireCommunityAnyManagePrivilege(s.handleSetSongbookClosed))
 	mux.HandleFunc("POST /api/communities/{id}/songbooks/{sbID}/grants", s.requireCommunityAnyManagePrivilege(s.handleGrantSongbookAccess))
 	mux.HandleFunc("DELETE /api/communities/{id}/songbooks/{sbID}/grants/{personID}", s.requireCommunityAnyManagePrivilege(s.handleRevokeSongbookAccess))
 	// The download area (downloads.go): one listing of the files of every

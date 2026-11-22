@@ -32,9 +32,6 @@ RUN CGO_ENABLED=0 go build -o /out/sbcoach ./cmd/sbcoach
 # sbdemo: turns a copy of production's data into demo data, on a local
 # or staging database only (cmd/sbdemo, docs/demo-data.md).
 RUN CGO_ENABLED=0 go build -o /out/sbdemo ./cmd/sbdemo
-# bandsongs: makes every song a band uses the band's own (cmd/bandsongs);
-# a dry run unless --apply.
-RUN CGO_ENABLED=0 go build -o /out/bandsongs ./cmd/bandsongs
 # ownership: maps the songs onto the ownership model (cmd/ownership,
 # docs/ownership-model.md §9); a dry run unless --apply.
 RUN CGO_ENABLED=0 go build -o /out/ownership ./cmd/ownership
@@ -125,7 +122,6 @@ COPY --from=builder /out/gpmigrate /usr/local/bin/gpmigrate
 COPY --from=builder /out/sbfiles /usr/local/bin/sbfiles
 COPY --from=builder /out/sbcoach /usr/local/bin/sbcoach
 COPY --from=builder /out/sbdemo /usr/local/bin/sbdemo
-COPY --from=builder /out/bandsongs /usr/local/bin/bandsongs
 COPY --from=builder /out/ownership /usr/local/bin/ownership
 
 EXPOSE 8080

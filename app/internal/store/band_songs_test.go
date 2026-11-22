@@ -172,14 +172,23 @@ func TestBandVersionsOf(t *testing.T) {
 	}
 }
 
-// TestAdoptIntoBand: the catalogue's song a band uses becomes the band's
-// copy — songbook entry and set list item repointed, the original
-// untouched — once; adopting again, or the band's own song, changes
-// nothing.
-func TestAdoptIntoBand(t *testing.T) {
+// TestMakeBandVersion: Edit on a song the band links makes the band's
+// version (docs/ownership-model.md §5): a new song, the band's, private,
+// forked_from_id the original, in the link's place in the band's
+// songbook (its key kept) and set list (a revision recorded), the
+// original untouched; New version from this on the band's own song adds a
+// named one beside it, nothing replaced.
+func TestMakeBandVersion(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
+	sb, err := st.GetDefaultSongbook(ctx, "band", f.Band)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetEntrySemitones(ctx, sb, f.CatalogSong, 3); err != nil {
+		t.Fatal(err)
+	}
 
 	holds, err := st.BandsHolding(ctx, f.Guest, f.CatalogSong)
 	if err != nil || len(holds) != 1 || holds[0].BandID != f.Band || holds[0].OwnSongID != 0 {
@@ -191,42 +200,30 @@ func TestAdoptIntoBand(t *testing.T) {
 	if holds, _ := st.BandsHolding(ctx, f.Guest, f.BandSong); len(holds) != 0 {
 		t.Errorf("the band's own song is held: %+v", holds)
 	}
-	plan, err := st.PlanBandAdoptions(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan) != 1 || plan[0].VariantID != f.CatalogSong || plan[0].Action != "copy" || plan[0].Entries != 1 || plan[0].SetlistItems != 1 {
-		t.Fatalf("plan before: %+v", plan)
+	if _, err := st.MakeVersion(ctx, f.Outsider, f.CatalogSong, BandOwner(f.Band), 0, ""); !errors.Is(err, ErrForbidden) {
+		t.Errorf("an outsider making the band's version: %v", err)
 	}
 
 	_, origVersion, _ := st.LoadVariantRaw(f.CatalogSong)
-	newID, created, err := st.AdoptIntoBand(ctx, f.Band, f.CatalogSong, f.Guest)
+	newID, err := st.MakeVersion(ctx, f.Guest, f.CatalogSong, BandOwner(f.Band), 0, "")
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !created || newID == f.CatalogSong {
-		t.Fatalf("AdoptIntoBand = %d, %v", newID, created)
 	}
 	v, err := st.GetVariant(ctx, newID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Visibility != "band" || v.OwnerBandID == nil || *v.OwnerBandID != f.Band || v.ForkedFromID == nil || *v.ForkedFromID != f.CatalogSong {
-		t.Errorf("the band's copy: %+v", v)
+	if v.Visibility != "band" || v.Public || v.OwnerBandID == nil || *v.OwnerBandID != f.Band || v.ForkedFromID == nil || *v.ForkedFromID != f.CatalogSong {
+		t.Errorf("the band's version: %+v", v)
 	}
 	if ok, _ := st.CanEditVariant(ctx, f.Guest, newID); !ok {
-		t.Error("a guest member can't edit the band's copy")
+		t.Error("a guest member can't edit the band's version")
 	}
-	entries, err := st.ListBandCatalog(ctx, f.Band)
-	if err != nil {
-		t.Fatal(err)
+	if semis, in, _ := st.SongbookEntryKey(ctx, sb, newID); !in || semis != 3 {
+		t.Errorf("the version in the songbook: %v, key %d (want 3)", in, semis)
 	}
-	var inRep []int64
-	for _, e := range entries {
-		inRep = append(inRep, e.VariantID)
-	}
-	if !containsID(inRep, newID) || containsID(inRep, f.CatalogSong) {
-		t.Errorf("repertoire %v: want the copy %d, not the catalogue's %d", inRep, newID, f.CatalogSong)
+	if _, in, _ := st.SongbookEntryKey(ctx, sb, f.CatalogSong); in {
+		t.Error("the link is still in the songbook beside the version")
 	}
 	l, _, _, err := st.LoadSetlistByID(ctx, f.SetlistID)
 	if err != nil {
@@ -245,29 +242,37 @@ func TestAdoptIntoBand(t *testing.T) {
 	if holds, _ := st.BandsHolding(ctx, f.Guest, f.CatalogSong); len(holds) != 0 {
 		t.Errorf("BandsHolding after: %+v", holds)
 	}
-	if plan, _ := st.PlanBandAdoptions(ctx); len(plan) != 0 {
-		t.Errorf("plan after: %+v", plan)
-	}
 
-	// Once: again reuses the copy, and the band's song is its own.
+	// New version from this: a second, named, beside it.
 	songs := countSongs(t, st)
-	if again, created, err := st.AdoptIntoBand(ctx, f.Band, f.CatalogSong, f.Guest); err != nil || created || again != newID {
-		t.Errorf("adopting again: %d, %v, %v; want %d, false", again, created, err, newID)
+	psych, err := st.MakeVersion(ctx, f.Guest, newID, BandOwner(f.Band), sb, "psychedelic")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if same, created, err := st.AdoptIntoBand(ctx, f.Band, f.BandSong, f.Guest); err != nil || created || same != f.BandSong {
-		t.Errorf("adopting the band's song: %d, %v, %v", same, created, err)
+	pv, _ := st.GetVariant(ctx, psych)
+	if pv == nil || pv.VersionName != "psychedelic" || pv.ForkedFromID == nil || *pv.ForkedFromID != newID {
+		t.Errorf("the new version: %+v", pv)
 	}
-	if n := countSongs(t, st); n != songs {
-		t.Errorf("%d songs, want %d", n, songs)
+	for _, id := range []int64{newID, psych} {
+		if _, in, _ := st.SongbookEntryKey(ctx, sb, id); !in {
+			t.Errorf("song %d isn't in the band's songbook: one row per version", id)
+		}
+	}
+	if n := countSongs(t, st); n != songs+1 {
+		t.Errorf("%d songs, want %d", n, songs+1)
+	}
+	if _, err := st.MakeVersion(ctx, f.Outsider, newID, BandOwner(f.Band), sb, "mine"); !errors.Is(err, ErrForbidden) {
+		t.Errorf("an outsider's new version of the band's song: %v", err)
 	}
 }
 
-// TestAnotherBandsSongIsRefused: a band never takes another band's song
-// (an original band's songs stay theirs; covers come from the catalogue).
-// The plan leaves it, reported, as it leaves a community's song;
-// AdoptIntoBand refuses it, naming the band and the work's catalogue
-// version when there is one; nothing changes.
-func TestAnotherBandsSongIsRefused(t *testing.T) {
+// TestAnotherBandsPrivateSongIsRefused: a band links public songs and its
+// own (docs/ownership-model.md §4): another band's private song is
+// refused — naming the band and the catalogue's song of the same work
+// when there is one — as a link and as a version; once that band makes it
+// public, it's a link like any public song. A community's private song
+// too; a person links what they see.
+func TestAnotherBandsPrivateSongIsRefused(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
@@ -275,12 +280,11 @@ func TestAnotherBandsSongIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Mercy's original, and Mercy's copy of the catalogue's song.
 	original, err := st.CreateVariant(ctx, OwnerBand, other, "Theirs", "Mercy", f.Core)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cover, _, err := st.AdoptIntoBand(ctx, other, f.CatalogSong, f.Core)
+	cover, err := st.MakeVersion(ctx, f.Core, f.CatalogSong, BandOwner(other), 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,50 +296,38 @@ func TestAnotherBandsSongIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l, _, version, err := st.LoadSetlistByID(ctx, f.SetlistID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	l.Sets[0].Entries = append(l.Sets[0].Entries, setlist.Entry{VariantID: original}, setlist.Entry{VariantID: clubs})
-	if _, err := st.SaveSetlistByID(ctx, f.SetlistID, l, "Friday", "", version, f.Core); err != nil {
-		t.Fatal(err)
-	}
-	plan, err := st.PlanBandAdoptions(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions := map[int64]string{}
-	for _, a := range plan {
-		if a.BandID == f.Band {
-			actions[a.VariantID] = a.Action
-		}
-	}
-	if len(actions) != 3 || actions[original] != "skip" || actions[clubs] != "skip" || actions[f.CatalogSong] != "copy" {
-		t.Errorf("plan %v: want another band's and the community's songs left, the catalogue's copied", actions)
-	}
 
 	songs := CountSongs(t, st)
-	before := SetlistVariantIDs(mustSetlist(t, st, f.SetlistID))
 	for _, c := range []struct {
 		id, catalog int64
-	}{{original, 0}, {cover, f.CatalogSong}} {
-		_, _, err := st.AdoptIntoBand(ctx, f.Band, c.id, f.Core)
-		var refused *OtherBandSongError
-		if !errors.As(err, &refused) || !errors.Is(err, ErrForbidden) || refused.BandName != "Mercy" || refused.CatalogVariantID != c.catalog {
-			t.Errorf("adopting Mercy's song %d: %v (%+v), want refused, catalogue version %d", c.id, err, refused, c.catalog)
+		owner       string
+	}{{original, 0, "Mercy"}, {cover, f.CatalogSong, "Mercy"}, {clubs, 0, "Jam Club"}} {
+		err := st.LinkCheckFor(ctx, f.Core, c.id, BandOwner(f.Band))
+		var refused *LinkRefusal
+		if !errors.As(err, &refused) || !errors.Is(err, ErrForbidden) || refused.Reason != "private" || refused.OwnerName != c.owner || refused.CatalogueSongID != c.catalog {
+			t.Errorf("linking %s's song %d: %v (%+v), want refused, catalogue song %d", c.owner, c.id, err, refused, c.catalog)
 		}
-		if err := st.BandMayTake(ctx, f.Band, c.id); !errors.As(err, &refused) {
-			t.Errorf("BandMayTake(Mercy's song %d) = %v, want refused", c.id, err)
+		if _, err := st.MakeVersion(ctx, f.Core, c.id, BandOwner(f.Band), 0, ""); !errors.As(err, &refused) {
+			t.Errorf("the band's version of %s's song %d: %v, want refused", c.owner, c.id, err)
+		}
+		// A person links what they see.
+		if err := st.LinkCheckFor(ctx, f.Core, c.id, PersonOwner(f.Core)); err != nil {
+			t.Errorf("Core linking song %d in their own songbook: %v", c.id, err)
 		}
 	}
-	if err := st.BandMayTake(ctx, other, original); err != nil {
-		t.Errorf("Mercy taking its own song: %v", err)
+	if err := st.LinkCheckFor(ctx, f.Core, original, BandOwner(other)); err != nil {
+		t.Errorf("Mercy linking its own song: %v", err)
 	}
 	if n := CountSongs(t, st); n != songs {
 		t.Errorf("%d songs after the refusals, want %d", n, songs)
 	}
-	if got := SetlistVariantIDs(mustSetlist(t, st, f.SetlistID)); len(got) != len(before) {
-		t.Errorf("set list changed: %v, was %v", got, before)
+
+	// Public, it's a link like any.
+	if err := st.SetSongPublic(ctx, f.Core, original, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.LinkCheckFor(ctx, f.Guest, original, BandOwner(f.Band)); err != nil {
+		t.Errorf("linking Mercy's public song: %v", err)
 	}
 }
 

@@ -546,6 +546,11 @@ func (s *Server) handlePostCoachingSong(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
+	// The community's songbook links public songs and its own
+	// (store.LinkCheck).
+	if !s.writeLinkErr(w, r, s.store.LinkCheck(r.Context(), personFromContext(r).ID, req.VariantID, sb)) {
+		return
+	}
 	if err := s.store.AddToSongbook(r.Context(), sb.ID, req.VariantID, personFromContext(r).ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

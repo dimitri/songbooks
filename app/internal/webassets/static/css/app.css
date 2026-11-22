@@ -5829,6 +5829,9 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .repertoire-row { grid-template-columns: 1fr 3.4rem 3.4rem 2.2rem; }
 .repertoire-row[hidden] { display: none; } /* .gig-row's own display:grid would otherwise beat the [hidden] UA rule */
 .repertoire-artist { font-size: 0.85rem; font-weight: 400; color: var(--fg-muted); }
+/* A version's name beside its title: one row per version of a song
+   (docs/ownership-model.md §5). */
+.song-version-name { font-weight: 400; color: var(--fg-muted); }
 .row-menu { position: relative; justify-self: end; }
 .row-menu > summary { list-style: none; cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 5px; color: var(--fg-muted); }
 .row-menu > summary::-webkit-details-marker { display: none; }

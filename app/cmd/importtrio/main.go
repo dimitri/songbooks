@@ -1,6 +1,6 @@
 // importtrio is a one-shot setup script: creates a new band from the
 // legacy LaTeX "songs"-package tree under Trio/ (see internal/latexsong),
-// imports every song as that band's own repertoire (visibility='band',
+// imports every song as that band's own repertoire (owned by the band,
 // pointed into its default songbook), adds the given founder as a core
 // member, and opens a group-invite roster link with pre-typed,
 // instrument-tagged slots for the other named members to join by.
@@ -165,8 +165,8 @@ func main() {
 
 		var variantID int64
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, body, work_id, visibility, owner_band_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, 'band', $5, $6) RETURNING id`,
+			INSERT INTO songs (title, artist, body, work_id, owner_band_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 			title, artist, j.body, workID, bandID, *founderID).Scan(&variantID); err != nil {
 			log.Fatalf("%s: inserting song: %v", j.dir, err)
 		}

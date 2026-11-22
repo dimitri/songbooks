@@ -95,7 +95,7 @@ func migrationVersion(filename string) (int, error) {
 
 // OpenCurrent connects to a database whose schema is already this
 // binary's, without migrating it: for an administrator's command that must
-// not change a database's schema as a side effect (cmd/bandsongs's dry
+// not change a database's schema as a side effect (cmd/ownership's dry
 // run, on staging, say). A database with a migration this binary has that
 // it hasn't, or none at all, is refused.
 func OpenCurrent(ctx context.Context, connString string) (*Store, error) {

@@ -76,7 +76,7 @@ func main() {
 	defer pool.Close()
 
 	for _, j := range jobs {
-		tag, err := pool.Exec(ctx, `UPDATE songs SET body = $1 WHERE owner_band_id = $2 AND title = $3 AND visibility = 'band'`,
+		tag, err := pool.Exec(ctx, `UPDATE songs SET body = $1 WHERE owner_band_id = $2 AND title = $3`,
 			j.body, *bandID, j.title)
 		if err != nil {
 			log.Fatalf("%s: %v", j.dir, err)

@@ -107,6 +107,10 @@ func (s *Server) handlePutSongbookKey(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusNotFound, "the song isn't in this songbook")
 			return
 		}
+		// A key is an entry setting (docs/ownership-model.md §10.4):
+		// any song the person sees — a closed songbook's too, which
+		// can't be linked anywhere else — gets one in their own
+		// songbook; nothing is copied.
 		if ok, err := s.store.CanViewVariant(ctx, p.ID, variantID); err != nil || !ok {
 			httpError(w, http.StatusForbidden, "can't see this song")
 			return

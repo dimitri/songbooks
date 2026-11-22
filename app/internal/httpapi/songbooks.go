@@ -113,6 +113,9 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 	type songbookSongRow struct {
 		VariantID         int64
 		Title, Tempo, Key string
+		// VersionName tells a version from the owner's other versions of
+		// the same song: one row each (docs/ownership-model.md §5).
+		VersionName string
 		Cover             *covers.Cover
 		// The key the song is kept in here (songbook_keys.go), and the
 		// keys a row's control offers, for whoever can change the songbook.
@@ -156,6 +159,15 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 			_, ownerName, _ = s.store.GetBrand(r.Context(), "community", sb.OwnerCommunityID)
 		}
 	}
+	var allIDs []int64
+	for _, g := range groups {
+		allIDs = append(allIDs, g.VariantIDs...)
+	}
+	versionNames, err := s.store.VersionNames(r.Context(), allIDs)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	var out []songbookGroup
 	for _, g := range groups {
 		sg := songbookGroup{Label: g.Label}
@@ -163,7 +175,7 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 			sg.Label = g.Lesson.Label(s.langOf(w))
 		}
 		for _, vid := range g.VariantIDs {
-			row := songbookSongRow{VariantID: vid, Title: i18n.T(s.langOf(w), "untitled"), Cover: coverOf[vid]}
+			row := songbookSongRow{VariantID: vid, Title: i18n.T(s.langOf(w), "untitled"), Cover: coverOf[vid], VersionName: versionNames[vid]}
 			ownKey := ""
 			if parsed, _, err := s.store.LoadVariant(vid); err == nil {
 				row.Title = orDefault(parsed.Get("title"), row.Title)
@@ -356,11 +368,9 @@ func (s *Server) handleCreateSongInSongbook(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]int64{"variantId": variantID})
 }
 
-// handleCreateCatalogSong creates a brand-new, public-catalogue variant
-// (visibility='global', no owner) — the "public catalogue" option at
-// creation time. Any logged-in person may do this (same as the old
-// CreateSong's unrestricted "global" default); the result isn't added to
-// any songbook automatically — add it to one explicitly via
+// handleCreateCatalogSong creates a brand-new catalogue song (The Big
+// Songbook's, public), for a site admin; the result isn't added to any
+// songbook automatically — add it to one explicitly via
 // handleAddSongbookEntry, same as any other catalogue song.
 func (s *Server) handleCreateCatalogSong(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -368,6 +378,14 @@ func (s *Server) handleCreateCatalogSong(w http.ResponseWriter, r *http.Request)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Title) == "" {
 		httpError(w, http.StatusBadRequest, "missing title")
+		return
+	}
+	// The catalogue is The Big Songbook's: its staff, the site's admins,
+	// write and publish it (docs/ownership-model.md §2, §6); everyone
+	// else writes a song in a songbook of their own, and may make it
+	// public there.
+	if p := personFromContext(r); p == nil || !p.IsAdmin {
+		httpError(w, http.StatusForbidden, "only the site's admins add to the catalogue")
 		return
 	}
 	variantID, err := s.store.CreateVariant(r.Context(), store.OwnerCatalog, 0, req.Title, req.Artist, actorID(r))
@@ -378,9 +396,7 @@ func (s *Server) handleCreateCatalogSong(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]int64{"variantId": variantID})
 }
 
-// handleAddSongbookEntry adds an existing (catalogue, or anyone's
-// visible) variant to songbookID, by reference — "can add songs from the
-// global catalog into (one of) their own song book."
+// handleAddSongbookEntry links a song to songbookID (store.LinkCheck).
 func (s *Server) handleAddSongbookEntry(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {
@@ -399,20 +415,18 @@ func (s *Server) handleAddSongbookEntry(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusBadRequest, "missing variantId")
 		return
 	}
-	if canView, err := s.store.CanViewVariant(r.Context(), p.ID, req.VariantID); err != nil || !canView {
-		httpError(w, http.StatusForbidden, "can't see this song")
+	// A link (docs/ownership-model.md §4): a band's or a community's
+	// songbook links public songs and its own; a person's, anything they
+	// see; a closed songbook's song goes nowhere else (store.LinkCheck).
+	sb, err := s.store.GetSongbook(r.Context(), id)
+	if err != nil {
+		httpError(w, http.StatusNotFound, "no such songbook")
+		return
+	}
+	if !s.writeLinkErr(w, r, s.store.LinkCheck(r.Context(), p.ID, req.VariantID, sb)) {
 		return
 	}
 	variantID := req.VariantID
-	// A band's songbook holds the band's own songs: the catalogue's song,
-	// or someone's own, goes in as the band's copy (adoptIntoBand), which
-	// every member then changes for the band.
-	if sb, err := s.store.GetSongbook(r.Context(), id); err == nil && sb.OwnerKind == "band" && sb.OwnerBandID != 0 {
-		variantID, err = s.adoptIntoBand(r.Context(), sb.OwnerBandID, req.VariantID, p)
-		if !s.writeAdoptErr(w, r, err) {
-			return
-		}
-	}
 	if err := s.store.AddToSongbook(r.Context(), id, variantID, p.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -522,4 +536,34 @@ func keyOptions(lang, ownKey string, current int) []keyOption {
 		out = append(out, keyOption{N: n, Label: label, Selected: n == current})
 	}
 	return out
+}
+
+// handleSetSongbookPublic is POST /api/songbooks/{id}/public {public}: the
+// songbook made public — everyone signed in opens it, and its owner's
+// songs in it go public with it — or private again (its songs stay as
+// they are). A person their own; a band's core members; a community's
+// staff (store.SongbookRights.Publish); never a closed songbook.
+func (s *Server) handleSetSongbookPublic(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid songbook id")
+		return
+	}
+	var req struct {
+		Public bool `json:"public"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	switch err := s.store.SetSongbookPublic(r.Context(), personFromContext(r).ID, id, req.Public); {
+	case errors.Is(err, store.ErrNotFound):
+		httpError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, store.ErrForbidden):
+		httpError(w, http.StatusForbidden, "you can't publish this songbook")
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, map[string]bool{"public": req.Public})
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"app/internal/i18n"
 	"app/internal/songdiff"
 	"app/internal/store"
 )
@@ -247,30 +248,97 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleForkVariant creates a personal copy of a variant (global or
-// someone else's) in the caller's own catalog, with lineage back to the
-// original — a normal HTTP action, not a special "promote" flow.
+// handleForkVariant is "Make my version" (docs/ownership-model.md §5):
+// the person's own version of a song they see (never a closed songbook's),
+// in its place in their songbooks ({"songbookId"}, else every one of
+// theirs linking it; their default songbook when none does).
 func (s *Server) handleForkVariant(w http.ResponseWriter, r *http.Request) {
 	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
+	var req struct {
+		SongbookID int64 `json:"songbookId"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
 	person := personFromContext(r)
-	newID, err := s.store.ForkVariant(r.Context(), variantID, person.ID, "user", 0)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, "this song can't be copied")
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	newID, err := s.store.MakeVersion(r.Context(), person.ID, variantID, store.PersonOwner(person.ID), req.SongbookID, "")
+	if !s.writeLinkErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
+}
+
+// handleNewVersion is POST /api/variants/{id}/versions {name, songbookId}:
+// "New version from this" (docs/ownership-model.md §5) — another version
+// of a song the caller edits, owned by the same owner, named ("Bad Spell —
+// psychedelic"), as a new row beside it in {songbookId} (else in each of
+// the owner's songbooks holding it). Answers its id.
+func (s *Server) handleNewVersion(w http.ResponseWriter, r *http.Request) {
+	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+	var req struct {
+		Name       string `json:"name"`
+		SongbookID int64  `json:"songbookId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		httpError(w, http.StatusBadRequest, i18n.T(s.langOfRequest(r), "A new version needs a name."))
+		return
+	}
+	ctx := r.Context()
+	person := personFromContext(r)
+	rights, err := s.store.SongRightsFor(ctx, person.ID, variantID)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !rights.Edit || rights.Catalogue {
+		httpError(w, http.StatusForbidden, "you can't make a version of this song here")
+		return
+	}
+	newID, err := s.store.MakeVersion(ctx, person.ID, variantID, rights.Owner, req.SongbookID, req.Name)
+	if !s.writeLinkErr(w, r, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
+}
+
+// handleSetSongPublic is POST /api/variants/{id}/public {public}: the song
+// made public (everyone signed in sees it, links it, makes their own
+// version of it; everything goes with it: its chart, reference,
+// recordings, stems, Guitar Pro file) or private. A person their own; a
+// band's core members; a community's staff; the site's admins for The Big
+// Songbook's (store.SongRights.Publish). Never a closed songbook's song.
+func (s *Server) handleSetSongPublic(w http.ResponseWriter, r *http.Request) {
+	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+	var req struct {
+		Public bool `json:"public"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	switch err := s.store.SetSongPublic(r.Context(), personFromContext(r).ID, variantID, req.Public); {
+	case errors.Is(err, store.ErrNotFound):
+		httpError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, store.ErrForbidden):
+		httpError(w, http.StatusForbidden, "you can't publish this song")
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, map[string]bool{"public": req.Public})
+	}
 }
 
 // handleCreateAnnotation leaves a free-text note on a variant — not an

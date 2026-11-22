@@ -12,7 +12,7 @@ func TestSearchFindsTheBandsVersion(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
-	ours, _, err := st.AdoptIntoBand(ctx, f.Band, f.CatalogSong, f.Core)
+	ours, err := st.MakeVersion(ctx, f.Core, f.CatalogSong, BandOwner(f.Band), 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func TestSearchFindsTheBandsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, _, err := st.AdoptIntoBand(ctx, other, f.CatalogSong, f.Guest)
+	theirs, err := st.MakeVersion(ctx, f.Guest, f.CatalogSong, BandOwner(other), 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}

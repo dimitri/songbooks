@@ -126,7 +126,7 @@ func TestMembersEditTheBandsSongInPlace(t *testing.T) {
 			fmt.Sprintf("/song/%d?band=%d", f.BandSong, f.Band),
 		} {
 			html := c.page(path)
-			if !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, "data-edit-offer") || strings.Contains(html, "edit-offer-dialog") {
+			if !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, "data-edit-offer") || strings.Contains(html, `id="edit-offer-dialog"`) {
 				t.Errorf("person %d, %s: not the editor on the band's song", who, path)
 			}
 		}
@@ -210,10 +210,11 @@ func TestEditFromTheBandsSetlist(t *testing.T) {
 	}
 }
 
-// TestAddingToTheBandMakesTheBandsSong: every way of adding someone
-// else's song to a band — its set list, its repertoire, its songbook —
-// adds the band's own copy.
-func TestAddingToTheBandMakesTheBandsSong(t *testing.T) {
+// TestAddingToTheBandLinks: every way of adding a public song to a band —
+// its set list, its repertoire, its songbook — links it
+// (docs/ownership-model.md §4): the song itself in the band's songbook,
+// nothing copied.
+func TestAddingToTheBandLinks(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
@@ -225,14 +226,15 @@ func TestAddingToTheBandMakesTheBandsSong(t *testing.T) {
 		}
 		return id
 	}
+	songs := store.CountSongs(t, st)
 	isBands := func(how string, id int64) {
 		t.Helper()
 		v, err := st.GetVariant(ctx, id)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if v.Visibility != "band" || v.OwnerBandID == nil || *v.OwnerBandID != f.Band {
-			t.Errorf("%s: song %d is %s, not the band's", how, id, v.Visibility)
+		if v.Visibility != "global" || !v.Public {
+			t.Errorf("%s: song %d is %s, not the catalogue's", how, id, v.Visibility)
 		}
 		entries, err := st.ListBandCatalog(ctx, f.Band)
 		if err != nil {
@@ -275,8 +277,8 @@ func TestAddingToTheBandMakesTheBandsSong(t *testing.T) {
 		t.Fatalf("PUT set list: %d %s", w.Code, w.Body.String())
 	}
 	got := setlistSongs(t, st, f.SetlistID)
-	if len(got) != 3 || got[0] != f.BandSong || got[1] != f.CatalogSong || got[2] == added {
-		t.Fatalf("set list %v: want the added song as the band's copy, the songs already there as they were", got)
+	if len(got) != 3 || got[0] != f.BandSong || got[1] != f.CatalogSong || got[2] != added {
+		t.Fatalf("set list %v: want the added song itself, the songs already there as they were", got)
 	}
 	isBands("set list", got[2])
 	var answer struct {
@@ -290,8 +292,8 @@ func TestAddingToTheBandMakesTheBandsSong(t *testing.T) {
 	// The repertoire.
 	rep := catalog("Added To The Repertoire")
 	id := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": rep}))
-	if id == rep {
-		t.Error("repertoire: the catalogue's song itself")
+	if id != rep {
+		t.Errorf("repertoire: %d, want the catalogue's song %d itself", id, rep)
 	}
 	isBands("repertoire", id)
 
@@ -302,8 +304,8 @@ func TestAddingToTheBandMakesTheBandsSong(t *testing.T) {
 	}
 	book := catalog("Added To The Songbook")
 	id = c.variantID(c.do("POST", fmt.Sprintf("/api/songbooks/%d/entries", sb), map[string]int64{"variantId": book}))
-	if id == book {
-		t.Error("songbook: the catalogue's song itself")
+	if id != book {
+		t.Errorf("songbook: %d, want the catalogue's song %d itself", id, book)
 	}
 	isBands("songbook", id)
 
@@ -314,6 +316,9 @@ func TestAddingToTheBandMakesTheBandsSong(t *testing.T) {
 	}
 	if id := c.variantID(c.do("POST", fmt.Sprintf("/api/songbooks/%d/entries", mine), map[string]int64{"variantId": book})); id != book {
 		t.Errorf("my songbook: %d, want the catalogue's %d", id, book)
+	}
+	if n := store.CountSongs(t, st); n != songs+3 {
+		t.Errorf("%d songs, want %d: an add made a copy", n, songs+3)
 	}
 }
 
@@ -505,7 +510,7 @@ func TestCatalogueSongs(t *testing.T) {
 		t.Fatalf("PUT key: %d", w.Code)
 	}
 	html := o.page(fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, mine))
-	if !strings.Contains(html, `data-edit-offer="copy"`) || !strings.Contains(html, "Make my own version") {
+	if !strings.Contains(html, `data-edit-offer="copy"`) || !strings.Contains(html, "Make my version") {
 		t.Error("no offer of one's own version")
 	}
 	ownVersion := o.variantID(o.do("POST", fmt.Sprintf("/api/variants/%d/fork", f.CatalogSong), nil))
@@ -528,7 +533,7 @@ func TestSearchShowsTheBandsVersion(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
-	ours, _, err := st.AdoptIntoBand(ctx, f.Band, f.CatalogSong, f.Core)
+	ours, err := st.MakeVersion(ctx, f.Core, f.CatalogSong, store.BandOwner(f.Band), 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +541,7 @@ func TestSearchShowsTheBandsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, _, err := st.AdoptIntoBand(ctx, other, f.CatalogSong, f.Guest)
+	theirs, err := st.MakeVersion(ctx, f.Guest, f.CatalogSong, store.BandOwner(other), 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,12 +580,13 @@ func TestSearchShowsTheBandsVersion(t *testing.T) {
 }
 
 // TestAddingAnotherBandsSongIsRefused: someone in two bands adding one
-// band's song to the other's set list, repertoire or songbook is refused
-// with a 409 that says whose song it is; for a cover, it offers the
-// catalogue's version (catalogVariantId), which adds as this band's copy;
-// for an original, it says it stays theirs. Nothing is added or copied.
-// A band's add dialogs search (?band=) offers its own version or the
-// catalogue's, never another band's.
+// band's private song to the other's set list, repertoire or songbook, or
+// making the other band's version of it, is refused with a 409 that says
+// whose song it is; for a cover, it offers the catalogue's version
+// (catalogVariantId), which adds as a link; for an original, it says it
+// stays theirs. Nothing is added or copied. A band's add dialogs search
+// (?band=) offers its own version or the catalogue's, never another
+// band's.
 func TestAddingAnotherBandsSongIsRefused(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
@@ -593,13 +599,13 @@ func TestAddingAnotherBandsSongIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cover, _, err := st.AdoptIntoBand(ctx, mercy, f.CatalogSong, f.Core)
+	cover, err := st.MakeVersion(ctx, f.Core, f.CatalogSong, store.BandOwner(mercy), 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := as(t, st, f.Core)
 	type refusal struct {
-		Band             string `json:"band"`
+		Band             string `json:"owner"`
 		CatalogVariantID int64  `json:"catalogVariantId"`
 		Message          string `json:"message"`
 		Question         string `json:"question"`
@@ -653,12 +659,9 @@ func TestAddingAnotherBandsSongIsRefused(t *testing.T) {
 		}
 	}
 
-	// The catalogue's version the refusal offers: added as Other Lies's
-	// own copy.
-	if id := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": f.CatalogSong})); id == f.CatalogSong || id == cover {
-		t.Errorf("the catalogue's version: %d, want Other Lies's copy", id)
-	} else if v, _ := st.GetVariant(ctx, id); v == nil || *v.OwnerBandID != f.Band {
-		t.Errorf("the catalogue's version added as %+v", v)
+	// The catalogue's version the refusal offers: added as a link.
+	if id := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog", f.Band), map[string]int64{"variantId": f.CatalogSong})); id != f.CatalogSong {
+		t.Errorf("the catalogue's version: %d, want the catalogue's song %d", id, f.CatalogSong)
 	}
 
 	// A band's add dialog: its own version or the catalogue's, never
@@ -682,16 +685,15 @@ func TestAddingAnotherBandsSongIsRefused(t *testing.T) {
 			}
 		}
 	}
-	if got := search("/api/catalog/search?q=vent"); len(got) != 2 {
-		t.Errorf("search outside a band: %+v, want each band's version", got)
+	if got := search("/api/catalog/search?q=vent"); len(got) != 1 || got[0].VariantID != cover {
+		t.Errorf("search outside a band: %+v, want Mercy's version in the catalogue's place (Other Lies only links it)", got)
 	}
 }
 
-// TestProposedSongIsTheBandsOwn: a band proposal of a catalogue song,
-// once accepted, adds the band's own copy (not a pointer at the
-// catalogue's song); proposing another band's song is refused like adding
-// it.
-func TestProposedSongIsTheBandsOwn(t *testing.T) {
+// TestProposedSongIsLinked: a band proposal of a catalogue song, once
+// accepted, links it in the band's songbook (nothing copied); proposing
+// another band's private song is refused like adding it.
+func TestProposedSongIsLinked(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
@@ -710,17 +712,17 @@ func TestProposedSongIsTheBandsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var copied bool
+	var linked bool
 	for _, e := range entries {
 		if e.VariantID == proposed {
-			t.Error("the repertoire points at the catalogue's song")
+			linked = true
 		}
-		if e.ForkedFromID != nil && *e.ForkedFromID == proposed && e.Visibility == "band" {
-			copied = true
+		if e.ForkedFromID != nil && *e.ForkedFromID == proposed {
+			t.Error("the proposed song was copied")
 		}
 	}
-	if !copied {
-		t.Error("no band copy of the proposed song in the repertoire")
+	if !linked {
+		t.Error("the proposed song isn't linked in the repertoire")
 	}
 
 	mercy, err := st.CreateBand(ctx, "Mercy", f.Core)

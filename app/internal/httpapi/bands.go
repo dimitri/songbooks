@@ -1083,11 +1083,12 @@ func (s *Server) handleCreateBandVariant(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
-// handleAddBandCatalogEntry adds an existing song (the catalogue's, or
-// anyone's the caller can see) to the band's repertoire as the band's own
-// song: a band's repertoire holds the band's songs (store.AdoptIntoBand),
-// which every member changes for the whole band, never the catalogue's or
-// someone's own song by reference. Answers the band's song's id.
+// handleAddBandCatalogEntry adds a song to the band's songbook as a link
+// (docs/ownership-model.md §4): a public song, or one of the band's own;
+// another band's private song is refused (store.LinkCheck), with the
+// catalogue's song of the same work to link instead when there is one.
+// Nothing is copied: Edit on the link makes the band's version. Answers
+// the song's id.
 func (s *Server) handleAddBandCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -1097,11 +1098,26 @@ func (s *Server) handleAddBandCatalogEntry(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "missing variantId")
 		return
 	}
-	newID, err := s.adoptIntoBand(r.Context(), bandID, req.VariantID, personFromContext(r))
-	if !s.writeAdoptErr(w, r, err) {
+	ctx := r.Context()
+	actor := personFromContext(r)
+	sbID, err := s.store.GetDefaultSongbook(ctx, "band", bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"added": true, "variantId": newID})
+	sb, err := s.store.GetSongbook(ctx, sbID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !s.writeLinkErr(w, r, s.store.LinkCheck(ctx, actor.ID, req.VariantID, sb)) {
+		return
+	}
+	if err := s.store.AddBandCatalogEntry(ctx, bandID, req.VariantID, actor.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"added": true, "variantId": req.VariantID})
 }
 
 // handleRemoveBandCatalogEntry drops the band's pointer to one variant.
@@ -1120,12 +1136,13 @@ func (s *Server) handleRemoveBandCatalogEntry(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]bool{"removed": true})
 }
 
-// handleForkVariantIntoBand makes a song the band's own
-// (store.AdoptIntoBand): a copy for the band, unless the band already has
-// one, that every current member then edits in place (CanEditVariant), and
-// the band's songbooks, set lists and recordings pointed at it. The song
-// page's "Edit the band's version" uses it too. Answers the band's song's
-// id.
+// handleForkVariantIntoBand is "Make Mercy's version" (the song page's
+// Edit on a song the band links, docs/ownership-model.md §5): the band's
+// own version of the song (store.MakeVersion), which takes the link's
+// place in the band's songbook ({"songbookId"}, else every songbook of the
+// band's that links it) and set lists, its position and key kept. A song
+// that is the band's already is answered as it is: Edit edits it. Answers
+// the version's id.
 func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
@@ -1133,60 +1150,55 @@ func (s *Server) handleForkVariantIntoBand(w http.ResponseWriter, r *http.Reques
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
-	newID, err := s.adoptIntoBand(r.Context(), bandID, variantID, personFromContext(r))
-	if !s.writeAdoptErr(w, r, err) {
+	var req struct {
+		SongbookID int64 `json:"songbookId"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req) // an empty body: every songbook
+	ctx := r.Context()
+	if own, err := s.store.IsBandSong(ctx, bandID, variantID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if own {
+		writeJSON(w, http.StatusOK, map[string]any{"variantId": variantID})
+		return
+	}
+	newID, err := s.store.MakeVersion(ctx, personFromContext(r).ID, variantID, store.BandOwner(bandID), req.SongbookID, "")
+	if !s.writeLinkErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
 }
 
-// adoptIntoBand is store.AdoptIntoBand for a person: they must be able to
-// copy the song into the band (CanCopyVariant: they can open it, and it
-// isn't out of a private songbook) unless it is the band's already.
-// Membership is the caller's check (requireBandMember).
-func (s *Server) adoptIntoBand(ctx context.Context, bandID, variantID int64, actor *store.Person) (int64, error) {
-	own, err := s.store.IsBandSong(ctx, bandID, variantID)
-	if err != nil {
-		return 0, err
-	}
-	if !own {
-		ok, err := s.store.CanCopyVariant(ctx, actor.ID, variantID, "band", bandID)
-		if err != nil {
-			return 0, err
-		}
-		if !ok {
-			return 0, store.ErrForbidden
-		}
-	}
-	newID, _, err := s.store.AdoptIntoBand(ctx, bandID, variantID, actor.ID)
-	return newID, err
-}
-
-// writeAdoptErr answers adoptIntoBand's error, if any, and says whether
-// there was none. Another band's song is a 409 that says whose it is, and
-// offers the catalogue's version of the work when there is one
-// (catalogVariantId, question): a band never takes another band's song —
-// an original band's songs stay theirs; covers come from the catalogue.
-func (s *Server) writeAdoptErr(w http.ResponseWriter, r *http.Request, err error) bool {
-	var other *store.OtherBandSongError
+// writeLinkErr answers a refused link or version (store.LinkRefusal), or
+// any other error, and says whether there was none. A refusal is a 409
+// that says why: a closed songbook's song goes nowhere else; another
+// band's private song stays theirs, with the catalogue's version of the
+// work offered when there is one (catalogVariantId, question).
+func (s *Server) writeLinkErr(w http.ResponseWriter, r *http.Request, err error) bool {
+	var refused *store.LinkRefusal
 	switch {
 	case err == nil:
 		return true
-	case errors.As(err, &other):
+	case errors.As(err, &refused) && refused.Reason != "unseen":
 		lang := s.langOfRequest(r)
-		out := map[string]any{"error": "another band's song", "band": other.BandName}
-		if other.CatalogVariantID != 0 {
-			out["catalogVariantId"] = other.CatalogVariantID
-			out["message"] = i18n.T(lang, "This is %s’s song: a band doesn’t take another band’s song.", other.BandName)
-			out["question"] = i18n.T(lang, "This is %s’s song. Add the catalogue’s version instead?", other.BandName)
-		} else {
-			out["message"] = i18n.T(lang, "This is %s’s own song: %s’s originals stay theirs, and can’t be added to another band.", other.BandName, other.BandName)
+		out := map[string]any{"error": refused.Reason, "owner": refused.OwnerName}
+		switch {
+		case refused.Reason == "closed":
+			out["message"] = i18n.T(lang, "This song is in a closed songbook: it can’t be added anywhere else.")
+		case refused.CatalogueSongID != 0:
+			out["catalogVariantId"] = refused.CatalogueSongID
+			out["message"] = i18n.T(lang, "This is %s’s private song: only its own songbooks hold it.", refused.OwnerName)
+			out["question"] = i18n.T(lang, "This is %s’s private song. Add the catalogue’s version instead?", refused.OwnerName)
+		default:
+			out["message"] = i18n.T(lang, "This is %s’s private song: only its own songbooks hold it.", refused.OwnerName)
 		}
 		writeJSON(w, http.StatusConflict, out)
 	case errors.Is(err, store.ErrNotFound):
 		httpError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, store.ErrForbidden):
-		httpError(w, http.StatusForbidden, "this song can't be copied")
+		httpError(w, http.StatusForbidden, "you can't add this song here")
+	case errors.Is(err, store.ErrInvalid):
+		httpError(w, http.StatusBadRequest, err.Error())
 	default:
 		httpError(w, http.StatusInternalServerError, err.Error())
 	}

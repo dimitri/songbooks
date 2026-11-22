@@ -135,11 +135,12 @@ func (s *Server) handleCreateProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor := personFromContext(r)
-	// A band never takes another band's song: not even as a proposal
-	// (the catalogue's version is offered instead, writeAdoptErr).
+	// A band links public songs and its own: another band's private song,
+	// or a closed songbook's, isn't proposed (writeLinkErr: the
+	// catalogue's version is offered instead when there is one).
 	if req.Kind == "new_song" && req.TargetVariantID != 0 {
-		if err := s.store.BandMayTake(r.Context(), bandID, req.TargetVariantID); err != nil && !errors.Is(err, store.ErrNotFound) {
-			s.writeAdoptErr(w, r, err)
+		if err := s.store.LinkCheckFor(r.Context(), actor.ID, req.TargetVariantID, store.BandOwner(bandID)); err != nil && !errors.Is(err, store.ErrNotFound) {
+			s.writeLinkErr(w, r, err)
 			return
 		}
 	}

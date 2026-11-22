@@ -52,7 +52,7 @@
   {{range .Entries}}
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <span class="gig-key">{{.Key}}</span>
@@ -75,7 +75,7 @@
   {{range .Entries}}
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
       </a>
       <span class="gig-key">{{.Key}}</span>
@@ -99,7 +99,7 @@
 
   <dialog id="add-song-dialog">
     <h2>{{t "Add a song"}}</h2>
-    <p class="hint">{{t "Write a new song, or bring one in from the catalog: as it is, or as the band’s own copy that any member can edit."}}</p>
+    <p class="hint">{{t "Write a new song, or link one from the catalogue: the band plays it as it is, in its own key, until a member makes the band’s version."}}</p>
     <div class="add-song-tabs">
       <button type="button" class="add-song-tab active" data-panel="write">{{t "Write new"}}</button>
       <button type="button" class="add-song-tab" data-panel="catalog">{{t "From the catalog"}}</button>
@@ -126,7 +126,7 @@
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">{{t "“Add” gives the band its own copy of the song, which any member can change for the band. The catalogue’s song stays as it is."}}</p>
+      <p class="hint">{{t "“Add” links the song in the band’s songbook, as it is. Edit on it makes the band’s own version, which any member can change; the catalogue’s song stays as it is."}}</p>
       <form class="field" id="catalog-search-form" role="search">
         <label for="catalog-search-input">{{t "Find a song in the catalog"}}</label>
         <input type="search" id="catalog-search-input" placeholder="{{t "e.g. a title or an artist"}}" autocomplete="off" enterkeyhint="search">

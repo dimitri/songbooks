@@ -54,6 +54,10 @@ var ErrNotFound = fmt.Errorf("not found")
 // happen inside the same transaction as the write it's guarding.
 var ErrForbidden = fmt.Errorf("forbidden")
 
+// ErrInvalid is a request the store refuses for what it says (a name too
+// long, say), not for who asks.
+var ErrInvalid = fmt.Errorf("invalid")
+
 // ErrEmailTaken is returned by SetEmail when the address already belongs
 // to a different account (people.email has a UNIQUE constraint — see
 // migration 0025).
@@ -145,10 +149,10 @@ func (st *Store) DeleteVariant(variantID int64) error {
 type OwnerKind string
 
 const (
-	OwnerCatalog   OwnerKind = "catalog"   // public: visibility='global', no owner
-	OwnerPerson    OwnerKind = "person"    // private: visibility='user', owner_person_id
-	OwnerBand      OwnerKind = "band"      // band-private: visibility='band', owner_band_id
-	OwnerCommunity OwnerKind = "community" // community-private: visibility='community', owner_community_id
+	OwnerCatalog   OwnerKind = "catalog"   // The Big Songbook's, public
+	OwnerPerson    OwnerKind = "person"    // the person's, private
+	OwnerBand      OwnerKind = "band"      // the band's, private
+	OwnerCommunity OwnerKind = "community" // the community's, private
 )
 
 // CreateVariant makes a brand-new, from-scratch variant (title/artist
@@ -224,23 +228,23 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 	switch ownerKind {
 	case OwnerPerson:
 		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, body, work_id, visibility, owner_person_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, 'user', $5, $6) RETURNING id`,
+			INSERT INTO songs (title, artist, body, work_id, owner_person_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
 	case OwnerBand:
 		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, body, work_id, visibility, owner_band_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, 'band', $5, $6) RETURNING id`,
+			INSERT INTO songs (title, artist, body, work_id, owner_band_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
 	case OwnerCommunity:
 		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, body, work_id, visibility, owner_community_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, 'community', $5, $6) RETURNING id`,
+			INSERT INTO songs (title, artist, body, work_id, owner_community_id, created_by_person_id)
+			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 			title, artist, b.String(), workID, ownerID, creator).Scan(&newID)
 	default: // OwnerCatalog
 		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, body, work_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+			INSERT INTO songs (title, artist, body, work_id, created_by_person_id, owner_community_id, public)
+			VALUES ($1, $2, $3, $4, $5, big_songbook_id(), true) RETURNING id`,
 			title, artist, b.String(), workID, creator).Scan(&newID)
 	}
 	if err != nil {
@@ -258,8 +262,8 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 	return newID, tx.Commit(ctx)
 }
 
-// ImportVariant inserts a variant row directly, visibility='global' (the
-// column default) with no owner — used by the bulk-import tool. A work
+// ImportVariant inserts a variant row directly, The Big Songbook's and
+// public (the catalogue) — used by the bulk-import tool. A work
 // is matched-or-created from title/artist same as CreateVariant.
 func (st *Store) ImportVariant(ctx context.Context, body string) error {
 	parsed := song.Parse(body)
@@ -269,7 +273,8 @@ func (st *Store) ImportVariant(ctx context.Context, body string) error {
 		return fmt.Errorf("resolving work for %q/%q: %w", title, artist, err)
 	}
 	_, err = st.db.Exec(ctx, `
-		INSERT INTO songs (title, artist, reference_url, body, work_id) VALUES ($1, $2, $3, $4, $5)`,
+		INSERT INTO songs (title, artist, reference_url, body, work_id, owner_community_id, public)
+		VALUES ($1, $2, $3, $4, $5, big_songbook_id(), true)`,
 		title, artist, ref, body, workID)
 	return err
 }

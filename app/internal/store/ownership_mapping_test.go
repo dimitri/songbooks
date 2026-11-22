@@ -52,7 +52,7 @@ func newOwnershipFixture(t *testing.T, st *Store) ownershipFixture {
 	f.admin, f.mercyCore, f.student, f.alice = person("admin"), person("mercycore"), person("student"), person("alice")
 	must(st.SetAdmin(ctx, f.admin, true))
 
-	// The catalogue (ownerless, visibility 'global', as before the model).
+	// The catalogue.
 	cat := func(title, artist string) int64 {
 		return id(st.CreateVariant(ctx, OwnerCatalog, 0, title, artist, f.admin))
 	}
@@ -70,14 +70,10 @@ func newOwnershipFixture(t *testing.T, st *Store) ownershipFixture {
 	l := &setlist.Setlist{Sets: []setlist.Set{{Label: "Set 1", Entries: []setlist.Entry{{VariantID: f.catLeVent}, {VariantID: f.catBlue}}}}}
 	_, err := st.SaveSetlistByID(ctx, f.mercySetlist, l, "Friday", "", "", f.mercyCore)
 	must(err)
-	var created bool
-	f.copyUnchanged, created, err = st.AdoptIntoBand(ctx, f.mercy, f.catLeVent, 0)
-	must(err)
-	if !created {
-		t.Fatal("no copy made")
-	}
-	f.copyChanged, _, err = st.AdoptIntoBand(ctx, f.mercy, f.catBlue, 0)
-	must(err)
+	// cmd/bandsongs' copies (gone with step 2): a version of each, in
+	// the link's place.
+	f.copyUnchanged = id(st.MakeVersion(ctx, f.mercyCore, f.catLeVent, BandOwner(f.mercy), 0, ""))
+	f.copyChanged = id(st.MakeVersion(ctx, f.mercyCore, f.catBlue, BandOwner(f.mercy), 0, ""))
 	_, version, err := st.LoadVariantRaw(f.copyChanged)
 	must(err)
 	_, err = st.SaveVariantRaw(f.copyChanged, "title: Blue\nartist: Somebody\n\n[Verse]\nAm G\n", version, f.mercyCore)
@@ -122,7 +118,7 @@ func newOwnershipFixture(t *testing.T, st *Store) ownershipFixture {
 	// Florent: a paid songbook (not shared) and an open one.
 	f.florent = id(st.CreateCommunity(ctx, "Florent Passamonti", f.admin))
 	f.florentPaid = id(st.CreateSongbook(ctx, "community", f.florent, "La méthode", false))
-	must(st.SetSongbookShared(ctx, f.florentPaid, false))
+	must(st.SetSongbookClosed(ctx, f.florentPaid, true))
 	f.florentOpen = id(st.GetDefaultSongbook(ctx, "community", f.florent))
 	f.florentSong = id(st.CreateCommunityVariant(ctx, f.florent, "Leçon 1", "Florent", f.admin))
 	must(st.RemoveFromSongbook(ctx, f.florentOpen, f.florentSong))
@@ -181,14 +177,14 @@ func TestMapOwnershipDryRunChangesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Nothing() || r.CatalogueGiven != 5 || len(r.BandCopies) != 1 || r.BandCopies[0].Removed != 1 {
-		t.Fatalf("dry run report: given %d, copies %+v", r.CatalogueGiven, r.BandCopies)
+	if r.Nothing() || len(r.BandCopies) != 1 || r.BandCopies[0].Removed != 1 || len(r.Replaced) != 1 {
+		t.Fatalf("dry run report: copies %+v, replaced %+v", r.BandCopies, r.Replaced)
 	}
 	if n := countSongs(t, st); n != songs {
 		t.Errorf("%d songs after a dry run, %d before", n, songs)
 	}
-	if row := loadSongRow(t, st, f.catLeVent); row.ownerKind != "" || row.public {
-		t.Errorf("the dry run gave the catalogue's song an owner: %+v", row)
+	if row := loadSongRow(t, st, f.chloeHotel); !row.exists {
+		t.Error("the dry run removed Chloé's chart")
 	}
 	if _, in := entryOf(t, st, f.mercyBook, f.copyUnchanged); !in {
 		t.Error("the dry run moved Mercy's entry")

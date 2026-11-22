@@ -1,0 +1,12 @@
+{
+  "A public songbook, or one with public songs, can’t be closed: make them private first.": "Un songbook public, ou qui contient des morceaux publics, ne peut pas être fermé : rendez-les d’abord privés.",
+  "Couldn't change who sees this song. Try again.": "Impossible de changer qui voit ce morceau. Réessayez.",
+  "Couldn't make the community's version of this song. Try again.": "Impossible de faire la version de la communauté de ce morceau. Réessayez.",
+  "Couldn't make the new version. Try again.": "Impossible de faire la nouvelle version. Réessayez.",
+  "Couldn't make your own version of this song. Try again.": "Impossible de faire votre propre version de ce morceau. Réessayez.",
+  "Couldn’t make the community’s version. Try again.": "Impossible de faire la version de la communauté. Réessayez.",
+  "Make the community’s version": "Faire la version de la communauté",
+  "Make the community’s version of %s": "Faire la version de la communauté de %s",
+  "Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own version.": "Rendre ce morceau public ? Toute personne connectée le verra — sa grille, sa référence, ses enregistrements, ses pistes séparées et son fichier Guitar Pro — et pourra le lier ou en faire sa propre version.",
+  "Name the new version.": "Donnez un nom à la nouvelle version."
+}

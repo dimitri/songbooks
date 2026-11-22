@@ -5,9 +5,9 @@
 // MySongs/, "Other Lies"/, Trio/) into this app's actual Postgres-backed
 // song documents.
 //
-// Never writes to an existing published (visibility='global') variant —
-// for each matched song it creates a NEW personal (visibility='user')
-// variant, owned by the given --as username, carrying the addition, and
+// Never writes to an existing published (public) song —
+// for each matched song it creates a NEW personal (private)
+// song, owned by the given --as username, carrying the addition, and
 // prints its /song/{id} URL for review. The published variant is
 // untouched; nothing is auto-merged.
 //
@@ -229,9 +229,9 @@ func main() {
 
 		var variantID int64
 		var body string
-		// Prefer the published catalog (global) variant, but a real song
-		// can also live only as a band's own repertoire copy (visibility
-		// 'band') — confirmed for this repo's own "Other Lies" originals,
+		// Prefer a public song (the catalogue's), but a real song
+		// can also live only as a band's own repertoire copy (owned by
+		// the band) — confirmed for this repo's own "Other Lies" originals,
 		// owned by that band, never published to the global catalog.
 		// Either way the new review draft below is always created as the
 		// requesting person's own personal copy, never written back onto
@@ -240,7 +240,7 @@ func main() {
 			SELECT s.id, s.body FROM songs s
 			JOIN works w ON w.id = s.work_id
 			WHERE w.norm_title = lower(trim($1)) AND w.norm_artist = lower(trim($2))
-			ORDER BY (s.visibility = 'global') DESC, (s.visibility = 'band') DESC, s.id
+			ORDER BY s.public DESC, (s.owner_band_id IS NOT NULL) DESC, s.id
 			LIMIT 1`, p.title, p.artist).Scan(&variantID, &body)
 		if err != nil {
 			fmt.Printf("  NOT FOUND in catalog (title/artist mismatch?) — skipped\n")

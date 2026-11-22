@@ -27,11 +27,11 @@
   </div>
 
   <div class="card">
-    <h3>{{t "Shared or private"}}</h3>
-    <p class="hint" id="shared-hint">{{t "Shared, whoever can open a song can also copy it into their own songbook, a band’s or another community’s. Private, the songs can be opened, played and downloaded but not copied — an author’s lessons stay theirs. Either way the songbook can be sold separately, below."}}</p>
-    <label class="check"><input type="radio" name="shared" value="true" aria-describedby="shared-hint" {{if .Songbook.Shared}}checked{{end}}> {{t "Shared"}}</label>
-    <label class="check"><input type="radio" name="shared" value="false" aria-describedby="shared-hint" {{if not .Songbook.Shared}}checked{{end}}> {{t "Private"}}</label>
-    <p id="shared-result" class="form-status" role="status"></p>
+    <h3>{{t "Open or closed"}}</h3>
+    <p class="hint" id="closed-hint">{{t "Open, the community’s songs in it can be linked from other songbooks, and made into someone’s own version. Closed, for a songbook sold outside the app: its songs stay in it — never public, never linked, copied or made into a version anywhere else; a student can still keep their own key. Either way, who can open it is set below."}}</p>
+    <label class="check"><input type="radio" name="closed" value="false" aria-describedby="closed-hint" {{if not .Songbook.Closed}}checked{{end}}> {{t "songbook|Open"}}</label>
+    <label class="check"><input type="radio" name="closed" value="true" aria-describedby="closed-hint" {{if .Songbook.Closed}}checked{{end}}> {{t "songbook|Closed"}}</label>
+    <p id="closed-result" class="form-status" role="status"></p>
   </div>
 
   <div class="card">
@@ -84,16 +84,16 @@ document.querySelectorAll('input[name=kind]').forEach(radio => radio.addEventLis
   }
 }));
 
-document.querySelectorAll('input[name=shared]').forEach(radio => radio.addEventListener('change', async () => {
-  const out = document.getElementById('shared-result');
+document.querySelectorAll('input[name=closed]').forEach(radio => radio.addEventListener('change', async () => {
+  const out = document.getElementById('closed-result');
   Forms.status(out, t('Saving…'), '');
-  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/shared`, {
+  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/closed`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({shared: radio.value === 'true'}),
+    body: JSON.stringify({closed: radio.value === 'true'}),
   }).catch(() => null);
   if (!res || !res.ok) {
-    Forms.status(out, t('Couldn’t save that. Try again.'), 'error');
-    document.querySelector(`input[name=shared][value="${radio.value !== 'true'}"]`).checked = true;
+    Forms.status(out, res && res.status === 409 ? t('A public songbook, or one with public songs, can’t be closed: make them private first.') : t('Couldn’t save that. Try again.'), 'error');
+    document.querySelector(`input[name=closed][value="${radio.value !== 'true'}"]`).checked = true;
   } else {
     Forms.status(out, t('Saved.'), 'ok');
   }

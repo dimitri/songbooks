@@ -638,6 +638,9 @@ func (s *Server) handlePostSongRequestAdd(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if !s.writeLinkErr(w, r, s.store.LinkCheckFor(ctx, me.ID, q.VariantID, store.CommunityOwner(community.ID))) {
+		return
+	}
 	if err := s.store.AddToSongbook(ctx, sbID, q.VariantID, me.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

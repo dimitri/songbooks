@@ -67,7 +67,7 @@ func (st *Store) MatchLibrary(ctx context.Context, viewerID int64, title, artist
 		c AS (
 		  SELECT s.id, `+matchNormSQL("s.title")+` AS nt, `+matchNormSQL("s.artist")+` AS na
 		  FROM songs s
-		  WHERE s.visibility = 'global' OR (s.visibility = 'user' AND s.owner_person_id = $1)
+		  WHERE s.public OR s.owner_person_id = $1
 		),
 		scored AS (
 		  SELECT c.id,
@@ -90,7 +90,7 @@ func (st *Store) MatchLibrary(ctx context.Context, viewerID int64, title, artist
 		)
 		SELECT s.id, s.title, s.artist,
 		       btrim(coalesce(substring(s.body from '(?n)^key:[ \t]*([^\r\n]*)'), '')),
-		       s.visibility::text,
+		       `+songKindSQL("s")+`,
 		       coalesce(po.username, pc.username, ''),
 		       (SELECT count(DISTINCT sb.owner_band_id) FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
 		         WHERE se.variant_id = s.id AND sb.owner_kind = 'band')::int AS bands,

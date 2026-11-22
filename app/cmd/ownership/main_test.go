@@ -58,7 +58,8 @@ func TestRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.AdoptIntoBand(ctx, mercy, song, 0); err != nil {
+	// The band's unchanged copy, as cmd/bandsongs made them.
+	if _, err := st.MakeVersion(ctx, admin, song, store.BandOwner(mercy), 0, ""); err != nil {
 		t.Fatal(err)
 	}
 	whatsUp, err := st.CreateBand(ctx, "What's Up", admin)
@@ -82,7 +83,7 @@ func TestRun(t *testing.T) {
 
 	dry := out(false, true)
 	for _, want := range []string{
-		"global (catalogue): would give 1 song to The Big Songbook",
+		"global (catalogue): would give 0 songs to The Big Songbook",
 		"bandsongs copies, Mercy (band 1): would remove 1 unchanged copies",
 		"What's Up: would move 1 song to the catalogue",
 		"(Le Vent — Someone, Mercy's unchanged copy of",

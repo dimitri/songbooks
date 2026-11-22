@@ -86,15 +86,12 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	title, order := matchSQL("s.title")
 	artist, _ := matchSQL("s.artist")
 	rows, err := st.db.Query(ctx, searchScope+`
-		SELECT s.id, s.title, s.artist, s.visibility::text, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0),
-		       coalesce((SELECT b.name FROM bands b WHERE s.visibility = 'band' AND b.id = s.owner_band_id), '')
+		SELECT s.id, s.title, s.artist, `+songKindSQL("s")+`, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0),
+		       coalesce((SELECT b.name FROM bands b WHERE b.id = s.owner_band_id), '')
 		FROM songs s
-		WHERE (s.visibility = 'global'
-		       OR (s.visibility = 'user' AND s.owner_person_id = $1)
-		       OR (s.visibility = 'band' AND s.owner_band_id IN (SELECT band_id FROM my_bands))
-		       OR (s.visibility = 'community' AND s.owner_community_id IN (SELECT community_id FROM my_communities)))
-		  AND (`+title+` OR `+artist+`)
-		ORDER BY `+order+`, (s.visibility = 'global'), s.title, s.id
+		WHERE (`+title+` OR `+artist+`)
+		  AND song_visible(s.id, $1)
+		ORDER BY `+order+`, s.public, s.title, s.id
 		LIMIT $3`, personID, q, searchCandidates)
 	if err != nil {
 		return nil, err
@@ -158,17 +155,6 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 		if len(out) == limit {
 			break
 		}
-		// A community's song may sit in gated songbooks only: the
-		// song page's own check decides.
-		if c.visibility == "community" {
-			ok, err := st.CanViewVariant(ctx, personID, c.hit.ID)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				continue
-			}
-		}
 		out = append(out, c.hit)
 	}
 	return out, nil
@@ -184,7 +170,8 @@ func (st *Store) searchSongbooks(ctx context.Context, personID int64, q string, 
 		LEFT JOIN communities c ON c.id = sb.owner_community_id
 		WHERE ((sb.owner_kind = 'person' AND sb.owner_person_id = $1)
 		       OR (sb.owner_kind = 'band' AND sb.owner_band_id IN (SELECT band_id FROM my_bands))
-		       OR (sb.owner_kind = 'community' AND sb.owner_community_id IN (SELECT community_id FROM my_communities)))
+		       OR (sb.owner_kind = 'community' AND sb.owner_community_id IN (SELECT community_id FROM my_communities))
+		       OR sb.public)
 		  AND `+where+`
 		ORDER BY `+order+`, sb.name, sb.id
 		LIMIT $3`, personID, q, searchCandidates)

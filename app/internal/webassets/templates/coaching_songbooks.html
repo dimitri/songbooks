@@ -19,7 +19,7 @@
   {{range .OtherBooks}}
     <div>
       <a class="catalog-book-card" href="/songbooks/{{.ID}}">
-        <div class="catalog-book-card-title">{{.Name}}{{if .RequiresGrant}} <span class="hint">&#128274; {{t "members need access"}}</span>{{end}}{{if not .Shared}} <span class="hint">{{t "private"}}</span>{{end}}{{if .IsCourse}} <span class="hint">{{t "course"}}</span>{{end}}</div>
+        <div class="catalog-book-card-title">{{.Name}}{{if .RequiresGrant}} <span class="hint">&#128274; {{t "members need access"}}</span>{{end}}{{if .Closed}} <span class="hint">{{t "songbook|closed"}}</span>{{end}}{{if .Public}} <span class="hint">{{t "songbook|public"}}</span>{{end}}{{if .IsCourse}} <span class="hint">{{t "course"}}</span>{{end}}</div>
         <div class="catalog-book-card-meta">{{if .IsCourse}}{{tn .LessonCount "%d lesson" "%d lessons"}} · {{end}}{{tn .SongCount "%d song" "%d songs"}}</div>
       </a>
       {{if $.IsCoach}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">{{t "Sharing and access"}} &rarr;</a>{{end}}

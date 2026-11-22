@@ -2747,33 +2747,48 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// Me: the desktop sidebar needs it for the admin-only Admin link and
 	// the account row, same as every other top-level page.
 	person := personFromContext(r)
-	// What Edit does (song.js's editToggle handler), never a silent copy:
-	//   - CanEdit: opens the editor on this song, saved in place (a band's
-	//     song for any current member of the band, CanEditVariant).
-	//   - BandOffer: the song is one a band of the viewer's uses without
-	//     owning it (the catalogue's song in the band's songbook or set
-	//     list, opened from there): Edit explains, and offers to make it
-	//     the band's (POST /api/bands/{id}/catalog/fork/{variant}), then
-	//     edits that. Changing the catalogue's song from a band's page
-	//     would change it for everyone, and not the band's.
-	//   - CanCopy without CanEdit: Edit says whose song it is and why it
-	//     can't be changed, and offers "Make my own copy" (an explicit
-	//     POST /api/variants/{id}/fork). Not out of a private songbook
-	//     (store.CanCopyVariant); without either, there's no Edit.
-	var canEdit, canCopy bool
+	// What Edit does (song.js's editToggle handler), never a silent copy
+	// (docs/ownership-model.md §5; store.SongRightsFor decides):
+	//   - CanEdit: opens the editor on this song, saved in place (the
+	//     person's own, a band's for its members, a community's for who
+	//     edits its repertoire, The Big Songbook's for the site's admins).
+	//   - BandOffer: a song a band of the viewer's links (in its songbook
+	//     or set list, opened from there; a public song): Edit offers
+	//     "Make Mercy's version" (POST /api/bands/{id}/catalog/fork/{song}),
+	//     which takes the link's place, then edits that.
+	//   - CommunityOffer: the same from a community's songbook, for who
+	//     edits its repertoire ("Make the community's version").
+	//   - CanCopy without CanEdit: Edit says whose song it is and offers
+	//     "Make my version" (POST /api/variants/{id}/fork). Never a closed
+	//     songbook's song; without any of these, there's no Edit.
+	// CanNewVersion (the song is the viewer's to edit, not the
+	// catalogue's): "New version from this", named, beside it. CanPublish:
+	// make it public or private.
+	var canEdit, canCopy, canNewVersion, canPublish bool
 	var bandOffer *store.BandHold
+	var communityOffer *songCommunityOffer
 	var editOwner *store.VariantOwner
 	var bandVersion *store.BandVersion
 	var basedOn *songBasedOn
 	if person != nil {
-		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
-		if variant != nil {
-			bandOffer = s.bandEditOffer(r, person.ID, variant)
+		rights, _ := s.store.SongRightsFor(r.Context(), person.ID, variantID)
+		if rights != nil {
+			canEdit = rights.Edit
+			canPublish = rights.Publish
+			canNewVersion = rights.Edit && !rights.Catalogue && !rights.Closed
 		}
-		if bandOffer != nil {
+		if variant != nil && rights != nil {
+			// The page's own songbook first: a community's songbook
+			// offers the community's version, not a band's.
+			communityOffer = s.communityEditOffer(r, person.ID, variant, rights)
+			if communityOffer == nil {
+				bandOffer = s.bandEditOffer(r, person.ID, variant, rights)
+			}
+		}
+		if bandOffer != nil || communityOffer != nil {
 			canEdit, canCopy = false, true
-		} else if !canEdit {
-			canCopy, _ = s.store.CanCopyVariant(r.Context(), person.ID, variantID, "user", 0)
+		} else if !canEdit && rights != nil {
+			canCopy = rights.CanVersionFor(store.PersonOwner(person.ID))
 			if canCopy {
 				editOwner, _ = s.store.VariantOwnerOf(r.Context(), variantID)
 			}
@@ -2782,7 +2797,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if variant != nil && variant.Visibility == "user" {
 			bandVersion, _ = s.store.BandVersionOf(r.Context(), person.ID, variantID)
 		}
-		// A band's song made from another (AdoptIntoBand, a fork into the
+		// A band's song made from another (its version of a song it linked, a fork into the
 		// band): where it came from, when the viewer can open that.
 		if variant != nil && variant.Visibility == "band" && variant.ForkedFromID != nil {
 			if ok, _ := s.store.CanViewVariant(r.Context(), person.ID, *variant.ForkedFromID); ok {
@@ -2809,7 +2824,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Me":        person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
-		"BandOffer": bandOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
+		"BandOffer": bandOffer, "CommunityOffer": communityOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
+		"CanNewVersion": canNewVersion, "CanPublish": canPublish, "SongPublic": variant != nil && variant.Public, "VersionName": variantVersionName(variant),
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
 		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "SpellJSON": transposeSpellJSON(sg), "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
@@ -3114,33 +3130,77 @@ func (s *Server) songCoachingContext(r *http.Request, data map[string]any) int64
 
 // bandEditOffer is the band whose version Edit offers on this song page
 // (handleSong's BandOffer), or nil: a band personID is a current member of
-// that uses the song without owning it (store.BandsHolding). The band the
-// page was opened from (?band=, a band's ?setlist= or ?songbook=) when
-// it's one of those; with no band in the address, the first of them for a
-// catalogue song only (opened from home or a search, say) — a person's own
-// song opened from their own songbook is theirs to edit.
-func (s *Server) bandEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant) *store.BandHold {
-	// Another band's song is never offered as this band's (a band doesn't
-	// take another band's song): it's that band's, edited by its members.
-	if variant.Visibility == "band" {
-		return nil
-	}
+// that links the song (store.BandsHolding) and may make its version of it
+// (SongRights.CanVersionFor: a public song). The band the page was opened
+// from (?band=, a band's ?setlist= or ?songbook=) when it's one of those;
+// with no band in the address, the first of them for a public song only
+// (opened from home or a search, say) — a person's own song opened from
+// their own songbook is theirs to edit.
+func (s *Server) bandEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *store.BandHold {
 	holds, err := s.store.BandsHolding(r.Context(), personID, variant.VariantID)
 	if err != nil || len(holds) == 0 {
 		return nil
 	}
+	var offer *store.BandHold
 	if bandID := s.songPageBand(r); bandID != 0 {
 		for i := range holds {
 			if holds[i].BandID == bandID {
-				return &holds[i]
+				offer = &holds[i]
 			}
 		}
+	} else if variant.Public {
+		offer = &holds[0]
+	}
+	if offer == nil || !rights.CanVersionFor(store.BandOwner(offer.BandID)) {
 		return nil
 	}
-	if variant.Visibility == "global" {
-		return &holds[0]
+	return offer
+}
+
+// songCommunityOffer is the community whose version Edit offers on a song
+// its songbook links (handleSong's CommunityOffer).
+type songCommunityOffer struct {
+	CommunityID int64
+	Name        string
+	SongbookID  int64
+}
+
+// communityEditOffer is that offer, or nil: the page was opened from a
+// community's songbook (?songbook=) that links the song (not the
+// community's own), personID edits the community's repertoire, and the
+// community may make its version (a public song).
+func (s *Server) communityEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *songCommunityOffer {
+	id, err := strconv.ParseInt(r.URL.Query().Get("songbook"), 10, 64)
+	if err != nil || id <= 0 {
+		return nil
 	}
-	return nil
+	ctx := r.Context()
+	sb, err := s.store.GetSongbook(ctx, id)
+	if err != nil || sb.OwnerKind != "community" || sb.IsStudent() {
+		return nil
+	}
+	owner := sb.Owner()
+	if rights.Owner == owner || !rights.CanVersionFor(owner) {
+		return nil
+	}
+	if _, in, err := s.store.SongbookEntryKey(ctx, sb.ID, variant.VariantID); err != nil || !in {
+		return nil
+	}
+	if ok, err := s.store.OwnerMayChange(ctx, personID, owner); err != nil || !ok {
+		return nil
+	}
+	c, err := s.store.GetCommunity(ctx, sb.OwnerCommunityID)
+	if err != nil {
+		return nil
+	}
+	return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, SongbookID: sb.ID}
+}
+
+func variantVersionName(v *store.CatalogVariant) string {
+	if v == nil {
+		return ""
+	}
+	return v.VersionName
 }
 
 // songPageBand is the band a song page was opened from: ?band=N, a band's
@@ -3214,7 +3274,8 @@ func (s *Server) songBrandContext(r *http.Request, data map[string]any, variant 
 		switch {
 		case variant.OwnerBandID != nil:
 			return "band", *variant.OwnerBandID
-		case variant.OwnerCommunityID != nil:
+		case variant.OwnerCommunityID != nil && variant.Visibility != "global":
+			// The Big Songbook's (the catalogue's) has no look of its own.
 			return "community", *variant.OwnerCommunityID
 		}
 	}
@@ -3317,7 +3378,7 @@ func (s *Server) songOwnerPlace(r *http.Request, v *store.CatalogVariant, lang s
 		if b, err := s.store.GetBand(ctx, *v.OwnerBandID); err == nil {
 			return songOwnerPlace{Href: fmt.Sprintf("/bands/%d/catalog", b.ID), Name: b.Name}
 		}
-	case v.OwnerCommunityID != nil:
+	case v.OwnerCommunityID != nil && v.Visibility != "global":
 		if ok, _ := s.store.IsCurrentCommunityMember(ctx, *v.OwnerCommunityID, person.ID); !ok && !person.IsAdmin {
 			return songOwnerPlace{}
 		}

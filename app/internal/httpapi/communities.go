@@ -604,9 +604,12 @@ func (s *Server) handleSongbookAccessPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleSetSongbookShared is POST /api/communities/{id}/songbooks/{sbID}/shared:
-// whether the songbook's songs may be copied out of it.
-func (s *Server) handleSetSongbookShared(w http.ResponseWriter, r *http.Request) {
+// handleSetSongbookClosed is POST /api/communities/{id}/songbooks/{sbID}/closed
+// {closed}: a closed songbook is a paid one — its songs are never public,
+// and never linked, copied or made a version of anywhere else
+// (docs/ownership-model.md §2). A public songbook, or one holding public
+// songs, isn't closed (409).
+func (s *Server) handleSetSongbookClosed(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	sbID, err := pathID(r, "sbID")
 	if err != nil {
@@ -619,17 +622,20 @@ func (s *Server) handleSetSongbookShared(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Shared bool `json:"shared"`
+		Closed bool `json:"closed"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if err := s.store.SetSongbookShared(r.Context(), sbID, req.Shared); err != nil {
+	if err := s.store.SetSongbookClosed(r.Context(), sbID, req.Closed); errors.Is(err, store.ErrConflict) {
+		httpError(w, http.StatusConflict, i18n.T(s.langOfRequest(r), "A public songbook, or one with public songs, can’t be closed: make them private first."))
+		return
+	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"shared": req.Shared})
+	writeJSON(w, http.StatusOK, map[string]bool{"closed": req.Closed})
 }
 
 // handleSetSongbookRequiresGrant is POST /api/communities/{id}/songbooks/{sbID}/requires-grant.
@@ -1183,9 +1189,9 @@ func (s *Server) handleCloseCommunityGroupInvite(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]bool{"closed": true})
 }
 
-// handleAddCommunityCatalogEntry points the community's repertoire at an
-// existing (global, or anyone's visible) variant, by reference. Any
-// current member, same as a band's own catalog — no staff review gate.
+// handleAddCommunityCatalogEntry links a song from the community's
+// songbook (docs/ownership-model.md §4): a public song, or one of the
+// community's own (store.LinkCheck). Who edits the community's repertoire.
 func (s *Server) handleAddCommunityCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -1196,6 +1202,9 @@ func (s *Server) handleAddCommunityCatalogEntry(w http.ResponseWriter, r *http.R
 		return
 	}
 	actor := personFromContext(r)
+	if !s.writeLinkErr(w, r, s.store.LinkCheckFor(r.Context(), actor.ID, req.VariantID, store.CommunityOwner(communityID))) {
+		return
+	}
 	if err := s.store.AddCommunityCatalogEntry(r.Context(), communityID, req.VariantID, actor.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1219,9 +1228,12 @@ func (s *Server) handleRemoveCommunityCatalogEntry(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]bool{"removed": true})
 }
 
-// handleForkVariantIntoCommunity forks an existing (global, or anyone's
-// visible) variant into the community's own repertoire — visibility=
-// 'community', owner_community_id = this community. Any current member.
+// handleForkVariantIntoCommunity is "Make the community's version" (the
+// song page's Edit on a song a community's songbook links,
+// docs/ownership-model.md §5): the community's own version
+// (store.MakeVersion), in the link's place in {"songbookId"} (else every
+// songbook of the community's that links it). Who edits the community's
+// repertoire (the route's check).
 func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
@@ -1229,18 +1241,13 @@ func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.R
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
+	var req struct {
+		SongbookID int64 `json:"songbookId"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req) // an empty body: every songbook
 	actor := personFromContext(r)
-	newID, err := s.store.ForkVariant(r.Context(), variantID, actor.ID, "community", communityID)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, "this song can't be copied")
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	newID, err := s.store.MakeVersion(r.Context(), actor.ID, variantID, store.CommunityOwner(communityID), req.SongbookID, "")
+	if !s.writeLinkErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})

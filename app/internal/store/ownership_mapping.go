@@ -15,9 +15,13 @@ import (
 // (docs/ownership-model.md §9 and §10), as cmd/ownership runs it: who owns
 // each song, what is public, the band copies of November 2026 undone, the
 // songs that are catalogue material moved into the catalogue, the paid
-// songbooks closed. MapOwnership does it all in one transaction, and
-// rolls it back unless told to apply it: a dry run is the same work, not
-// a guess at it. A second run finds nothing to do.
+// songbooks reported closed. MapOwnership does it all in one transaction,
+// and rolls it back unless told to apply it: a dry run is the same work,
+// not a guess at it. A second run finds nothing to do. Migration 0114
+// (step 2) does the mechanical rows first, so that the app never sees a
+// song without an owner: the catalogue's songs to The Big Songbook,
+// public; the songbooks that weren't shared closed. What's left for this
+// command is what needs a decision (§10).
 
 // OwnershipOptions are the decisions the mapping takes from outside the
 // data: which bands' and communities' songs are catalogue material, and
@@ -117,11 +121,7 @@ type OwnershipReport struct {
 
 	// Songbooks: shared → closed or not.
 	ClosedSongbooks []OwnerCount // ID, Name (the songbook's), N: its songs
-	NewlyClosed     int
 	PublicSongbooks int
-
-	// setlist, jam.
-	SetlistJamSongs int
 
 	// Lines are every song's line, for -v.
 	Lines []string
@@ -129,7 +129,7 @@ type OwnershipReport struct {
 
 // Nothing reports whether the run had nothing to change.
 func (r *OwnershipReport) Nothing() bool {
-	n := r.CatalogueGiven + r.CatalogueMadePublic + r.NewlyClosed +
+	n := r.CatalogueGiven + r.CatalogueMadePublic +
 		len(r.ToCatalogue) + len(r.Merged) + len(r.Replaced) + len(r.CommunityToCatalogue)
 	for _, b := range r.BandCopies {
 		n += b.Removed
@@ -182,15 +182,14 @@ func (st *Store) MapOwnership(ctx context.Context, opts OwnershipOptions) (*Owne
 func (st *Store) mapCatalogue(ctx context.Context, tx pgx.Tx, r *OwnershipReport, _ OwnershipOptions) error {
 	tag, err := tx.Exec(ctx, `
 		UPDATE songs SET owner_community_id = $1, public = true
-		WHERE owner_person_id IS NULL AND owner_band_id IS NULL AND owner_community_id IS NULL
-		  AND owner_setlist_id IS NULL AND visibility = 'global'`, r.BigSongbookID)
+		WHERE owner_person_id IS NULL AND owner_band_id IS NULL AND owner_community_id IS NULL`, r.BigSongbookID)
 	if err != nil {
 		return err
 	}
 	r.CatalogueGiven = int(tag.RowsAffected())
 	tag, err = tx.Exec(ctx, `
-		UPDATE songs SET public = true, visibility = 'global'
-		WHERE owner_community_id = $1 AND (NOT public OR visibility <> 'global')`, r.BigSongbookID)
+		UPDATE songs SET public = true
+		WHERE owner_community_id = $1 AND NOT public`, r.BigSongbookID)
 	if err != nil {
 		return err
 	}
@@ -274,7 +273,7 @@ func (st *Store) mapCatalogueBands(ctx context.Context, tx pgx.Tx, r *OwnershipR
 			}
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE songs SET owner_band_id = NULL, owner_community_id = $2, public = true, visibility = 'global'
+			UPDATE songs SET owner_band_id = NULL, owner_community_id = $2, public = true
 			WHERE id = $1`, s.id, r.BigSongbookID); err != nil {
 			return err
 		}
@@ -409,7 +408,7 @@ func (st *Store) mapCatalogueCommunities(ctx context.Context, tx pgx.Tx, r *Owne
 		}
 		if target == nil {
 			if _, err := tx.Exec(ctx, `
-				UPDATE songs SET owner_community_id = $2, public = true, visibility = 'global'
+				UPDATE songs SET owner_community_id = $2, public = true
 				WHERE id = $1`, s.id, r.BigSongbookID); err != nil {
 				return err
 			}
@@ -514,18 +513,14 @@ func (st *Store) mapCounts(ctx context.Context, tx pgx.Tx, r *OwnershipReport, _
 		WHERE c.id <> $1 GROUP BY c.id, c.name ORDER BY c.name, c.id`, r.BigSongbookID); err != nil {
 		return err
 	}
-	return tx.QueryRow(ctx, `SELECT count(*) FROM songs WHERE visibility IN ('setlist', 'jam')`).Scan(&r.SetlistJamSongs)
+	return nil
 }
 
-// mapSongbooks closes the songbooks that weren't shared (migration 0072:
-// a community's songbook whose songs can be opened, not copied — the
-// paid ones); none is public yet.
+// mapSongbooks reports the closed songbooks: the ones that weren't shared
+// (migration 0072: a community's songbook whose songs can be opened, not
+// copied — the paid ones), which migration 0114 closed when it dropped
+// shared; none is public yet.
 func (st *Store) mapSongbooks(ctx context.Context, tx pgx.Tx, r *OwnershipReport, _ OwnershipOptions) error {
-	tag, err := tx.Exec(ctx, `UPDATE songbooks SET closed = true, public = false WHERE NOT shared AND NOT closed`)
-	if err != nil {
-		return err
-	}
-	r.NewlyClosed = int(tag.RowsAffected())
 	rows, err := tx.Query(ctx, `
 		SELECT sb.id, coalesce(c.name || ': ', '') || sb.name, (SELECT count(*) FROM songbook_entries se WHERE se.songbook_id = sb.id)
 		FROM songbooks sb LEFT JOIN communities c ON c.id = sb.owner_community_id

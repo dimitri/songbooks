@@ -278,20 +278,35 @@ func (st *Store) decideProposal(ctx context.Context, proposalID int64, newStatus
 }
 
 // applyAcceptEffect performs the real-world side effect a proposal's
-// acceptance implies — adding the target variant to the band's
-// repertoire for 'new_song' — as the band's own song (AdoptIntoBand: the
-// catalogue's or a person's song copied for the band, another band's
-// refused), never a pointer — or updating the target variant's
-// "reference" header field for 'new_reference' (LoadSong/SaveSong, same
-// path handlePutMeta already uses).
+// acceptance implies — adding the target song to the band's songbook for
+// 'new_song', as a link when it's a public song, the band's own otherwise
+// (LinkCheck: another band's private song is refused) — or updating the
+// target song's "reference" header field for 'new_reference' (LoadSong/
+// SaveSong, same path handlePutMeta already uses), when the one accepting
+// may change that song (not a song the band only links: its version
+// first).
 func (st *Store) applyAcceptEffect(ctx context.Context, p *BandProposal, actorPersonID int64) error {
+	if actorPersonID == 0 {
+		// Accepted by the votes: on the proposer's behalf.
+		actorPersonID = p.ProposerPersonID
+	}
 	switch p.Kind {
 	case "new_song":
 		if p.TargetVariantID == nil {
 			return fmt.Errorf("new_song proposal %d has no target variant", p.ID)
 		}
-		_, _, err := st.AdoptIntoBand(ctx, p.BandID, *p.TargetVariantID, actorPersonID)
-		return err
+		sbID, err := st.GetDefaultSongbook(ctx, "band", p.BandID)
+		if err != nil {
+			return err
+		}
+		sb, err := st.GetSongbook(ctx, sbID)
+		if err != nil {
+			return err
+		}
+		if err := st.LinkCheck(ctx, actorPersonID, *p.TargetVariantID, sb); err != nil {
+			return err
+		}
+		return st.AddToSongbook(ctx, sbID, *p.TargetVariantID, actorPersonID)
 
 	case "new_reference":
 		if p.TargetVariantID == nil {
@@ -303,6 +318,11 @@ func (st *Store) applyAcceptEffect(ctx context.Context, p *BandProposal, actorPe
 		}
 		if payload.URL == "" {
 			return fmt.Errorf("new_reference proposal %d has no url in its payload", p.ID)
+		}
+		if ok, err := st.CanEditVariant(ctx, actorPersonID, *p.TargetVariantID); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("person %d may not change song %d: %w", actorPersonID, *p.TargetVariantID, ErrForbidden)
 		}
 		sg, version, err := st.LoadVariant(*p.TargetVariantID)
 		if err != nil {

@@ -2,7 +2,9 @@
 // (docs/ownership-model.md, §9 and §10): every song gets its one owner and
 // is public or private, the band copies of November 2026 that nobody
 // changed are undone, the songs that are catalogue material move into the
-// catalogue, the paid songbooks are closed. It prints, per row of §9's
+// catalogue, the paid songbooks are closed (migration 0114 does the
+// mechanical rows: the catalogue's owner, the closed songbooks; this
+// reports them). It prints, per row of §9's
 // table, what it would change (with --apply, what it changed); -v lists
 // every song. It never prints a song's text.
 //
@@ -157,10 +159,10 @@ func report(w io.Writer, r *store.OwnershipReport) {
 	if len(closed) == 0 {
 		closed = append(closed, "none")
 	}
-	fmt.Fprintf(w, "songbooks shared → public / closed: %s %d (the ones not shared); closed at the end: %s; public: %d\n",
-		verb("would close", "closed"), r.NewlyClosed, strings.Join(closed, ", "), r.PublicSongbooks)
+	fmt.Fprintf(w, "songbooks shared → public / closed: the ones not shared are closed (migration 0114): %s; public: %d\n",
+		strings.Join(closed, ", "), r.PublicSongbooks)
 
-	fmt.Fprintf(w, "setlist, jam: %s\n", songs(r.SetlistJamSongs))
+	fmt.Fprintln(w, "setlist, jam: the values are gone (migration 0114)")
 	fmt.Fprintln(w, "set list bodies → setlist_items: step 3 (not this command)")
 
 	switch {

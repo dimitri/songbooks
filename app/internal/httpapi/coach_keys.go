@@ -212,6 +212,11 @@ func (s *Server) handlePostCoachKey(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !t.InSongbook {
+		// The student's songbook is the community's: it links public
+		// songs and the community's own (store.LinkCheck).
+		if !s.writeLinkErr(w, r, s.store.LinkCheckFor(ctx, me.ID, variantID, store.CommunityOwner(t.CommunityID))) {
+			return
+		}
 		if err := s.store.AddToSongbook(ctx, sbID, variantID, me.ID); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return

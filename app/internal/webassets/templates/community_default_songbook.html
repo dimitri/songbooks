@@ -134,7 +134,7 @@
     </div>
 
     <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">{{t "\"Add\" links to the song as it is; \"Make a copy\" gives the community its own copy to edit."}}</p>
+      <p class="hint">{{t "\"Add\" links to the song as it is; \"Make the community’s version\" gives the community its own version to edit."}}</p>
       <form class="field" id="catalog-search-form" role="search">
         <label for="catalog-search-input">{{t "Title or artist"}}</label>
         <input type="search" id="catalog-search-input" autocomplete="off" enterkeyhint="search">
@@ -220,7 +220,7 @@ newVariantForm.addEventListener('submit', (e) => {
       location.reload();
     } else {
       Forms.busy(btn, false);
-      Forms.status(resultMsg, res ? errText(res, data, fork ? t('Couldn’t copy that song. Try again.') : t('Couldn’t add that song. Try again.')) : t('Couldn’t reach the server. Try again.'), 'error');
+      Forms.status(resultMsg, res ? errText(res, data, fork ? t('Couldn’t make the community’s version. Try again.') : t('Couldn’t add that song. Try again.')) : t('Couldn’t reach the server. Try again.'), 'error');
     }
   }
 
@@ -260,8 +260,8 @@ newVariantForm.addEventListener('submit', (e) => {
       addBtn.addEventListener('click', () => doAdd(hit.variantId, false, addBtn));
       const forkBtn = document.createElement('button');
       forkBtn.type = 'button';
-      forkBtn.textContent = t('Make a copy');
-      forkBtn.setAttribute('aria-label', t('Make a copy of %s', hit.title));
+      forkBtn.textContent = t('Make the community’s version');
+      forkBtn.setAttribute('aria-label', t('Make the community’s version of %s', hit.title));
       forkBtn.addEventListener('click', () => doAdd(hit.variantId, true, forkBtn));
       actions.append(forkBtn, addBtn);
       row.appendChild(actions);

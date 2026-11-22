@@ -1841,26 +1841,96 @@ const ICONS = {
     const at = document.activeElement;
     if ((!at || at === document.body || offerDialog.contains(at)) && editToggle.offsetParent) editToggle.focus();
   });
+  // "Make Mercy's version", "Make the community's version", "Make my
+  // version" (docs/ownership-model.md §5): the version takes the link's
+  // place in the songbook the page was opened from (data-songbook-id),
+  // else in every songbook of its owner's that links the song.
   document.getElementById('edit-offer-go')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     const status = document.getElementById('edit-offer-status');
-    const url = btn.dataset.action === 'band'
+    const action = btn.dataset.action;
+    const url = action === 'band'
       ? `/api/bands/${btn.dataset.bandId}/catalog/fork/${pageVariantId}`
-      : `/api/variants/${pageVariantId}/fork`;
+      : action === 'community'
+        ? `/api/communities/${btn.dataset.communityId}/catalog/fork/${pageVariantId}`
+        : `/api/variants/${pageVariantId}/fork`;
+    const body = btn.dataset.songbookId ? {songbookId: Number(btn.dataset.songbookId)} : {};
     Forms.status(status, '');
     Forms.busy(btn, true);
-    const res = await fetch(url, {method: 'POST'}).catch(() => null);
-    const data = res && res.ok ? await res.json().catch(() => ({})) : null;
-    if (!data || !data.variantId) {
+    const res = await fetch(url, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : null;
+    if (!res || !res.ok || !data || !data.variantId) {
       Forms.busy(btn, false);
-      Forms.status(status, btn.dataset.action === 'band'
+      Forms.status(status, (data && data.message) || (action === 'band'
         ? t("Couldn't make the band's version of this song. Try again.")
-        : t("Couldn't make your own copy of this song. Try again."), 'error');
+        : action === 'community'
+          ? t("Couldn't make the community's version of this song. Try again.")
+          : t("Couldn't make your own version of this song. Try again.")), 'error');
       return;
     }
     const params = new URLSearchParams(location.search);
     params.set('edit', '1');
     location.href = `/song/${data.variantId}?${params.toString()}`;
+  });
+  // New version from this (the More menu): named, beside this one in the
+  // songbook; it opens in the editor.
+  const versionDialog = document.getElementById('new-version-dialog');
+  document.getElementById('new-version-open')?.addEventListener('click', () => {
+    if (!versionDialog || versionDialog.open) return;
+    Forms.status(document.getElementById('new-version-status'), '');
+    versionDialog.showModal();
+    document.getElementById('new-version-name')?.focus();
+  });
+  document.getElementById('new-version-form')?.addEventListener('submit', (e) => {
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    document.getElementById('new-version-go')?.click();
+  });
+  document.getElementById('new-version-go')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = document.getElementById('new-version-status');
+    const input = document.getElementById('new-version-name');
+    const name = (input?.value || '').trim();
+    if (!name) {
+      Forms.status(status, t('Name the new version.'), 'error');
+      input?.focus();
+      return;
+    }
+    const body = {name};
+    if (btn.dataset.songbookId) body.songbookId = Number(btn.dataset.songbookId);
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/variants/${pageVariantId}/versions`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : null;
+    if (!res || !res.ok || !data || !data.variantId) {
+      Forms.busy(btn, false);
+      Forms.status(status, (data && (data.message || data.error)) || t("Couldn't make the new version. Try again."), 'error');
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    params.set('edit', '1');
+    location.href = `/song/${data.variantId}?${params.toString()}`;
+  });
+  // Make public / Make private (docs/ownership-model.md §2): everything
+  // goes with the song — its chart, reference, recordings, stems, Guitar
+  // Pro file.
+  document.getElementById('song-publish-toggle')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const makePublic = btn.dataset.public !== 'true';
+    if (makePublic && !confirm(t('Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own version.'))) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/variants/${pageVariantId}/public`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({public: makePublic}),
+    }).catch(() => null);
+    if (!res || !res.ok) {
+      Forms.busy(btn, false);
+      alert(t("Couldn't change who sees this song. Try again."));
+      return;
+    }
+    location.reload();
   });
   editToggle.addEventListener('click', () => {
     if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }

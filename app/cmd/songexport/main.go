@@ -394,7 +394,11 @@ func main() {
 	// ---- Songs ----
 
 	rows, err = pool.Query(ctx, `
-		SELECT id, title, artist, body, visibility, owner_person_id, owner_band_id, owner_community_id,
+		SELECT id, title, artist, body,
+		       CASE WHEN owner_person_id IS NOT NULL THEN 'user' WHEN owner_band_id IS NOT NULL THEN 'band'
+		            WHEN owner_community_id = (SELECT id FROM communities WHERE kind = 'global') THEN 'global'
+		            ELSE 'community' END,
+		       owner_person_id, owner_band_id, owner_community_id,
 		       forked_from_id, created_by_person_id, work_id, created_at
 		FROM songs ORDER BY id`)
 	must(err, "query songs")

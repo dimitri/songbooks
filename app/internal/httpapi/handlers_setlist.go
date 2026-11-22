@@ -457,9 +457,10 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// A band's set list never takes another band's song (refused before
-	// anything is saved, with the catalogue's version offered when there
-	// is one — writeAdoptErr).
+	// A band's set list holds what the band may link (a public song, its
+	// own): another band's private song, or a closed songbook's, is
+	// refused before anything is saved, with the catalogue's version
+	// offered when there is one (writeLinkErr).
 	if meta.Scope == "band" && meta.OwnerBandID != nil {
 		had := map[int64]bool{}
 		for _, v := range store.SetlistVariantIDs(before) {
@@ -469,8 +470,8 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 			if had[v] {
 				continue
 			}
-			if err := s.store.BandMayTake(r.Context(), *meta.OwnerBandID, v); err != nil && !errors.Is(err, store.ErrNotFound) {
-				s.writeAdoptErr(w, r, err)
+			if err := s.store.LinkCheckFor(r.Context(), person.ID, v, store.BandOwner(*meta.OwnerBandID)); err != nil && !errors.Is(err, store.ErrNotFound) {
+				s.writeLinkErr(w, r, err)
 				return
 			}
 		}
@@ -485,58 +486,43 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if meta.Scope == "band" && meta.OwnerBandID != nil {
-		v, err := s.adoptSetlistAdditions(r.Context(), *meta.OwnerBandID, id, before, l, person)
-		if err != nil {
+		if err := s.linkSetlistAdditions(r.Context(), *meta.OwnerBandID, before, l, person); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
-		}
-		if v != "" {
-			newVersion = v
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
 }
 
-// adoptSetlistAdditions makes each song a save added to bandID's set list
-// the band's own (adoptIntoBand: the band's copy, in its repertoire, the
-// set list's item pointed at it), so opening it from the set list and
-// editing it changes the band's song, as from the band's songbook. Songs
-// that were in the list before are left to the band (the song page's
-// "Edit the band's version", or cmd/bandsongs); a song the person can't
-// copy stays as it is. Answers the set list's version after, or "" when
-// nothing changed.
-func (s *Server) adoptSetlistAdditions(ctx context.Context, bandID, setlistID int64, before, after *setlist.Setlist, person *store.Person) (string, error) {
+// linkSetlistAdditions puts each song a save added to bandID's set list
+// in the band's songbook, as a link, when none of the band's songbooks
+// holds it yet: a set list lists songs of its band's songbook
+// (docs/ownership-model.md §4). Nothing is copied: Edit on the song makes
+// the band's version.
+func (s *Server) linkSetlistAdditions(ctx context.Context, bandID int64, before, after *setlist.Setlist, person *store.Person) error {
 	had := map[int64]bool{}
 	for _, v := range store.SetlistVariantIDs(before) {
 		had[v] = true
 	}
-	changed := false
 	for _, v := range store.SetlistVariantIDs(after) {
 		if had[v] {
 			continue
 		}
-		own, err := s.store.IsBandSong(ctx, bandID, v)
+		in, err := s.store.InOwnerSongbooks(ctx, store.BandOwner(bandID), v)
 		if err != nil {
-			return "", err
+			return err
 		}
-		if own {
+		if in {
 			continue
 		}
-		if _, err := s.adoptIntoBand(ctx, bandID, v, person); errors.Is(err, store.ErrForbidden) || errors.Is(err, store.ErrNotFound) {
-			continue
-		} else if err != nil {
-			return "", err
+		if err := s.store.LinkCheckFor(ctx, person.ID, v, store.BandOwner(bandID)); err != nil {
+			continue // checked before the save; a song gone since
 		}
-		changed = true
+		if err := s.store.AddBandCatalogEntry(ctx, bandID, v, person.ID); err != nil {
+			return err
+		}
 	}
-	if !changed {
-		return "", nil
-	}
-	meta, err := s.store.GetSetlistMeta(ctx, setlistID)
-	if err != nil {
-		return "", err
-	}
-	return strconv.Itoa(meta.Version), nil
+	return nil
 }
 
 // handleDeleteSetlistByID is DELETE /api/setlists/{id} — any scope,
