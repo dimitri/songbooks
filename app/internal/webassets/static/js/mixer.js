@@ -118,9 +118,12 @@
   // pads the pickup with leading rests); it only changes the numbering:
   // full bars count from 1, the pickup is bar 0 and unlabeled.
   const pickup = () => (data && data.pickupBeats > 0 ? data.pickupBeats : 0);
+  // The bars before bar 1: the song's "lead:" bars (the server's leadIn),
+  // else the score's pickup.
+  const leadIn = () => (data && data.leadIn > 0 ? data.leadIn : pickup() ? 1 : 0);
   const barNomSec = () => nominalBarSec();
   const beatsIn = () => beatsPerBar();
-  const barLabel = (b) => String(pickup() ? b : b + 1);
+  const barLabel = (b) => String(b - leadIn() + 1);
   const barStartTick = (b) => Math.max(0, b) * ticksPerBar();
   const tickAtBar = (pos) => pos * ticksPerBar();
   const barAtTick = (tick) => tick / ticksPerBar();
@@ -464,7 +467,7 @@
     for (let b = 0; b <= n; b++) {
       const x = xOf(barTimes[b]);
       frag.appendChild(tick(x, 'is-bar'));
-      if (b < n && b % labelEvery === 0 && !(b === 0 && pickup())) frag.appendChild(label(x, barLabel(b)));
+      if (b < n && (data.leadIn > 0 ? b >= data.leadIn && (b - data.leadIn) % labelEvery === 0 : b % labelEvery === 0 && !(b === 0 && pickup()))) frag.appendChild(label(x, barLabel(b)));
       if (b < n && avgBarPx / beatsPerBar() >= 9) {
         for (let k = 1; k < beatsIn(b); k++) frag.appendChild(tick(xOf(barTimes[b] + k / beatsIn(b) * (barTimes[b + 1] - barTimes[b])), 'is-beat'));
       }
@@ -1542,7 +1545,7 @@
       const d = (ev.clientX - x0) / pxPerSec;
       barTimes = orig.map((t) => t - d);
       layout(true);
-      const first = pickup() ? 1 : 0;
+      const first = leadIn();
       await saveAlignment({ bar: first, label: t('Bar %s', barLabel(first)), i: 0 }, orig);
     };
     document.addEventListener('pointermove', onMove);
@@ -1669,7 +1672,7 @@
     }
     const barChords = [];
     for (const sec of data.sections) sec.chords.forEach((c, i) => { barChords[sec.startBar + i] = c || []; });
-    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: pickup() ? 1 : 0 };
+    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: leadIn() };
   }
 
   async function autoAlign() {
@@ -1703,7 +1706,7 @@
       await saveAllAnchors();
       if (!aligning) alignBtn.click();
       $('daw-align-undo').hidden = false;
-      const first = pickup() ? 1 : 0;
+      const first = leadIn();
       alignStatus.textContent = t('Auto-aligned and saved (%s: %s bpm, bar %s at %s). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.', res.how, res.bpm.toFixed(1), barLabel(first), fmtTime(barTimes[first]));
       seek(Math.max(0, barTimes[first] - 2 * nominalBarSec()));
       followPlayhead();

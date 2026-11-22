@@ -857,6 +857,11 @@ type clicktrackSong struct {
 
 	// How the click counts this time signature (clicktrack_meter.go).
 	Meter clickMeter `json:"meter"`
+
+	// Lead is how many bars the song plays before its bar 1 (a "lead:"
+	// line, song.Song.LeadIn): the click counts them first, as 0 (and -1,
+	// …), so its bar 1 is the song's.
+	Lead int `json:"lead,omitempty"`
 }
 
 // handleSetlistClicktrack is GET /setlists/{id}/clicktrack — the
@@ -928,6 +933,7 @@ func (s *Server) handleSetlistClicktrack(w http.ResponseWriter, r *http.Request)
 				Key: sg.Get("key"), Tempo: tempo, TimeSig: orDefault(sg.Get("time"), "4/4"),
 				Note: e.Note, ClickNote: clickNotes[e.VariantID],
 				Meter: clickMeterFor(orDefault(sg.Get("time"), "4/4")),
+				Lead:  sg.LeadIn(),
 			})
 			n++
 			first = false

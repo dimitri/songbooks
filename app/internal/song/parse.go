@@ -39,6 +39,8 @@ type rawSection struct {
 	scores  []rawScore
 	gp      []GPRef
 	times   int
+	lead    int
+	leadMs  []Measure
 	bars    []int
 	gridRaw strings.Builder
 	lines   []string
@@ -68,6 +70,8 @@ func Parse(src string) *Song {
 			Repeat:      cur.repeat,
 			Time:        cur.time,
 			Times:       cur.times,
+			Lead:        cur.lead,
+			LeadGrid:    cur.leadMs,
 			BarsPerLine: cur.bars,
 			Lyrics:      make([]LyricLine, 0, len(cur.lines)),
 			Notes:       cur.notes,
@@ -187,6 +191,8 @@ func Parse(src string) *Song {
 			}
 		case strings.HasPrefix(line, "note:"):
 			cur.notes = append(cur.notes, strings.TrimSpace(line[5:]))
+		case strings.HasPrefix(line, "lead:") && validLead(line[5:]):
+			cur.lead, cur.leadMs = parseLead(line[5:])
 		case strings.HasPrefix(line, "score:"):
 			// The old single-line "score: <label>" form (a Postgres-
 			// stored-content pointer) — retired in favor of
@@ -278,7 +284,7 @@ func scoreContinues(line string) bool {
 	if line == "" || sectionHeaderRE.MatchString(line) {
 		return false
 	}
-	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "score:", "score[", "gp:", "gp["} {
+	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "lead:", "score:", "score[", "gp:", "gp["} {
 		if strings.HasPrefix(line, p) {
 			return false
 		}
@@ -304,6 +310,37 @@ func parseChordRef(v string) (ChordRef, bool) {
 		return ChordRef{}, false
 	}
 	return ChordRef{Name: name, Spec: spec}, true
+}
+
+// validLead reports whether v (what follows "lead:") is a lead: a bar
+// count ("1") or bars written as a grid ("| G |"). Anything else leaves
+// the line to be read as a lyric, as before "lead:" existed.
+func validLead(v string) bool {
+	n, ms := parseLead(v)
+	return n > 0 || (len(ms) == 0 && strings.TrimSpace(v) == "0")
+}
+
+// parseLead reads a "lead:" value: "N" (N bars of rest; 0 is none) or a
+// grid ("| G | D7 |", as many bars as it writes). The bars are played
+// once, straight: repeat signs and endings are dropped, a bar's meter
+// kept.
+func parseLead(v string) (int, []Measure) {
+	v = strings.TrimSpace(v)
+	if strings.HasPrefix(v, "|") {
+		ms := parseGrid(v)
+		if len(ms) > maxLead {
+			ms = ms[:maxLead]
+		}
+		for i := range ms {
+			ms[i] = Measure{Tokens: ms[i].Tokens, Meter: ms[i].Meter}
+		}
+		return len(ms), ms
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0, nil
+	}
+	return min(n, maxLead), nil
 }
 
 func parseBars(v string) []int {

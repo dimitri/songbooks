@@ -21,6 +21,10 @@ func StartsWithPickup(sg *song.Song, si int) bool {
 	if len(sec.Measures) == 0 {
 		return false
 	}
+	// A "lead:" line (song.WithLeads) says so outright.
+	if sec.Measures[0].Lead || sec.Lead > 0 {
+		return true
+	}
 	timeSig := sec.Time
 	if timeSig == "" {
 		timeSig = sg.Get("time")

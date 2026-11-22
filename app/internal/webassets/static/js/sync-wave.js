@@ -207,7 +207,9 @@
             c.beginPath(); c.moveTo(px, BAND); c.lineTo(px, waveBot); c.stroke();
             c.globalAlpha = 1;
           }
-          if (b < d.chartBars && b % every === (d.pickup ? 0 : every - 1)) {
+          // Every few bars, by the bar's number (a lead-in reads 0, -1, …).
+          const lead = d.leadIn != null ? d.leadIn : (d.pickup ? 1 : 0);
+          if (b < d.chartBars && (((b - lead + 1) % every) + every) % every === 0) {
             c.fillStyle = colors.muted;
             c.font = '500 10px system-ui, -apple-system, sans-serif';
             c.fillText(d.barLabel(b), px + 3, BAND + NUMS / 2 + 1);

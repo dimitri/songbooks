@@ -201,7 +201,10 @@ func jzVoltaPasses(v string) []int {
 func jzShape(ms []song.Measure) []jzBracket {
 	n := len(ms)
 	var out []jzBracket
-	i, segStart := 0, 0
+	// A lead (song.WithLeads) is played once, before the grid: a ":|"
+	// with no "|:" repeats from the bar after it.
+	i := song.LeadBars(ms)
+	segStart := i
 	for i < n {
 		o, c := -1, -1
 		for k := i; k < n; k++ {

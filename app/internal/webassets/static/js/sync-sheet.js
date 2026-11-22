@@ -577,7 +577,7 @@
     waveTargets.suggestion = ghosts.map((g) => g.t).sort((a, b) => a - b);
     waveData = {
       bars, sections: sectionsOut, chords: chordBars, beats: beatList, downbeats: downs, voice,
-      ghosts, fixes, chartBars: P.totalBars(), pickup: P.hasPickup(), barLabel: P.barLabel,
+      ghosts, fixes, chartBars: P.totalBars(), pickup: P.hasPickup(), leadIn: P.leadIn ? P.leadIn() : (P.hasPickup() ? 1 : 0), barLabel: P.barLabel,
     };
     wave.invalidate();
   }

@@ -132,9 +132,13 @@ window.songbooksDecodable = function (buf) {
   // The beats in bar b: the song's metre, or the Guitar Pro file's own,
   // bar by bar, when its synthesizer plays.
   const beatsIn = (b) => (activeCategory === 'synth' && synth && synth.beats[b]) || beatsPerBar;
-  // A song opening with a pickup numbers it 0, so the first full bar is 1.
-  const hasPickup = () => !!document.querySelector('#sheet .bar-pickup');
-  const barLabel = (b) => String(hasPickup() ? b : b + 1);
+  // A song opening with a pickup numbers it 0, so the first full bar is 1;
+  // a "lead:" line of several bars numbers them -1, 0. leadIn is how many
+  // bars come before bar 1 (each mode draws its own copy of a bar: counted
+  // once, by its played number).
+  const leadIn = () => new Set([...document.querySelectorAll('#sheet .bar-pickup[data-global-bar]')].map((el) => el.dataset.globalBar)).size;
+  const hasPickup = () => leadIn() > 0;
+  const barLabel = (b) => String(b - leadIn() + 1);
 
   function sections() {
     // The synthesizer's own sections, when the song's bars aren't the file's.
@@ -289,7 +293,7 @@ window.songbooksDecodable = function (buf) {
       for (let b = 0; b <= total; b++) barTicks.push(b * ticksPerBar);
       const res = window.SongbooksAutoAlign.analyze(analysisInput, {
         tempo: bpm, barTicks, onsets: [], barChords: [],
-        firstFull: hasPickup() ? 1 : 0,
+        firstFull: leadIn(),
       });
       if (!res || !res.barTimes) return null;
       detectedFull = { cat: activeCategory, times: res.barTimes };
@@ -619,7 +623,7 @@ window.songbooksDecodable = function (buf) {
         dockLine.appendChild(d);
       }
       // Numbers only over the chart's own bars; the recording may run on.
-      const numbered = b < chartBars && b % every === (hasPickup() ? 0 : every - 1);
+      const numbered = b < chartBars && (((b - leadIn() + 1) % every) + every) % every === 0;
       const label = sec ? sec.label : (numbered ? barLabel(b) : '');
       if (label) {
         const m = document.createElement('span');
@@ -3205,6 +3209,7 @@ window.songbooksDecodable = function (buf) {
     barTimes: () => grid.slice(),
     totalBars,
     hasPickup,
+    leadIn,
     click: () => prefs.click,
     toggleClick,
     speed: () => prefs.speed,

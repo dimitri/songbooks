@@ -344,7 +344,12 @@
   function tickCounters() {
     const n = clock.beatsPerBar;
     const beat = Math.max(0, Math.floor(clock.currentBeat()));
-    setText(barBeatEl, `${Math.floor(beat / n) + 1}.${(beat % n) + 1}`);
+    // A song's "lead:" bars come before its bar 1: counted 0 (-1, …).
+    const step = steps[cur];
+    const lead = (step && step.kind === 'song' && step.song.lead) || 0;
+    const bar = Math.floor(beat / n) + 1 - lead;
+    setText(barBeatEl, `${bar}.${(beat % n) + 1}`);
+    countersEl.classList.toggle('is-lead', clock.running && bar < 1);
     setText(songTimeEl, fmtTime(songMs + (songRunFrom != null ? performance.now() - songRunFrom : 0)));
     setText(setTimeEl, fmtTime(totalStart != null ? Date.now() - totalStart : 0));
     countersEl.classList.toggle('is-running', clock.running);

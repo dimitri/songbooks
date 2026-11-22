@@ -62,6 +62,10 @@ type jsonSection struct {
 	Measures    []jsonMeasure    `json:"measures"`
 	Lyrics      []jsonLyricLine  `json:"lyrics"`
 	Notes       []string         `json:"notes,omitempty"`
+	// Lead/LeadMeasures mirror the "lead:" line (song.Section.Lead,
+	// LeadGrid), so a Chart save keeps it.
+	Lead         int           `json:"lead,omitempty"`
+	LeadMeasures []jsonMeasure `json:"leadMeasures,omitempty"`
 }
 
 // jsonChordRef mirrors song.ChordRef — one "chord: Name Spec" diagram line.
@@ -99,8 +103,12 @@ func toJSON(s *song.Song) jsonSong {
 			Repeat:      sec.Repeat,
 			Time:        sec.Time,
 			Times:       sec.Times,
+			Lead:        sec.Lead,
 			BarsPerLine: sec.BarsPerLine,
 			Notes:       sec.Notes,
+		}
+		for _, m := range sec.LeadGrid {
+			js.LeadMeasures = append(js.LeadMeasures, jsonMeasure{Tokens: m.Tokens, Meter: m.Meter})
 		}
 		for _, sv := range sec.Scores {
 			js.Scores = append(js.Scores, jsonScoreVoice{Label: sv.Label, Body: sv.Body})
@@ -143,8 +151,15 @@ func fromJSON(in jsonSong) *song.Song {
 			Repeat:      js.Repeat,
 			Time:        js.Time,
 			Times:       js.Times,
+			Lead:        js.Lead,
 			BarsPerLine: js.BarsPerLine,
 			Notes:       js.Notes,
+		}
+		for _, m := range js.LeadMeasures {
+			sec.LeadGrid = append(sec.LeadGrid, song.Measure{Tokens: m.Tokens, Meter: m.Meter})
+		}
+		if len(sec.LeadGrid) > 0 {
+			sec.Lead = len(sec.LeadGrid)
 		}
 		for _, sv := range js.Scores {
 			sec.Scores = append(sec.Scores, song.ScoreVoice{Label: sv.Label, Body: sv.Body})
