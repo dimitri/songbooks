@@ -3185,6 +3185,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			data["SingPanel"] = true
 		}
 	}
+	// A lesson, or a song all in its Guitar Pro file: the lesson view
+	// (lessonview.go), its video first.
+	lessonViewData(data, sg)
 	// The key's chip in the dock names the key: "Ton −1 · C#m".
 	data["SongKeyName"] = songKeyName(sg)
 	// "Je joue": the reader's parts here, a level each (player_parts.go).

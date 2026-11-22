@@ -30,11 +30,18 @@
     }
     return bytesPromise;
   }
+  // Each track's level as Guitar Pro plays it (gp-levels.js): a Guitar
+  // Pro 8 file keeps it where alphaTab doesn't read it, and its score then
+  // sounds silent (no waveform in the player, nothing to hear) — and would
+  // be saved silent.
+  let levelsPromise = null;
+  const fileLevels = () => (levelsPromise ||= fileBytes().then((b) => (window.GPLevels ? GPLevels.read(b) : [])));
   // Guitar Pro files often mark chords "show diagram" with no fingering
   // at all (only the name was wanted): drawn, those are empty boxes. raw
   // leaves the model as the file has it, for editing and saving.
   async function loadScore(raw) {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(await fileBytes(), new alphaTab.Settings());
+    if (window.GPLevels) GPLevels.apply(score, await fileLevels());
     if (raw) return score;
     for (const t of score.tracks) {
       for (const st of t.staves) {
@@ -549,6 +556,27 @@
     const floor = (d && d.height ? Math.min(window.innerHeight, d.top) : window.innerHeight) - 12;
     if (top < 56 || bottom > floor) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
   }
+  // The player moved (a click, a key, ⏮): the cursor goes there at once,
+  // stopped too — at the start the player's place reads as none, and the
+  // cursor stayed where it was (⏮ looked dead). Back at the start, the
+  // score's first line comes back into sight when scrolled past.
+  document.addEventListener('songbooks:player-seek', (e) => {
+    if (!full || sheet.dataset.renderMode !== 'score' || !full.barMs.length) return;
+    const out = full.api.player && full.api.player.output;
+    const bar = e.detail ? e.detail.bar : null;
+    if (!out || bar === null || bar === undefined) return;
+    const P = window.songbooksPlayer;
+    const ms = msAtBar(Math.max(0, bar)) / ((P && P.speed()) || 1);
+    full.lastMs = ms;
+    quietly(() => out.updatePosition(ms));
+    if (bar > 0.01) return;
+    const sys = full.api.renderer.boundsLookup && full.api.renderer.boundsLookup.staffSystems && full.api.renderer.boundsLookup.staffSystems[0];
+    const surface = page.querySelector('.gp-score-canvas .at-surface');
+    const b = sys && (sys.realBounds || sys.visualBounds);
+    if (!b || !surface) return;
+    const top = surface.getBoundingClientRect().top + b.y;
+    if (top < 56) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
+  });
   function startFollowing() {
     if (!full || full.following) return;
     full.following = true;
