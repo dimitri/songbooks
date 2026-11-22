@@ -59,8 +59,16 @@ func TestTitle(t *testing.T) {
 			t.Errorf("Title(%q) = %q, %v; want %q", ref, got, err, want)
 		}
 	}
-	if !strings.Contains(asked[0], "format=json") || !strings.Contains(asked[0], "url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw") {
-		t.Errorf("oEmbed asked as %q", asked[0])
+	// The map above is walked in no fixed order: find the oEmbed call for
+	// the youtube.com link among those made.
+	var oembed string
+	for _, a := range asked {
+		if strings.Contains(a, "url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw") {
+			oembed = a
+		}
+	}
+	if !strings.HasPrefix(oembed, "/oembed?") || !strings.Contains(oembed, "format=json") {
+		t.Errorf("oEmbed asked as %q (all: %q)", oembed, asked)
 	}
 	for _, ref := range []string{
 		"https://www.youtube.com/watch?v=unknown1234", // the endpoint says 404
