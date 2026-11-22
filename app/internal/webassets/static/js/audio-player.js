@@ -2135,7 +2135,6 @@ window.songbooksDecodable = function (buf) {
   });
   // No recording: the follow-along clock, the click on.
   let noneTimer = null;
-  let noneWired = false;
   function enterNoRecording() {
     setState('none');
     if (playerBody) playerBody.hidden = false;
@@ -2143,12 +2142,11 @@ window.songbooksDecodable = function (buf) {
     const add = $('audio-add-recording');
     if (add) add.hidden = !canEdit;
     const fc = () => window.songbooksFollowClock;
-    if (!noneWired) playBtn?.addEventListener('click', (e) => {
+    playBtn?.addEventListener('click', (e) => {
       if (root.dataset.state !== 'none' || !fc()) return;
       e.stopImmediatePropagation();
       fc().toggle(true);
     }, true);
-    noneWired = true;
     clearInterval(noneTimer);
     noneTimer = setInterval(() => {
       const c = fc() && fc().state();
@@ -2215,7 +2213,7 @@ window.songbooksDecodable = function (buf) {
     // A Guitar Pro file next to the chart: its own recording is one more
     // recording, but the song's own come first (the file is for the Score
     // view).
-    const beside = !!document.querySelector('#sheet[data-gp-beside]');
+    const beside = !!document.querySelector('#gp-score-page[data-gp-beside]');
     const first = beside ? (['youtube', 'band', 'gp'].find((c) => categories[c]) || available[0]) : (categories.gp ? 'gp' : available[0]);
     const target = (preferred && categories[preferred]) ? preferred : first;
     selectCategory(target);
@@ -2345,7 +2343,8 @@ window.songbooksDecodable = function (buf) {
       const back = beforeSynth && categories[beforeSynth] && beforeSynth !== 'synth' ? beforeSynth : recs[0];
       beforeSynth = null;
       if (back) { selectCategory(back); return; }
-      // No recording: the follow-along clock, as before.
+      // No recording: the follow-along clock, as before (again: its play
+      // button's listener stops the ones added before it).
       activeCategory = null;
       duration = 0;
       grid = [];

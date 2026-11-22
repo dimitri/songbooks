@@ -1956,7 +1956,7 @@
       </label>
       <span class="follow-hint" id="follow-hint"></span>
     </div>
-    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{else if not .HasGPView}} data-gp-beside="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
+    <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}" data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
     </main>
     {{/* Scrolled away by hand while the music plays: following holds,
@@ -2056,7 +2056,7 @@
     {{if .GPFileName}}
     {{/* The Score view: the whole Guitar Pro file, drawn and played by
          gp-view.js. Same sibling-of-#sheet convention as the Mixer. */}}
-    <div class="gp-score-page" id="gp-score-page">
+    <div class="gp-score-page" id="gp-score-page"{{if and (not .GPOnly) (not .HasGPView)}} data-gp-beside="1"{{end}}>
       {{/* It plays in the song's player, the dock (audio-player.js): the
            song's recording, else the file through the synthesizer. Above
            the sheet, what it shows: the tracks, the notation, the file. */}}

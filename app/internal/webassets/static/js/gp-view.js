@@ -325,9 +325,19 @@
     if (!P || full.synthStarted) return;
     full.synthStarted = true;
     const { recorded } = await P.ready;
-    // Next to a chart the file's sound is rendered all the same: the
-    // Score view plays it, the recording beside it.
-    if (recorded && !mixMode()) return;
+    if (recorded) return;
+    await synthesize(P);
+  }
+  // Next to a chart the file's sound is rendered all the same, recording
+  // or not: the Score view plays it, the recording following it.
+  async function synthesizeForMix() {
+    const P = window.songbooksPlayer;
+    if (!P || full.synthStarted) return;
+    full.synthStarted = true;
+    await (P.recordings || P.ready);
+    await synthesize(P);
+  }
+  async function synthesize(P) {
     const api = full.api, score = full.score;
     P.synthProgress(t('Preparing the sound…'));
     try {
@@ -523,7 +533,7 @@
     api.postRenderFinished.on(() => requestAnimationFrame(paginate));
     api.midiLoaded.on(() => {
       Object.assign(full, barTimes(api, score));
-      renderSynth();
+      if (mixMode()) synthesizeForMix(); else renderSynth();
     });
     api.playerReady.on(() => {
       const out = api.player && api.player.output;

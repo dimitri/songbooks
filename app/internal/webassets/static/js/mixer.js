@@ -1860,7 +1860,7 @@
     if (!cats.length) return null;
     // A file next to the chart: the song's own recording first, as the
     // Score view's simplified mixer has it.
-    const beside = !!(sheet && sheet.dataset.gpBeside);
+    const beside = !!document.querySelector('#gp-score-page[data-gp-beside]');
     if (audioCats.gp && !beside) return 'gp';
     let pref = null;
     try { pref = localStorage.getItem(`songbooks:audio-category-choice:${variantId}`); } catch (e) { /* ignore */ }
