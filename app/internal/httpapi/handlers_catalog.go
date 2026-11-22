@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -33,18 +34,18 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	person := personFromContext(r)
-	filter := store.CatalogFilter{
+	lang := s.langOf(w)
+	// Everything the person sees (docs/ownership-model.md §1): their own
+	// songs, their bands' and communities', every public one, each with
+	// whose it is and who sees it, the versions of a work together.
+	filter := store.FindFilter{
 		Query:  r.URL.Query().Get("q"),
+		Scope:  validFindScope(r.URL.Query().Get("scope")),
 		Artist: r.URL.Query().Get("artist"),
 		Genre:  r.URL.Query().Get("genre"),
 		Sort:   r.URL.Query().Get("sort"),
 	}
-	variants, err := s.store.ListCatalog(r.Context(), person.ID, filter)
-	if err == nil {
-		// A band member sees their band's version of a song, not the
-		// catalogue's (store.PreferBandVersions).
-		variants, err = s.store.PreferBandVersions(r.Context(), person.ID, variants)
-	}
+	works, err := s.store.FindSongs(r.Context(), person.ID, filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -54,22 +55,41 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defaultSongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	var ids []int64
+	owners := map[int64]string{}
+	for _, wk := range works {
+		for _, sg := range wk.Songs {
+			ids = append(ids, sg.ID)
+			owners[sg.ID] = ownerBadge(lang, sg)
+		}
 	}
-
-	ids := make([]int64, len(variants))
-	for i, v := range variants {
-		ids[i] = v.VariantID
+	type scopeView struct {
+		Label, Href string
+		Active      bool
+	}
+	var scopes []scopeView
+	for _, f := range findScopes {
+		v := url.Values{}
+		for _, k := range []string{"q", "artist", "genre", "sort"} {
+			if x := r.URL.Query().Get(k); x != "" {
+				v.Set(k, x)
+			}
+		}
+		if f.Scope != "" {
+			v.Set("scope", f.Scope)
+		}
+		href := "/catalog"
+		if len(v) > 0 {
+			href += "?" + v.Encode()
+		}
+		scopes = append(scopes, scopeView{Label: f.Label, Href: href, Active: f.Scope == filter.Scope})
 	}
 	// The bands whose recordings of a song everyone hears
 	// (docs/ownership-model.md §8): "played by: Mercy (2 recordings)".
 	playedBy, _ := s.store.PlayedByFor(r.Context(), ids)
 	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
-		"DefaultSongbookID": defaultSongbookID, "PlayedBy": playedBy,
+		"Me": person, "Works": works, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
+		"Owners": owners, "Scopes": scopes, "PlayedBy": playedBy,
 	})
 }
 
@@ -227,7 +247,10 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	person := personFromContext(r)
 	variant, err := s.store.GetVariant(r.Context(), variantID)
 	if err != nil {
-		http.NotFound(w, r)
+		// A song merged into another (§7): its history is on that one's.
+		if !s.mergedRedirect(w, r, variantID) {
+			http.NotFound(w, r)
+		}
 		return
 	}
 	revisions, err := s.store.ListRevisions(r.Context(), "variant", strconv.FormatInt(variantID, 10))
@@ -244,8 +267,20 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	// (best effort: a failure just leaves the section out).
 	gpCurrent, _ := s.store.GetSongGPSourceFileMeta(r.Context(), variantID)
 	gpVersions, _ := s.store.ListSongGPSourceFileVersions(r.Context(), variantID)
+	// The songs merged into this one (§7), each with its own history.
+	type mergedHistory struct {
+		store.SongMerge
+		Revisions []store.Revision
+	}
+	var merged []mergedHistory
+	if ms, err := s.store.MergedInto(r.Context(), variantID); err == nil {
+		for _, m := range ms {
+			revs, _ := s.store.ListRevisions(r.Context(), "variant", strconv.FormatInt(m.MergedSongID, 10))
+			merged = append(merged, mergedHistory{SongMerge: m, Revisions: revs})
+		}
+	}
 	s.render(w, "variant_history", map[string]any{
-		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit,
+		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit, "Merged": merged,
 		"GPFile": gpCurrent, "GPVersions": gpVersions,
 		"Edits": s.describeEdits(variantID, revisions),
 	})

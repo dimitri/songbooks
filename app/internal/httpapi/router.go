@@ -316,6 +316,14 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/catalog/search", s.requireAuth(s.handleCatalogSearch))
 	mux.HandleFunc("GET /api/catalog/match", s.requireAuth(s.handleCatalogMatch))
 	mux.HandleFunc("GET /works/{id}", s.requireAuth(s.handleWorkVersionsPage))
+	// Finding and adding songs, The Big Songbook and its duplicates review
+	// (ownership model steps 4–5, docs/ownership-model.md §1, §3, §6, §7):
+	// find.go.
+	mux.HandleFunc("GET /api/find", s.requireAuth(s.handleFindAPI))
+	mux.HandleFunc("GET /api/songbook-targets", s.requireAuth(s.handleSongbookTargetsAPI))
+	mux.HandleFunc("GET /big-songbook", s.requireAuth(s.handleBigSongbookPage))
+	mux.HandleFunc("GET /big-songbook/duplicates", s.requireAdmin(s.handleBigSongbookDuplicatesPage))
+	mux.HandleFunc("POST /api/big-songbook/merge", s.requireAdmin(s.handleMergeSongsAPI))
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))
 
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))

@@ -101,12 +101,17 @@
   <div class="card card--md" id="add-songs">
     <h2>{{t "Add songs"}}</h2>
     <form class="form-stack" id="add-songs-form" role="search">
+      {{if .IsBand}}
       <div class="field">
-        <label for="add-songs-q">{{if .IsBand}}{{t "Song from the songbook"}}{{else}}{{t "Song from the library"}}{{end}}</label>
-        <p class="field-hint" id="add-songs-hint">{{if .IsBand}}{{t "Type part of a title or artist."}}{{else}}{{t "Type a title or an artist, then search."}}{{end}}</p>
+        <label for="add-songs-q">{{t "Song from the songbook"}}</label>
+        <p class="field-hint" id="add-songs-hint">{{t "Type part of a title or artist."}}</p>
         <input type="search" id="add-songs-q" aria-describedby="add-songs-hint" autocomplete="off" enterkeyhint="search">
       </div>
-      {{if not .IsBand}}<div class="form-actions"><button type="submit" id="add-songs-search" class="primary">{{t "Search"}}</button></div>{{end}}
+      {{end}}
+      {{/* Anything else the owner may hold, or a new song: the one Add /
+           Create dialog (add-song.js), linking it in the owner's songbook
+           first (§4). */}}
+      {{if .OwnerSongbookID}}<div class="form-actions"><button type="button" id="add-songs-find" class="{{if not .IsBand}}primary{{end}}">{{template "icon-plus"}} {{if .IsBand}}{{t "Another song, or a new one…"}}{{else}}{{t "Find or create a song…"}}{{end}}</button></div>{{end}}
       <p class="form-status" role="status"></p>
     </form>
     <ul class="add-songs-results" id="add-songs-results" aria-label="{{t "Songs to add"}}"></ul>
@@ -159,6 +164,7 @@
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<script src="/static/js/add-song.js?v={{staticVersion}}"></script>
 {{if .CanEdit}}
 <script>
 // Rename: the pencil (or the title) swaps the title for a field; Enter
@@ -331,27 +337,42 @@
     Forms.busy(btn, false);
     Forms.status(addForm, t('Couldn’t add “%s”. Try again.', song.title), 'error');
   }
+  addForm.addEventListener('submit', (e) => e.preventDefault());
   if (isBand) {
     q.addEventListener('input', () => {
       const term = q.value.trim().toLowerCase();
       show(term ? repertoire.filter(s => (s.title + ' ' + s.artist).toLowerCase().includes(term)) : repertoire);
     });
-    addForm.addEventListener('submit', (e) => e.preventDefault());
     show(repertoire);
-  } else {
-    addForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const term = q.value.trim();
-      if (!term) { Forms.fieldError(q, t('Type a title or an artist.')); return; }
-      Forms.run(addForm, document.getElementById('add-songs-search'), async () => {
-        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(term)}`);
-        if (!res.ok) throw new Error(t('Couldn’t search the library. Try again.'));
-        const hits = await res.json();
-        if (!hits.length) Forms.status(addForm, t('No songs match that.'), '');
-        show(hits);
-      });
-    });
   }
+  // The one Add / Create dialog: the song is linked in the owner's
+  // songbook (add-song.js does it), then joins the set list's last set.
+  const appendToSetlist = async (variantId) => {
+    const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
+    const data = res && res.ok ? await res.json() : null;
+    if (!data) throw new Error(t('Couldn’t add it to the set list. Try again.'));
+    const sets = data.setlist.sets || (data.setlist.sets = []);
+    if (!sets.length) sets.push({label: 'Set 1', entries: []});
+    const last = sets[sets.length - 1];
+    (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: variantId, note: ''});
+    const put = await fetch(`/api/setlists/${setlistID}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
+    }).catch(() => null);
+    if (!put || !put.ok) {
+      const d = put ? await put.json().catch(() => ({})) : {};
+      throw new Error(d.message || t('Couldn’t add it to the set list. Try again.'));
+    }
+  };
+  document.getElementById('add-songs-find')?.addEventListener('click', () => {
+    window.AddSong?.open({
+      songbookId: {{.OwnerSongbookID}},
+      heading: t('Add to the set list'),
+      addInSongbook: true,
+      onAdded: (id) => appendToSetlist(id),
+      onCreated: async (id) => { await appendToSetlist(id); location.href = `/song/${id}?edit=1`; },
+    });
+  });
 
   // A row's version for this set list: the others the songbook has of
   // the song (docs/ownership-model.md §5), saved as soon as picked.

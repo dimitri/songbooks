@@ -350,8 +350,17 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			repertoire = append(repertoire, map[string]any{"variantId": e.VariantID, "title": title, "artist": artist})
 		}
 	}
+	// The set list's owner's songbook (§4: a set list lists songs of it):
+	// the Add / Create dialog links a song there before it joins the list.
+	var ownerSongbookID int64
+	if canEdit {
+		o := meta.Owner()
+		if sbID, err := s.store.GetDefaultSongbook(r.Context(), o.Kind, o.ID); err == nil {
+			ownerSongbookID = sbID
+		}
+	}
 	s.render(w, "setlist-overview", map[string]any{
-		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit,
+		"Me": person, "SetlistID": id, "Version": version, "CanEdit": canEdit, "OwnerSongbookID": ownerSongbookID,
 		"Path": setlistPath(meta), "BackURL": backURL, "BackLabel": backLabel,
 		"Title": orDefault(l.Get("title"), orDefault(meta.Title, i18n.T(lang, "Set list"))), "Date": l.Get("date"), "Venue": l.Get("venue"),
 		"IsEmpty": n == 0, "Repertoire": repertoire, "IsBand": meta.OwnerBandID != nil,

@@ -33,6 +33,9 @@ type searchItem struct {
 	Action   string   `json:"action,omitempty"` // a command done on the page itself: "stage"
 	Keys     []string `json:"keys,omitempty"`   // a command's shortcut, key by key
 	Here     bool     `json:"here,omitempty"`   // in the space the person is in
+	// Badge: a song's "whose · who sees it" ("Mercy · private").
+	Badge  string `json:"badge,omitempty"`
+	Public bool   `json:"public,omitempty"`
 }
 
 // searchGroup is a heading and its rows.
@@ -73,8 +76,11 @@ func searchHitItem(lang string, h store.SearchHit, now time.Time) searchItem {
 	it := searchItem{Kind: h.Kind, Title: h.Title, Subtitle: h.Subtitle}
 	switch h.Kind {
 	case "song":
-		// A band's song says whose version it is.
-		if h.BandName != "" {
+		// A song says whose it is and who sees it.
+		if h.Owner != nil {
+			it.Badge = ownerBadge(lang, *h.Owner)
+			it.Public = h.Owner.Public
+		} else if h.BandName != "" {
 			it.Subtitle = strings.TrimPrefix(it.Subtitle+" · "+i18n.T(lang, "sentence|%s’s version", h.BandName), " · ")
 		}
 		it.URL = fmt.Sprintf("/song/%d", h.ID)

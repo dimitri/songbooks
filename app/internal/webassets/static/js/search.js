@@ -198,6 +198,8 @@
         main.append(el('span', 'search-palette-row-title', it.title));
         if (it.subtitle) main.append(el('span', 'search-palette-row-sub', it.subtitle));
         row.append(main);
+        // A song's "whose · who sees it" (docs/ownership-model.md §1).
+        if (it.badge) row.append(el('span', 'owner-badge' + (it.public ? ' is-public' : ''), it.badge));
         if (it.here) row.append(el('span', 'search-here', tr('here')));
         if (it.keys && it.keys.length) {
           var keys = el('span', 'search-keys');

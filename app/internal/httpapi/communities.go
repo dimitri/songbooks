@@ -545,8 +545,15 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 			}
 		}
 	}
+	// The community's songbook: the Add / Create dialog adds to it.
+	songbookID, err := s.store.GetDefaultSongbook(r.Context(), "community", communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_default_songbook", map[string]any{
 		"Me": person, "Community": community, "Entries": entries, "Badges": s.songBadgesFor(r.Context(), ids),
+		"SongbookID": songbookID,
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
 		"CanReview": canReview, "PendingSubmissions": pending, "DecidedSubmissions": decided,
 		"Export": spaceExport{PDF: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID)},

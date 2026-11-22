@@ -82,8 +82,11 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		// A pick is a link in the person's songbook (§4); one already
+		// there, or one they made their version of, isn't offered again.
 		mineIDs := map[int64]bool{}
 		for _, e := range mine {
+			mineIDs[e.VariantID] = true
 			if e.ForkedFromID != nil {
 				mineIDs[*e.ForkedFromID] = true
 			}
@@ -99,6 +102,7 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 			picks = append(picks, v)
 		}
 		data["Picks"] = picks
+		data["MySongbookID"] = mySongbook
 	}
 
 	s.render(w, "welcome", data)
