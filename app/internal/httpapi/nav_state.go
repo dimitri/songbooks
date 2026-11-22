@@ -35,7 +35,7 @@ type navState struct {
 }
 
 // focusedPages are the pages whose desktop sidebar is a rail (see
-// navState.Focused); the song page covers a set list's stage mode too.
+// navState.Focused): a song, and a set list's click track.
 var focusedPages = map[string]bool{"song": true, "setlist-clicktrack": true}
 
 // pageNavSections is the global section of each page, by template name.

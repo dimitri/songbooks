@@ -157,7 +157,7 @@ with the facts and stores the differences.
   loop controls the Mixer already has. The song view stays one tap away
   when the text has anything to show.
 - **Score**, a new view, is there for any song with a file.
-- Stage mode, the Drummer view and set lists work for both kinds.
+- The Drummer view and set lists work for both kinds.
 - **Mixer:** a song with a file plays the file itself (every track, every
   effect, its own backing track) instead of alphaTeX rebuilt from voices.
   A song without one keeps playing its LilyPond voices.

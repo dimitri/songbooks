@@ -2954,6 +2954,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
+	// Tap tempo (play.html #tap-tempo-dialog) compares with the song's own
+	// tempo, not with .Tempo's 120 for a song that has none.
+	data["SongTempo"] = sg.Get("tempo")
 	// The reference in the header (song_ref_head.go): without a link, a
 	// band recording is the song's reference.
 	hasBand := false
