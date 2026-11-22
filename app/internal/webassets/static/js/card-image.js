@@ -164,12 +164,14 @@
       logoStatus.textContent = t('SVG images can’t be used: export the logo as a PNG, then upload that.');
       return;
     }
-    if (f.size > 2 * 1024 * 1024) {
-      logoStatus.textContent = t('This image is larger than 2 MB. Make it smaller, then try again.');
-      return;
+    // Too big, or a format the server doesn't take (HEIC, GIF…): made to
+    // fit here (image-shrink.js), not sent back to the user to resize.
+    let up = f;
+    if (window.ImageShrink) {
+      try { up = await ImageShrink.fit(f); } catch (e) { up = f; }
     }
     const body = new FormData();
-    body.append('file', f);
+    body.append('file', up);
     Forms.busy(logoUpload, true);
     const res = await fetch(endpoint + '/brand/logo', { method: 'PUT', body }).catch(() => null);
     Forms.busy(logoUpload, false);
