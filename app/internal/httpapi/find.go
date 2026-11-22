@@ -93,7 +93,7 @@ func refusalText(lang, reason string) string {
 	case "closed":
 		return i18n.T(lang, "In a closed songbook: it can’t go anywhere else.")
 	case "private":
-		return i18n.T(lang, "Private to its owner: only a person’s own songbook may link it.")
+		return i18n.T(lang, "Private: only its owner’s songbooks hold it.")
 	}
 	return ""
 }

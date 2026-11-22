@@ -29,7 +29,7 @@
   "No revisions.": "Aucune révision.",
   "Pick a couple to start your songbook: one tap adds a song as it is, in your own key; make your own version of it any time.": "Choisissez-en quelques-uns pour commencer votre songbook : un appui ajoute un morceau tel quel, dans votre tonalité ; faites-en votre propre version quand vous voulez.",
   "Preview merging into the kept one": "Prévisualiser la fusion dans celui gardé",
-  "Private to its owner: only a person’s own songbook may link it.": "Privé à son propriétaire : seul le songbook personnel d’un membre peut le lier.",
+  "Private: only its owner’s songbooks hold it.": "Privé : seuls les songbooks de son propriétaire le contiennent.",
   "Public songs that are the same song: the same title and artist, or the same reference video. Keep one; merge the other into it — its songbook entries (with their keys), set list lines, band recordings and the versions made from it move to the one kept, its history stays readable there, and its old links open the one kept.": "Des morceaux publics qui sont le même morceau : même titre et même artiste, ou même vidéo de référence. Gardez-en un ; fusionnez l’autre dedans — ses entrées de songbook (avec leurs tonalités), ses lignes de set list, ses enregistrements de groupe et les versions faites à partir de lui passent sur celui gardé, son historique y reste lisible, et ses anciens liens ouvrent celui gardé.",
   "Song %d": "Morceau %d",
   "Song %d is merged into song %d:": "Le morceau %d est fusionné dans le morceau %d :",

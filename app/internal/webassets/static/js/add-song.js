@@ -65,7 +65,7 @@
     const close = el('button', 'icon-btn addsong-close', '×');
     close.type = 'button';
     close.setAttribute('aria-label', t('Close'));
-    close.addEventListener('click', () => dlg.close());
+    close.addEventListener('click', () => { dlg.close(); closed(); });
     head.append(h, close);
     const into = el('p', 'hint addsong-into');
 
@@ -152,9 +152,19 @@
     });
 
     dlg.append(head, into, search, scopes, hint, results, status, create);
-    dlg.addEventListener('close', () => { if (state.added && state.reload !== false) location.reload(); });
+    // Something added: the page shows it (its list reloaded). Escape
+    // closes it too; 'close' doesn't always fire where it's run hidden.
+    dlg.addEventListener('close', closed);
+    dlg.addEventListener('cancel', closed);
     document.body.append(dlg);
     Object.assign(state, { q, results, status, hint, into, create, title, artist, ref, goes, who, whoHint, createBtn, createStatus, h });
+  }
+
+  function closed() {
+    if (state.added && state.reload !== false) {
+      state.added = false;
+      location.reload();
+    }
   }
 
   function showWho() {
