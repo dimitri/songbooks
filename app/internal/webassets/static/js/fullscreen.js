@@ -13,7 +13,7 @@
 //   shows on an iPhone until it is dismissed, and never in the app.
 // The button stays hidden where neither applies.
 //
-// SongbooksFullscreen.setUp({button, hint, hintKey}) → {toggle, on}.
+// SongbooksFullscreen.setUp({button, hint, hintKey, cover}) → {toggle, on, supported}.
 (function () {
   const d = document;
   const root = d.documentElement;
@@ -50,6 +50,13 @@
   }
 
   function setUp(opts) {
+    // The whole screen, the notch's sides too (env(safe-area-inset-*) pads
+    // what must stay clear of it): what a phone on its side and the Home
+    // Screen app show.
+    if (opts.cover) {
+      const vp = d.querySelector('meta[name="viewport"]');
+      if (vp && !/viewport-fit/.test(vp.content)) vp.content += ', viewport-fit=cover';
+    }
     const btn = opts.button;
     const hint = opts.hint;
     const on = () => !!current();

@@ -720,6 +720,7 @@
     button: document.getElementById('ct-fullscreen'),
     hint: document.getElementById('ct-fs-hint'),
     hintKey: 'songbooks:ct-fullscreen-hint',
+    cover: true,
   }) : null;
   if (window.PlayerShell) window.PlayerShell.keys({
     title: t('The click track’s keys'),
