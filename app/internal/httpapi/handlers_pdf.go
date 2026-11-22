@@ -308,7 +308,7 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 		refs = append(refs, pdfnative.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: song.Write(sg)})
 	}
 	if len(refs) == 0 {
-		httpError(w, http.StatusNotFound, "this band's repertoire has no songs yet")
+		httpError(w, http.StatusNotFound, "this band's songbook has no songs yet")
 		return
 	}
 

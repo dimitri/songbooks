@@ -11,7 +11,7 @@
   ", take %d": ", prise %d",
   "Lesson %d · %s": "Cours %d · %s",
   "Proposed by %s · %d yes, %d veto so far": "Proposé par %s · %d oui, %d veto pour l’instant",
-  "Vote: add %q to %s's repertoire": "Vote : ajouter « %s » au répertoire de %s",
+  "Vote: add %q to %s's songbook": "Vote : ajouter « %s » au songbook de %s",
   "Vote: new reference for %q": "Vote : nouvelle référence pour « %s »",
   "a new reference URL": "une nouvelle URL de référence",
   "a new song": "un nouveau morceau",

@@ -29,7 +29,7 @@
       </div>
       <fieldset class="field-group">
         <legend>{{t "What the band plays"}}</legend>
-        <p class="field-hint" id="music-type-hint">{{t "An original band’s repertoire is grouped by album."}}</p>
+        <p class="field-hint" id="music-type-hint">{{t "An original band’s songbook is grouped by album."}}</p>
         <label class="check"><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> {{t "Covers"}}</label>
         <label class="check"><input type="radio" name="musicType" value="original" aria-describedby="music-type-hint"{{if eq .Band.MusicType "original"}} checked{{end}}> {{t "Original music"}}</label>
         <label class="check"><input type="radio" name="musicType" value="" aria-describedby="music-type-hint"{{if eq .Band.MusicType ""}} checked{{end}}> {{t "Not set"}}</label>
@@ -65,7 +65,7 @@
 
   <div class="card card--narrow danger-zone">
     <h2>{{t "Delete the band"}}</h2>
-    <p class="hint">{{t "Deletes %s, its repertoire, set lists and calendar, for every member. This can’t be undone." .Band.Name}}</p>
+    <p class="hint">{{t "Deletes %s, its songbook, set lists and calendar, for every member. This can’t be undone." .Band.Name}}</p>
     <button type="button" id="delete-band-btn" class="danger">{{t "Delete %s" .Band.Name}}</button>
     <p id="delete-band-result" class="form-status" role="status"></p>
   </div>
@@ -102,7 +102,7 @@ if (localeSelect) localeSelect.addEventListener('change', async () => {
   Forms.status(status, t('Couldn’t save the language. Try again.'), 'error');
 });
 document.getElementById('delete-band-btn').addEventListener('click', async (e) => {
-  if (!confirm(t('Delete %s and its whole repertoire for every member? This can’t be undone.', bandName))) return;
+  if (!confirm(t('Delete %s and its whole songbook for every member? This can’t be undone.', bandName))) return;
   const btn = e.currentTarget;
   Forms.busy(btn, true);
   const res = await fetch(`/api/bands/${bandId}`, {method: 'DELETE'}).catch(() => null);

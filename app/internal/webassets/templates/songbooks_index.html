@@ -17,7 +17,7 @@
 </header>
 <main class="index">
   {{template "library-segments" "songbooks"}}
-  <p class="catalog-intro">{{t "Every songbook you can open: your own personal collections, and your bands' shared repertoires."}}</p>
+  <p class="catalog-intro">{{t "Every songbook you can open: your own personal collections, and your bands' shared songbooks."}}</p>
 
   <h2 class="catalog-books-heading">{{t "My songbooks"}}</h2>
   {{if .MySongbooks}}
@@ -41,18 +41,18 @@
     <p id="create-songbook-result" class="form-status" role="status"></p>
   </form>
 
-  <h2 class="catalog-books-heading">{{t "Band repertoires"}}</h2>
+  <h2 class="catalog-books-heading">{{t "Band songbooks"}}</h2>
   {{if .BandCards}}
   <div class="catalog-book-cards">
   {{range .BandCards}}
     <a class="catalog-book-card" href="/bands/{{.ID}}/catalog">
       <div class="catalog-book-card-title">{{.Name}}</div>
-      <div class="catalog-book-card-meta">{{tn .Members "%d member" "%d members"}} &middot; {{t "repertoire"}}</div>
+      <div class="catalog-book-card-meta">{{tn .Members "%d member" "%d members"}} &middot; {{t "songbook"}}</div>
     </a>
   {{end}}
   </div>
   {{else}}
-  <p class="hint">{{t "You're not in a band yet —"}} <a href="/bands">{{t "start one"}}</a> {{t "to get a shared repertoire."}}</p>
+  <p class="hint">{{t "You're not in a band yet —"}} <a href="/bands">{{t "start one"}}</a> {{t "to get a shared songbook."}}</p>
   {{end}}
 
   <h2 class="catalog-books-heading">{{t "Community songbooks"}}</h2>
