@@ -554,6 +554,27 @@
     const floor = (d && d.height ? Math.min(window.innerHeight, d.top) : window.innerHeight) - 12;
     if (top < 56 || bottom > floor) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
   }
+  // The player moved (a click, a key, ⏮): the cursor goes there at once,
+  // stopped too — at the start the player's place reads as none, and the
+  // cursor stayed where it was (⏮ looked dead). Back at the start, the
+  // score's first line comes back into sight when scrolled past.
+  document.addEventListener('songbooks:player-seek', (e) => {
+    if (!full || sheet.dataset.renderMode !== 'score' || !full.barMs.length) return;
+    const out = full.api.player && full.api.player.output;
+    const bar = e.detail ? e.detail.bar : null;
+    if (!out || bar === null || bar === undefined) return;
+    const P = window.songbooksPlayer;
+    const ms = msAtBar(Math.max(0, bar)) / ((P && P.speed()) || 1);
+    full.lastMs = ms;
+    quietly(() => out.updatePosition(ms));
+    if (bar > 0.01) return;
+    const sys = full.api.renderer.boundsLookup && full.api.renderer.boundsLookup.staffSystems && full.api.renderer.boundsLookup.staffSystems[0];
+    const surface = page.querySelector('.gp-score-canvas .at-surface');
+    const b = sys && (sys.realBounds || sys.visualBounds);
+    if (!b || !surface) return;
+    const top = surface.getBoundingClientRect().top + b.y;
+    if (top < 56) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
+  });
   function startFollowing() {
     if (!full || full.following) return;
     full.following = true;
