@@ -2599,7 +2599,7 @@ window.songbooksDecodable = function (buf) {
       m: () => toggleClick(),
       i: toggleCountIn,
       s: togglePitch,
-      f: () => (document.body.classList.contains('stage') ? false : setSheet(!sheetOpen())),
+      f: () => setSheet(!sheetOpen()),
     },
     help: [
       [t('Play / pause'), ' ', 'k'],

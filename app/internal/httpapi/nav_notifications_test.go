@@ -92,8 +92,9 @@ func TestNavNotifications(t *testing.T) {
 			t.Errorf("%s: %d bells, want the top bar's only", path, n)
 		}
 	}
-	if body := get(songPath); !strings.Contains(body, `id="song-toolbar-notifications"><a href="/notifications" class="nav-notifications-dot"`) {
-		t.Error("the song toolbar's slot has no notifications bell")
+	// The song page has no bell of its own (the main navigation's stays).
+	if body := get(songPath); strings.Contains(body, `id="song-toolbar-notifications"`) || strings.Contains(body, `class="nav-notifications-dot"`) {
+		t.Error("the song page still has its own notifications bell")
 	}
 
 	// All read: the count goes.
