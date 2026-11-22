@@ -394,7 +394,8 @@
     s.player.enablePlayer = true;
     s.player.enableCursor = true;
     s.player.enableUserInteraction = true;
-    s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+    // The file's own subset of the soundfont (gp-soundfont.js).
+    const soundFontURL = window.GPSoundFont ? GPSoundFont.player(s, sc) : (s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2');
     s.player.scrollElement = prev.querySelector('.gpprev-body');
     if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledSynthesizer;
     for (const n of ['ScoreCopyright']) if (alphaTab.NotationElement[n] !== undefined) s.notation.elements.set(alphaTab.NotationElement[n], false);
@@ -404,6 +405,7 @@
       if (!holder.clientWidth && tries > 0) { requestAnimationFrame(() => draw(tries - 1)); return; }
       const api = new alphaTab.AlphaTabApi(holder, s);
       prevApi = api;
+      if (window.GPSoundFont) GPSoundFont.attach(api, soundFontURL);
       api.renderScore(sc, [...shown].sort((a, b) => a - b));
       api.playerReady.on(() => { play.disabled = false; });
       api.playerStateChanged.on((e) => {

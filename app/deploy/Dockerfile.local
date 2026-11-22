@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL -o /usr/local/bin/yt-dlp \
         https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
+# GeneralUser GS, as deploy/Dockerfile fetches it (the pins are there;
+# deploy/fetch-soundfont.sh reads them from it, docs/soundfont.md).
+COPY deploy/Dockerfile deploy/fetch-soundfont.sh /tmp/soundfont/
+RUN sh /tmp/soundfont/fetch-soundfont.sh /usr/local/share/songbooks && rm -rf /tmp/soundfont
 COPY --from=builder /out/songbooks /usr/local/bin/songbooks
 COPY --from=builder /out/sbdemo /usr/local/bin/sbdemo
 EXPOSE 8080

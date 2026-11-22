@@ -178,7 +178,10 @@
   // score.
 
   const page = document.getElementById('gp-score-page');
-  const SOUNDFONT = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+  // The soundfont: the score's own subset of GeneralUser GS, as its
+  // instruments are chosen (gp-soundfont.js); Sonivox without it.
+  const soundFont = (score) => (window.GPSoundFont ? GPSoundFont.bytesFor(score)
+    : fetch('/static/js/vendor/alphatab/soundfont/sonivox.sf2').then((r) => { if (!r.ok) throw new Error('soundfont'); return r.arrayBuffer(); }).then((b) => new Uint8Array(b)));
   const ink = (hex) => new alphaTab.model.Color(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
   // { api, score, shown: Set, geo, played: [MasterBarTickLookup], barMs: [], quiet, lastMs, playing, cycleKey }
   let full = null;
@@ -361,9 +364,8 @@
   }
   // The file through the synthesizer, as a WAV; progress(percent) as it goes.
   async function renderWav(progress) {
-    const sf = await fetch(SOUNDFONT).then((r) => { if (!r.ok) throw new Error('soundfont'); return r.arrayBuffer(); });
     const opts = new alphaTab.synth.AudioExportOptions();
-    opts.soundFonts = [new Uint8Array(sf)];
+    opts.soundFonts = [await soundFont(full.score)];
     opts.sampleRate = 44100;
     opts.useSyncPoints = false;
     opts.metronomeVolume = 0;

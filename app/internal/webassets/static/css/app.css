@@ -4543,6 +4543,8 @@ a.account-menu-row:hover, button.account-menu-row:hover { background: var(--bg-s
     transition: width 0.15s ease, flex-basis 0.15s ease, margin-right 0.15s ease, box-shadow 0.15s ease;
   }
   body:not(.drawer-open) .desktop-sidebar.is-rail:is(:hover, :focus-within) {
+    /* Open over the page, it's over the player's dock too (z-index 58). */
+    z-index: 60;
     flex-basis: 236px; width: 236px; margin-right: -172px;
     padding-left: 0.85rem; padding-right: 0.85rem; box-shadow: 0 0 28px rgb(0 0 0 / 0.28);
   }

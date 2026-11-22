@@ -110,8 +110,8 @@ func TestSongActions(t *testing.T) {
 				t.Errorf("%s: %s has no Tap tempo", c.name, where)
 			}
 		}
-		if tools := between(t, page, "tools-stack", "</div>"); strings.Contains(tools, "data-tuner-open") {
-			t.Errorf("%s: the tuner is still in the Outils sheet", c.name)
+		if tools := between(t, page, "tools-stack", "</div>"); !strings.Contains(tools, "data-tuner-open") {
+			t.Errorf("%s: the Outils sheet has no tuner", c.name)
 		}
 		dialog := between(t, page, "tap-tempo-dialog", "</dialog>")
 		if !strings.Contains(page, `id="tap-tempo-dialog" aria-labelledby="tap-tempo-title" data-variant-id="`+itoa(song)+`" data-song-tempo="96"`) {
