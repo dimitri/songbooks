@@ -29,7 +29,7 @@
 
     {{if eq .Step 1}}
     <h2>{{t "Welcome to Songbooks"}}</h2>
-    <p>{{t "Chord charts, lyrics, your bands' repertoires, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs."}}</p>
+    <p>{{t "Chord charts, lyrics, your bands' songbooks, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs."}}</p>
     <div class="wizard-actions">
       <a class="primary" href="/welcome?step=2{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Let's go"}}</a>
       <form method="post" action="/welcome/finish" class="button-form">

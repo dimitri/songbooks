@@ -87,7 +87,7 @@
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
           <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByUsername}}</p>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove from repertoire"}}</button>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove from the songbook"}}</button>
           <p class="form-status" role="status"></p>
         </div>
       </details>
@@ -150,13 +150,13 @@ const bandLibrary = window.LibraryMatch ? LibraryMatch.attach({
   title: document.getElementById('new-variant-title'),
   artist: document.getElementById('new-variant-artist'),
   host: document.getElementById('new-variant-library-match'),
-  addLabel: t('Add to the repertoire'),
+  addLabel: t('Add to the songbook'),
   add: async (hit) => {
     const res = await fetch(`/api/bands/${bandId}/catalog`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({variantId: hit.variantId}),
     }).catch(() => null);
-    if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to the repertoire. Try again.', hit.title));
+    if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to the songbook. Try again.', hit.title));
     location.href = `/song/${hit.variantId}?band=${bandId}`;
   },
   isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
@@ -203,7 +203,7 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
     const res = await fetch(url, opts).catch(() => null);
     if (res && res.ok) { location.reload(); return; }
     Forms.busy(btn, false);
-    Forms.status(resultMsg, t('Couldn’t add “%s”. It may already be in the repertoire; if not, try again.', hit.title), 'error');
+    Forms.status(resultMsg, t('Couldn’t add “%s”. It may already be in the songbook; if not, try again.', hit.title), 'error');
   }
 
   async function search() {
@@ -269,7 +269,7 @@ document.getElementById('new-variant-form').addEventListener('submit', async (e)
 })();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(t('Remove “%s” from the band’s repertoire?', btn.dataset.title))) return;
+    if (!confirm(t('Remove “%s” from the band’s songbook?', btn.dataset.title))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/api/bands/${bandId}/catalog/${btn.dataset.variantId}`, {method: 'DELETE'}).catch(() => null);
     if (res && res.ok) { btn.closest('.gig-row').remove(); return; }

@@ -700,7 +700,7 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 		}
 		bandCards = append(bandCards, card)
 		for _, p := range proposals {
-			title := i18n.T(lang, "Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
+			title := i18n.T(lang, "Vote: add %q to %s's songbook", p.TargetTitle, b.Name)
 			if p.Kind == "new_reference" {
 				title = i18n.T(lang, "Vote: new reference for %q", p.TargetTitle)
 			}

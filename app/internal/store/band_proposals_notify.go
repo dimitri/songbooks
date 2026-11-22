@@ -33,7 +33,7 @@ func (st *Store) notifyProposalDecided(ctx context.Context, p *BandProposal, new
 		if title == "" {
 			title = fmt.Sprintf("variant %d", *p.TargetVariantID)
 		}
-		what = fmt.Sprintf("your proposal to add %q to %s's repertoire", title, band.Name)
+		what = fmt.Sprintf("your proposal to add %q to %s's songbook", title, band.Name)
 	case "new_reference":
 		title := p.TargetTitle
 		if title == "" {

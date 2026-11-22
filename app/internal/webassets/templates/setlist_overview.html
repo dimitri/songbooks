@@ -91,7 +91,7 @@
     <h2>{{t "Add songs"}}</h2>
     <form class="form-stack" id="add-songs-form" role="search">
       <div class="field">
-        <label for="add-songs-q">{{if .IsBand}}{{t "Song from the repertoire"}}{{else}}{{t "Song from the library"}}{{end}}</label>
+        <label for="add-songs-q">{{if .IsBand}}{{t "Song from the songbook"}}{{else}}{{t "Song from the library"}}{{end}}</label>
         <p class="field-hint" id="add-songs-hint">{{if .IsBand}}{{t "Type part of a title or artist."}}{{else}}{{t "Type a title or an artist, then search."}}{{end}}</p>
         <input type="search" id="add-songs-q" aria-describedby="add-songs-hint" autocomplete="off" enterkeyhint="search">
       </div>

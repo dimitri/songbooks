@@ -26,7 +26,7 @@
        underlying proposal/vote queue (Discover is just open 'new_song'
        proposals) — see listening_party.html's own comment for why. */}}
 
-  <p class="hint">{{t "Suggest a song for the repertoire, or a new reference recording. It goes in once more than half of the %d members vote yes; one veto turns it down. Any member can also accept or reject it directly." .MemberCount}}</p>
+  <p class="hint">{{t "Suggest a song for the songbook, or a new reference recording. It goes in once more than half of the %d members vote yes; one veto turns it down. Any member can also accept or reject it directly." .MemberCount}}</p>
 
   <div class="form-with-list">
     <div class="card">
@@ -34,7 +34,7 @@
       <form class="form-stack" id="create-proposal-form">
         <fieldset class="field-group">
           <legend>{{t "What are you suggesting?"}}</legend>
-          <label class="check"><input type="radio" name="proposal-kind" value="new_song" checked> {{t "A song for the repertoire"}}</label>
+          <label class="check"><input type="radio" name="proposal-kind" value="new_song" checked> {{t "A song for the songbook"}}</label>
           <label class="check"><input type="radio" name="proposal-kind" value="new_reference"> {{t "A reference recording for a song already in it"}}</label>
         </fieldset>
         <div class="field">

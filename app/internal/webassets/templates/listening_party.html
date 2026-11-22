@@ -21,7 +21,7 @@
   {{template "space-nav" .Space}}
   <div class="songbook-head">{{template "space-views" .Space}}</div>
 
-  <p class="hint">{{t "Throw in songs you’d like the band to check out, then vote right here — these are the band’s open song proposals on their own (see"}} <a href="/bands/{{.Band.ID}}/catalog/vote">{{t "all proposals"}}</a>{{t "), so a session doesn’t get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the repertoire once more than half of the band’s %d current members vote yes." .MemberCount}}</p>
+  <p class="hint">{{t "Throw in songs you’d like the band to check out, then vote right here — these are the band’s open song proposals on their own (see"}} <a href="/bands/{{.Band.ID}}/catalog/vote">{{t "all proposals"}}</a>{{t "), so a session doesn’t get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the songbook once more than half of the band’s %d current members vote yes." .MemberCount}}</p>
 
   <div class="card" style="max-width:520px">
     <h2>{{t "Throw in a song"}}</h2>
