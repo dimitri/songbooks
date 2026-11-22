@@ -1023,7 +1023,12 @@
           if (window.GPInstruments) GPInstruments.setProgram(st, p); else st.playbackInfo.program = p;
         });
       }
-      if (isPlayer) applyInstruments(score);
+      let soundFontURL = null;
+      if (isPlayer) {
+        applyInstruments(score);
+        // The score's own subset of the soundfont (gp-soundfont.js).
+        if (window.GPSoundFont) soundFontURL = GPSoundFont.player(settings, score);
+      }
       setStaffNotation(score, tr);
       applyBarWidths(score, target);
       tr.renderedPx = target;
@@ -1041,6 +1046,7 @@
       api.postRenderFinished.on(() => fitNotation(tr));
       if (isPlayer) {
         playerApi = api;
+        if (soundFontURL) GPSoundFont.attach(api, soundFontURL);
         api.playerReady.on(() => { synthReady = true; applyMix(); if (resumeAfterMidi) { resumeAfterMidi = false; play(); } if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
         api.playerStateChanged.on((e) => { synthPlaying = e.state === 1; });
         api.playerFinished.on(() => { if (!hasAudio()) pause(); });
@@ -1052,7 +1058,8 @@
   // ---- Instruments (gp-instruments.js) ------------------------------------
   // The score plays each file track with the instrument chosen for the
   // song (by its editors, or by this person); a new choice reloads the
-  // synthesizer's MIDI, playing on from where it was.
+  // synthesizer's MIDI (and its soundfont, when the new instrument isn't
+  // in it: gp-soundfont.js), playing on from where it was.
   let resumeAfterMidi = false;
   function applyInstruments(score) {
     if (!window.GPInstruments) return false;
@@ -1063,12 +1070,15 @@
     });
     return changed;
   }
-  document.addEventListener('songbooks:gp-instrument', (e) => {
+  document.addEventListener('songbooks:gp-instrument', async (e) => {
     if (e.detail.variantId !== String(variantId) || !playerApi || !playerApi.score) return;
     if (!applyInstruments(playerApi.score)) return;
     // With no recording the synthesizer is the clock: it stops to reload.
     if (playing && !hasAudio()) { pause(); resumeAfterMidi = true; }
     synthReady = false;
+    if (window.GPSoundFont) {
+      try { await GPSoundFont.update(playerApi, playerApi.score); } catch (err) { /* the one it has */ }
+    }
     playerApi.loadMidiForScore();
   });
 

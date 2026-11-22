@@ -2192,6 +2192,9 @@
 <script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-align.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
+{{/* The soundfont a score plays with: its own subset of the server's
+     bank (soundfontID), docs/soundfont.md. */}}
+<script src="/static/js/gp-soundfont.js?v={{staticVersion}}" data-soundfont="{{soundfontID}}"></script>
 <script src="/static/js/gp-instruments.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-view.js?v={{staticVersion}}"></script>
 {{if and .CanEdit .GPFileName}}<script src="/static/js/gp-bar-picker.js?v={{staticVersion}}"></script>{{end}}

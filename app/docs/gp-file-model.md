@@ -191,7 +191,8 @@ with the facts and stores the differences.
   music — A4 pages, four bars a line where they fit — with a track
   picker and tab/staff. It plays in the song's player, the dock, like
   every other view: the song's recording (the file's backing track is
-  one, `gp`), else the file through alphaTab's synthesizer, rendered
+  one, `gp`), else the file through alphaTab's synthesizer (with
+  GeneralUser GS, cut down to the file's instruments: soundfont.md), rendered
   once in the browser (`exportAudio`) and handed to the dock as its
   sound, waveform and all. alphaTab's player follows the dock
   (`PlayerMode.EnabledExternalMedia`): the cursor, a click on a note,

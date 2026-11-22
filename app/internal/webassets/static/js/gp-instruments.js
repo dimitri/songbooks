@@ -1,10 +1,12 @@
 // The instrument each track of a song's Guitar Pro file plays with.
 //
 // A file names a General MIDI program per track, and the app plays it
-// (alphaTab's synthesizer, the Sonivox soundfont shipped with it: every
-// GM program). That program is often not the one wanted: GProTab files
-// carry a nylon guitar or a piano for anything, and Sonivox's nylon
-// guitar, three short samples, is easily heard as a piano. So the
+// (alphaTab's synthesizer, with GeneralUser GS cut down to the programs
+// the score plays: gp-soundfont.js, docs/soundfont.md; Sonivox, the
+// soundfont shipped with alphaTab, without it: its nylon guitar, three
+// short samples, is easily heard as a piano). That program is often not
+// the one wanted: GProTab files carry a nylon guitar or a piano for
+// anything. So the
 // person who plays the score picks one, track by track, from a short
 // list grouped by family (pickerFor below), where the score plays: the
 // Score view (gp-view.js) and the full Mixer (mixer.js).
