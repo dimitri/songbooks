@@ -7425,7 +7425,7 @@ body:has(#lesson-tabs) #view-stack :is([data-forward]:not([data-forward="score"]
    stays, docked). */
 .lesson-stage { margin: 0 0 1rem; }
 .lesson-stage .lesson-panel { margin: 0; }
-.lesson-stage[data-tab="video"]:has(.lesson-stage-video + .lesson-panel) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem); gap: 1rem; align-items: start; }
+.lesson-stage[data-tab="video"]:has(.lesson-stage-video + .lesson-panel) { display: grid; grid-template-columns: minmax(0, 54rem) minmax(16rem, 22rem); justify-content: center; gap: 1rem; align-items: start; }
 .lesson-stage[data-tab="video"] .lesson-stage-video + .lesson-panel .lesson-panel-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "progress" "actions"; gap: 0.75rem; }
 .lesson-stage[data-tab="video"] .lesson-stage-video + .lesson-panel .lesson-panel-name { white-space: normal; }
 .lesson-stage[data-tab="video"] .lesson-stage-video + .lesson-panel .lesson-panel-actions { flex-wrap: wrap; }

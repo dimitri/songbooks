@@ -10,7 +10,7 @@
 // The tabs follow the mode, whoever changes it (the player's Mixer
 // button, its "Open the mixer", the phone's sheets): the Mixer opened from
 // the player is this Mixer tab, and leaving it comes back to the view it
-// left.
+// left (a chart's view asked for is the lesson's Video or Score).
 //
 // The video loads when played: its thumbnail until then (no YouTube on
 // the page before), then YouTube's player, which plays on, docked in a
@@ -42,8 +42,13 @@
   const hasVideo = !!tabs.querySelector('[data-lesson-tab="video"]');
   // The view the Score mode shows: the video's or the score alone.
   let scoreTab = tabs.dataset.tab === 'video' && hasVideo ? 'video' : 'score';
+  // The chart's own views aren't the lesson's: whatever asks for one (the
+  // player's Mixer button going back to "the chart" it left, a key) gets
+  // the lesson's view it was on, its video or its score.
+  const CHART = ['normal', 'jazz', 'map', 'lyrics', 'drummer'];
   function paint() {
     const mode = sheet.dataset.renderMode;
+    if (CHART.includes(mode) && modeButton('score')) { modeButton('score').click(); return; }
     const tab = mode === 'score' ? scoreTab : mode === 'mixer' ? 'mixer' : '';
     tabs.dataset.tab = tab;
     if (stage) stage.dataset.tab = tab;
