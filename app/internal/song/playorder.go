@@ -123,7 +123,10 @@ func hasPass(xs []int, x int) bool {
 func playShape(ms []Measure) []playBracket {
 	n := len(ms)
 	var out []playBracket
-	i, segStart := 0, 0
+	// A lead (lead.go) is played once, before the grid: a ":|" with no
+	// "|:" repeats from the bar after it.
+	i := LeadBars(ms)
+	segStart := i
 	for i < n {
 		o, c := -1, -1
 		for k := i; k < n; k++ {

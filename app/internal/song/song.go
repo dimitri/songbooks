@@ -226,6 +226,15 @@ type Section struct {
 	// grid exactly as written, same as before this field existed.
 	Times int
 
+	// Lead is the "lead:" line: how many bars are played before the
+	// section's first bar — a count-in, an instrument's lead-in. 0 when
+	// absent. LeadGrid holds their chords when the line writes them as a
+	// grid ("lead: | G |", Lead == len(LeadGrid)); nil for a bare count
+	// ("lead: 1", a bar of rest). See LeadMeasures and WithLeads (lead.go)
+	// for what the bars mean.
+	Lead     int
+	LeadGrid []Measure
+
 	// BarsPerLine mirrors the "bars:" line: nil if absent (default of 4
 	// measures/line applies), one element for a uniform override ("bars: 6"),
 	// or several for an explicit per-row list ("bars: 4,5").
@@ -267,6 +276,11 @@ type Measure struct {
 	RepeatCount int
 	Volta       string // raw volta marker, e.g. "1." or "1,2,3.", "" if absent
 	Meter       string // raw per-bar meter override, e.g. "2/4", "" if absent
+
+	// Lead marks a bar WithLeads (lead.go) wrote into the grid from the
+	// section's "lead:" line. Never set by Parse, never written by Write:
+	// it only exists in a song a renderer expanded for playing.
+	Lead bool
 }
 
 // LyricLine is one chorded lyric line: "Some [Gm]words here".

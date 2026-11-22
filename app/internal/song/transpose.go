@@ -150,6 +150,14 @@ func TransposeText(src string, opt TransposeOptions) (*TransposeResult, error) {
 		case strings.HasPrefix(line, "grid:"):
 			i := strings.Index(raw, "grid:") + len("grid:")
 			out = append(out, raw[:i]+tr.grid(raw[i:]))
+		case strings.HasPrefix(line, "lead:") && validLead(line[5:]):
+			// A count passes through; a lead written as bars has chords.
+			i := strings.Index(raw, "lead:") + len("lead:")
+			if strings.HasPrefix(strings.TrimSpace(raw[i:]), "|") {
+				out = append(out, raw[:i]+tr.grid(raw[i:]))
+			} else {
+				out = append(out, raw)
+			}
 		case strings.HasPrefix(line, "|") && !lyricsStarted:
 			out = append(out, tr.grid(raw))
 		default:
