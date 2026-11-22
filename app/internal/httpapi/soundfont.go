@@ -22,6 +22,14 @@ func init() {
 	webassets.SoundfontID = func() string { return SoundFonts.ID() }
 }
 
+// UseSoundFont serves subsets of the bank at path, cached in dir up to
+// maxBytes; the bank is read (and hashed) now, in the background, and the
+// log says which it is.
+func UseSoundFont(path, dir string, maxBytes int64) {
+	SoundFonts = soundfont.NewSubsets(path, dir, maxBytes)
+	go LogSoundFont()
+}
+
 // LogSoundFont says at startup which bank scores play with.
 func LogSoundFont() {
 	if SoundFonts == nil {
