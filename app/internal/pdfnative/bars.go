@@ -690,6 +690,15 @@ func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float
 		start := 0
 		for start < len(sec.Measures) {
 			n := barsPerLineFor(sec, lineIdx)
+			// In a half-width column (the two-column Song/Lyrics layout)
+			// a staff row holds at most 4 bars, scaled to the column —
+			// the web Song view's own cap (song.js reflowStaffLines,
+			// modeCap 4) — so a section authored "bars: 8" for a
+			// full-width page doesn't cram 8 bars into half the width.
+			// Jazz keeps its own density, as on the web.
+			if mode != ModeJazz && n > 4 && c.colW < contentWidth()-1 {
+				n = 4
+			}
 			end := start + n
 			if end > len(sec.Measures) {
 				end = len(sec.Measures)

@@ -17,9 +17,10 @@ type contentsEntry struct {
 // renderContentsPage draws the linked title/key/tempo[/page] table, grouped
 // by Set with a visible break (blank row + rule) between groups and
 // "Encore" (or any other group name) working as just another label — the
-// native equivalent of v2/lib/book.typ's contents(). Always two columns:
-// a 60+ song songbook fits one page that way, the same reason the Typst
-// pipeline it replaces made the same choice.
+// native equivalent of v2/lib/book.typ's contents(). One full-width
+// column whenever the list fits the page that way (a set list's 20-30
+// songs, with room for long titles and artist names); two columns only
+// for a list too long for one (a 60+ song songbook) — see contentsLayout.
 func renderContentsPage(doc *gopdf.GoPdf, title, subtitle string, entries []contentsEntry, withPage bool, th theme) {
 	renderContentsPageSized(doc, title, subtitle, entries, withPage, th, false)
 }
@@ -42,17 +43,33 @@ func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries [
 	paintPageBackground(doc, th)
 
 	y := marginY
-	doc.SetFont(faceSerif, "", 22)
-	doc.SetTextColor(th.ink.r, th.ink.g, th.ink.b)
-	doc.SetXY(marginX, y+16)
-	doc.Text(title)
-
 	countLabel := strconv.Itoa(len(entries)) + " SONGS"
 	doc.SetFont(faceSansBold, "", 8.5)
 	cw, _ := doc.MeasureTextWidth(countLabel)
 	doc.SetTextColor(th.meta.r, th.meta.g, th.meta.b)
 	doc.SetXY(pageW-marginX-cw, y+14)
 	doc.Text(countLabel)
+
+	// The heading stays clear of the count label: shrunk (22pt down to
+	// 14pt) and, if still too long, wrapped onto more lines.
+	headW := contentWidth() - cw - 12
+	headSize := 22.0
+	for headSize > 14 {
+		doc.SetFont(faceSerif, "", headSize)
+		if w, _ := doc.MeasureTextWidth(title); w <= headW {
+			break
+		}
+		headSize -= 1
+	}
+	doc.SetTextColor(th.ink.r, th.ink.g, th.ink.b)
+	for i, ln := range wrapToWidth(doc, title, faceSerif, headSize, headW) {
+		if i > 0 {
+			y += headSize * 1.2
+		}
+		doc.SetFont(faceSerif, "", headSize)
+		doc.SetXY(marginX, y+16)
+		doc.Text(ln)
+	}
 	y += 22
 
 	if subtitle != "" {
@@ -67,34 +84,14 @@ func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries [
 	doc.Line(marginX, y, pageW-marginX, y)
 	y += 10
 
-	c := newCanvas(doc, true, th, 2, false)
+	headerH := 11.0
+	cols, rowH := contentsLayout(entries, contentBottom()-y, headerH)
+	c := newCanvas(doc, true, th, cols, false)
 	c.top = y
 	c.y = y
 	c.bottom = contentBottom()
+	avail := (c.bottom-c.top-headerH-4)*float64(cols) - float64(contentsGroups(entries))*13
 
-	// Row height shrinks (never the song-page approach's "allow a 2nd
-	// page") so a songbook of any realistic size stays a single contents
-	// page, the same deliberate choice v2/lib/book.typ's own two-column
-	// contents() made — this is also what lets ExportSetlist number song
-	// pages deterministically (cover=1, title=2, contents=3, songs start
-	// at 4) without a two-pass render.
-	headerH := 11.0
-	groups := 0
-	var lastG string
-	for i, e := range entries {
-		if e.Group != "" && (i == 0 || e.Group != lastG) {
-			groups++
-			lastG = e.Group
-		}
-	}
-	avail := (c.bottom-c.top-headerH-4)*2 - float64(groups)*13
-	rowH := 15.0
-	for _, candidate := range []float64{15, 13, 11.5, 10, 9, 8} {
-		rowH = candidate
-		if avail/rowH >= float64(len(entries)) {
-			break
-		}
-	}
 	// growToFill: once we know rows fit at 15pt (the ladder above never
 	// needed to shrink), scale UP instead of leaving the rest of the page
 	// blank — capped well short of silly-looking (28pt) and still bounded
@@ -132,17 +129,26 @@ func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries [
 		c.y += 3
 	}
 	drawHeader()
+	// space is ensureSpace that repeats the column header at the top of
+	// column 2 when the table continues there.
+	space := func(h float64) {
+		col := c.colIdx
+		c.ensureSpace(h)
+		if c.colIdx != col {
+			drawHeader()
+		}
+	}
 
 	var lastGroup string
 	first := true
 	for i, e := range entries {
 		if e.Group != "" && (first || e.Group != lastGroup) {
 			if !first {
-				c.ensureSpace(rowH + 10)
+				space(rowH + 10)
 				c.line(c.curX(), c.y, c.curX()+c.colW, c.y, th.line, 0.5)
 				c.y += 10
 			}
-			c.ensureSpace(13)
+			space(13)
 			doc.SetFont(faceSansBold, "", 8.5)
 			doc.SetTextColor(accentAmber.r, accentAmber.g, accentAmber.b)
 			doc.SetXY(c.curX(), c.y+9)
@@ -152,7 +158,7 @@ func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries [
 		}
 		first = false
 
-		c.ensureSpace(rowH)
+		space(rowH)
 		baseline := c.y + rowH*0.68
 		// Row font sizes scale with rowH (floored at 0.6x) so a large
 		// songbook that needed smaller rows to stay on one page doesn't
@@ -294,4 +300,49 @@ func renderContentsPageSized(doc *gopdf.GoPdf, title, subtitle string, entries [
 		c.y += rowH
 		c.line(c.curX(), c.y, c.curX()+c.colW, c.y, th.line, 0.35)
 	}
+}
+
+// contentsGroups counts the group labels (Set 1, Set 2, Encore…) the
+// table prints, each taking a 13pt label row.
+func contentsGroups(entries []contentsEntry) int {
+	groups := 0
+	var lastG string
+	for i, e := range entries {
+		if e.Group != "" && (i == 0 || e.Group != lastG) {
+			groups++
+			lastG = e.Group
+		}
+	}
+	return groups
+}
+
+// contentsRowHeights is the row-height ladder the contents table shrinks
+// down to keep every entry on one page; contentsOneColMinRow is the
+// smallest row a one-column table may use before the table goes to two
+// columns instead (below it the text gets small, and two columns at a
+// bigger row read better than one at a tiny one).
+var contentsRowHeights = []float64{15, 13, 11.5, 10, 9, 8}
+
+const contentsOneColMinRow = 11.5
+
+// contentsLayout picks the contents table's column count and row height
+// for the given entries and available height (from the top of the table
+// to the bottom margin, column header included): one full-width column
+// when every entry fits at a row height of at least contentsOneColMinRow,
+// else two columns at the largest ladder row height that fits.
+func contentsLayout(entries []contentsEntry, availH, headerH float64) (cols int, rowH float64) {
+	groups := float64(contentsGroups(entries))
+	n := float64(len(entries))
+	for _, cols := range []int{1, 2} {
+		avail := (availH-headerH-4)*float64(cols) - groups*13
+		for _, h := range contentsRowHeights {
+			if cols == 1 && h < contentsOneColMinRow {
+				break
+			}
+			if avail/h >= n {
+				return cols, h
+			}
+		}
+	}
+	return 2, contentsRowHeights[len(contentsRowHeights)-1]
 }

@@ -61,6 +61,7 @@ func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme, mode Mode, hideN
 	if mode == ModeMap {
 		return 1
 	}
+	cols = songCols(s, mode, cols)
 	size, allowPage2 := fitSongToPage(measureDoc, s, nil, th, mode, hideNotes, cols)
 	if !allowPage2 {
 		return 1
@@ -72,13 +73,13 @@ func songPages(measureDoc *gopdf.GoPdf, s *song.Song, th theme, mode Mode, hideN
 
 // buildEntries parses every SongRef once (shared by the song-page pass and
 // the contents table) and resolves each one's page number deterministically:
-// cover=1, title=2, contents=3, songs start at 4 — true as long as the
+// cover=1 (frontPages), contents=2, songs start at 3 — true as long as the
 // contents table itself is always exactly one page, which
 // renderContentsPage's row-shrinking guarantees (see its own doc comment).
 func buildEntries(refs []SongRef, th theme, withPages bool, mode Mode, hideNotes bool, cols int) ([]*song.Song, []contentsEntry) {
 	parsed := make([]*song.Song, len(refs))
 	entries := make([]contentsEntry, len(refs))
-	page := 4
+	page := frontPages + 2
 
 	var measureDoc *gopdf.GoPdf
 	if withPages && len(refs) > 0 {
@@ -110,9 +111,9 @@ func buildEntries(refs []SongRef, th theme, withPages bool, mode Mode, hideNotes
 	return parsed, entries
 }
 
-// ExportSetlist renders a cover page, a title page (event-aware when front
-// carries real date/venue/event-title, plain otherwise), a contents/
-// setlist page grouped by Set, then one page per song in order.
+// ExportSetlist renders one cover page (the title, plus band name and
+// date • venue when the set list is tied to a band/gig — see renderCover),
+// a contents/setlist page grouped by Set, then each song in order.
 func (r *Renderer) ExportSetlist(ctx context.Context, title string, front FrontMatter, refs []SongRef, opts Options) ([]byte, error) {
 	th := themeFor(opts.Theme)
 	doc, err := newDoc()
@@ -120,24 +121,7 @@ func (r *Renderer) ExportSetlist(ctx context.Context, title string, front FrontM
 		return nil, err
 	}
 
-	coverTitle := front.CoverTitle
-	if coverTitle == "" {
-		coverTitle = title
-	}
-	renderCover(doc, coverTitle)
-
-	// Same selection rule as render-book.typ: an event title page only
-	// when there's real event metadata to show, else the plain title
-	// plate (a songbook export, or a setlist with no gig attached).
-	if front.EventTitle != "" || front.Date != "" || front.Venue != "" {
-		eventTitle := front.EventTitle
-		if eventTitle == "" {
-			eventTitle = title
-		}
-		renderEventTitlePlate(doc, eventTitle, front.BandName, front.Date, front.Venue)
-	} else {
-		renderTitlePlate(doc, title, "")
-	}
+	renderFrontMatter(doc, title, front)
 
 	parsed, entries := buildEntries(refs, th, true, opts.Mode, opts.HideNotes, opts.Cols())
 	renderContentsPage(doc, title, "", entries, true, th)
@@ -153,6 +137,19 @@ func (r *Renderer) ExportSetlist(ctx context.Context, title string, front FrontM
 		}
 	}
 	return pdfBytes(doc)
+}
+
+// renderFrontMatter draws the export's front matter: exactly frontPages
+// (one) cover page, titled CoverTitle, else EventTitle, else title.
+func renderFrontMatter(doc *gopdf.GoPdf, title string, front FrontMatter) {
+	coverTitle := front.CoverTitle
+	if coverTitle == "" {
+		coverTitle = front.EventTitle
+	}
+	if coverTitle == "" {
+		coverTitle = title
+	}
+	renderCover(doc, coverTitle, front.BandName, front.Date, front.Venue)
 }
 
 // ExportSongbook renders an entire songbook (a project's full song list, or
