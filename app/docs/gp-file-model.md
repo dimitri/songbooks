@@ -115,6 +115,12 @@ the file's bar, as played, where the chart's first bar starts (here the
 file has two bars before it: a count-in, a silent lead-in). Absent, the
 chart starts on the file's first bar.
 
+A chart with a lead-in of its own (`lead: N` on its first section, see
+the format page) starts with its lead: `gp_start` names the file bar
+the lead's first bar falls on, and bar 1 of the chart is N bars later.
+A file opening with two count-in bars and a chart written `lead: 2`
+need no `gp_start` at all — the lead plays over the file's count-in.
+
 The GP import checks the file against the chart before keeping it (its
 step 3, *Check*): the chart's sections over the file's bars from
 `gp_start`, their bar counts against the file's own section markers

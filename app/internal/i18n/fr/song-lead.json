@@ -1,0 +1,19 @@
+{
+  "lead-in: played before bar 1, not counted": "amorce : jouée avant la mesure 1, non comptée",
+  "lead": "amorce",
+  "Lead-in": "Amorce",
+  "Bars played before the section's first bar — a count-in, an instrument's lead-in — without a section or a counted bar of their own:": "Des mesures jouées avant la première mesure de la partie — un décompte, l’entrée d’un instrument — sans partie ni mesure comptée à elles :",
+  "(a bar of rest), or bars with chords:": "(une mesure de silence), ou des mesures avec leurs accords :",
+  "On the song's first section, the lead bars are the song's lead-in: drawn on the section's first row, before its first bar, lighter and tagged “lead”; played, and counted in the recording's time (sync, loops, the player's bar grid), but not in the bar numbers — bar 1 stays the section's first written bar, the lead bar before it is bar 0 (with": "Sur la première partie du morceau, ces mesures sont l’amorce du morceau : dessinées sur la première ligne de la partie, avant sa première mesure, plus claires et marquées « amorce » ; jouées, et comptées dans le temps de l’enregistrement (synchro, boucles, grille des mesures du lecteur), mais pas dans la numérotation — la mesure 1 reste la première mesure écrite de la partie, la mesure d’amorce avant elle est la mesure 0 (avec",
+  ", bars -1 and 0). The set list's click track counts them in before bar 1.": ", les mesures -1 et 0). Le clic de la set list les compte avant la mesure 1.",
+  "is N bars of rest;": "donne N mesures de silence ;",
+  "writes them as a grid, one bar per": "les écrit comme une grille, une mesure par",
+  ", played once (repeat signs are ignored). A": ", jouées une fois (les signes de reprise sont ignorés). Une ligne",
+  "line counts the section's own bars only: the lead rides on its first row on top of them. A bare repeat of the section later doesn't play the lead again.": "ne compte que les mesures de la partie : l’amorce s’ajoute à sa première ligne. Une reprise de la partie plus loin ne rejoue pas l’amorce.",
+  "On a later section there is no “before the song”: its lead bars are played as that section's first bars and numbered like the rest.": "Sur une partie suivante, il n’y a pas d’« avant le morceau » : ses mesures d’amorce sont jouées comme les premières mesures de la partie et numérotées comme les autres.",
+  "Next to a Guitar Pro file,": "À côté d’un fichier Guitar Pro,",
+  "names the file's bar the chart's first played bar falls on — the lead's, when there is one: a file opening with a count-in bar and a chart with": "désigne la mesure du fichier où tombe la première mesure jouée de la grille — celle de l’amorce s’il y en a une : un fichier qui commence par une mesure de décompte et une grille avec",
+  "need no": "n’ont pas besoin de",
+  "+ %d lead bar": "+ %d mesure d’amorce",
+  "+ %d lead bars": "+ %d mesures d’amorce"
+}
