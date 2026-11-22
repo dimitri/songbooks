@@ -5,12 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-
-	"app/internal/setlist"
 )
 
 // Versions (docs/ownership-model.md §5): any change to a song is a
@@ -329,53 +326,11 @@ func insertInSongOrder(ctx context.Context, tx pgx.Tx, songbookID, after, to int
 	return nil
 }
 
-// repointOwnerSetlists changes owner's set lists' lines that are `from` to
+// repointOwnerSetlists changes owner's set lists' rows that are `from` to
 // `to`, a revision recorded for each set list changed.
 func (st *Store) repointOwnerSetlists(ctx context.Context, tx pgx.Tx, owner Owner, from, to, actorID int64) error {
-	col := songbookOwnerCol(owner.Kind)
-	rows, err := tx.Query(ctx, `
-		SELECT id, scope::text, title, notes, body, owner_person_id, owner_band_id
-		FROM setlists WHERE `+col+` = $1 AND body ~ ('variant:\s*' || $2::bigint::text || '(\D|$)')
-		ORDER BY id FOR UPDATE`, owner.ID, from)
-	if err != nil {
-		return err
-	}
-	type slRow struct {
-		id                        int64
-		scope, title, notes, body string
-		ownerPerson, ownerBand    *int64
-	}
-	var lists []slRow
-	for rows.Next() {
-		var r slRow
-		if err := rows.Scan(&r.id, &r.scope, &r.title, &r.notes, &r.body, &r.ownerPerson, &r.ownerBand); err != nil {
-			rows.Close()
-			return err
-		}
-		lists = append(lists, r)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	actor := &actorID
-	for _, r := range lists {
-		l := setlist.Parse(r.body)
-		if !RepointSetlist(l, from, to) {
-			continue
-		}
-		if err := st.RecordRevision(ctx, tx, "setlist", strconv.FormatInt(r.id, 10), actor, SetlistSnapshot{
-			Exists: true, Scope: r.scope, Title: r.title, Notes: r.notes,
-			Body: r.body, OwnerPersonID: r.ownerPerson, OwnerBandID: r.ownerBand,
-		}); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE setlists SET body = $1, version = version + 1 WHERE id = $2`,
-			setlist.Write(l), r.id); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := st.repointSetlistItems(ctx, tx, from, to, &actorID, `sl.`+songbookOwnerCol(owner.Kind)+` = $2`, owner.ID)
+	return err
 }
 
 // Publishing (§2): a song or a whole songbook goes public — everything

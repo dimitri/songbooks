@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"app/internal/setlist"
 )
 
 // RecordRevision snapshots entity's current editable-fields state into the
@@ -311,29 +313,14 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			return fmt.Errorf("revision %d has a non-numeric setlist id %q: %w", revisionID, entityID, err)
 		}
 
-		var curScope, curTitle, curNotes, curBody string
-		var curOwnerPerson, curOwnerBand *int64
-		err = tx.QueryRow(ctx, `
-			SELECT scope::text, title, notes, body, owner_person_id, owner_band_id
-			FROM setlists WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curScope, &curTitle, &curNotes, &curBody, &curOwnerPerson, &curOwnerBand)
-		rowExists := !errors.Is(err, pgx.ErrNoRows)
-		if err != nil && rowExists {
+		cur, _, rowExists, err := setlistSnapshot(ctx, tx, id)
+		if err != nil {
 			return err
 		}
 
 		actor := &actorPersonID
-		if rowExists {
-			if err := st.RecordRevision(ctx, tx, "setlist", entityID, actor, SetlistSnapshot{
-				Exists: true, Scope: curScope, Title: curTitle, Notes: curNotes,
-				Body: curBody, OwnerPersonID: curOwnerPerson, OwnerBandID: curOwnerBand,
-			}); err != nil {
-				return err
-			}
-		} else {
-			if err := st.RecordRevision(ctx, tx, "setlist", entityID, actor, SetlistSnapshot{Exists: false}); err != nil {
-				return err
-			}
+		if err := st.RecordRevision(ctx, tx, "setlist", entityID, actor, cur); err != nil {
+			return err
 		}
 
 		if !snap.Exists {
@@ -347,10 +334,15 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			if !rowExists {
 				return fmt.Errorf("setlist %d no longer exists, can't restore it: %w", id, ErrNotFound)
 			}
+			// The snapshot's text form back into rows (a revision recorded
+			// before migration 0115 is the body as it was then).
+			if err := writeSetlistItems(ctx, tx, id, setlist.Parse(snap.Body)); err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, `
-				UPDATE setlists SET title = $1, notes = $2, body = $3, version = version + 1
-				WHERE id = $4`,
-				snap.Title, snap.Notes, snap.Body, id); err != nil {
+				UPDATE setlists SET title = $1, notes = $2, version = version + 1
+				WHERE id = $3`,
+				snap.Title, snap.Notes, id); err != nil {
 				return err
 			}
 		}

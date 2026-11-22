@@ -88,9 +88,8 @@ func (st *Store) BandsHolding(ctx context.Context, personID, variantID int64) ([
 		  AND s.owner_band_id IS DISTINCT FROM b.id
 		  AND (EXISTS (SELECT 1 FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
 		               WHERE sb.owner_kind = 'band' AND sb.owner_band_id = b.id AND se.variant_id = s.id)
-		       OR EXISTS (SELECT 1 FROM setlists sl
-		                  WHERE sl.scope = 'band' AND sl.owner_band_id = b.id
-		                    AND sl.body ~ ('variant:\s*' || s.id::text || '(\D|$)')))
+		       OR EXISTS (SELECT 1 FROM setlists sl JOIN setlist_items i ON i.setlist_id = sl.id
+		                  WHERE sl.scope = 'band' AND sl.owner_band_id = b.id AND i.variant_id = s.id))
 		ORDER BY b.name, b.id`, personID, variantID)
 	if err != nil {
 		return nil, err
@@ -139,21 +138,6 @@ func (st *Store) VariantOwnerOf(ctx context.Context, variantID int64) (*VariantO
 		return nil, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
 	return &o, err
-}
-
-// RepointSetlist changes every item of l that is the song `from` to the
-// song `to`, and says whether any was.
-func RepointSetlist(l *setlist.Setlist, from, to int64) bool {
-	changed := false
-	for i := range l.Sets {
-		for j := range l.Sets[i].Entries {
-			if l.Sets[i].Entries[j].VariantID == from {
-				l.Sets[i].Entries[j].VariantID = to
-				changed = true
-			}
-		}
-	}
-	return changed
 }
 
 // SetlistVariantIDs lists the songs l's items point at, each once, in

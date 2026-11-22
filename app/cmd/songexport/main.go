@@ -47,6 +47,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"app/internal/groupfmt"
+	"app/internal/store"
 )
 
 // user carries every profile field EXCEPT password_hash and WebAuthn
@@ -620,7 +621,7 @@ func main() {
 	setlistUsedPaths := map[string]bool{}
 	var setlistList []setlistRecord
 	rows, err = pool.Query(ctx, `
-		SELECT id, title, notes, scope::text, owner_person_id, owner_band_id, owner_community_id, body, created_at
+		SELECT id, title, notes, scope::text, owner_person_id, owner_band_id, owner_community_id, created_at
 		FROM setlists ORDER BY id`)
 	must(err, "query setlists")
 	type setlistRow struct {
@@ -633,10 +634,15 @@ func main() {
 	var setlistRows []setlistRow
 	for rows.Next() {
 		var sl setlistRow
-		must(rows.Scan(&sl.ID, &sl.Title, &sl.Notes, &sl.Scope, &sl.OwnerPersonID, &sl.OwnerBandID, &sl.OwnerCommunityID, &sl.Body, &sl.CreatedAt), "scan setlist")
+		must(rows.Scan(&sl.ID, &sl.Title, &sl.Notes, &sl.Scope, &sl.OwnerPersonID, &sl.OwnerBandID, &sl.OwnerCommunityID, &sl.CreatedAt), "scan setlist")
 		setlistRows = append(setlistRows, sl)
 	}
 	rows.Close()
+	// Each one's text form, from its rows (setlist_items).
+	for i := range setlistRows {
+		setlistRows[i].Body, err = store.SetlistTextOf(ctx, pool, setlistRows[i].ID)
+		must(err, "read setlist")
+	}
 	for _, sl := range setlistRows {
 		var ownerName string
 		switch sl.Scope {
