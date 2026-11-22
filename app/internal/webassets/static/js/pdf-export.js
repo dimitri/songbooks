@@ -39,13 +39,12 @@ document.addEventListener('change', (e) => {
 
 // A songbook's or a set list's PDF (pdf_export.html): its button opens
 // the dialog of choices ([data-pdf-open] names it); downloading, a click
-// outside it or Cancel closes it, and focus goes back to the button.
+// outside it or Cancel closes it (focus goes back to the button).
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-pdf-open]');
   if (btn) {
     const dialog = document.getElementById(btn.dataset.pdfOpen);
     if (!dialog || dialog.open) return;
-    dialog.pdfOpener = btn;
     if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
     return;
   }
@@ -54,8 +53,4 @@ document.addEventListener('click', (e) => {
   if (e.target === dialog) dialog.close();
   else if (e.target.closest('a.pdf-export-link')) setTimeout(() => dialog.close(), 0);
 });
-document.addEventListener('close', (e) => {
-  const opener = e.target.pdfOpener;
-  if (opener && opener.offsetParent !== null) opener.focus();
-}, true);
 })();

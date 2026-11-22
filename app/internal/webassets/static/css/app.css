@@ -7765,6 +7765,7 @@ a.setlist-action:hover { text-decoration: none; }
    pencil stays in view, so renaming is found without hovering. */
 .setlist-name-row h1 { cursor: text; min-width: 0; }
 button.icon-btn.setlist-rename-btn { flex: none; border-color: transparent; background: none; color: inherit; opacity: 0.75; }
+button.icon-btn.setlist-rename-btn[hidden] { display: none; }
 button.icon-btn.setlist-rename-btn:hover, button.icon-btn.setlist-rename-btn:focus-visible { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
 .app-header .setlist-name-row { flex: 1 1 auto; min-width: 0; }
 .setlist-name-row .band-name-input { flex: 1 1 auto; min-width: 0; max-width: 28rem; background: var(--bg-raised); color: var(--fg); }
