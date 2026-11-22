@@ -498,3 +498,11 @@ document.querySelectorAll('.remove-song-btn').forEach(btn => {
     li.setAttribute('draggable', 'true');
   });
 })();
+
+// The home page's "Add a song" (?new=1) opens the wizard at once (here,
+// last, once everything it uses is set up); the address drops the
+// parameter, so a reload doesn't open it again.
+if (new URLSearchParams(location.search).has('new')) {
+  history.replaceState(null, '', location.pathname);
+  document.getElementById('open-wizard-btn')?.click();
+}

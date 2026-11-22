@@ -547,51 +547,30 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	upcoming := upcomingList(soon, now, 6)
 	todayCards, err := s.todayCards(r.Context(), lang, person, soon, now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Each community and band in its own look (colours, mark, logo).
-	var communities []homeGroup
-	for _, c := range communityCards {
-		g := homeGroup{Community: c}
-		g.Look, _, _ = s.store.GetBrand(r.Context(), "community", c.ID)
-		communities = append(communities, g)
-	}
-	var bandsWithLook []homeGroup
-	for _, b := range bandCards {
-		g := homeGroup{Band: b}
-		g.Look, _, _ = s.store.GetBrand(r.Context(), "band", b.ID)
-		bandsWithLook = append(bandsWithLook, g)
-	}
-	songbooks, err := s.buildBookStats(r.Context(), person.ID)
+	// The top row: the person's own songbook beside "This week"; then
+	// every band and community as one grid of equal cards (home.go).
+	week := comingUpWeek(soon, now)
+	mySongbook, err := s.mySongbook(r.Context(), lang, person.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	recent, err := s.store.ListRecentSongs(r.Context(), person.ID, 6)
+	groups, err := s.homeGroupCards(r.Context(), bandCards, communityCards, soon, now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	// "New in your bands": only the bands with something new.
-	var bandNews []bandCardView
-	for _, b := range bandCards {
-		if b.Digest != "" {
-			bandNews = append(bandNews, b)
-		}
 	}
 
 	s.render(w, "index", map[string]any{
 		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
-		"Upcoming": upcoming, "Communities": communities, "Bands": bandsWithLook,
-		"Songbooks": songbooks, "Attention": attention,
-		"Recent": recent, "BandNews": bandNews,
+		"Week": week, "MySongbook": mySongbook, "Groups": groups,
+		"Attention": attention,
 	})
 }
 

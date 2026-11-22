@@ -345,6 +345,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/bands/{id}/brand/logo", s.requireBandCore(s.handleDeleteBrandLogo("band")))
 	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandCore(s.handlePutBandLocale))
 	mux.HandleFunc("GET /api/bands/{id}/brand/from-songs", s.requireBandMember(s.handleBrandFromSongs("band")))
+	mux.HandleFunc("GET /api/bands/{id}/card-image", s.requireBandMember(s.handleGetCardImage("band")))
+	mux.HandleFunc("POST /api/bands/{id}/card-image", s.requireBandCore(s.handleSetCardImage("band")))
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandMember(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandCore(s.handleSetBandMemberStatus))
