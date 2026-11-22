@@ -587,6 +587,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /setlists/{id}/practice", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/listening", s.handleSetlistOldStep)
 	mux.HandleFunc("GET /setlists/{id}/clicktrack", s.requireAuth(s.handleSetlistClicktrack))
+	mux.HandleFunc("GET /setlists/{id}/clicktrack/manifest.json", s.requireAuth(s.handleClicktrackManifest))
 	// A band's set lists live inside the band; /setlists/{id} redirects
 	// there (atSetlistPath). {id} is the set list here, as above; who may
 	// see it is the set list's own check, same as at /setlists/{id}.

@@ -7799,6 +7799,22 @@ button.ct-reset.is-armed { color: var(--danger); border-color: var(--danger); }
   .clicktrack-page .ct-bar .ct-tap { width: auto; height: 2.8rem; padding: 0 0.9rem; }
   .clicktrack-page { padding-bottom: 4.6rem; }
 }
+/* Full screen (fullscreen.js): the header's button shows what a tap
+   does; full screen, the page has the whole screen as a phone on its
+   side does (no tab bar, no rail), whatever its size. On an iPhone, the
+   line about the Home Screen instead, until dismissed. */
+.ct-fullscreen[hidden] { display: none; }
+.ct-fullscreen .ct-fs-exit, .ct-fullscreen[aria-pressed="true"] .ct-fs-enter { display: none; }
+.ct-fullscreen[aria-pressed="true"] .ct-fs-exit { display: inline-block; }
+.ct-fs-hint { display: flex; align-items: center; justify-content: center; gap: 0.3rem; margin: 0 auto 0.4rem; max-width: 32rem; font-size: 0.85rem; color: var(--fg-muted); text-align: center; }
+.ct-fs-hint[hidden] { display: none; }
+.ct-fs-hint-close { min-width: 0; min-height: 0; width: 1.8rem; height: 1.8rem; padding: 0; border: 0; background: none; color: var(--fg-faint); flex: none; }
+.ct-fs-hint-close .icon { width: 0.9rem; height: 0.9rem; margin: 0; }
+body.is-fullscreen:has(.clicktrack-page) { --tabbar-h: 0px; --context-h: 0px; --rail-w: 0px; padding-left: 0; padding-bottom: 0; }
+body.is-fullscreen:has(.clicktrack-page) :is(.global-tabbar, .desktop-sidebar) { display: none; }
+body.is-fullscreen:has(.clicktrack-page) .app-content { margin-left: 0; }
+body.is-fullscreen .clicktrack-layout { max-width: none; }
+@media (min-width: 901px) { body.is-fullscreen .ct-bar { left: 0; } }
 .ct-tempo-own { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.35rem 0.6rem; margin: 0.5rem auto 0; max-width: 32rem; font-size: 0.9rem; font-weight: 600; color: var(--accent-ink, var(--accent)); }
 .ct-tempo-own[hidden] { display: none; }
 button.ct-tempo-back { min-height: 2.5rem; padding: 0 1rem; border-radius: 999px; border: 2px solid var(--accent); color: var(--accent-ink, var(--accent)); font-weight: 700; }
