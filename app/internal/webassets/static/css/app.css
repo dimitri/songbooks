@@ -8543,12 +8543,11 @@ a.song-action:hover { text-decoration: none; border-color: var(--border-strong);
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
   }
   .topbar-current h1 { font-size: 1.15rem; }
-  .topbar-meta { gap: 0.4rem; font-size: 0.82rem; }
-  .topbar-meta > * + *::before { margin-right: 0.4rem; }
-  .topbar-meta > .topbar-tempo, .topbar-meta > .topbar-time { display: none; }
-  /* A dot between the items left, none before the first of them. */
+  /* The artist, then the key, one under the other: no dots, nothing
+     left dangling at the start of a wrapped line. */
+  .topbar-meta { flex-direction: column; gap: 0.1rem; font-size: 0.82rem; }
   .topbar-meta > * + *::before { content: none; }
-  .topbar-meta > :not(.topbar-tempo, .topbar-time) ~ :not(.topbar-tempo, .topbar-time)::before { content: "\00b7"; margin-right: 0.4rem; }
+  .topbar-meta > .topbar-tempo, .topbar-meta > .topbar-time { display: none; }
   .topbar-ref-cell { justify-content: stretch; }
   .topbar-ref-cell:not(:has(.topbar-ref:not([hidden]))) { display: none; }
   .topbar-ref, .topbar-ref-btn { width: 100%; max-width: none; }
