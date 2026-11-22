@@ -50,7 +50,7 @@ CREATE FUNCTION setlist_body_rows(body text)
 RETURNS TABLE (pos int, kind text, label text, variant_id bigint, note text)
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
-  ws constant text := E' \t\n\r\f\v' || chr(133) || chr(160);
+  ws constant text := E' \t\n\r\f' || chr(11) || chr(133) || chr(160); -- chr(11) is \v: PostgreSQL's E'' strings don't know \v (it reads as a plain v)
   raw text;
   line text;
   ref text;
