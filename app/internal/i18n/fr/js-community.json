@@ -123,5 +123,11 @@
   "Couldn’t share the note.": "Impossible de partager la note.",
   "Share this note with %s? They will read it, and it can’t be made private again.": "Partager cette note avec %s ? Cette personne la lira, et elle ne pourra plus redevenir privée.",
   "the song’s melody (from its recording), in this key": "la mélodie du morceau (d’après son enregistrement), dans cette tonalité",
-  "melody range not known yet": "étendue de la mélodie pas encore connue"
+  "melody range not known yet": "étendue de la mélodie pas encore connue",
+  "%s: the key, or take it out": "%s : la tonalité, ou le retirer",
+  "Assign": "Donner",
+  "Assign %s": "Donner « %s »",
+  "Every student and group has it already.": "Tous les élèves et toutes les classes l’ont déjà.",
+  "Save the key": "Enregistrer la tonalité",
+  "Take it out of %s’s songbook": "Le retirer du songbook de %s"
 }

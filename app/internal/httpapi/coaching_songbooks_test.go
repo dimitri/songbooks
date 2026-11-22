@@ -177,7 +177,7 @@ func TestCoachingSongbooks(t *testing.T) {
 			t.Errorf("student's page: no %q", want)
 		}
 	}
-	for _, not := range []string{"Olga’s songs", "B (&#43;4)", `class="cbook-card`, `class="cbook-request`} {
+	for _, not := range []string{"Olga’s songs", "B (&#43;4)", `class="gig-row cbk-row"`, `class="cbook-request`, "cbk-chip"} {
 		if strings.Contains(body, not) {
 			t.Errorf("student's page shows %q", not)
 		}
@@ -235,20 +235,41 @@ func TestCoachingSongbooks(t *testing.T) {
 		}
 	}
 
-	// The coach: the request, a card per student, Olga's (a lesson
-	// tomorrow) before Stan's (none).
+	// The coach: the request; the students in a strip, Olga (a lesson
+	// tomorrow) before Stan (none); one songbook, a row a song, a chip
+	// per student who has it, in their key; the filter by student.
 	code, body = do(coach, "GET", page+fmt.Sprintf("?request=%d", req), "")
 	if code != http.StatusOK {
 		t.Fatalf("coach's page: %d", code)
 	}
-	for _, want := range []string{fmt.Sprintf(`id="request-%d"`, req), "is-open", "Your students’ songbooks", "cbook-rep-coach", `class="cbook-add-to"`} {
+	for _, want := range []string{fmt.Sprintf(`id="request-%d"`, req), "is-open", `class="cbk-people"`, `id="cbk-search"`,
+		`<option value="none">Not assigned</option>`, fmt.Sprintf(`<option value="s:%d">Stan Student’s songs</option>`, stan),
+		`class="cbk-assign"`, fmt.Sprintf(`data-add-song="%d"`, rep)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("coach's page: no %q", want)
 		}
 	}
-	o, s := strings.Index(body, `data-name="Olga Other"`), strings.Index(body, `data-name="Stan Student"`)
+	o, s := strings.Index(body, fmt.Sprintf(`href="/communities/%d/students/%d#songs"`, c, olga)), strings.Index(body, fmt.Sprintf(`href="/communities/%d/students/%d#songs"`, c, stan))
 	if o < 0 || s < 0 || o > s {
-		t.Errorf("cards: Olga at %d, Stan at %d", o, s)
+		t.Errorf("the students: Olga at %d, Stan at %d", o, s)
+	}
+	row := func(body, title string) string {
+		t.Helper()
+		i := strings.Index(body, fmt.Sprintf(`data-title="%s"`, title))
+		if i < 0 {
+			t.Fatalf("no row for %s", title)
+		}
+		j := strings.Index(body[i:], `class="cbk-assign"`)
+		return body[i : i+j]
+	}
+	if r := row(body, "Alpha"); !strings.Contains(r, fmt.Sprintf(`data-who="s:%d"`, stan)) || !strings.Contains(r, `<span class="cbk-chip-key">B −3</span>`) {
+		t.Errorf("Alpha's row: %s", r)
+	}
+	if r := row(body, "Bravo"); !strings.Contains(r, fmt.Sprintf(`data-person="%d"`, olga)) || !strings.Contains(r, `<span class="cbk-chip-key">B &#43;4</span>`) {
+		t.Errorf("Bravo's row: %s", r)
+	}
+	if r := row(body, "Charlie"); !strings.Contains(r, `<span class="cbk-chip-name">Stan</span></button>`) {
+		t.Errorf("Charlie's row (in Stan's own key, no key named): %s", r)
 	}
 	if strings.Contains(body, `class="cbook-ask"`) {
 		t.Error("the coach is offered Ask for it")
@@ -285,5 +306,41 @@ func TestCoachingSongbooks(t *testing.T) {
 	pdf := fmt.Sprintf("/songbooks/%d/export-songbook.pdf?keys=songbook", stanBook)
 	if code, _ := do(olga, "GET", pdf, ""); code != http.StatusNotFound {
 		t.Errorf("another student's PDF: %d", code)
+	}
+
+	// The coach's songbook in place: a song assigned to Olga in a key
+	// ("+ Assign": the song page's coach-keys), its key changed (her
+	// chip), taken out of her songbook; none of it for a student.
+	keys := fmt.Sprintf("/api/songs/%d/coach-keys", alpha)
+	toOlga := func(n int) string { return fmt.Sprintf(`{"communityId":%d,"personId":%d,"semitones":%d}`, c, olga, n) }
+	if code, _ := do(stan, "POST", keys, toOlga(1)); code != http.StatusForbidden {
+		t.Errorf("a student assigns a song: %d", code)
+	}
+	if code, b := do(coach, "POST", keys, toOlga(1)); code != http.StatusOK {
+		t.Fatalf("assigning Alpha to Olga: %d %s", code, b)
+	}
+	if _, body := do(coach, "GET", page, ""); !strings.Contains(row(body, "Alpha"), `<span class="cbk-chip-key">Eb &#43;1</span>`) {
+		t.Errorf("Alpha's row after assigning it to Olga: %s", row(body, "Alpha"))
+	}
+	if code, _ := do(coach, "POST", keys, toOlga(-1)); code != http.StatusOK {
+		t.Fatalf("Olga's key: %d", code)
+	}
+	if n, _ := st.EntrySemitones(ctx, olgaBook, alpha); n != -1 {
+		t.Errorf("Olga's key for Alpha: %d", n)
+	}
+	out := fmt.Sprintf("/api/communities/%d/songbooks/%d/songs/%d", c, olgaBook, alpha)
+	if code, _ := do(olga, "DELETE", out, ""); code != http.StatusForbidden {
+		t.Errorf("a student takes a song out: %d", code)
+	}
+	if code, _ := do(coach, "DELETE", out, ""); code != http.StatusNoContent {
+		t.Fatalf("taking Alpha out of Olga's songbook: %d", code)
+	}
+	_, body = do(coach, "GET", page, "")
+	if r := row(body, "Alpha"); strings.Contains(r, fmt.Sprintf(`data-person="%d"`, olga)) {
+		t.Errorf("Alpha's row after taking it out: %s", r)
+	}
+	// A song from outside the community: nobody's to assign.
+	if code, _ := do(coach, "POST", fmt.Sprintf("/api/songs/%d/coach-keys", outside), toOlga(0)); code != http.StatusForbidden {
+		t.Errorf("assigning a song from elsewhere: %d", code)
 	}
 }

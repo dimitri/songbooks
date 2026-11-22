@@ -100,14 +100,14 @@ func TestSeeAsAndVoiceTypes(t *testing.T) {
 	// view; the admin who isn't a member, the coach's; nobody's switch
 	// but the admins'.
 	_, body := do(dim, "GET", books, "")
-	if !studentView(body, "DIM-BOOK") || strings.Contains(body, `class="cbook-card`) {
+	if !studentView(body, "DIM-BOOK") || strings.Contains(body, `class="gig-row cbk-row"`) {
 		t.Error("an admin who is a student doesn't see their student view")
 	}
 	if !strings.Contains(body, `class="see-as`) {
 		t.Error("the admin has no See as…")
 	}
 	_, body = do(ada, "GET", books, "")
-	if !strings.Contains(body, `class="cbook-card`) {
+	if !strings.Contains(body, `class="gig-row cbk-row"`) {
 		t.Error("an admin who isn't a member doesn't see the coach's view")
 	}
 	_, body = do(stan, "GET", books, "")
@@ -129,7 +129,7 @@ func TestSeeAsAndVoiceTypes(t *testing.T) {
 	}
 	cookies[stan] = fmt.Sprintf("%d:coach", c)
 	_, body = do(stan, "GET", books, "")
-	if strings.Contains(body, `class="cbook-card`) || strings.Contains(body, "OLGA-BOOK") {
+	if strings.Contains(body, `class="gig-row cbk-row"`) || strings.Contains(body, "OLGA-BOOK") {
 		t.Error("a forged coach cookie shows the coach's view")
 	}
 	if code, _ := do(stan, "PUT", fmt.Sprintf("/api/communities/%d/students/%d/voice", c, olga), `{"voiceType":"soprano"}`); code != http.StatusForbidden {
@@ -171,7 +171,7 @@ func TestSeeAsAndVoiceTypes(t *testing.T) {
 		t.Fatalf("See as the coach: %d", code)
 	}
 	_, body = do(dim, "GET", books, "")
-	if !strings.Contains(body, `class="cbook-card`) || !strings.Contains(body, "Preview: the coach’s pages.") {
+	if !strings.Contains(body, `class="gig-row cbk-row"`) || !strings.Contains(body, "Preview: the coach’s pages.") {
 		t.Error("as the coach: not the coach's view")
 	}
 	voice := fmt.Sprintf("/api/communities/%d/students/%d/voice", c, stan)
@@ -212,9 +212,6 @@ func TestSeeAsAndVoiceTypes(t *testing.T) {
 	}
 	if strings.Contains(body, `class="voice-assess form-stack"`) {
 		t.Error("Stan's page: the coach's assessment form")
-	}
-	if _, body := do(coach, "GET", books, ""); !strings.Contains(body, `<span class="cbook-card-label" title="Working label">Tenor</span>`) || !strings.Contains(body, "comfortable D3–E4") {
-		t.Error("the coach's card doesn't show Stan's comfortable zone and working label")
 	}
 	// The label as a working opinion, with the descriptors: the range
 	// leads, then "leaning tenor · Nov 2026", the timbre, the passages.

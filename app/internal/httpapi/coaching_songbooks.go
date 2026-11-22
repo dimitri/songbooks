@@ -138,8 +138,13 @@ func (s *Server) handleCoachingSongbooksPage(w http.ResponseWriter, r *http.Requ
 		}
 		sort.SliceStable(repertoire, func(i, j int) bool { return store.FoldName(repertoire[i].Title) < store.FoldName(repertoire[j].Title) })
 	}
+	// The coach's: one songbook, full width (coaching_book.go).
+	page := "coaching_songbooks"
 	if coach {
-		err = s.coachBooksData(r, community, repertoire, data)
+		page = "coaching_book"
+		if err = s.coachBooksData(r, community, repertoire, data); err == nil {
+			err = s.coachBookData(r, community, repID, data)
+		}
 	} else {
 		err = s.studentBooksData(r, community, v.PersonID, repertoire, data)
 	}
@@ -147,7 +152,7 @@ func (s *Server) handleCoachingSongbooksPage(w http.ResponseWriter, r *http.Requ
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "coaching_songbooks", data)
+	s.render(w, page, data)
 }
 
 // studentBookRows is how many of their songs the student's card lists

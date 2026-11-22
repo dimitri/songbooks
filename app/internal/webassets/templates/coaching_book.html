@@ -1,0 +1,152 @@
+{{/* The coach's Songbooks tab in a coaching community (coaching_book.go,
+     coach-book.js, docs/coaching.md "The songbooks"): one songbook, full
+     width, like a band's: the songs as rows, each with the students and
+     groups it's given to in their keys (a chip each, changed or taken
+     out in place), "+ Assign" for the others; a search and a filter by
+     student; the students in a compact strip above, the requests waiting
+     above them. The student's view is coaching_songbooks.html. */}}
+
+{{define "coaching_book"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{template "space-title" .Space}}</title>
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
+</header>
+<main class="index cbook-page cbk" data-community="{{.Community.ID}}" data-repertoire="{{.RepertoireID}}">
+  {{template "space-nav" .Space}}
+
+  {{if .Requests}}
+  <section class="home-section cbook-requests" id="requests">
+    <div class="home-section-head"><h3>{{t "Requests"}} <span class="cbook-count">{{len .Requests}}</span></h3><span class="hint">{{t "songs your students asked for"}}</span></div>
+    <ul class="cbook-request-list">
+    {{range .Requests}}
+      <li class="cbook-request{{if eq .ID $.OpenRequest}} is-open{{end}}" id="request-{{.ID}}" data-request="{{.ID}}" data-person="{{.PersonID}}" data-variant="{{.VariantID}}" data-key="{{.Key}}" data-semitones="0">
+        <div class="cbook-request-what">
+          <strong>{{.StudentName}}</strong> <span class="hint">{{t "asks for"}}</span> <a href="/song/{{.VariantID}}">{{.Title}}</a>{{with .Artist}} <span class="hint">· {{.}}</span>{{end}}
+          <div class="hint">{{date .CreatedAt "Mon 2 Jan, 15:04"}}</div>
+        </div>
+        <div class="cbook-request-actions">
+          {{if $.KeyPicker}}
+          <span class="coach-key" title="{{t "the key, in semitones from the reference recording"}}">
+            <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
+            <output>{{with keyIn .Key 0}}{{.}} ({{t "original"}}){{else}}{{t "original"}}{{end}}</output>
+            <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
+          </span>
+          {{end}}
+          <button type="button" class="primary cbook-request-add">{{t "Add to their songbook"}}</button>
+          <button type="button" class="cbook-request-decline">{{t "Not now"}}</button>
+        </div>
+        <div class="voice-strip cbook-request-strip" hidden></div>
+      </li>
+    {{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  {{/* The students and groups: a line each, to their page. */}}
+  {{if .Cards}}
+  <nav class="cbk-people" aria-label="{{t "Your students"}}">
+    {{range .Cards}}
+    <a class="cbk-person{{if eq .Kind "group"}} is-group{{end}}" href="{{.Href}}">
+      <strong>{{.Name}}</strong>
+      <span class="hint">{{tn .SongCount "%d song" "%d songs"}}{{with .Next}} · {{date . "Mon 2 Jan"}}{{end}}</span>
+      {{if .Requests}}<span class="cbook-badge" data-person="{{.PersonID}}" data-count="{{.Requests}}">{{tn .Requests "%d request" "%d requests"}}</span>{{end}}
+    </a>
+    {{end}}
+  </nav>
+  {{end}}
+
+  <div class="repertoire-toolbar cbk-toolbar">
+    <input type="search" id="cbk-search" placeholder="{{t "Search the songs…"}}" aria-label="{{t "Search the songs"}}" enterkeyhint="search" autocomplete="off">
+    <select id="cbk-filter" aria-label="{{t "Whose songs"}}">
+      <option value="">{{t "All songs"}}</option>
+      <option value="none">{{t "Not assigned"}}</option>
+      {{range .BookFilters}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
+    </select>
+    {{if .RepertoireID}}<button type="button" id="cbk-add" data-add-song="{{.RepertoireID}}" data-fallback="/communities/{{.Community.ID}}/songbooks/default">{{template "icon-plus"}} {{t "Add song"}}</button>{{end}}
+  </div>
+
+  <div class="gig-table cbk-rows">
+  {{range .BookRows}}
+    <div class="gig-row cbk-row" data-variant="{{.VariantID}}" data-title="{{.Title}}" data-search="{{.Title}} {{.Artist}}" data-who="{{.WhoList}}">
+      <a class="gig-title" href="/song/{{.VariantID}}{{if .InRepertoire}}?songbook={{$.RepertoireID}}{{end}}">
+        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{template "song-badges" (index $.Badges .VariantID)}}
+        {{if not .InRepertoire}}<span class="cbk-elsewhere">{{t "not in the repertoire"}}</span>{{end}}
+      </a>
+      <span class="gig-key">{{.Key}}</span>
+      <div class="cbk-assigned">
+        {{range .Assigned}}<button type="button" class="cbk-chip{{if eq .Kind "group"}} is-group{{end}}" data-kind="{{.Kind}}" data-person="{{.PersonID}}" data-group="{{.GroupID}}" data-songbook="{{.SongbookID}}" data-semitones="{{.Semitones}}" data-name="{{.FullName}}" title="{{t "%s: the key, or take it out" .FullName}}"><span class="cbk-chip-name">{{.Name}}</span>{{with .KeyText}} <span class="cbk-chip-key">{{.}}</span>{{end}}</button>{{end}}
+        <button type="button" class="cbk-assign">{{template "icon-plus"}} {{t "Assign"}}</button>
+      </div>
+    </div>
+  {{else}}
+    <p class="hint">{{t "No songs yet."}}</p>
+  {{end}}
+  </div>
+  <p class="hint" id="cbk-none" hidden>{{t "No songs match that search."}}</p>
+
+  {{/* One dialog: a chip's key changed or the song taken out; a song
+       assigned to a student or a group, in a key. With a student, their
+       range and the song's melody over it (voice-strip.js). */}}
+  <dialog class="program-plan-dialog cbk-dialog">
+    <form method="dialog" class="form-stack cbk-form">
+      <h2 class="cbk-dialog-title"></h2>
+      <fieldset class="field-group cbk-targets" hidden>
+        <legend>{{t "For"}}</legend>
+        <div class="cbk-choices"></div>
+      </fieldset>
+      <div class="field cbook-add-key">
+        <span class="cbook-add-key-label">{{t "Key"}}</span>
+        <span class="coach-key">
+          <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
+          <output></output>
+          <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
+        </span>
+      </div>
+      <div class="voice-strip cbk-strip" hidden></div>
+      <p class="form-status" role="status"></p>
+      <div class="form-actions">
+        <button type="submit" class="primary cbk-save"></button>
+        <button type="button" class="danger cbk-remove" hidden></button>
+        <button type="button" class="cbk-cancel">{{t "Cancel"}}</button>
+      </div>
+    </form>
+  </dialog>
+
+  {{template "cbook-others" .}}
+</main>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>
+<script src="/static/js/coach-book.js?v={{staticVersion}}"></script>
+<script>
+const createForm = document.getElementById('create-songbook-form');
+createForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(createForm, document.getElementById('create-songbook-btn'), async () => {
+    const name = document.getElementById('new-songbook-name').value.trim();
+    const res = await fetch('/api/songbooks', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, ownerCommunityId: {{.Community.ID}}}),
+    }).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : t('Couldn’t create the songbook. Try again.'));
+    location.href = `/songbooks/${data.id}`;
+  });
+});
+</script>
+</body>
+</html>
+{{end}}
