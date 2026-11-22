@@ -7764,8 +7764,8 @@ a.setlist-action:hover { text-decoration: none; }
 /* A set list's name, renamed in place (setlist_overview.html): the
    pencil stays in view, so renaming is found without hovering. */
 .setlist-name-row h1 { cursor: text; min-width: 0; }
-.setlist-rename-btn { flex: none; color: inherit; opacity: 0.7; }
-.setlist-rename-btn:hover, .setlist-rename-btn:focus-visible { opacity: 1; }
+button.icon-btn.setlist-rename-btn { flex: none; border-color: transparent; background: none; color: inherit; opacity: 0.75; }
+button.icon-btn.setlist-rename-btn:hover, button.icon-btn.setlist-rename-btn:focus-visible { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
 .setlist-name-row .band-name-input { min-width: 0; width: min(28rem, 100%); }
 /* "New set list", inside the band's Set lists section (band_setlists.html). */
 .band-setlist-new { margin: 0 0 1.2rem; }
