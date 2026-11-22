@@ -35,6 +35,12 @@ var MetaKeys = []string{
 	// and sections, grid and lyrics are optional. See
 	// docs/gp-file-model.md §3.2.
 	"content",
+	// gp_start: for a song whose chart sits next to its Guitar Pro file
+	// (no "gp[...]" lines), the file's bar, as played, where the chart's
+	// first bar starts: "3" when the file has two lead-in bars. Absent,
+	// the chart starts on the file's first bar. See
+	// docs/gp-file-model.md §3.4.
+	"gp_start",
 }
 
 func isMetaKey(k string) bool {
@@ -147,6 +153,17 @@ func (s *Song) Set(key, value string) {
 		}
 	}
 	s.Meta = append(s.Meta, MetaField{Key: key, Value: value})
+}
+
+// Unset removes every header line for key.
+func (s *Song) Unset(key string) {
+	out := s.Meta[:0]
+	for _, f := range s.Meta {
+		if f.Key != key {
+			out = append(out, f)
+		}
+	}
+	s.Meta = out
 }
 
 // ScoreVoice is one "score[Label]: <content>" block — Label is this
