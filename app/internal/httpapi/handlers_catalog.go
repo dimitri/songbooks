@@ -244,7 +244,10 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	person := personFromContext(r)
 	variant, err := s.store.GetVariant(r.Context(), variantID)
 	if err != nil {
-		http.NotFound(w, r)
+		// A song merged into another (§7): its history is on that one's.
+		if !s.mergedRedirect(w, r, variantID) {
+			http.NotFound(w, r)
+		}
 		return
 	}
 	revisions, err := s.store.ListRevisions(r.Context(), "variant", strconv.FormatInt(variantID, 10))
@@ -261,8 +264,20 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	// (best effort: a failure just leaves the section out).
 	gpCurrent, _ := s.store.GetSongGPSourceFileMeta(r.Context(), variantID)
 	gpVersions, _ := s.store.ListSongGPSourceFileVersions(r.Context(), variantID)
+	// The songs merged into this one (§7), each with its own history.
+	type mergedHistory struct {
+		store.SongMerge
+		Revisions []store.Revision
+	}
+	var merged []mergedHistory
+	if ms, err := s.store.MergedInto(r.Context(), variantID); err == nil {
+		for _, m := range ms {
+			revs, _ := s.store.ListRevisions(r.Context(), "variant", strconv.FormatInt(m.MergedSongID, 10))
+			merged = append(merged, mergedHistory{SongMerge: m, Revisions: revs})
+		}
+	}
 	s.render(w, "variant_history", map[string]any{
-		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit,
+		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit, "Merged": merged,
 		"GPFile": gpCurrent, "GPVersions": gpVersions,
 		"Edits": s.describeEdits(variantID, revisions),
 	})

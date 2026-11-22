@@ -135,6 +135,7 @@
         <p class="hint">{{t "The songs you teach: add one to a student’s songbook in their key."}}</p>
         <div class="cbook-actions">
           <button type="button" class="cbook-rep-toggle" aria-expanded="false" aria-controls="cbook-rep-list">{{t "Show the songs"}}</button>
+          <button type="button" data-add-song="{{.RepertoireID}}">{{template "icon-plus"}} {{t "Add song"}}</button>
           <a class="chip-link" href="/communities/{{.Community.ID}}/songbooks/default">{{t "Edit the repertoire"}} &rarr;</a>
         </div>
       </div>
@@ -254,6 +255,7 @@
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
+{{if .IsCoach}}<script src="/static/js/add-song.js?v={{staticVersion}}"></script>{{end}}
 <script>
 (() => {
   const page = document.querySelector('.cbook-page');

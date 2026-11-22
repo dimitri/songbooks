@@ -34,7 +34,7 @@
     <button type="submit">{{t "Search"}}</button>
   </form>
   <nav class="space-views find-scopes" aria-label="{{t "Where they come from"}}">
-    {{range .Froms}}<a href="{{.Href}}{{if $.Q}}{{if .From}}&amp;{{else}}?{{end}}q={{$.Q}}{{end}}" class="space-view{{if .Active}} active{{end}}"{{if .Active}} aria-current="page"{{end}}>{{t .Label}}</a>{{end}}
+    {{range .Froms}}<a href="{{.Href}}" class="space-view{{if .Active}} active{{end}}"{{if .Active}} aria-current="page"{{end}}>{{t .Label}}</a>{{end}}
   </nav>
   <p class="hint big-count">{{tn (len .Works) "%d song" "%d songs"}}{{if ne (len .Works) .Songs}} &middot; {{tn .Songs "%d version" "%d versions"}}{{end}}</p>
 

@@ -225,9 +225,9 @@
     if (!several && s.artist) text.append(' ', el('span', 'addsong-artist', s.artist));
     text.append(' ', badge(s));
     li.append(text);
-    if (s.inSongbook) {
+    if (s.inSongbook && !state.addInSongbook) {
       li.append(el('span', 'addsong-state', t('In the songbook')));
-    } else if (!s.linkable) {
+    } else if (!s.linkable && !s.inSongbook) {
       const why = el('span', 'addsong-state is-refused', t('Can’t be added'));
       why.title = s.refusalMsg || '';
       li.append(why);
@@ -291,7 +291,7 @@
   async function open(opts = {}) {
     if (!dlg) build();
     state = Object.assign(state, {
-      songbookId: opts.songbookId || 0, onAdded: opts.onAdded, onCreated: opts.onCreated, addLabel: opts.addLabel,
+      songbookId: opts.songbookId || 0, onAdded: opts.onAdded, addInSongbook: !!opts.addInSongbook, onCreated: opts.onCreated, addLabel: opts.addLabel,
       reload: opts.reload, scope: '', added: false, targets: [],
     });
     state.h.textContent = opts.heading || t('Add a song');

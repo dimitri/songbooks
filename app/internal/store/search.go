@@ -30,6 +30,9 @@ type SearchHit struct {
 	PersonID int64
 	// A band's song: the band's name ("Mercy" for Mercy's version).
 	BandName string
+	// A song's badge (docs/ownership-model.md §1): whose it is and who
+	// sees it, as the catalogue says it (FoundSong's fields).
+	Owner *FoundSong
 }
 
 // searchCandidates is how many rows each kind reads before the access
@@ -87,7 +90,11 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	artist, _ := matchSQL("s.artist")
 	rows, err := st.db.Query(ctx, searchScope+`
 		SELECT s.id, s.title, s.artist, `+songKindSQL("s")+`, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0),
-		       coalesce((SELECT b.name FROM bands b WHERE b.id = s.owner_band_id), '')
+		       coalesce((SELECT b.name FROM bands b WHERE b.id = s.owner_band_id), ''),
+		       coalesce((SELECT p.display_name FROM people p WHERE p.id = s.owner_person_id),
+		                (SELECT c.name FROM communities c WHERE c.id = s.owner_community_id), ''),
+		       s.owner_person_id IS NOT DISTINCT FROM $1, s.public, song_closed(s.id),
+		       coalesce((SELECT b.music_type = 'original' FROM bands b WHERE b.id = s.owner_band_id), false) AND s.forked_from_id IS NULL
 		FROM songs s
 		WHERE (`+title+` OR `+artist+`)
 		  AND song_visible(s.id, $1)
@@ -104,10 +111,19 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	for rows.Next() {
 		var c cand
 		c.hit.Kind = "song"
-		if err := rows.Scan(&c.hit.ID, &c.hit.Title, &c.hit.Subtitle, &c.visibility, &c.hit.BandID, &c.hit.CommunityID, &c.hit.BandName); err != nil {
+		o := &FoundSong{}
+		var otherName string
+		if err := rows.Scan(&c.hit.ID, &c.hit.Title, &c.hit.Subtitle, &c.visibility, &c.hit.BandID, &c.hit.CommunityID, &c.hit.BandName,
+			&otherName, &o.Mine, &o.Public, &o.Closed, &o.Original); err != nil {
 			rows.Close()
 			return nil, err
 		}
+		o.Catalogue = c.visibility == "global"
+		o.OwnerName = c.hit.BandName
+		if o.OwnerName == "" {
+			o.OwnerName = otherName
+		}
+		c.hit.Owner = o
 		cands = append(cands, c)
 	}
 	rows.Close()
@@ -145,7 +161,8 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 					continue // found by its own title already
 				}
 				listed[b.VariantID] = true
-				with = append(with, cand{hit: SearchHit{Kind: "song", ID: b.VariantID, Title: b.Title, Subtitle: b.Artist, BandID: b.BandID, BandName: b.BandName}, visibility: "band"})
+				with = append(with, cand{hit: SearchHit{Kind: "song", ID: b.VariantID, Title: b.Title, Subtitle: b.Artist, BandID: b.BandID, BandName: b.BandName,
+					Owner: &FoundSong{OwnerName: b.BandName}}, visibility: "band"})
 			}
 		}
 		cands = with

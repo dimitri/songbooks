@@ -9328,3 +9328,96 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 /* A band's song made from another (play.html): where it came from. */
 .based-on { margin: 0 0 0.6rem; font-size: 0.82rem; color: var(--fg-muted); }
 .based-on a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); }
+
+/* ---- Finding and adding songs (ownership model steps 4–5,
+   docs/ownership-model.md §1, §3, §6, §7): the owner badges, the one Add
+   / Create dialog and the Add to… picker (add-song.js), The Big
+   Songbook's page and its duplicates review. ---- */
+.owner-badge {
+  display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.74rem; font-weight: 500;
+  line-height: 1.5; white-space: nowrap; vertical-align: middle;
+}
+.owner-badge.is-public { background: var(--accent-bg); border-color: transparent; color: var(--accent-ink); }
+.owner-badge.is-closed { background: var(--warn-bg); border-color: transparent; color: var(--warn); }
+.find-scopes { margin: 0 0 1rem; }
+.find-work .owner-badge { margin-top: 0.4rem; }
+.find-versions summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--fg-muted); }
+.find-versions ul { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.35rem; font-size: 0.85rem; }
+.find-versions li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; }
+.find-versions .link-button, .big-version .link-button { min-height: 0; }
+.search-palette-row .owner-badge, .search-row .owner-badge { margin-left: auto; flex: none; }
+
+.addsong-dialog {
+  width: min(600px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.1rem 1.2rem; background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow);
+}
+.addsong-dialog::backdrop { background: rgba(10, 8, 4, 0.45); }
+.addsong-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.addsong-head h2 { margin: 0; }
+.addsong-close { font-size: 1.4rem; line-height: 1; }
+.addsong-into { margin: 0.2rem 0 0.6rem; }
+.addsong-search input { width: 100%; }
+.addsong-scopes { margin: 0.6rem 0 0.2rem; }
+.addsong-scopes .space-view { min-height: 2rem; font: inherit; font-size: 0.82rem; cursor: pointer; }
+.addsong-link-hint { margin: 0.4rem 0; font-size: 0.82rem; }
+.addsong-results { list-style: none; margin: 0; padding: 0; max-height: 46dvh; overflow-y: auto; border-top: 1px solid var(--border); }
+.addsong-work { border-bottom: 1px solid var(--border); padding: 0.45rem 0; }
+.addsong-work-head { display: flex; align-items: baseline; gap: 0.5rem; font-weight: 600; }
+.addsong-versions { font-size: 0.75rem; font-weight: 600; color: var(--fg-faint); }
+.addsong-songs, .addto-list { list-style: none; margin: 0; padding: 0; }
+.addsong-song { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0; }
+.addsong-work-head + .addsong-songs .addsong-song { padding-left: 0.8rem; }
+.addsong-song-text { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.45rem; }
+.addsong-song-title { color: var(--fg); font-weight: 500; }
+.addsong-artist { color: var(--fg-faint); font-size: 0.85rem; }
+.addsong-why { flex-basis: 100%; font-size: 0.78rem; }
+.addsong-add { flex: none; font-size: 0.82rem; padding: 0.3rem 0.8rem; min-height: 2.25rem; }
+.addsong-state { flex: none; font-size: 0.78rem; color: var(--fg-faint); }
+.addsong-state.is-added { color: var(--accent); font-weight: 600; }
+.addsong-state.is-refused { color: var(--warn); }
+.addsong-create { margin-top: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
+.addsong-create summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.addsong-create-form { margin-top: 0.6rem; max-width: none; }
+.addsong-create-form select { width: 100%; }
+.addsong-dialog:has(.addsong-create[open]) .addsong-results { max-height: 22dvh; }
+.addsong-who { display: grid; gap: 0.35rem; }
+.addsong-who-choice { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.addsong-who[hidden], .addsong-who-none[hidden] { display: none; }
+.addto-song { margin: 0.4rem 0; }
+.wizard-find { margin: 0.8rem 0; }
+
+.big-staff { margin: 0 0 0.8rem; }
+.big-search { margin-bottom: 0.8rem; max-width: 40rem; }
+.big-works { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.big-work { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); padding: 0.7rem 0.9rem; }
+.big-work-head { display: flex; align-items: baseline; gap: 0.5rem; }
+.big-work-title { font-weight: 600; font-size: 1.02rem; color: var(--fg); }
+.big-versions { list-style: none; margin: 0.35rem 0 0; padding: 0; display: grid; gap: 0.3rem; }
+.big-version { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.55rem; font-size: 0.9rem; }
+.big-version-title { color: var(--fg-muted); }
+.fit-badge {
+  display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.74rem; line-height: 1.5;
+  border: 1px solid var(--border); color: var(--fg-muted);
+}
+.fit-badge.is-follows { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.fit-badge.is-differs { color: var(--warn); background: var(--warn-bg); border-color: transparent; cursor: help; }
+.fit-why { flex-basis: 100%; margin: 0; font-size: 0.78rem; }
+.big-dup { margin-bottom: 1rem; }
+.big-dup-title { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.big-dup-songs { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.big-dup-song { display: grid; grid-template-columns: auto 1fr auto; gap: 0.4rem 0.8rem; align-items: start; border-top: 1px solid var(--border); padding-top: 0.6rem; }
+.big-dup-keep { display: flex; align-items: center; gap: 0.3rem; font-weight: 600; font-size: 0.85rem; }
+.big-dup-text p { margin: 0.2rem 0 0; }
+.big-dup-report { margin-top: 0.8rem; padding: 0.7rem 0.9rem; border-radius: var(--radius); background: var(--bg-sunken); }
+.big-dup-report[hidden] { display: none; }
+.big-dup-summary { margin: 0 0 0.3rem; font-weight: 600; }
+.big-dup-lines { margin: 0 0 0.6rem; padding-left: 1.2rem; font-size: 0.88rem; }
+.history-merged { margin-top: 1rem; }
+.history-merged-list { margin: 0.3rem 0 0; padding-left: 1.2rem; font-size: 0.88rem; }
+@media (max-width: 640px) {
+  .big-dup-song { grid-template-columns: 1fr; }
+  .addsong-dialog { padding: 0.9rem 0.9rem; }
+  .addsong-results { max-height: 40dvh; }
+}
+/* ---- end of finding and adding songs ---- */

@@ -52,7 +52,7 @@
     <section class="search-group" aria-labelledby="search-group-{{.Kind}}">
       <h2 id="search-group-{{.Kind}}">{{.Label}}</h2>
       <ul class="search-list">
-      {{range .Items}}<li><a class="search-row" href="{{.URL}}"><span class="search-row-title">{{.Title}}</span>{{with .Subtitle}}<span class="search-row-sub">{{.}}</span>{{end}}{{if .Here}}<span class="search-here">{{t "here"}}</span>{{end}}</a></li>{{end}}
+      {{range .Items}}<li><a class="search-row" href="{{.URL}}"><span class="search-row-title">{{.Title}}</span>{{with .Subtitle}}<span class="search-row-sub">{{.}}</span>{{end}}{{if .Badge}}<span class="owner-badge{{if .Public}} is-public{{end}}">{{.Badge}}</span>{{end}}{{if .Here}}<span class="search-here">{{t "here"}}</span>{{end}}</a></li>{{end}}
       </ul>
     </section>
     {{else}}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -146,6 +147,24 @@ func (s *Server) handleFindAPI(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// A closed songbook's song is never offered anywhere else (§2): it
+	// isn't listed at all.
+	if f.Songbook != nil {
+		var keep []store.FoundWork
+		for _, wk := range works {
+			var songs []store.FoundSong
+			for _, sg := range wk.Songs {
+				if sg.Refusal != "closed" {
+					songs = append(songs, sg)
+				}
+			}
+			if len(songs) > 0 {
+				wk.Songs = songs
+				keep = append(keep, wk)
+			}
+		}
+		works = keep
 	}
 	// A songbook's dialog with nothing typed: its own songs aren't news;
 	// the others the person may add, first.
@@ -360,9 +379,16 @@ func (s *Server) handleBigSongbookPage(w http.ResponseWriter, r *http.Request) {
 	}
 	var froms []fromView
 	for _, f := range bigSongbookFroms {
-		href := "/big-songbook"
+		v := url.Values{}
 		if f.From != "" {
-			href += "?from=" + f.From
+			v.Set("from", f.From)
+		}
+		if q != "" {
+			v.Set("q", q)
+		}
+		href := "/big-songbook"
+		if len(v) > 0 {
+			href += "?" + v.Encode()
 		}
 		froms = append(froms, fromView{From: f.From, Label: f.Label, Href: href, Active: f.From == from})
 	}

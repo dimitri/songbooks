@@ -123,7 +123,7 @@
     {{if .MyCatalogCount}}
     <p class="hint">{{tn .MyCatalogCount "You already have %d song in" "You already have %d songs in"}} <a href="/songbooks/mine">{{t "your songbook"}}</a>. {{t "Add a few more below, or move on."}}</p>
     {{else}}
-    <p class="hint">{{t "Pick a couple from the global catalog to start your own songbook — one tap, it's yours to edit."}}</p>
+    <p class="hint">{{t "Pick a couple to start your songbook: one tap adds a song as it is, in your own key; make your own version of it any time."}}</p>
     {{end}}
     <div class="wizard-pick-grid">
       {{range .Picks}}
@@ -134,6 +134,9 @@
       </div>
       {{end}}
     </div>
+    {{/* Anything else, or a song of their own: the one Add / Create
+         dialog (add-song.js), on their songbook. */}}
+    <p class="wizard-find"><button type="button" data-add-song="{{.MySongbookID}}">{{template "icon-plus"}} {{t "Find another song, or create one…"}}</button></p>
     <div class="wizard-actions">
       <a class="primary" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Continue"}}</a>
       <a class="link-btn" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Skip this step"}}</a>
@@ -228,6 +231,8 @@
     cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
   });
   // Each pick says what happened on its own card: "Added", or why not.
+  // Added: a link in the person's songbook (docs/ownership-model.md §4).
+  const mySongbookId = {{or .MySongbookID 0}};
   document.querySelectorAll('.wizard-pick-add').forEach(b => {
     const card = b.closest('.wizard-pick');
     const text = b.querySelector('.wizard-pick-add-text');
@@ -236,7 +241,10 @@
       Forms.busy(b, true);
       let ok = false;
       try {
-        ok = (await fetch(`/api/variants/${card.dataset.variantId}/fork`, {method: 'POST'})).ok;
+        ok = (await fetch(`/api/songbooks/${mySongbookId}/entries`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({variantId: Number(card.dataset.variantId)}),
+        })).ok;
       } catch (e) {}
       Forms.busy(b, false);
       if (ok) {
@@ -250,6 +258,7 @@
   });
 })();
 </script>
+{{if eq .Step 5}}<script src="/static/js/add-song.js?v={{staticVersion}}"></script>{{end}}
 {{template "pwa-register"}}
 </div>
 {{template "global-tabbar" $}}

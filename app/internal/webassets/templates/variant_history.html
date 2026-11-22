@@ -67,6 +67,19 @@
     </tbody>
   </table></div>
   {{end}}
+  {{/* Songs merged into this one (docs/ownership-model.md §7): their
+       own history, kept. */}}
+  {{range .Merged}}
+  <section class="card history-merged">
+    <h2>{{t "Merged from song %d" .MergedSongID}}</h2>
+    <p class="hint">{{.Title}} — {{.Artist}}{{with .VersionName}} — {{.}}{{end}}{{with .OwnerName}} &middot; {{.}}{{end}} &middot; {{t "merged on %s" (date .MergedAt "2 January 2006")}}{{with .MergedBy}} {{t "by %s" .}}{{end}}</p>
+    {{if .Revisions}}
+    <ul class="history-merged-list">
+      {{range .Revisions}}<li>{{date .CreatedAt "2006-01-02 15:04"}} &middot; {{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</li>{{end}}
+    </ul>
+    {{else}}<p class="hint">{{t "No revisions."}}</p>{{end}}
+  </section>
+  {{end}}
 </main>
 <script>
 document.querySelectorAll('.revert-btn').forEach(btn => {
