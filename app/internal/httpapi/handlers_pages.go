@@ -562,6 +562,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// "Recently": each song in the place it was opened from, when the
+	// person may still open it (song_context.go).
+	for i := range mySongbook.Recent {
+		mySongbook.Recent[i].Query = s.openableSongQuery(r.Context(), person, mySongbook.Recent[i].Query)
+	}
 	bandGroups, communityGroups, err := s.homeGroupCards(r.Context(), lang, person.ID, bandCards, communityCards, soon, now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -2819,6 +2824,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	// The place the song was opened from counts only when the viewer may
+	// open it (song_context.go): else it's as if the address didn't say.
+	r = s.withOpenableSongContext(r)
 	// A lesson opened from anywhere is opened in its course (lessonview.go).
 	r = s.withCourseContext(r, variantID)
 	sg, _, err := s.store.LoadVariant(variantID)

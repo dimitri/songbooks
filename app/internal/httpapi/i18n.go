@@ -90,7 +90,7 @@ func (s *Server) resolveLang(ctx context.Context, r *http.Request, p *store.Pers
 	if l := chosenLang(r); l != "" {
 		return l
 	}
-	if l := s.contextLang(ctx, r); l != "" {
+	if l := s.contextLang(ctx, r, p); l != "" {
 		return l
 	}
 	if l := i18n.Accept(r.Header.Get("Accept-Language")); l != "" {
@@ -101,8 +101,8 @@ func (s *Server) resolveLang(ctx context.Context, r *http.Request, p *store.Pers
 
 // contextLang is the language of the community or band the page is in:
 // /communities/{id}…, /bands/{id}…, /songbooks/{id}…, a song opened from
-// a songbook (?songbook=…).
-func (s *Server) contextLang(ctx context.Context, r *http.Request) string {
+// a songbook (?songbook=…) p may open (song_context.go).
+func (s *Server) contextLang(ctx context.Context, r *http.Request, p *store.Person) string {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	id := func(i int) int64 {
 		if len(parts) <= i {
@@ -121,7 +121,7 @@ func (s *Server) contextLang(ctx context.Context, r *http.Request) string {
 		l, _ = s.store.SongbookLocale(ctx, id(1))
 	}
 	if l == "" {
-		if sb, err := strconv.ParseInt(r.URL.Query().Get("songbook"), 10, 64); err == nil && sb > 0 {
+		if sb, err := strconv.ParseInt(r.URL.Query().Get("songbook"), 10, 64); err == nil && sb > 0 && s.mayOpenSongbookAs(ctx, p, sb) {
 			l, _ = s.store.SongbookLocale(ctx, sb)
 		}
 	}

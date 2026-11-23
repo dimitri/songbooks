@@ -142,15 +142,7 @@ func (s *Server) openableCourse(r *http.Request, refs []store.CourseLessonRef) *
 // mayOpenSongbook: the viewer may open the songbook (its owner's member,
 // with its grant when it's gated; a public one), or is a site admin.
 func (s *Server) mayOpenSongbook(r *http.Request, songbookID int64) bool {
-	p := personFromContext(r)
-	if p == nil {
-		return false
-	}
-	if p.IsAdmin {
-		return true
-	}
-	ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, songbookID)
-	return err == nil && ok
+	return s.mayOpenSongbookAs(r.Context(), personFromContext(r), songbookID)
 }
 
 // songContextParams are the places a song can be opened from, in its
