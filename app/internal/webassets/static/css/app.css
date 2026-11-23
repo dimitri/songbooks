@@ -2195,35 +2195,37 @@ body:has(#sheet[data-render-mode="score"]) #song-structure-strip { display: none
 /* The simplified mixer (gp-view.js), a row of the sheet bar: the song's
    recording and the file's score, a mute and a level each, and the full
    Mixer. The tools' size and look. */
-.gp-mix { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.8rem; flex-basis: 100%; }
-.gp-mix-ch { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
+/* The dock's Recording / MIDI mixer (gp-view.js "The dock's mixer"): in
+   the player's bar, beside its Mixer button; a switch and a level each. */
+.gp-mix { display: inline-flex; align-items: center; flex: none; gap: 0.3rem 0.45rem; }
+.gp-mix[hidden] { display: none; }
+.gp-mix-ch { display: inline-flex; align-items: center; gap: 0.3rem; min-width: 0; }
+.gp-mix .gp-tool { height: 2.1rem; padding: 0 0.6rem; }
 .gp-mix-on .icon { width: 0.95rem; height: 0.95rem; margin: 0; }
 .gp-mix-icon { display: inline-flex; }
 .gp-mix-icon.off, .gp-mix-ch.is-muted .gp-mix-icon.on { display: none; }
 .gp-mix-ch.is-muted .gp-mix-icon.off { display: inline-flex; }
-.gp-mix-ch.is-muted .gp-mix-name { text-decoration: line-through; }
-.gp-mix-on[aria-pressed="true"] { color: var(--fg); }
-.gp-mix-on:disabled { cursor: default; opacity: 0.55; }
-.gp-mix-vol { width: 6.5rem; accent-color: var(--accent); }
+.gp-mix-ch.is-muted .gp-mix-name { color: var(--fg-faint); }
+.gp-mix-on[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); }
+.gp-mix-on:disabled { cursor: default; opacity: 0.5; }
+.gp-mix-vol { width: 4.5rem; min-height: 0; accent-color: var(--accent); }
 .gp-mix-vol:disabled { opacity: 0.4; }
-.gp-mix-full { margin-left: auto; }
-.gp-mix-why { flex-basis: 100%; color: var(--fg-muted); font-size: 0.8rem; line-height: 1.3; }
-.gp-mix-why[hidden] { display: none; }
-/* A phone keeps both levels on one row: the names alone (crossed out when
-   muted), the sliders sharing what's left, the full Mixer its icon. */
-@media (max-width: 600px) {
-  .gp-mix { gap: 0.3rem 0.4rem; flex-wrap: wrap; }
-  .gp-mix-ch { flex: 1 1 0; gap: 0.25rem; }
-  .gp-mix-vol { flex: 1 1 2rem; width: auto; min-width: 2rem; }
-  .gp-mix-on { padding: 0 0.5rem; flex: none; }
-  .gp-mix-ch .gp-mix-icon, .gp-mix-ch.is-muted .gp-mix-icon.off { display: none; }
-  .gp-mix-ch .gp-mix-name { display: inline; }
-  .gp-mix-full { margin-left: 0; flex: none; }
-  .gp-mix-full-label { display: none; }
+.gp-mix-ch.is-muted .gp-mix-vol { opacity: 0.45; }
+.gp-mix.has-why .gp-mix-ch[data-ch="midi"] .gp-mix-on { border-style: dashed; }
+.gp-mix-why[hidden], .gp-mix-why { display: none; }
+/* The player's own Mixer button (review's dock) is the full mixer. */
+.audio-transport:has(#audio-mixer-btn) .gp-mix-full { display: none; }
+.gp-mix-full-label { display: none; }
+@media (max-width: 1280px) {
+  .gp-mix-vol { width: 3.25rem; }
 }
-/* There the dock plays the file: the song's recordings to pick from are
-   the other views'. */
-body:has(#sheet[data-render-mode="score"]:not([data-gp-only])) #audio-category-toggle { display: none !important; }
+/* A phone: in the player opened, not on its card; a line of its own. */
+@media (max-width: 900px) {
+  .audio-dock:not(.is-open) .gp-mix { display: none; }
+  .audio-dock.is-open .gp-mix { display: flex; flex-basis: 100%; order: 5; justify-content: center; flex-wrap: wrap; }
+  .gp-mix-ch { flex: 1 1 0; }
+  .gp-mix-vol { flex: 1 1 3rem; width: auto; min-width: 3rem; }
+}
 .gpprev-score .at-cursor-bar { background: rgba(175, 78, 57, 0.14); }
 .gpprev-score .at-cursor-beat { background: #af4e39; width: 3px; }
 /* The sheet: A4 pages (gp-view.js paginate), paper-white on the page's

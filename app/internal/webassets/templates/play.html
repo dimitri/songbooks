@@ -2125,24 +2125,24 @@
           {{if .CanEdit}}<a class="gp-tool gp-edit-link" href="/song/{{.VariantID}}/gp-edit" title="{{t "edit the notes on the web"}}">{{template "icon-edit"}}<span>{{t "Edit"}}</span></a>{{end}}
           <a class="gp-tool" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}">{{template "icon-download"}}<span>Guitar Pro</span></a>
         </div>
-        {{if not .GPOnly}}
-        {{/* A file next to the chart (or inside it) plays here only: the
-             dock plays the file's sound, the song's recording follows it.
-             Two levels, the full Mixer a tap away (gp-view.js "The
-             simplified mixer"). */}}
-        <div class="gp-mix" role="group" aria-label="{{t "Mix"}}">
+        {{/* The dock's simplified mixer (gp-view.js "The dock's mixer"):
+             moved into the player at load, in every view of a song with a
+             file. Recording and MIDI, a switch and a level each: the
+             recording plays when there is one, the file's MIDI sound
+             along with it when switched on (off by default), alone when
+             there's none. The full Mixer a tap away. */}}
+        <div class="gp-mix" role="group" aria-label="{{t "Mix"}}" hidden>
           <span class="gp-mix-ch" data-ch="rec">
-            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" disabled title="{{t "mute or unmute the recording"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Recording"}}</span></button>
-            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" disabled aria-label="{{t "Recording volume"}}">
+            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" title="{{t "mute or unmute the recording"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Recording"}}</span></button>
+            <input type="range" class="gp-mix-vol" min="0" max="100" value="100" aria-label="{{t "Recording volume"}}">
           </span>
-          <span class="gp-mix-ch" data-ch="score">
-            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" title="{{t "mute or unmute the score"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Score"}}</span></button>
-            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" aria-label="{{t "Score volume"}}">
+          <span class="gp-mix-ch" data-ch="midi">
+            <button type="button" class="gp-tool gp-mix-on" aria-pressed="false" title="{{t "the file’s MIDI sound: on or off"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">MIDI</span></button>
+            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" aria-label="{{t "MIDI volume"}}">
           </span>
           <button type="button" class="gp-tool gp-mix-full" aria-label="{{t "Full mixer"}}" title="{{t "every track and the recording, each with its own level"}}">{{template "icon-mode-mixer"}}<span class="gp-mix-full-label">{{t "Full mixer"}}</span></button>
           <span class="gp-mix-why" hidden></span>
         </div>
-        {{end}}
       </div>
       <div class="gp-sheet-wrap"><div class="gp-sheet"><div class="gp-pages" aria-hidden="true"></div><div class="gp-score-canvas"></div></div></div>
     </div>

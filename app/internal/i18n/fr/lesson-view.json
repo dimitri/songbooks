@@ -1,5 +1,7 @@
 {
   "the lesson’s video, the score under it": "la vidéo du cours, la partition dessous",
   "the score alone": "la partition seule",
-  "Play the video: %s": "Lire la vidéo : %s"
+  "Play the video: %s": "Lire la vidéo : %s",
+  "the file’s MIDI sound: on or off": "le son MIDI du fichier : activé ou non",
+  "MIDI volume": "Volume MIDI"
 }

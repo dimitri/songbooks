@@ -167,22 +167,25 @@
   // too: notation is drawn once, in ink, and reads best as it prints.
   //
   // It plays in the song's player (audio-player.js, the dock), like every
-  // other view: the song's recording when it has one, else the file played
-  // by alphaTab's synthesizer — rendered here once, offline, and handed to
-  // the dock as its sound (songbooksPlayer.offerSynth), so the bar shows a
-  // waveform and every tool works on it. alphaTab's own player follows
-  // the dock (PlayerMode.EnabledExternalMedia): the cursor moves with the
-  // dock's bar.beat; a click on a note moves the dock there; bars dragged
-  // across become the dock's loop, and the dock's loop is shaded on the
-  // score.
+  // other view: the song's recording when it has one (a Guitar Pro file's
+  // backing track, imported as the song's "gp" recording, an MP3, the
+  // band's), in every view; only a song with no recording at all plays the
+  // file through alphaTab's synthesizer — rendered here once, offline, and
+  // handed to the dock as its sound (songbooksPlayer.offerSynth), so the
+  // bar shows a waveform and every tool works on it. alphaTab's own player
+  // follows the dock (PlayerMode.EnabledExternalMedia): the cursor moves
+  // with the dock's bar.beat (the recording's bars are the chart's, found
+  // on the file through the song's bar mapping: gp[...] lines, gp_start);
+  // a click on a note moves the dock there; bars dragged across become the
+  // dock's loop, and the dock's loop is shaded on the score.
   //
-  // A file next to the chart (or inside it: not "content: gp") is the
-  // Score view's only: there the dock plays the file's sound even when the
-  // song has a recording, the recording following it bar by bar (the
-  // simplified mixer: Recording and Score, a level and a mute each, the
-  // full Mixer a tap away); leaving the view gives the dock back its
-  // recording, or none. The song's other views never play the file's
-  // score.
+  // The dock's simplified mixer ("The dock's mixer" below): Recording and
+  // MIDI, a switch and a level each, in every view: the file's MIDI sound
+  // can play along with the recording, following it bar by bar; off by
+  // default when there's a recording. The full Mixer is a tap away.
+  //
+  // The score is made ready at load in every view (prepare: hidden, it
+  // isn't drawn, but its sound and bars are there), drawn when shown.
 
   const page = document.getElementById('gp-score-page');
   const SOUNDFONT = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
@@ -357,9 +360,10 @@
         keep: mixMode(),
       });
       full.synthDone = true;
+      full.wav = bytes;
       // The score sounds: its instruments can be chosen.
       if (full.soundBox) full.soundBox.hidden = false;
-      if (mixMode() && sheet.dataset.renderMode === 'score') P.useSynth();
+      if (full.mix) full.mix.sounds();
     } catch (e) {
       P.synthFailed(t('Couldn’t prepare the sound of this file.'));
       if (full.mix) full.mix.off(t('Couldn’t prepare the sound of this file.'), true);
@@ -408,7 +412,7 @@
     const say = (msg) => { if (status) status.textContent = msg; };
     say(t('Preparing the sound…'));
     full.rendering = renderWav((pct) => say(t('Preparing the sound… %d%', pct)))
-      .then((bytes) => { P.replaceSynth(bytes); say(''); })
+      .then((bytes) => { P.replaceSynth(bytes); full.wav = bytes; if (full.mix) full.mix.sounds(true); say(''); })
       .catch(() => say(t('Couldn’t prepare the sound of this file.')))
       .finally(() => { full.rendering = null; if (full.again) resynthesize(); });
   }
@@ -502,7 +506,8 @@
       seekTo(ms) {
         if (full.quiet || !P() || Math.abs(ms - full.lastMs) < 2) return;
         full.lastMs = ms;
-        P().seekBar(barAtMs(ms * P().speed()), false);
+        const b = toDock(barAtMs(ms * P().speed()));
+        if (b !== null) P().seekBar(b, false);
       },
       play() { if (!full.quiet && P() && !P().playing()) playBtn()?.click(); },
       pause() { if (!full.quiet && P() && P().playing()) playBtn()?.click(); },
@@ -521,12 +526,13 @@
       quietly(() => { if (playing) api.play(); else api.pause(); });
     }
     const pos = window.songbooksReferencePosition && window.songbooksReferencePosition();
-    if (pos && pos.bar >= 0) {
-      const ms = msAtBar(pos.bar) / rate;
+    const y = pos && pos.bar >= 0 ? fromDock(pos.bar) : null;
+    if (y !== null) {
+      const ms = msAtBar(y) / rate;
       if (Math.abs(ms - full.lastMs) > 1) { full.lastMs = ms; out.updatePosition(ms); }
     }
     // The dock's loop, shaded on the score.
-    const c = P.cycle();
+    const c = cycleOnFile(P.cycle());
     const key = c ? `${c.from}-${c.to}` : '';
     if (key !== full.cycleKey) {
       full.cycleKey = key;
@@ -564,7 +570,9 @@
     const bar = e.detail ? e.detail.bar : null;
     if (!out || bar === null || bar === undefined) return;
     const P = window.songbooksPlayer;
-    const ms = msAtBar(Math.max(0, bar)) / ((P && P.speed()) || 1);
+    const y = fromDock(Math.max(0, bar));
+    if (y === null) return;
+    const ms = msAtBar(y) / ((P && P.speed()) || 1);
     full.lastMs = ms;
     quietly(() => out.updatePosition(ms));
     if (bar > 0.01) return;
@@ -575,19 +583,60 @@
     const top = surface.getBoundingClientRect().top + b.y;
     if (top < 56) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
   });
+  // The dock's bars and the file's (its played bars): the same when the
+  // dock plays the file's sound; else the dock's are the chart's (a
+  // recording), each found on the file through the song's bar mapping
+  // (full.map: the chart's bar for each played bar of the file; full.inv:
+  // the file's for each chart bar). null where one has no bar for the other.
+  const onFile = () => { const P = window.songbooksPlayer; return !full || !full.map || !P || P.source() === 'synth'; };
+  const fromDock = (x) => (onFile() ? x : GPAlign.toFile(full.inv, x));
+  const toDock = (y) => (onFile() ? y : GPAlign.toChart(full.map, y));
+  function cycleOnFile(c) {
+    if (!c) return null;
+    const a = fromDock(c.from), b = fromDock(c.to - 1);
+    return a === null || b === null ? null : { from: Math.floor(a), to: Math.floor(b) + 1 };
+  }
   function startFollowing() {
     if (!full || full.following) return;
     full.following = true;
     requestAnimationFrame(follow);
   }
 
+  // The Score view shown: drawn at the page's size, its cursor following.
   async function showFull() {
     if (!page) return;
-    if (full) {
-      if (full.mix) window.songbooksPlayer?.useSynth();
-      startFollowing();
-      return;
+    await prepare();
+    if (!full) return;
+    relayout(true);
+    startFollowing();
+  }
+  // The page's size again (shown, or the window resized), the bars a line
+  // and the score's heading when they change; drawn when never drawn.
+  function relayout(shown) {
+    if (!full || sheet.dataset.renderMode !== 'score') return;
+    const ng = geometry();
+    const old = full.geo;
+    full.geo = ng;
+    applyGeometry(ng);
+    if (ng.perRow !== old.perRow || ng.scale !== old.scale || ng.phone !== old.phone || (shown && !full.drawn)) {
+      const api = full.api;
+      api.settings.display.barsPerRow = ng.perRow;
+      api.settings.display.scale = ng.scale;
+      for (const n of SCORE_INFO) if (alphaTab.NotationElement[n] !== undefined) api.settings.notation.elements.set(alphaTab.NotationElement[n], !ng.phone && n !== 'ScoreCopyright');
+      api.updateSettings();
+      api.render();
     }
+  }
+  // The score, its player and its sound, ready in every view (hidden, it
+  // isn't drawn: alphaTab skips a container with no width), so the dock
+  // has the file's sound and bars wherever the song is read.
+  let preparing = null;
+  function prepare() {
+    if (!page) return Promise.resolve();
+    if (!preparing) preparing = makeFull();
+    return preparing;
+  }
+  async function makeFull() {
     const canvas = page.querySelector('.gp-score-canvas');
     const trackBar = page.querySelector('.gp-tracks');
     let score;
@@ -595,10 +644,6 @@
     if (full) return;
     // The chords over the bars: the file's, else the chart's (gp-chords.js).
     const chordsFor = chartChords(score);
-    // The file's own recording, for the simplified mixer when the song has
-    // none (timed by its sync points, read before they go).
-    const own = mixMode() && score.backingTrack && score.backingTrack.rawAudioFile
-      ? { bytes: score.backingTrack.rawAudioFile, times: fileBarTimes(score) } : null;
     // The instruments chosen for this song (gp-instruments.js).
     if (window.GPInstruments) GPInstruments.apply(variantId, score);
     // alphaTab's clock is the synthesizer's: no backing track, no sync points.
@@ -632,10 +677,10 @@
       forceScrollTo(bb) { keepInSight(bb); },
       onBeatCursorUpdating(bb) { if (full.playing) keepInSight(bb); },
     };
-    api.postRenderFinished.on(() => requestAnimationFrame(paginate));
+    api.postRenderFinished.on(() => { full.drawn = true; requestAnimationFrame(paginate); });
     api.midiLoaded.on(() => {
       Object.assign(full, barTimes(api, score));
-      if (mixMode()) synthesizeForMix(); else renderSynth();
+      setUpSound();
     });
     api.playerReady.on(() => {
       const out = api.player && api.player.output;
@@ -649,7 +694,8 @@
       const to = playedAtTick(Math.max(e.playbackRange.startTick, e.playbackRange.endTick - 1)) + 1;
       quietly(() => { api.playbackRange = null; });
       full.cycleKey = null;
-      window.songbooksPlayer?.setCycle(from, to);
+      const a = toDock(from), b = toDock(to - 1);
+      if (a !== null && b !== null) window.songbooksPlayer?.setCycle(Math.floor(a), Math.floor(b) + 1);
     });
     // A click elsewhere takes alphaTab's shading away: the dock's loop comes back.
     api.playbackRangeHighlightChanged?.on(() => { if (!full.quiet) full.cycleKey = null; });
@@ -689,25 +735,19 @@
     let resizeTimer = null;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (!full || sheet.dataset.renderMode !== 'score') return;
-        const ng = geometry();
-        const old = full.geo;
-        full.geo = ng;
-        applyGeometry(ng);
-        if (ng.perRow !== old.perRow || ng.scale !== old.scale || ng.phone !== old.phone) {
-          api.settings.display.barsPerRow = ng.perRow;
-          api.settings.display.scale = ng.scale;
-          api.updateSettings();
-          api.render();
-        }
-      }, 150);
+      resizeTimer = setTimeout(() => relayout(false), 150);
     });
-    if (mixMode()) full.mix = setUpMix(own);
+    // The song's bar mapping: the chart's bar each played bar of the file
+    // is (gpOrder: gp[...] lines, gp_start), for a recording the dock plays.
+    const mx = await mixerData();
+    if (mx.gpOrder && window.GPAlign) {
+      full.map = GPAlign.chartBarsForFile(mx.gpOrder, GPFacts.played(score.masterBars));
+      full.inv = GPAlign.fileBarsForChart(full.map, mx.totalBars || mx.gpOrder.length);
+    }
+    full.mix = setUpDockMix();
     setUpInstruments();
     full.chords = await chordsFor;
     renderFull(true);
-    startFollowing();
   }
 
   // ---- The chords over the bars ---------------------------------------------
@@ -744,158 +784,167 @@
     GPChords.put(full.score, top ?? -1, full.chords, makeChord);
   }
 
-  // ---- The simplified mixer ---------------------------------------------------
-  // Not "content: gp": the file sits next to the chart, or inside it.
-  const mixMode = () => !sheet.dataset.gpOnly && !!page && !!page.querySelector('.gp-mix');
-
-  // Seconds into the file's own recording where each played bar starts,
-  // from its sync points; null with none.
-  function fileBarTimes(score) {
-    const played = GPFacts.played(score.masterBars);
-    const known = [];
-    const seen = new Map();
-    played.forEach((w, pos) => {
-      const occ = seen.get(w) || 0;
-      seen.set(w, occ + 1);
-      for (const sp of score.masterBars[w - 1].syncPoints || []) {
-        if ((sp.syncPointValue.barOccurence || 0) === occ && !(sp.ratioPosition > 0)) known.push({ bar: pos, t: sp.syncPointValue.millisecondOffset / 1000 });
-      }
-    });
-    const mb = score.masterBars[0] || {};
-    const nominal = (mb.timeSignatureNumerator || 4) * (4 / (mb.timeSignatureDenominator || 4)) * 60 / (score.tempo || 120);
-    return GPAlign.barTimes(known, played.length, nominal);
+  // ---- The file's sound, and the dock's mixer -----------------------------------
+  // The dock plays the song's recording when it has one, in every view;
+  // the file's MIDI sound (the synthesizer's) only when there's none. The
+  // dock's simplified mixer, beside its Mixer button, in every view where
+  // the song has a file: Recording and MIDI, a switch and a level each.
+  //
+  // - No recording: the dock plays the MIDI; its switch and level are the
+  //   dock's.
+  // - A recording, the file lined up with the chart (full.map): the MIDI,
+  //   off by default, plays along with the recording when switched on —
+  //   rendered then, once — following it bar by bar (its own <audio>, its
+  //   time and speed set from the recording's place, as the Score view's
+  //   cursor is); the recording's switch and level are the dock's.
+  // - A recording, the file not lined up: the MIDI can't follow it; switched
+  //   on, the dock plays the MIDI alone, the recording off, until it's
+  //   switched off again.
+  const mixMode = () => !!(full && full.recorded);
+  async function setUpSound() {
+    const P = window.songbooksPlayer;
+    if (!P || full.soundKnown) return;
+    full.soundKnown = true;
+    const { recorded } = await (P.recordings || P.ready);
+    full.recorded = !!recorded;
+    if (full.mix) full.mix.apply();
+    if (!recorded) renderSynth();
   }
 
-  // The dock plays the file's sound (its bars are the file's, as played);
-  // the song's recording follows it here, bar by bar, through the song's
-  // own bar sync (its sync points or section markers) and which bar of
-  // the chart each bar of the file is (gpOrder: gp_start, or the
-  // sections' gp[...] lines) — GPAlign.follow. Recording: that element's
-  // level; Score: the dock's.
-  function setUpMix(own) {
+  function setUpDockMix() {
     const bar = page.querySelector('.gp-mix');
+    if (!bar) return null;
     const P = () => window.songbooksPlayer;
+    // In the dock, beside its Mixer button (or Practice).
+    const at = document.getElementById('audio-mixer-btn') || document.getElementById('audio-panel-btn');
+    if (at) at.before(bar);
+    bar.hidden = false;
     const ch = (name) => {
       const e = bar.querySelector(`[data-ch="${name}"]`);
       return { el: e, on: e.querySelector('.gp-mix-on'), vol: e.querySelector('.gp-mix-vol') };
     };
-    const rec = ch('rec'), sc = ch('score');
+    const rec = ch('rec'), midi = ch('midi');
     const why = bar.querySelector('.gp-mix-why');
     const prefKey = `songbooks:gp-mix:${variantId}`;
     let prefs = {};
     try { prefs = JSON.parse(localStorage.getItem(prefKey) || '{}') || {}; } catch (e) { /* defaults */ }
+    // midi.on null: as the song goes (on with no recording, off with one).
     const st = {
-      rec: { on: prefs.recOn !== false, vol: prefs.recVol ?? 80 },
-      score: { on: prefs.scoreOn !== false, vol: prefs.scoreVol ?? 80 },
-      audio: null, map: null, times: null, guardUntil: 0,
+      rec: { on: prefs.recOn !== false, vol: prefs.recVol ?? 100 },
+      midi: { on: typeof prefs.midiOn === 'boolean' ? prefs.midiOn : null, vol: prefs.midiVol ?? 80 },
+      audio: null, guardUntil: 0, failed: '',
     };
     const save = () => {
-      try { localStorage.setItem(prefKey, JSON.stringify({ recOn: st.rec.on, recVol: st.rec.vol, scoreOn: st.score.on, scoreVol: st.score.vol })); } catch (e) { /* not kept */ }
+      try { localStorage.setItem(prefKey, JSON.stringify({ recOn: st.rec.on, recVol: st.rec.vol, midiOn: st.midi.on, midiVol: st.midi.vol })); } catch (e) { /* not kept */ }
     };
-    const paint = (c, v) => {
-      c.on.setAttribute('aria-pressed', String(v.on));
-      c.el.classList.toggle('is-muted', !v.on);
-      c.vol.value = v.vol;
+    const midiOn = () => !st.failed && (st.midi.on ?? full.recorded === false);
+    const layered = () => !!(full.recorded && full.map);
+    const say = (msg) => {
+      why.textContent = msg || '';
+      bar.title = msg || '';
+      bar.classList.toggle('has-why', !!msg);
     };
-    const live = () => !!(st.audio && st.times && st.rec.on && st.rec.vol > 0);
-    const applyScore = () => { P()?.setLevel(st.score.on ? st.score.vol / 100 : 0); paint(sc, st.score); };
-    const applyRec = () => {
-      paint(rec, st.rec);
-      if (st.audio) st.audio.volume = st.rec.vol / 100;
-      if (!live() && st.audio) st.audio.pause();
+    const paint = (c, on, vol) => {
+      c.on.setAttribute('aria-pressed', String(on));
+      c.el.classList.toggle('is-muted', !on);
+      c.vol.value = vol;
     };
-    sc.on.addEventListener('click', () => { st.score.on = !st.score.on; applyScore(); save(); });
-    sc.vol.addEventListener('input', () => { st.score.vol = Number(sc.vol.value); applyScore(); save(); });
-    rec.on.addEventListener('click', () => { st.rec.on = !st.rec.on; applyRec(); save(); });
-    rec.vol.addEventListener('input', () => { st.rec.vol = Number(rec.vol.value); applyRec(); save(); });
-    bar.querySelector('.gp-mix-full')?.addEventListener('click', () => document.querySelector('#mode-segmented button[data-value="mixer"]')?.click());
-    applyScore();
-    applyRec();
-    const off = (msg, scoreToo) => {
-      rec.on.disabled = true;
-      rec.vol.disabled = true;
-      rec.el.classList.add('is-off');
-      rec.on.title = msg;
-      why.textContent = msg;
-      why.hidden = false;
-      if (scoreToo) { sc.on.disabled = true; sc.vol.disabled = true; }
-    };
-
-    (async () => {
-      try {
-        const [mx, au] = await Promise.all([
-          mixerData(),
-          fetch(`/api/songs/${variantId}/audio`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : { categories: [] })),
-        ]);
-        const cats = {};
-        (au.categories || []).forEach((c) => { cats[c.category] = c; });
-        let choice = null;
-        try { choice = localStorage.getItem(`songbooks:audio-category-choice:${variantId}`); } catch (e) { /* none */ }
-        const cat = choice && cats[choice] ? choice : ['youtube', 'band', 'gp'].find((c) => cats[c]);
-        let src;
-        if (cat) {
-          if (!mx.gpOrder) { off(t('The chart isn’t lined up with the file: the recording can’t follow the score.')); return; }
-          st.map = GPAlign.chartBarsForFile(mx.gpOrder, GPFacts.played(full.score.masterBars));
-          st.times = GPAlign.barTimes(GPAlign.knownBars(cats[cat], mx.sections), mx.totalBars, (mx.timeNum || 4) * (4 / (mx.timeDen || 4)) * 60 / (mx.tempo || 120));
-          if (!st.times) { off(t('The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): it can’t follow the score.')); return; }
-          src = new Blob([await window.songbooksAudioBytes(variantId, cat, cats[cat])], { type: 'audio/mpeg' });
-          rec.on.title = cat === 'youtube' ? t('the YouTube recording') : cat === 'band' ? t('the band recording') : t('the Guitar Pro file’s recording');
-        } else if (own) {
-          if (!own.times) { off(t('The file’s recording has no sync points: it can’t follow the score.')); return; }
-          st.map = own.times.slice(0, -1).map((x, i) => i);
-          st.times = own.times;
-          src = new Blob([own.bytes], { type: 'audio/mpeg' });
-          rec.on.title = t('the Guitar Pro file’s recording');
+    function apply() {
+      const p = P();
+      const none = full.recorded === false;
+      rec.on.disabled = rec.vol.disabled = none;
+      rec.el.classList.toggle('is-off', none);
+      midi.on.disabled = midi.vol.disabled = !!st.failed;
+      if (p && none) {
+        // The dock's sound is the MIDI.
+        p.setLevel(midiOn() ? st.midi.vol / 100 : 0);
+        say(st.failed || t('This song has no recording: its MIDI plays.'));
+      } else if (p && full.recorded) {
+        p.setRecordingLevel?.(st.rec.on ? st.rec.vol / 100 : 0);
+        if (midiOn() && !full.synthDone) {
+          synthesizeForMix();
+          say(t('Preparing the sound…'));
+        } else if (midiOn() && !layered()) {
+          if (p.source() !== 'synth') p.useSynth();
+          p.setLevel(st.midi.vol / 100);
+          say(t('The chart isn’t lined up with the file: the MIDI plays alone, not with the recording.'));
         } else {
-          off(t('This song has no recording.'));
-          return;
+          if (!midiOn() && p.source() === 'synth') p.leaveSynth();
+          say(st.failed);
         }
-        const a = new Audio(URL.createObjectURL(src));
-        a.preload = 'auto';
-        a.preservesPitch = true;
-        a.mozPreservesPitch = true;
-        a.webkitPreservesPitch = true;
-        st.audio = a;
-        rec.on.disabled = false;
-        rec.vol.disabled = false;
-        applyRec();
-      } catch (e) {
-        off(t('Couldn’t load the recording.'));
+        if (st.audio) st.audio.volume = st.midi.vol / 100;
+        if (st.audio && !midiOn()) st.audio.pause();
       }
-    })();
+      paint(rec, !none && st.rec.on && !(midiOn() && full.recorded && !layered()), st.rec.vol);
+      paint(midi, midiOn(), st.midi.vol);
+    }
+    rec.on.addEventListener('click', () => { st.rec.on = !st.rec.on; save(); apply(); });
+    rec.vol.addEventListener('input', () => { st.rec.vol = Number(rec.vol.value); st.rec.on = true; save(); apply(); });
+    midi.on.addEventListener('click', () => { st.midi.on = !midiOn(); save(); apply(); });
+    midi.vol.addEventListener('input', () => { st.midi.vol = Number(midi.vol.value); if (!midiOn()) st.midi.on = true; save(); apply(); });
+    bar.querySelector('.gp-mix-full')?.addEventListener('click', () => document.querySelector('#mode-segmented button[data-value="mixer"]')?.click());
+    apply();
 
     // Its own timer, not the drawing's frames: those stop in a tab in the
     // background, the sound doesn't.
-    setInterval(() => { if (full && full.mix && sheet.dataset.renderMode === 'score') full.mix.sync(); }, 40);
+    setInterval(() => { if (full && full.mix) full.mix.sync(); }, 40);
     return {
-      off,
-      // While the Score view is shown: where the recording should be for
-      // the dock's place in the file.
+      apply,
+      // The file's sound is ready (again: another instrument).
+      sounds(again) {
+        if (full.recorded && full.wav) {
+          if (st.audio && again) { st.audio.pause(); URL.revokeObjectURL(st.audio.src); st.audio = null; }
+          if (!st.audio) {
+            const a = new Audio(URL.createObjectURL(new Blob([full.wav], { type: 'audio/wav' })));
+            a.preload = 'auto';
+            a.preservesPitch = a.mozPreservesPitch = a.webkitPreservesPitch = true;
+            st.audio = a;
+          }
+        }
+        apply();
+      },
+      off(msg) {
+        st.failed = msg;
+        apply();
+      },
+      // Where the MIDI should be for the recording's place in the chart.
       sync() {
-        const a = st.audio;
-        if (!a) return;
-        const p = P();
-        const pos = p && p.source() === 'synth' && window.songbooksReferencePosition && window.songbooksReferencePosition();
-        if (!live() || !pos || !pos.playing || !full.barMs.length) { if (!a.paused) a.pause(); return; }
-        const i = Math.max(0, Math.floor(pos.bar));
+        const a = st.audio, p = P();
+        if (!a || !p) return;
+        const pos = p.source() !== 'synth' && window.songbooksReferencePosition && window.songbooksReferencePosition();
+        if (!midiOn() || !layered() || !pos || !pos.playing || !full.barMs.length) { if (!a.paused) a.pause(); return; }
+        const b = Math.floor(pos.bar);
+        const t0 = p.timeAtBar ? p.timeAtBar(b) : null, t1 = p.timeAtBar ? p.timeAtBar(b + 1) : null;
+        if (t0 === null || t1 === null || !(t1 > t0)) {
+          say(t('The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): the MIDI can’t follow it.'));
+          if (!a.paused) a.pause();
+          return;
+        }
+        const y = GPAlign.toFile(full.inv, pos.bar);
+        if (y === null) { if (!a.paused) a.pause(); return; }
+        const i = Math.floor(y);
         const synthBarSec = ((full.barMs[i + 1] ?? full.barMs[i]) - full.barMs[i]) / 1000;
-        const f = GPAlign.follow(st.map, st.times, i, pos.bar - i, synthBarSec);
-        if (!f || (a.duration && f.t >= a.duration)) { if (!a.paused) a.pause(); return; }
-        const speed = p.speed();
-        const rate = f.ratio > 0 ? speed / f.ratio : speed;
+        const target = msAtBar(y) / 1000;
+        if (a.duration && target >= a.duration) { if (!a.paused) a.pause(); return; }
+        // The bar lasts as long in both: the recording's, at the dock's speed.
+        const rate = p.speed() * (synthBarSec > 0 ? synthBarSec / (t1 - t0) : 1);
         if (Math.abs(a.playbackRate - rate) > 0.004) a.playbackRate = Math.max(0.25, Math.min(4, rate));
         const now = performance.now();
         if (a.paused) {
-          a.currentTime = f.t;
+          a.currentTime = target;
           a.play().catch(() => {});
           st.guardUntil = now + 400;
-        } else if (now > st.guardUntil && Math.abs(a.currentTime - f.t) > 0.15) {
-          a.currentTime = f.t;
+        } else if (now > st.guardUntil && Math.abs(a.currentTime - target) > 0.15) {
+          a.currentTime = target;
           st.guardUntil = now + 400;
         }
       },
       pause() { if (st.audio) st.audio.pause(); },
-      state: () => ({ rec: { ...st.rec }, score: { ...st.score }, live: live(), audioTime: st.audio ? st.audio.currentTime : null, paused: st.audio ? st.audio.paused : null, why: why.hidden ? '' : why.textContent, source: P() ? P().source() : null }),
+      state: () => ({
+        rec: { ...st.rec }, midi: { on: midiOn(), vol: st.midi.vol }, recorded: full.recorded, layered: layered(),
+        midiTime: st.audio ? st.audio.currentTime : null, midiPaused: st.audio ? st.audio.paused : null,
+        why: why.textContent, source: P() ? P().source() : null,
+      }),
     };
   }
 
@@ -934,15 +983,7 @@
   function onMode() {
     const mode = sheet.dataset.renderMode;
     if (mode === 'score') showFull();
-    else {
-      // Next to a chart the file plays in its own view only: leaving it
-      // stops it, and the dock goes back to the song's recording.
-      if (full && full.mix) {
-        full.mix.pause();
-        window.songbooksPlayer?.leaveSynth();
-      }
-      drawSections();
-    }
+    else drawSections();
   }
   new MutationObserver(onMode).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
   document.addEventListener('songbooks:notation', () => {
@@ -952,6 +993,8 @@
   });
   function start() {
     onMode();
+    // The file's sound and the dock's mixer in every view.
+    prepare();
     backfillFacts();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
@@ -983,5 +1026,5 @@
   });
 
   // scoreApi: the Score view's alphaTab, for tests and a look from the console.
-  window.GPView = { showFull, drawSections, fileBytes, loadScore, saveScore, scoreApi: () => full && full.api, mixState: () => (full && full.mix ? full.mix.state() : null) };
+  window.GPView = { showFull, prepare, drawSections, fileBytes, loadScore, saveScore, scoreApi: () => full && full.api, mixState: () => (full && full.mix ? full.mix.state() : null) };
 })();
