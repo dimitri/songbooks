@@ -124,7 +124,7 @@ func TestBandBuiltinRolesReproduceTodaysRights(t *testing.T) {
 	ctx := context.Background()
 	guestOnlyNot := map[string]bool{
 		BandPrivPublish: true, BandPrivVote: true, BandPrivManageMembers: true,
-		BandPrivManageRoles: true, BandPrivEditLook: true,
+		BandPrivManageRoles: true, BandPrivEditLook: true, BandPrivRenameArchive: true,
 	}
 	for _, p := range AllBandPrivileges {
 		if !f.can(t, f.core, p) {

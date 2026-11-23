@@ -388,8 +388,11 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /bands", s.requireAuth(s.handleBandsPage))
 	mux.HandleFunc("POST /api/bands", s.requireAuth(s.handleCreateBand))
 	mux.HandleFunc("GET /bands/{id}", s.requireBandMember(s.handleBandPage))
-	mux.HandleFunc("DELETE /api/bands/{id}", s.requireBandPrivilege(store.BandPrivDeleteBand, s.handleDeleteBand))
-	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandPrivilege(store.BandPrivEditBand, s.handleSetBandName))
+	// Deleting a band: site admins only (docs/band-roles.md); renaming
+	// and archiving it: rename_archive.
+	mux.HandleFunc("DELETE /api/bands/{id}", s.requireAdmin(s.handleDeleteBand))
+	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandPrivilege(store.BandPrivRenameArchive, s.handleSetBandName))
+	mux.HandleFunc("POST /api/bands/{id}/archive", s.requireBandPrivilege(store.BandPrivRenameArchive, s.handleSetBandArchived))
 	mux.HandleFunc("GET /api/bands/{id}/brand", s.requireBandMember(s.handleGetBrand("band")))
 	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandPrivilege(store.BandPrivEditLook, s.handleSetBrand("band")))
 	mux.HandleFunc("PUT /api/bands/{id}/brand/logo", s.requireBandPrivilege(store.BandPrivEditLook, s.handlePutBrandLogo("band")))

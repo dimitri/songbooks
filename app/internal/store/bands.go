@@ -24,7 +24,13 @@ type Band struct {
 	// group naturally by the record they're from; a covers band has no
 	// such concept).
 	MusicType string
+	// ArchivedAt: when the band was archived (read only, out of the
+	// menus; docs/band-roles.md), nil if it isn't.
+	ArchivedAt *time.Time
 }
+
+// Archived reports whether b is archived.
+func (b Band) Archived() bool { return b.ArchivedAt != nil }
 
 // BandMember is one row of band_members — one person's one stint of
 // membership in one band. History = every row ever inserted (see
@@ -151,9 +157,9 @@ func (st *Store) SetBandMusicType(ctx context.Context, bandID int64, musicType s
 func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 	var b Band
 	err := st.db.QueryRow(ctx, `
-		SELECT b.id, b.name, b.created_at, coalesce(b.music_type, '')
+		SELECT b.id, b.name, b.created_at, coalesce(b.music_type, ''), b.archived_at
 		FROM bands b WHERE b.id = $1`, bandID).
-		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.MusicType)
+		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.MusicType, &b.ArchivedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}
@@ -164,13 +170,23 @@ func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 }
 
 // ListBandsForPerson lists every band personID is currently a member of,
-// alphabetically by name.
+// alphabetically by name — but the archived ones (ListArchivedBandsForPerson).
 func (st *Store) ListBandsForPerson(ctx context.Context, personID int64) ([]Band, error) {
+	return st.listBandsForPerson(ctx, personID, false)
+}
+
+// ListArchivedBandsForPerson lists personID's archived bands, by name:
+// "All my groups" keeps them reachable.
+func (st *Store) ListArchivedBandsForPerson(ctx context.Context, personID int64) ([]Band, error) {
+	return st.listBandsForPerson(ctx, personID, true)
+}
+
+func (st *Store) listBandsForPerson(ctx context.Context, personID int64, archived bool) ([]Band, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT DISTINCT b.id, b.name, b.created_at
 		FROM bands b JOIN band_members m ON m.band_id = b.id
-		WHERE m.person_id = $1 AND upper_inf(m.validity)
-		ORDER BY b.name`, personID)
+		WHERE m.person_id = $1 AND upper_inf(m.validity) AND (b.archived_at IS NOT NULL) = $2
+		ORDER BY b.name`, personID, archived)
 	if err != nil {
 		return nil, err
 	}

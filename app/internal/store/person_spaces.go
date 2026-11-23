@@ -40,6 +40,7 @@ func (st *Store) ListSpaces(ctx context.Context, personID int64) ([]Space, error
 			FROM bands b
 			JOIN band_members m ON m.band_id = b.id AND m.person_id = $1 AND upper_inf(m.validity)
 			LEFT JOIN person_spaces ps ON ps.person_id = $1 AND ps.band_id = b.id
+			WHERE b.archived_at IS NULL -- an archived band: "All my groups" only
 			UNION ALL
 			SELECT DISTINCT 'community', c.id, c.name, c.kind, ps.used_at, ps.pinned_at
 			FROM communities c

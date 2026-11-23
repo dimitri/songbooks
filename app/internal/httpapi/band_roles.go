@@ -45,9 +45,9 @@ var bandPrivilegeGroups = []bandPrivilegeGroup{
 		{store.BandPrivManageRoles, "Manage roles", "Give members a role, change what each role allows."},
 	}},
 	{"The band", []bandPrivilegeInfo{
-		{store.BandPrivEditBand, "Rename the band", "Its name and what it plays."},
+		{store.BandPrivRenameArchive, "Rename and archive the band", "Archived, it’s read only and out of the menus; unarchive it here."},
+		{store.BandPrivEditBand, "Say what it plays", "Covers or original music."},
 		{store.BandPrivEditLook, "Change its look", "Colours, logo, card picture and language."},
-		{store.BandPrivDeleteBand, "Delete the band", "For every member, with its songbook and set lists."},
 	}},
 }
 

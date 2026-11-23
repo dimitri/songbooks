@@ -19,6 +19,7 @@
   </div>
   {{with .Gear}}<a class="space-gear{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t .Label}}</span></a>{{end}}
 </div>
+{{if .Archived}}<p class="space-archived" role="note"><span class="badge-archived">{{t "Archived"}}</span> {{t "This band is archived: everything here is read only."}}</p>{{end}}
 <nav class="space-tabs" aria-label="{{t "Sections of %s" .Name}}">
   {{range .Sections}}<a class="space-tab{{if .Current}} active{{end}}" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{template "space-section-label" (dict "S" . "ID" $.ID)}}</a>
   {{end}}

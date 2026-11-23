@@ -34,6 +34,12 @@
       <p class="hint">{{t "You're not in a band yet."}} <a href="/bands">{{t "Start one"}}</a>.</p>
     {{end}}
     </div>
+    {{/* Archived bands (docs/band-roles.md): only here. */}}
+    {{with .ArchivedBands}}
+    <ul class="archived-bands" aria-label="{{t "Archived bands"}}">
+      {{range .}}<li><a href="/bands/{{.ID}}">{{.Name}}</a> <span class="badge-archived">{{t "Archived"}}</span></li>{{end}}
+    </ul>
+    {{end}}
   </section>
 
   <section class="home-section">
