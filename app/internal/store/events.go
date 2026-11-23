@@ -258,7 +258,7 @@ func (st *Store) CanManageEvent(ctx context.Context, eventID, personID int64) (b
 	if ev.OwnerKind == "community" {
 		return st.HasCommunityPrivilege(ctx, ev.OwnerCommunityID, personID, PrivManageEvents)
 	}
-	return st.IsCurrentBandMember(ctx, ev.OwnerBandID, personID)
+	return st.HasBandPrivilege(ctx, ev.OwnerBandID, personID, BandPrivManageEvents)
 }
 
 // ---- Event registration ("attending") ---------------------------------

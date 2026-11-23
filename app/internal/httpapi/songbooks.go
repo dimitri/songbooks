@@ -46,13 +46,13 @@ func (s *Server) handleCreateSongbook(w http.ResponseWriter, r *http.Request) {
 	ownerKind, ownerID := "person", p.ID
 	switch {
 	case req.OwnerBandID != 0:
-		isMember, err := s.store.IsCurrentBandMember(r.Context(), req.OwnerBandID, p.ID)
+		may, err := s.store.HasBandPrivilege(r.Context(), req.OwnerBandID, p.ID, store.BandPrivEditSongbook)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isMember {
-			httpError(w, http.StatusForbidden, "must be a current member of this band")
+		if !may {
+			httpError(w, http.StatusForbidden, "your role in this band doesn't let you make songbooks")
 			return
 		}
 		ownerKind, ownerID = "band", req.OwnerBandID

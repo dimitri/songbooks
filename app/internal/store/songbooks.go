@@ -292,6 +292,9 @@ func (st *Store) CanEditSongbook(ctx context.Context, personID, songbookID int64
 			return false, err
 		}
 	}
+	if sb.OwnerKind == "band" {
+		return st.HasBandPrivilege(ctx, sb.OwnerBandID, personID, BandPrivEditSongbook)
+	}
 	return st.memberAccessesSongbook(ctx, personID, sb)
 }
 

@@ -409,14 +409,14 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 	}
 	defer tx.Rollback(ctx)
 
-	// isCurrentBandMember(ctx, tx, ...), not st.IsCurrentBandMember — tx is
+	// hasBandPrivilege(ctx, tx, ...), not st.HasBandPrivilege — tx is
 	// already open (see isCurrentBandMember's doc comment in bands.go).
-	isMember, err := isCurrentBandMember(ctx, tx, bandID, creatorPersonID)
+	may, err := hasBandPrivilege(ctx, tx, bandID, creatorPersonID, BandPrivEditSongbook)
 	if err != nil {
 		return 0, err
 	}
-	if !isMember {
-		return 0, fmt.Errorf("person %d is not a current member of band %d: %w", creatorPersonID, bandID, ErrForbidden)
+	if !may {
+		return 0, fmt.Errorf("person %d may not add songs to band %d: %w", creatorPersonID, bandID, ErrForbidden)
 	}
 
 	workID, err := st.findOrCreateWork(ctx, tx, title, artist)

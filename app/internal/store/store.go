@@ -198,12 +198,12 @@ func (st *Store) CreateVariant(ctx context.Context, ownerKind OwnerKind, ownerID
 	defer tx.Rollback(ctx)
 
 	if ownerKind == OwnerBand {
-		isMember, err := isCurrentBandMember(ctx, tx, ownerID, creatorPersonID)
+		may, err := hasBandPrivilege(ctx, tx, ownerID, creatorPersonID, BandPrivEditSongbook)
 		if err != nil {
 			return 0, err
 		}
-		if !isMember {
-			return 0, fmt.Errorf("person %d is not a current member of band %d: %w", creatorPersonID, ownerID, ErrForbidden)
+		if !may {
+			return 0, fmt.Errorf("person %d may not add songs to band %d: %w", creatorPersonID, ownerID, ErrForbidden)
 		}
 	}
 

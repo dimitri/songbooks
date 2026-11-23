@@ -307,15 +307,14 @@ func (st *Store) SongbookTargets(ctx context.Context, personID, keep int64) ([]S
 		LEFT JOIN bands b ON b.id = sb.owner_band_id
 		LEFT JOIN communities c ON c.id = sb.owner_community_id
 		WHERE (sb.owner_kind = 'person' AND sb.owner_person_id = $1)
-		   OR (sb.owner_kind = 'band' AND sb.owner_band_id IN (
-		         SELECT band_id FROM band_members WHERE person_id = $1 AND upper_inf(validity)))
+		   OR (sb.owner_kind = 'band' AND has_band_privilege(sb.owner_band_id, $1, $4))
 		   OR (sb.owner_kind = 'community' AND sb.owner_community_id IN (
 		         SELECT cm.community_id FROM community_members cm
 		         JOIN community_role_privileges crp ON crp.role_id = cm.role_id
 		         WHERE cm.person_id = $1 AND upper_inf(cm.validity) AND crp.privilege = $2)
 		       AND (sb.kind <> 'student' OR sb.id = $3))
 		ORDER BY (sb.owner_kind = 'person') DESC, sb.owner_kind, 5, NOT sb.is_default, sb.name, sb.id`,
-		personID, PrivEditRepertoire, keep)
+		personID, PrivEditRepertoire, keep, BandPrivEditSongbook)
 	if err != nil {
 		return nil, err
 	}

@@ -526,6 +526,17 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 		}
+		// Registering as a band signs the band up: its manage_events
+		// (docs/band-roles.md; by default, any member).
+		if bandID != 0 {
+			if may, err := s.bandPrivilege(r, bandID, store.BandPrivManageEvents); err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			} else if !may {
+				httpError(w, http.StatusForbidden, "your role in that band doesn't let you sign it up")
+				return
+			}
+		}
 		if err := s.store.RegisterForEvent(r.Context(), eventID, p.ID, bandID); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -591,8 +602,8 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleRegisterSongForEvent claims a song from eventID's attached
-// setlist — as the logged-in person, or as a band they're a current
-// member of (req.bandId). requireAuth only: any logged-in visitor who
+// setlist — as the logged-in person, or as a band whose manage_events
+// their role grants (req.bandId; by default, any member). requireAuth only: any logged-in visitor who
 // can see the event can register a song, same "no extra gate beyond
 // being able to view it" rule the public registration flow uses.
 func (s *Server) handleRegisterSongForEvent(w http.ResponseWriter, r *http.Request) {
@@ -634,13 +645,13 @@ func (s *Server) handleRegisterSongForEvent(w http.ResponseWriter, r *http.Reque
 	personID := actor.ID
 	bandID := int64(0)
 	if req.BandID != 0 {
-		isMember, err := s.store.IsCurrentBandMember(r.Context(), req.BandID, actor.ID)
+		may, err := s.bandPrivilege(r, req.BandID, store.BandPrivManageEvents)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isMember && !actor.IsAdmin {
-			httpError(w, http.StatusForbidden, "must be a current member of that band")
+		if !may {
+			httpError(w, http.StatusForbidden, "your role in that band doesn't let you sign it up")
 			return
 		}
 		bandID, personID = req.BandID, 0

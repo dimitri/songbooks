@@ -10080,3 +10080,38 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .propose-dialog .propose-song-hint:empty { display: none; }
 .propose-dialog .propose-key[hidden] { display: none; }
 .propose-dialog .form-status.is-error { color: var(--danger); }
+
+/* ---- Band roles (band_roles.html, docs/band-roles.md): the band's
+   roles as columns, what they may do as rows, a tick per cell. The
+   first column wraps; the role columns stay narrow and centred, the
+   table scrolls sideways on a phone when a band has many roles. ---- */
+.band-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: inherit; }
+.band-roles h3 { margin: 1.1rem 0 0.4rem; font-size: 1rem; }
+.band-roles-scroll { margin-top: 0.6rem; }
+.band-roles-table { width: 100%; border-collapse: collapse; }
+.band-roles-table th, .band-roles-table td { padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.band-roles-table thead th { vertical-align: bottom; font-size: 0.85rem; border-bottom: 1px solid var(--border-strong); }
+.band-roles-table .band-roles-what { min-width: 11rem; font-weight: 400; }
+.band-roles-table thead .band-roles-what { color: var(--fg-muted); font-weight: 600; }
+.band-roles-table .band-roles-role { text-align: center; width: 5.5rem; min-width: 4.5rem; }
+.band-roles-table .band-role-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.band-roles-table .band-role-count { display: block; font-weight: 400; font-size: 0.78rem; color: var(--fg-muted); }
+.band-roles-table .band-roles-group th { padding-top: 0.9rem; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); border-bottom: 0; }
+.band-roles-table .band-priv-label { display: block; }
+.band-roles-table .band-priv-hint { display: block; color: var(--fg-muted); font-size: 0.8rem; line-height: 1.3; }
+.band-roles-table input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; }
+.band-roles-own, .band-roles-members { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.band-roles-own li, .band-roles-members li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
+.band-roles-own .band-role-rename { flex: 1 1 12rem; max-width: 20rem; }
+.band-roles-members .band-roles-member { flex: 1 1 10rem; }
+.band-role-new { margin-top: 0.4rem; }
+.band-role-new h3 { margin-bottom: 0; }
+@media (max-width: 600px) {
+  .band-roles-table .band-roles-what { min-width: 7.5rem; }
+  .band-roles-table .band-roles-role { width: 3.8rem; min-width: 3.4rem; padding-left: 0.2rem; padding-right: 0.2rem; }
+  .band-roles-table .band-priv-hint { display: none; }
+  .band-roles-table .band-role-count { font-size: 0.7rem; }
+  .band-roles-table thead .band-roles-role { vertical-align: top; }
+}
+.band-roles-table .band-role-yes { color: var(--accent-ink); font-weight: 700; }
+.band-roles-table .band-role-no { color: var(--fg-faint); }

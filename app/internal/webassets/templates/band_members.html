@@ -22,7 +22,7 @@
 
   {{/* band-members-not-core also hides the placeholder rows' link
        buttons for a guest (app.css). */}}
-  <p class="hint{{if not .IsCore}} band-members-not-core{{end}}">{{t "Any member can remove people. Only core members invite people and change who is core or guest."}}</p>
+  <p class="hint{{if not .IsCore}} band-members-not-core{{end}}">{{t "What each member may do here is their role’s: by default, any member removes people, core members invite people and give roles. The band’s roles are in its settings."}}</p>
 
   {{/* One roster, one row per person: name, instruments and role, and
        for someone who hasn't joined yet their personal invite link on
@@ -59,17 +59,18 @@
         </div>
         {{end}}
         <div class="roster-row-actions">
-        {{if $.IsCore}}
-        {{/* Saves as soon as it changes, so the row says whether it did. */}}
+        {{if $.Privs.Can "manage_roles"}}
+        {{/* The band's roles (docs/band-roles.md). Saves as soon as it
+             changes, so the row says whether it did. */}}
+        {{$rid := .RoleID}}
         <select class="status-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
-          <option value="core" {{if eq .Status "core"}}selected{{end}}>{{t "role|Core"}}</option>
-          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>{{t "role|Guest"}}</option>
+          {{range $.Roles}}<option value="{{.ID}}"{{if eq .ID $rid}} selected{{end}}>{{template "band-role-name" .}}</option>{{end}}
         </select>
         {{else}}
-        <span class="hint">{{t (printf "role|%s" .Status)}}</span>
+        <span class="hint">{{template "band-role-name" .Role}}</span>
         {{end}}
         {{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" .IsShell)}}
-        <button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
+        {{if $.Privs.Can "remove_members"}}<button type="button" class="remove-member-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}
         </div>
         <span class="form-status" role="status"></span>
       </div>
@@ -264,7 +265,7 @@
     </div>
   </div>
   {{else}}
-  <p class="hint">{{t "Only core members can invite people."}}</p>
+  <p class="hint">{{t "Your role doesn’t let you invite people."}}</p>
   {{end}}
 
   <p class="hint">{{t "The band’s name, look and deletion are in"}} <a href="/bands/{{.Band.ID}}/settings">{{t "Settings"}}</a>.</p>
@@ -328,9 +329,9 @@ document.querySelectorAll('.status-select').forEach(sel => {
   sel.addEventListener('change', async () => {
     clearTimeout(clearTimer);
     rowStatus(sel, t('Saving…'), '');
-    const res = await fetch(`/api/bands/${bandId}/members/${sel.dataset.personId}/status`, {
+    const res = await fetch(`/api/bands/${bandId}/members/${sel.dataset.personId}/role`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({status: sel.value}),
+      body: JSON.stringify({roleId: Number(sel.value)}),
     }).catch(() => null);
     if (res && res.ok) {
       saved = sel.value;
@@ -339,7 +340,9 @@ document.querySelectorAll('.status-select').forEach(sel => {
     } else {
       // Put the select back to what's really stored.
       sel.value = saved;
-      rowStatus(sel, t('Couldn’t change the role. Try again.'), 'error');
+      rowStatus(sel, res && res.status === 409
+        ? t('Someone must keep the right to manage roles: give it to another member first.')
+        : t('Couldn’t change the role. Try again.'), 'error');
     }
   });
 });

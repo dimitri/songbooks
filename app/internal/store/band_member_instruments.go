@@ -19,10 +19,11 @@ const (
 // MayEditMemberInstruments is who may change a band member's instruments
 // from the band's roster: any member for someone who hasn't joined yet
 // (a placeholder has no one else to keep it right), the person
-// themselves, and a core member for anyone. A real person can also
-// change theirs on their own profile.
-func MayEditMemberInstruments(actorIsCore, actorIsTarget, targetIsShell bool) bool {
-	return targetIsShell || actorIsTarget || actorIsCore
+// themselves, and for anyone a member whose role grants manage_members
+// (by default, a core member). A real person can also change theirs on
+// their own profile.
+func MayEditMemberInstruments(actorManagesMembers, actorIsTarget, targetIsShell bool) bool {
+	return targetIsShell || actorIsTarget || actorManagesMembers
 }
 
 // NormalizeInstruments cleans a list of instruments as typed: each entry
@@ -80,10 +81,7 @@ func (st *Store) SetBandMemberInstruments(ctx context.Context, bandID, actorID, 
 
 	actorIsCore := actorIsAdmin
 	if !actorIsCore {
-		if err := tx.QueryRow(ctx, `
-			SELECT EXISTS(SELECT 1 FROM band_members
-			              WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity) AND status = 'core')`,
-			bandID, actorID).Scan(&actorIsCore); err != nil {
+		if actorIsCore, err = hasBandPrivilege(ctx, tx, bandID, actorID, BandPrivManageMembers); err != nil {
 			return nil, err
 		}
 	}

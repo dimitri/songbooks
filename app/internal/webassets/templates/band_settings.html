@@ -23,6 +23,8 @@
   <div class="card card--md">
     <h2>{{t "The band"}}</h2>
     <form class="form-stack" id="band-settings-form">
+      {{if not (.BandRoles.Privs.Can "edit_band")}}<p class="hint">{{t "Your role doesn’t let you rename the band."}}</p>{{end}}
+      <fieldset class="band-settings-fields"{{if not (.BandRoles.Privs.Can "edit_band")}} disabled{{end}}>
       <div class="field">
         <label for="settings-name">{{t "Band name"}}</label>
         <input type="text" id="settings-name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done">
@@ -37,6 +39,7 @@
       <div class="form-actions">
         <button type="submit" id="band-settings-save" class="primary">{{t "Save changes"}}</button>
       </div>
+      </fieldset>
       <p class="form-status" role="status"></p>
     </form>
   </div>
@@ -125,15 +128,20 @@
   {{end}}
 
   {{if .IsCore}}{{template "brand-editor" (printf "/api/bands/%d/brand" .Band.ID)}}{{else}}
-  <p class="hint">{{t "Core members can change the band’s look."}}</p>
+  <p class="hint">{{t "Your role doesn’t let you change the band’s look."}}</p>
   {{end}}
 
+  {{/* Who may do what (band_roles.html, docs/band-roles.md). */}}
+  {{template "band-roles-editor" .BandRoles}}
+
+  {{if .BandRoles.Privs.Can "delete_band"}}
   <div class="card card--narrow danger-zone">
     <h2>{{t "Delete the band"}}</h2>
     <p class="hint">{{t "Deletes %s, its songbook, set lists and calendar, for every member. This can’t be undone." .Band.Name}}</p>
     <button type="button" id="delete-band-btn" class="danger">{{t "Delete %s" .Band.Name}}</button>
     <p id="delete-band-result" class="form-status" role="status"></p>
   </div>
+  {{end}}
 </main>
 <script>
 const bandId = {{.Band.ID}};
@@ -179,7 +187,7 @@ if (localeSelect) localeSelect.addEventListener('change', async () => {
   if (res && res.ok) { location.reload(); return; }
   Forms.status(status, t('Couldn’t save the language. Try again.'), 'error');
 });
-document.getElementById('delete-band-btn').addEventListener('click', async (e) => {
+document.getElementById('delete-band-btn')?.addEventListener('click', async (e) => {
   if (!confirm(t('Delete %s and its whole songbook for every member? This can’t be undone.', bandName))) return;
   const btn = e.currentTarget;
   Forms.busy(btn, true);

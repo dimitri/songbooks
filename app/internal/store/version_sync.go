@@ -125,7 +125,9 @@ func (st *Store) versionEditors(ctx context.Context, owner Owner) ([]int64, erro
 	case "person":
 		return []int64{owner.ID}, nil
 	case "band":
-		q = `SELECT person_id FROM band_members WHERE band_id = $1 AND upper_inf(validity) ORDER BY person_id`
+		q = `SELECT bm.person_id FROM band_members bm JOIN band_role_privileges brp ON brp.role_id = bm.role_id AND brp.privilege = $2
+		     WHERE bm.band_id = $1 AND upper_inf(bm.validity) ORDER BY bm.person_id`
+		args = append(args, BandPrivEditSongbook)
 	case "community":
 		q = `SELECT DISTINCT p.id FROM people p
 		     WHERE (EXISTS (SELECT 1 FROM communities c WHERE c.id = $1 AND c.kind = 'global') AND p.is_admin)

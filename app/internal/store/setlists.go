@@ -116,8 +116,8 @@ func (st *Store) CanViewSetlistByID(ctx context.Context, personID, setlistID int
 
 // CanEditSetlistByID reports whether personID may edit setlistID —
 // person scope: the owner only (no sharing — it's their personal
-// setlist); band scope: any current band member (same open-
-// collaboration rule as a band's songbook); community(community) scope:
+// setlist); band scope: a member whose role grants manage_setlists
+// (by default, any member); community(community) scope:
 // staff only (the existing 'instructor' role) — a read-only community
 // member can view and use the community's setlists but not edit them,
 // same split the user asked for on membership generally.
@@ -133,7 +133,7 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 		if meta.OwnerBandID == nil {
 			return false, nil
 		}
-		return st.IsCurrentBandMember(ctx, *meta.OwnerBandID, personID)
+		return st.HasBandPrivilege(ctx, *meta.OwnerBandID, personID, BandPrivManageSetlists)
 	case "community":
 		if meta.OwnerCommunityID == nil {
 			return false, nil

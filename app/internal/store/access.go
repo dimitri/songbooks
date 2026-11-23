@@ -137,13 +137,14 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	r := &SongRights{SongID: songID}
 	var kind string
 	var ownerID int64
-	var admin, bandMember, bandCore, communityMember, editRepertoire, staff bool
+	var admin, bandMember, bandPublish, bandEdit, communityMember, editRepertoire, staff bool
 	err := q.QueryRow(ctx, `
 		SELECT s.owner_kind, coalesce(s.owner_person_id, s.owner_band_id, s.owner_community_id),
 		       s.public, coalesce(c.kind = 'global', false), song_closed(s.id), song_visible(s.id, $2),
 		       coalesce((SELECT is_admin FROM people WHERE id = $2), false),
 		       EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity)),
-		       EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity) AND bm.status = 'core'),
+		       coalesce(has_band_privilege(s.owner_band_id, $2, $9), false),
+		       coalesce(has_band_privilege(s.owner_band_id, $2, $10), false),
 		       EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = s.owner_community_id AND cm.person_id = $2 AND upper_inf(cm.validity)),
 		       EXISTS (SELECT 1 FROM community_members cm JOIN community_role_privileges crp ON crp.role_id = cm.role_id
 		               WHERE cm.community_id = s.owner_community_id AND cm.person_id = $2 AND upper_inf(cm.validity) AND crp.privilege = $3),
@@ -152,9 +153,10 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		                 AND crp.privilege IN ($4, $5, $6, $7, $8))
 		FROM songs s LEFT JOIN communities c ON c.id = s.owner_community_id
 		WHERE s.id = $1`, songID, personID, PrivEditRepertoire,
-		PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings, PrivManageFiles).
+		PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings, PrivManageFiles,
+		BandPrivPublish, BandPrivEditSongbook).
 		Scan(&kind, &ownerID, &r.Public, &r.Catalogue, &r.Closed, &r.See,
-			&admin, &bandMember, &bandCore, &communityMember, &editRepertoire, &staff)
+			&admin, &bandMember, &bandPublish, &bandEdit, &communityMember, &editRepertoire, &staff)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
 	}
@@ -176,9 +178,11 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		r.Edit = r.Member
 		r.Publish = r.Member
 	case kind == "band":
+		// The member's role (band_roles.go): by default, any member
+		// edits, a core member publishes.
 		r.Member = bandMember
-		r.Edit = bandMember
-		r.Publish = bandCore
+		r.Edit = bandEdit
+		r.Publish = bandPublish
 	case kind == "community":
 		r.Member = communityMember
 		r.Edit = editRepertoire && r.See
@@ -283,7 +287,7 @@ func (st *Store) SongbookRightsFor(ctx context.Context, personID, songbookID int
 	case "person":
 		r.Publish = sb.OwnerPersonID == personID
 	case "band":
-		r.Publish, err = st.IsCurrentBandCore(ctx, sb.OwnerBandID, personID)
+		r.Publish, err = st.HasBandPrivilege(ctx, sb.OwnerBandID, personID, BandPrivPublish)
 	case "community":
 		r.Publish, err = st.HasAnyCommunityManagePrivilege(ctx, sb.OwnerCommunityID, personID)
 	}

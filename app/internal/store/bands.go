@@ -10,11 +10,10 @@ import (
 )
 
 // Band is a lightweight group of people who collaborate on shared
-// ("band"-visibility) catalog material. No band "owner"/"admin" role
-// exists: any current member may add/remove another member and delete
-// the whole band. The one privilege asymmetry is promote/demote
-// (core/guest status) itself — core-only, see requireBandCore in
-// internal/httpapi/bands.go.
+// ("band"-visibility) catalog material. What a member may change is
+// their role's (band_roles.go, docs/band-roles.md): the built-in "core"
+// and "guest" roles grant what those statuses always did, and a band
+// may change them or make its own.
 type Band struct {
 	ID        int64
 	Name      string
@@ -37,7 +36,8 @@ type BandMember struct {
 	PersonID          int64
 	Username          string
 	DisplayName       string
-	Status            string
+	Status            string // core or guest: follows the role (guest for the guest role, core for any other)
+	RoleID            int64  // band_roles.id: what the member may do (band_roles.go)
 	JoinedAt          time.Time
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
@@ -60,6 +60,7 @@ type BandMemberSnapshot struct {
 	BandID            int64      `json:"band_id"`
 	PersonID          int64      `json:"person_id"`
 	Status            string     `json:"status"`
+	RoleID            int64      `json:"role_id,omitempty"` // band_roles.id (migration 0130); 0 in older revisions
 	JoinedAt          time.Time  `json:"joined_at"`
 	LeftAt            *time.Time `json:"left_at"`
 	InvitedByPersonID *int64     `json:"invited_by_person_id"`
@@ -235,11 +236,10 @@ func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (b
 	return ok, err
 }
 
-// IsCurrentBandCore reports whether personID is currently a CORE member
-// of bandID specifically — the one privilege asymmetry bands have:
-// core/guest are otherwise fully symmetric (see requireBandMember's doc
-// comment), but only a core member may assign another member's core/
-// guest status (see handleSetBandMemberStatus).
+// IsCurrentBandCore reports whether personID's current status in bandID
+// is core: the built-in core role, or one of the band's own roles
+// (migration 0130). What they may do is their role's: ask
+// HasBandPrivilege, not this.
 func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) (bool, error) {
 	var ok bool
 	err := st.db.QueryRow(ctx, `
@@ -254,7 +254,7 @@ func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) 
 // first.
 func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast bool) ([]BandMember, error) {
 	q := `
-		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text,
+		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text, m.role_id,
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
 		       m.invited_by_person_id, coalesce(ip.username, ''), p.instruments, p.is_shell
 		FROM band_members m
@@ -273,7 +273,7 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 	var out []BandMember
 	for rows.Next() {
 		var m BandMember
-		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.Username, &m.DisplayName, &m.Status,
+		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.Username, &m.DisplayName, &m.Status, &m.RoleID,
 			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.Instruments, &m.IsShell); err != nil {
 			return nil, err
 		}
@@ -395,8 +395,10 @@ func (st *Store) RemoveBandMember(ctx context.Context, bandID, personID, actorPe
 }
 
 // SetBandMemberStatus promotes/demotes personID's current membership in
-// bandID between "core" and "guest". actorPersonID is the revision's
-// actor.
+// bandID between "core" and "guest": the built-in role of that name
+// (SetBandMemberRole for any role). Refused (ErrLastKeeper) if it would
+// leave no current member able to manage the roles. actorPersonID is the
+// revision's actor.
 func (st *Store) SetBandMemberStatus(ctx context.Context, bandID, personID int64, status string, actorPersonID int64) error {
 	if status != "core" && status != "guest" {
 		return fmt.Errorf("invalid band member status %q", status)
@@ -407,6 +409,10 @@ func (st *Store) SetBandMemberStatus(ctx context.Context, bandID, personID int64
 	}
 	defer tx.Rollback(ctx)
 
+	before, err := bandRoles.keepers(ctx, tx, bandID)
+	if err != nil {
+		return err
+	}
 	row, err := lockCurrentMembership(ctx, tx, bandID, personID)
 	if err != nil {
 		return err
@@ -417,7 +423,14 @@ func (st *Store) SetBandMemberStatus(ctx context.Context, bandID, personID int64
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE band_members SET status = $1 WHERE id = $2`, status, row.ID); err != nil {
+	// The built-in role of that name (migration 0130's trigger), even
+	// for a member whose own role already counts as core.
+	if _, err := tx.Exec(ctx, `
+		UPDATE band_members SET role_id = (SELECT id FROM band_roles WHERE band_id = $3 AND builtin_key = $1) WHERE id = $2`,
+		status, row.ID, bandID); err != nil {
+		return err
+	}
+	if err := bandRoles.keepKeeper(ctx, tx, bandID, before); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -443,11 +456,11 @@ func (row currentMembershipRow) snapshot() BandMemberSnapshot {
 func lockCurrentMembership(ctx context.Context, tx pgx.Tx, bandID, personID int64) (currentMembershipRow, error) {
 	var row currentMembershipRow
 	err := tx.QueryRow(ctx, `
-		SELECT id, band_id, person_id, status::text, lower(validity),
+		SELECT id, band_id, person_id, status::text, role_id, lower(validity),
 		       CASE WHEN upper_inf(validity) THEN NULL ELSE upper(validity) END, invited_by_person_id
 		FROM band_members WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity)
 		FOR UPDATE`, bandID, personID).
-		Scan(&row.ID, &row.BandID, &row.PersonID, &row.Status, &row.JoinedAt, &row.LeftAt, &row.InvitedByPersonID)
+		Scan(&row.ID, &row.BandID, &row.PersonID, &row.Status, &row.RoleID, &row.JoinedAt, &row.LeftAt, &row.InvitedByPersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return currentMembershipRow{}, fmt.Errorf("no current membership for person %d in band %d: %w", personID, bandID, ErrNotFound)
 	}

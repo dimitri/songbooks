@@ -16,14 +16,10 @@ import (
 )
 
 // requireBandMember wraps requireAuth, then checks the logged-in person
-// is a CURRENT member of the band identified by the {id} path param —
-// the gate on every band-scoped page/mutation. No band "owner"/"admin"
-// role exists (see internal/store/bands.go's Band doc comment), so this
-// one check also covers removing a member, band-catalog add/fork/
-// remove, and deleting the whole band — any current member (core or
-// guest alike) may do all of those. Assigning a member's core/guest
-// status and inviting anyone are core-only instead (requireBandCore,
-// requireBandInviter, below).
+// is a CURRENT member of the band identified by the {id} path param (or
+// a site admin) — the gate on every band page and on what's a member's
+// own (rating a recording, their own proposals' drafts). What a member
+// may CHANGE is their role's: requireBandPrivilege.
 //
 // A non-member and a bad/missing band id both get the same 403, same
 // "don't leak whether it exists" reasoning requireRole uses for project
@@ -53,45 +49,69 @@ func (s *Server) requireBandMember(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-// requireBandCore wraps requireAuth, then checks the logged-in person is
-// a CURRENT CORE member of the band (or a site admin): assigning another
-// member's core/guest status, the band's look and language, and
-// inviting people (requireBandInviter) are core-only.
-func (s *Server) requireBandCore(next http.HandlerFunc) http.HandlerFunc {
-	return s.requireBandCoreSaying("must be a current core member of this band", next)
+// requireBandPrivilege wraps requireAuth, then checks the logged-in
+// person's current role in the band identified by the {id} path param
+// grants priv (store.HasBandPrivilege; a site admin always passes) — the
+// gate on every band action a role may or may not allow
+// (docs/band-roles.md). A non-member gets the same 403.
+func (s *Server) requireBandPrivilege(priv string, next http.HandlerFunc) http.HandlerFunc {
+	return s.requireBandPrivilegeSaying(priv, "your role in this band doesn't allow this", next)
 }
 
-// requireBandInviter is requireBandCore for every way of inviting
-// someone to a band — the band link, a one-off link, adding an account
-// by username, a personal invite, a roster link and its names — with a
-// 403 that says so.
+// requireBandInviter is requireBandPrivilege(manage_members) for every
+// way of inviting someone to a band — the band link, a one-off link,
+// adding an account by username, a personal invite, a roster link and
+// its names — with a 403 that says so.
 func (s *Server) requireBandInviter(next http.HandlerFunc) http.HandlerFunc {
-	return s.requireBandCoreSaying("only core members can invite people to this band", next)
+	return s.requireBandPrivilegeSaying(store.BandPrivManageMembers, "your role in this band doesn't let you invite people (by default, only core members do)", next)
 }
 
-func (s *Server) requireBandCoreSaying(forbidden string, next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) requireBandPrivilegeSaying(priv, forbidden string, next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		bandID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
 			httpError(w, http.StatusBadRequest, "invalid band id")
 			return
 		}
-		person := personFromContext(r)
-		if person.IsAdmin {
-			next(w, r)
-			return
-		}
-		isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
+		ok, err := s.bandPrivilege(r, bandID, priv)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isCore {
+		if !ok {
 			httpError(w, http.StatusForbidden, forbidden)
 			return
 		}
 		next(w, r)
 	})
+}
+
+// bandPrivilege is store.HasBandPrivilege for the signed-in person, a
+// site admin let through (as requireBandPrivilege): the check a band
+// handler makes for an action its route doesn't gate.
+func (s *Server) bandPrivilege(r *http.Request, bandID int64, priv string) (bool, error) {
+	person := personFromContext(r)
+	if person == nil {
+		return false, nil
+	}
+	if person.IsAdmin {
+		return true, nil
+	}
+	return s.store.HasBandPrivilege(r.Context(), bandID, person.ID, priv)
+}
+
+// bandPrivs is what the signed-in person's role in bandID grants, every
+// privilege for a site admin: for a page to show what its viewer may do
+// ({{if .Privs.Can "edit_look"}}).
+func (s *Server) bandPrivs(r *http.Request, bandID int64) (store.BandPrivs, error) {
+	person := personFromContext(r)
+	if person == nil {
+		return store.BandPrivs{}, nil
+	}
+	if person.IsAdmin {
+		return store.AllBandPrivs(), nil
+	}
+	return s.store.BandPrivileges(r.Context(), bandID, person.ID)
 }
 
 // handleBandsPage lists the logged-in person's own current bands, with a
@@ -345,12 +365,21 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		links[sp.PersonID] = sp
 	}
 
-	isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
+	// What the viewer's role lets them do here (docs/band-roles.md).
+	privs, err := s.bandPrivs(r, bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	isCore = isCore || person.IsAdmin
+	roles, err := s.store.ListBandRoles(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	roleByID := make(map[int64]store.BandRole, len(roles))
+	for _, role := range roles {
+		roleByID[role.ID] = role
+	}
 
 	// One row per person: a placeholder's invite link sits on the same
 	// row as their name, instruments and role.
@@ -358,7 +387,8 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 	for _, m := range members {
 		row := bandRosterRow{
 			BandMember:         m,
-			CanEditInstruments: m.IsCurrent() && store.MayEditMemberInstruments(isCore, m.PersonID == person.ID, m.IsShell),
+			Role:               roleByID[m.RoleID],
+			CanEditInstruments: m.IsCurrent() && store.MayEditMemberInstruments(privs.Can(store.BandPrivManageMembers), m.PersonID == person.ID, m.IsShell),
 		}
 		if m.IsShell {
 			row.InviteToken = links[m.PersonID].OpenInviteToken
@@ -378,8 +408,11 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": rows,
 		"OpenInvites": openInvites,
-		"IsCore":      isCore,
-		"BandLinks":   bandLinks(groupInvites),
+		// IsCore: may invite people (manage_members), as before roles.
+		"IsCore":    privs.Can(store.BandPrivManageMembers),
+		"Privs":     privs,
+		"Roles":     roles,
+		"BandLinks": bandLinks(groupInvites),
 	})
 }
 
@@ -388,6 +421,7 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 // whether the viewer may edit their instruments.
 type bandRosterRow struct {
 	store.BandMember
+	Role               store.BandRole // the member's role (Name "core"/"guest" for a built-in)
 	InviteToken        string    // "" when a placeholder has no live link
 	InviteUntil        time.Time // InviteToken's expiry
 	CanEditInstruments bool
@@ -533,7 +567,8 @@ func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 
 // handleRemoveBandMember ends personID's current membership in the band
 // (closes the validity range — history is kept, see migrations 0010 and
-// 0059). Any current member may remove any other member, or themselves.
+// 0059). For a member whose role grants remove_members (by default any
+// member), of any other member or themselves.
 func (s *Server) handleRemoveBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
@@ -554,8 +589,9 @@ func (s *Server) handleRemoveBandMember(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleSetBandMemberStatus promotes/demotes a current member between
-// core and guest. requireBandCore-gated — the one privilege a guest
-// lacks relative to core (everything else is symmetric).
+// core and guest: the built-in roles (handleSetBandMemberRole for any
+// role). manage_roles-gated; 409 if no one would be left to manage the
+// roles.
 func (s *Server) handleSetBandMemberStatus(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
@@ -576,18 +612,19 @@ func (s *Server) handleSetBandMemberStatus(w http.ResponseWriter, r *http.Reques
 			httpError(w, http.StatusNotFound, err.Error())
 			return
 		}
+		if errors.Is(err, store.ErrConflict) {
+			httpError(w, http.StatusConflict, err.Error())
+			return
+		}
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
-// handleDeleteBand permanently deletes a band and everything under it.
-// No "owner"/"admin" role exists for bands in this phase (see
-// requireBandMember's doc comment), so — per the phase-2 brief's explicit
-// instruction to flag rather than silently restrict a case like this —
-// ANY current member may delete the whole band, not just whoever created
-// it. There's no narrower role available to gate this on instead.
+// handleDeleteBand permanently deletes a band and everything under it:
+// for a member whose role grants delete_band — by default any member,
+// core or guest, as before roles; a band can keep it to some.
 func (s *Server) handleDeleteBand(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err := s.store.DeleteBand(r.Context(), bandID); err != nil {
@@ -1237,11 +1274,14 @@ func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID)
+	// The roles editor (docs/band-roles.md) and what the viewer may
+	// change; isCore: the band's look and language (edit_look).
+	roles, err := s.bandRolesEditor(r, bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	isCore := roles.Privs.Can(store.BandPrivEditLook)
 	locale, err := s.store.BandLocale(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -1253,6 +1293,7 @@ func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.render(w, "band_settings", map[string]any{
+		"BandRoles": roles,
 		"Me": person, "Band": band, "IsCore": isCore || person.IsAdmin,
 		"Locale": locale, "ProposalRule": rule,
 	})

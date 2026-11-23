@@ -285,14 +285,15 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 
 		var curBandID, curPersonID int64
 		var curStatus string
+		var curRoleID int64
 		var curJoinedAt time.Time
 		var curLeftAt *time.Time
 		var curInvitedBy *int64
 		err = tx.QueryRow(ctx, `
-			SELECT band_id, person_id, status::text, lower(validity),
+			SELECT band_id, person_id, status::text, role_id, lower(validity),
 			       CASE WHEN upper_inf(validity) THEN NULL ELSE upper(validity) END, invited_by_person_id
 			FROM band_members WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curBandID, &curPersonID, &curStatus, &curJoinedAt, &curLeftAt, &curInvitedBy)
+			Scan(&curBandID, &curPersonID, &curStatus, &curRoleID, &curJoinedAt, &curLeftAt, &curInvitedBy)
 		rowExists := !errors.Is(err, pgx.ErrNoRows)
 		if err != nil && rowExists {
 			return err
@@ -301,7 +302,7 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		actor := &actorPersonID
 		if rowExists {
 			if err := st.RecordRevision(ctx, tx, "band_member", entityID, actor, BandMemberSnapshot{
-				Exists: true, BandID: curBandID, PersonID: curPersonID, Status: curStatus,
+				Exists: true, BandID: curBandID, PersonID: curPersonID, Status: curStatus, RoleID: curRoleID,
 				JoinedAt: curJoinedAt, LeftAt: curLeftAt, InvitedByPersonID: curInvitedBy,
 			}); err != nil {
 				return err
@@ -327,9 +328,14 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			if !rowExists {
 				return fmt.Errorf("band membership row %d no longer exists, can't restore it: %w", id, ErrNotFound)
 			}
+			// The role it had, if the band still has it; else the
+			// built-in role of its status (migration 0130's trigger).
 			if _, err := tx.Exec(ctx, `
-				UPDATE band_members SET status = $1, validity = tstzrange(lower(validity), $2::timestamptz) WHERE id = $3`,
-				snap.Status, snap.LeftAt, id); err != nil {
+				UPDATE band_members SET status = $1::text::band_member_status, validity = tstzrange(lower(validity), $2::timestamptz),
+				       role_id = coalesce((SELECT r.id FROM band_roles r WHERE r.id = $4 AND r.band_id = band_members.band_id),
+				                          (SELECT r.id FROM band_roles r WHERE r.band_id = band_members.band_id AND r.builtin_key = $1::text))
+				WHERE id = $3`,
+				snap.Status, snap.LeftAt, id, snap.RoleID); err != nil {
 				return err
 			}
 		}

@@ -153,9 +153,9 @@ func (s *Server) handleSongRecordingsPage(w http.ResponseWriter, r *http.Request
 }
 
 // handleSetBandRecordingPublic is POST
-// /api/bands/{id}/recordings/{recID}/public {"public": true}: a core
-// member makes one recording of a public song the band links public, or
-// not (§8).
+// /api/bands/{id}/recordings/{recID}/public {"public": true}: a member
+// whose role grants publish (by default, a core member) makes one
+// recording of a public song the band links public, or not (§8).
 func (s *Server) handleSetBandRecordingPublic(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := pathID(r, "id")
 	recID, err := pathID(r, "recID")
@@ -163,13 +163,7 @@ func (s *Server) handleSetBandRecordingPublic(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusBadRequest, "invalid recording id")
 		return
 	}
-	if ok, err := s.store.IsCurrentBandCore(r.Context(), bandID, personFromContext(r).ID); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	} else if !ok {
-		httpError(w, http.StatusForbidden, "only the band's core members make its recordings public")
-		return
-	}
+	// The route holds it to a member whose role grants publish.
 	var req struct {
 		Public bool `json:"public"`
 	}

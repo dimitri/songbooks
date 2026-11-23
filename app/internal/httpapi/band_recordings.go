@@ -260,7 +260,7 @@ func (s *Server) handleBandSongRecordingsPage(w http.ResponseWriter, r *http.Req
 	// the band's own public song's are public with it; on a public song
 	// it links, a core member makes them public one by one.
 	publicity, _ := s.store.RecordingPublicities(r.Context(), band.ID, variantID)
-	core, _ := s.store.IsCurrentBandCore(r.Context(), band.ID, person.ID)
+	core, _ := s.bandPrivilege(r, band.ID, store.BandPrivPublish)
 	s.render(w, "band_song_recordings", map[string]any{
 		"Me": person, "Band": band, "Source": src, "Song": variant, "Recordings": recs,
 		"Publicity": publicity, "IsCore": core, "OwnSong": variant.OwnerBandID != nil && *variant.OwnerBandID == band.ID,

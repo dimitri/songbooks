@@ -490,13 +490,16 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		isMember, err := s.store.IsCurrentBandMember(r.Context(), bandID, person.ID)
+		// Undoing a membership change (an add, a removal, a role) is
+		// giving roles: manage_roles (a guest reverting their own
+		// demotion was a way round the core-only switch).
+		may, err := s.bandPrivilege(r, bandID, store.BandPrivManageRoles)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isMember {
-			httpError(w, http.StatusForbidden, "must be a current member of this band")
+		if !may {
+			httpError(w, http.StatusForbidden, "your role in this band doesn't let you change its members' roles")
 			return
 		}
 	case "setlist":
@@ -520,13 +523,13 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 				httpError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			isMember, memErr := s.store.IsCurrentBandMember(r.Context(), bandID, person.ID)
+			may, memErr := s.bandPrivilege(r, bandID, store.BandPrivManageSetlists)
 			if memErr != nil {
 				httpError(w, http.StatusInternalServerError, memErr.Error())
 				return
 			}
-			if !isMember {
-				httpError(w, http.StatusForbidden, "must be a current member of this band")
+			if !may {
+				httpError(w, http.StatusForbidden, "your role in this band doesn't let you change its set lists")
 				return
 			}
 		} else if err != nil {

@@ -240,16 +240,18 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 }
 
 // CanInvitePerson reports whether actorID may make a new invite link for
-// targetID (a shell waiting to join): actorID is a current core member
-// of a band targetID currently belongs to, or holds manage_members in a
+// targetID (a shell waiting to join): actorID's role grants
+// manage_members in a band targetID currently belongs to, or in a
 // community targetID currently belongs to — the same rules as the band
 // and community routes that invite people.
 func (st *Store) CanInvitePerson(ctx context.Context, actorID, targetID int64) (bool, error) {
 	var ok bool
 	err := st.db.QueryRow(ctx, `
 		SELECT EXISTS (
-			SELECT 1 FROM band_members a JOIN band_members b ON a.band_id = b.band_id
-			WHERE a.person_id = $1 AND upper_inf(a.validity) AND a.status = 'core'
+			SELECT 1 FROM band_members a
+			JOIN band_role_privileges brp ON brp.role_id = a.role_id AND brp.privilege = $4
+			JOIN band_members b ON a.band_id = b.band_id
+			WHERE a.person_id = $1 AND upper_inf(a.validity)
 			  AND b.person_id = $2 AND upper_inf(b.validity)
 			UNION ALL
 			SELECT 1 FROM community_members a
@@ -257,7 +259,7 @@ func (st *Store) CanInvitePerson(ctx context.Context, actorID, targetID int64) (
 			JOIN community_members b ON a.community_id = b.community_id
 			WHERE a.person_id = $1 AND upper_inf(a.validity)
 			  AND b.person_id = $2 AND upper_inf(b.validity)
-		)`, actorID, targetID, PrivManageMembers).Scan(&ok)
+		)`, actorID, targetID, PrivManageMembers, BandPrivManageMembers).Scan(&ok)
 	return ok, err
 }
 

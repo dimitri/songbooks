@@ -315,7 +315,7 @@ func TestBandInvitesAreCoreOnly(t *testing.T) {
 			t.Errorf("a guest's members page has %s", form)
 		}
 	}
-	if !strings.Contains(page, "Only core members can invite people.") {
+	if !strings.Contains(page, "Your role doesn’t let you invite people.") {
 		t.Errorf("a guest's members page doesn't say why")
 	}
 	page = e.do("GET", fmt.Sprintf("/bands/%d/members", bandID), "", core).Body.String()

@@ -420,13 +420,13 @@ func (s *Server) handleCreateSetlist(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusBadRequest, "band_id is required for scope=band")
 			return
 		}
-		isMember, err := s.store.IsCurrentBandMember(r.Context(), req.BandID, person.ID)
+		may, err := s.store.HasBandPrivilege(r.Context(), req.BandID, person.ID, store.BandPrivManageSetlists)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isMember {
-			httpError(w, http.StatusForbidden, "must be a current member of this band")
+		if !may {
+			httpError(w, http.StatusForbidden, "your role in this band doesn't let you make set lists")
 			return
 		}
 		ownerBandID = &req.BandID

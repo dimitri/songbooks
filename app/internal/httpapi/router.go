@@ -358,7 +358,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// A band's recording through the app, for who may hear it
 	// (recordings_stream.go): its folder link stays on the server.
 	mux.HandleFunc("GET /recordings/{id}/audio", s.requireAuth(s.handleRecordingAudio))
-	mux.HandleFunc("POST /api/bands/{id}/recordings/{recID}/public", s.requireBandMember(s.handleSetBandRecordingPublic))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/{recID}/public", s.requireBandPrivilege(store.BandPrivPublish, s.handleSetBandRecordingPublic))
 	mux.HandleFunc("POST /api/songbooks/{id}/public", s.requireAuth(s.handleSetSongbookPublic))
 	mux.HandleFunc("POST /api/variants/{id}/annotations", s.requireAuth(s.handleCreateAnnotation))
 	mux.HandleFunc("PUT /api/variants/{id}", s.requireAuth(s.handleUpdateVariant))
@@ -377,37 +377,36 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/variants/{id}/annotations/{note}", s.requireVariantRole("viewer", s.handleDeleteSectionAnnotation))
 
 	// Bands (phase 2 of the data-model rewrite): collaborative groups that
-	// own shared, band-visibility catalog material. No band owner/admin
-	// role exists — every band-scoped route below (other than listing
-	// your own bands and creating a new one) is gated by
-	// requireBandMember: any CURRENT member (core or guest alike) may
-	// add/remove/promote/demote members, add/fork/remove repertoire
-	// entries, or delete the whole band. See internal/httpapi/bands.go.
+	// own shared, band-visibility catalog material. Every band page is a
+	// current member's (requireBandMember); what a member may change is
+	// their role's (requireBandPrivilege, docs/band-roles.md): the
+	// built-in core and guest roles grant what those statuses always
+	// did, a band may change them or make its own.
 	mux.HandleFunc("GET /groups", s.requireAuth(s.handleGroupsPage))
 	mux.HandleFunc("GET /bands", s.requireAuth(s.handleBandsPage))
 	mux.HandleFunc("POST /api/bands", s.requireAuth(s.handleCreateBand))
 	mux.HandleFunc("GET /bands/{id}", s.requireBandMember(s.handleBandPage))
-	mux.HandleFunc("DELETE /api/bands/{id}", s.requireBandMember(s.handleDeleteBand))
-	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandMember(s.handleSetBandName))
+	mux.HandleFunc("DELETE /api/bands/{id}", s.requireBandPrivilege(store.BandPrivDeleteBand, s.handleDeleteBand))
+	mux.HandleFunc("POST /api/bands/{id}/name", s.requireBandPrivilege(store.BandPrivEditBand, s.handleSetBandName))
 	mux.HandleFunc("GET /api/bands/{id}/brand", s.requireBandMember(s.handleGetBrand("band")))
-	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandCore(s.handleSetBrand("band")))
-	mux.HandleFunc("PUT /api/bands/{id}/brand/logo", s.requireBandCore(s.handlePutBrandLogo("band")))
-	mux.HandleFunc("DELETE /api/bands/{id}/brand/logo", s.requireBandCore(s.handleDeleteBrandLogo("band")))
-	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandCore(s.handlePutBandLocale))
+	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandPrivilege(store.BandPrivEditLook, s.handleSetBrand("band")))
+	mux.HandleFunc("PUT /api/bands/{id}/brand/logo", s.requireBandPrivilege(store.BandPrivEditLook, s.handlePutBrandLogo("band")))
+	mux.HandleFunc("DELETE /api/bands/{id}/brand/logo", s.requireBandPrivilege(store.BandPrivEditLook, s.handleDeleteBrandLogo("band")))
+	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandPrivilege(store.BandPrivEditLook, s.handlePutBandLocale))
 	mux.HandleFunc("GET /api/bands/{id}/brand/from-songs", s.requireBandMember(s.handleBrandFromSongs("band")))
 	mux.HandleFunc("GET /api/bands/{id}/card-image", s.requireBandMember(s.handleGetCardImage("band")))
-	mux.HandleFunc("POST /api/bands/{id}/card-image", s.requireBandCore(s.handleSetCardImage("band")))
-	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandMember(s.handleSetBandMusicType))
+	mux.HandleFunc("POST /api/bands/{id}/card-image", s.requireBandPrivilege(store.BandPrivEditLook, s.handleSetCardImage("band")))
+	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandPrivilege(store.BandPrivEditBand, s.handleSetBandMusicType))
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandInviter(s.handleAddBandMember))
-	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandCore(s.handleSetBandMemberStatus))
-	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandMember(s.handleRemoveBandMember))
+	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleSetBandMemberStatus))
+	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandPrivilege(store.BandPrivRemoveMembers, s.handleRemoveBandMember))
 	// Who may edit whose instruments is checked inside (store.MayEditMemberInstruments).
 	mux.HandleFunc("PUT /api/bands/{id}/members/{personID}/instruments", s.requireBandMember(s.handleSetBandMemberInstruments))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/invite-link", s.requireBandInviter(s.handleNewBandMemberInviteLink))
 	mux.HandleFunc("POST /api/bands/{id}/invites", s.requireBandInviter(s.handleCreateBandInvite))
 	// Group invites (roster link, multi-use — see
 	// internal/store/group_invites.go and join.go). Inviting someone, in
-	// any of these ways, is for core members (requireBandInviter).
+	// any of these ways, is for manage_members (requireBandInviter).
 	mux.HandleFunc("POST /api/bands/{id}/personal-invites", s.requireBandInviter(s.handleCreateBandPersonalInvite))
 	mux.HandleFunc("POST /api/people/{personID}/personal-invites", s.requireAuth(s.handleCreatePersonalInviteForPerson))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandInviter(s.handleCreateBandGroupInvite))
@@ -418,14 +417,22 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots", s.requireBandInviter(s.handleAddGroupInviteSlot))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandInviter(s.handleUpdateGroupInviteSlot))
 	mux.HandleFunc("DELETE /api/bands/{id}/group-invites/{groupInviteID}/slots/{slotID}", s.requireBandInviter(s.handleRemoveGroupInviteSlot))
+	// Band roles (docs/band-roles.md): a member's role, the band's roles
+	// and what each grants — the community's roles API (roles.go).
+	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/role", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleSetBandMemberRole))
+	mux.HandleFunc("GET /api/bands/{id}/roles", s.requireBandMember(s.handleListRoles("band")))
+	mux.HandleFunc("POST /api/bands/{id}/roles", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleCreateRole("band")))
+	mux.HandleFunc("POST /api/bands/{id}/roles/{roleID}/privileges", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleSetRolePrivileges("band")))
+	mux.HandleFunc("POST /api/bands/{id}/roles/{roleID}/rename", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleRenameRole("band")))
+	mux.HandleFunc("DELETE /api/bands/{id}/roles/{roleID}", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleDeleteRole("band")))
 	mux.HandleFunc("GET /bands/{id}/members", s.requireBandMember(s.handleBandMembersPage))
 	mux.HandleFunc("GET /bands/{id}/settings", s.requireBandMember(s.handleBandSettingsPage))
 	mux.HandleFunc("GET /bands/{id}/setlists", s.requireBandMember(s.handleBandSetlistsPage))
 	mux.HandleFunc("GET /bands/{id}/catalog", s.requireBandMember(s.handleBandCatalogPage))
-	mux.HandleFunc("POST /api/bands/{id}/catalog", s.requireBandMember(s.handleAddBandCatalogEntry))
-	mux.HandleFunc("DELETE /api/bands/{id}/catalog/{variantID}", s.requireBandMember(s.handleRemoveBandCatalogEntry))
-	mux.HandleFunc("POST /api/bands/{id}/catalog/fork/{variantID}", s.requireBandMember(s.handleForkVariantIntoBand))
-	mux.HandleFunc("POST /api/bands/{id}/variants", s.requireBandMember(s.handleCreateBandVariant))
+	mux.HandleFunc("POST /api/bands/{id}/catalog", s.requireBandPrivilege(store.BandPrivEditSongbook, s.handleAddBandCatalogEntry))
+	mux.HandleFunc("DELETE /api/bands/{id}/catalog/{variantID}", s.requireBandPrivilege(store.BandPrivEditSongbook, s.handleRemoveBandCatalogEntry))
+	mux.HandleFunc("POST /api/bands/{id}/catalog/fork/{variantID}", s.requireBandPrivilege(store.BandPrivEditSongbook, s.handleForkVariantIntoBand))
+	mux.HandleFunc("POST /api/bands/{id}/variants", s.requireBandPrivilege(store.BandPrivEditSongbook, s.handleCreateBandVariant))
 
 	// Band proposals + voting (phase 7): propose a new song (an existing
 	// catalog variant, for the band's repertoire) or a new reference URL
@@ -608,11 +615,11 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/members/{personID}/role", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleSetCommunityMemberRole))
 	mux.HandleFunc("DELETE /api/communities/{id}/members/{personID}", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleRemoveCommunityMember))
 	// Role management itself (create/edit/delete a role): also manage_members.
-	mux.HandleFunc("GET /api/communities/{id}/roles", s.requireCommunityMember(s.handleListCommunityRoles))
-	mux.HandleFunc("POST /api/communities/{id}/roles", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateCommunityRole))
-	mux.HandleFunc("POST /api/communities/{id}/roles/{roleID}/privileges", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleSetCommunityRolePrivileges))
-	mux.HandleFunc("POST /api/communities/{id}/roles/{roleID}/rename", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleRenameCommunityRole))
-	mux.HandleFunc("DELETE /api/communities/{id}/roles/{roleID}", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleDeleteCommunityRole))
+	mux.HandleFunc("GET /api/communities/{id}/roles", s.requireCommunityMember(s.handleListRoles("community")))
+	mux.HandleFunc("POST /api/communities/{id}/roles", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleCreateRole("community")))
+	mux.HandleFunc("POST /api/communities/{id}/roles/{roleID}/privileges", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleSetRolePrivileges("community")))
+	mux.HandleFunc("POST /api/communities/{id}/roles/{roleID}/rename", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleRenameRole("community")))
+	mux.HandleFunc("DELETE /api/communities/{id}/roles/{roleID}", s.requireCommunityPrivilege(store.PrivManageMembers, s.handleDeleteRole("community")))
 	// edit_repertoire, not just member-level — a guest (read-only, the
 	// role a jam-event invite/QR code targets) can see the repertoire
 	// (requireCommunityMember on the page itself) but not change it.
@@ -630,10 +637,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// community-events pages and registration are unauthenticated
 	// routes that do their own per-event visibility check inline (a
 	// band-owned event is never public). Manager ASSIGNMENT is a
-	// community-only concept — a band is flat (no staff hierarchy), so
-	// any current band member already manages any of that band's
-	// events via CanManageEvent's own fallback; there's nothing for a
-	// band-scoped manager-assignment route to add.
+	// community-only concept — a band's members whose role grants
+	// manage_events (by default, every member) already manage any of
+	// its events via CanManageEvent's own fallback; there's nothing for
+	// a band-scoped manager-assignment route to add.
 	mux.HandleFunc("GET /communities/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
 	mux.HandleFunc("POST /api/communities/{id}/events", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleCreateCommunityEvent))
 	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleAssignEventManager))
@@ -648,15 +655,15 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /bands/{id}/concerts", s.movedInBand("/recordings/concerts"))
 	mux.HandleFunc("GET /bands/{id}/recordings/songs/{variantID}", s.requireBandMember(s.handleBandSongRecordingsPage))
 	mux.HandleFunc("GET /bands/{id}/recordings/fixes", s.requireBandMember(s.handleBandRecordingFixesPage))
-	mux.HandleFunc("POST /api/bands/{id}/recordings/source", s.requireBandMember(s.handleSetBandRecordingSource))
-	mux.HandleFunc("POST /api/bands/{id}/recordings/sync", s.requireBandMember(s.handleSyncBandRecordings))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/source", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleSetBandRecordingSource))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/sync", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleSyncBandRecordings))
 	mux.HandleFunc("PUT /api/bands/{id}/recordings/{recID}/stars", s.requireBandMember(s.handleRateBandRecording))
-	mux.HandleFunc("PUT /api/bands/{id}/songs/{variantID}/recording", s.requireBandMember(s.handleSetBandSongRecording))
-	mux.HandleFunc("POST /api/bands/{id}/recordings/fixes", s.requireBandMember(s.handleSetBandRecordingFix))
-	mux.HandleFunc("PUT /api/bands/{id}/recordings/templates", s.requireBandMember(s.handleSetNameTemplates))
-	mux.HandleFunc("POST /api/bands/{id}/recordings/templates/try", s.requireBandMember(s.handleTryNameTemplate))
-	mux.HandleFunc("DELETE /api/bands/{id}/recordings/fixes/{fixID}", s.requireBandMember(s.handleDeleteBandRecordingFix))
-	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandMember(s.handleCreateBandEvent))
+	mux.HandleFunc("PUT /api/bands/{id}/songs/{variantID}/recording", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleSetBandSongRecording))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/fixes", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleSetBandRecordingFix))
+	mux.HandleFunc("PUT /api/bands/{id}/recordings/templates", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleSetNameTemplates))
+	mux.HandleFunc("POST /api/bands/{id}/recordings/templates/try", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleTryNameTemplate))
+	mux.HandleFunc("DELETE /api/bands/{id}/recordings/fixes/{fixID}", s.requireBandPrivilege(store.BandPrivManageRecordings, s.handleDeleteBandRecordingFix))
+	mux.HandleFunc("POST /api/bands/{id}/events", s.requireBandPrivilege(store.BandPrivManageEvents, s.handleCreateBandEvent))
 	mux.HandleFunc("GET /events/{id}", s.optionalPerson(s.handleEventPage))
 	mux.HandleFunc("GET /events/{id}/ics", s.optionalPerson(s.handleEventICS))
 	// A person's calendar as an iCal feed, at a secret address (calendar_feed.go).

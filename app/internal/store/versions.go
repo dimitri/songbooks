@@ -19,14 +19,14 @@ import (
 // version.
 
 // ownerMayChange reports whether personID may put songs in owner's
-// songbooks and make owner's songs: the person; a band's current members;
-// a community's members with edit_repertoire.
+// songbooks and make owner's songs: the person; a band's members whose
+// role grants edit_songbook; a community's members with edit_repertoire.
 func ownerMayChange(ctx context.Context, q dbtx, personID int64, o Owner) (bool, error) {
 	switch o.Kind {
 	case "person":
 		return o.ID == personID, nil
 	case "band":
-		return isCurrentBandMember(ctx, q, o.ID, personID)
+		return hasBandPrivilege(ctx, q, o.ID, personID, BandPrivEditSongbook)
 	case "community":
 		var global bool
 		if err := q.QueryRow(ctx, `SELECT coalesce((SELECT kind = 'global' FROM communities WHERE id = $1), false)`, o.ID).Scan(&global); err != nil {
