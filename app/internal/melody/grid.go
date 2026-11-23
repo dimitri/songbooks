@@ -7,7 +7,7 @@
 // repeats, lead, time signature) and its lyrics.
 //
 //	notes (seconds) ──Grid──▶ played bars ──Quantize──▶ Sheet (bars of events)
-//	lyrics lines ──Syllables──▶ ──AlignLines (lines × phrases)──▶ syllables on notes
+//	lyrics lines ──Syllables──▶ ──AnchorLines (chords on bars), PlaceLines──▶ syllables on notes
 //	Sheet + syllables ──AlphaTex / MusicXML──▶ the page, the downloads
 package melody
 

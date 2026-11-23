@@ -15,7 +15,7 @@ recording ─Demucs─▶ vocals part ─YIN─▶ frames ─segment─▶ notes
 song's sync (points / section starts / analysis) ─▶ bar grid (played bars, lead)  [per request]
                                                          ▼
                                        quantize ─▶ bars of notes and rests (8ths, 16ths where dense, ties)
-lyrics lines ─syllables─▶ lines × phrases (DP) ─▶ syllables on notes
+lyrics lines ─syllables─▶ chords on the bars (anchors) ─▶ syllables on notes
                                                          ▼
                                     alphaTex (the page, alphaTab) · MusicXML · Guitar Pro (alphaTab's exporter)
 ```
@@ -59,26 +59,47 @@ lyrics lines ─syllables─▶ lines × phrases (DP) ─▶ syllables on notes
    after the grid are dropped (counted in the response).
 
 4. **Lyrics without speech recognition** (`melody/syllables.go`,
-   `melody/lyrics.go`). The song's lyric lines in order (a bare repeat of
-   a section repeats its lines), each cut into syllables by rule — French
-   (vowel groups, consonant pairs that start a syllable: *tr, bl, ch, gn…*,
-   the mute *e* sung before a consonant but not before a vowel or at the
-   end of a line, *qu/gu*, tréma, *é* after a vowel) or English (vowel
-   groups, silent final *e*, *-ed*, *-es*, *-le*, *ng/ck/gh* closing a
-   syllable, contractions sung with their word); the language guessed
-   from the lyrics. Text in parentheses is a backing vocal, left out.
-   The voice's phrases are the analysis' voice phrases (#117) when there
-   are some, else the notes grouped at rests of 0.35 s. A dynamic
-   programme over (lines × phrases) lays the lines on the phrases, in
-   order: a line takes one to three phrases (a breath mid-line; a long
-   silence between them costs), a phrase may be left out (an ad-lib), a
-   line may find none. Its costs: syllables against notes (more notes than
-   syllables is a melisma, cheaper than the reverse), how fast that would
-   be sung, and how much of the phrase falls outside the line's section as
-   the grid places it (a bar's slack either side). Each line's syllables
-   then go on its notes, one each; extra notes hold the last syllable
-   (`_`, a melisma), extra syllables share the last note. A line's
-   confidence is `exp(-cost/2.2)`; under 0.45 its words are drawn lighter.
+   `melody/anchors.go`, `melody/lyrics.go`). The song's lyric lines in
+   order (a bare repeat of a section repeats its lines), each cut into
+   syllables by rule — French (vowel groups, consonant pairs that start a
+   syllable: *tr, bl, ch, gn…*, the mute *e* sung before a consonant but
+   not before a vowel or at the end of a line, *qu/gu*, tréma, *é* after a
+   vowel) or English (vowel groups, silent final *e*, *-ed*, *-es*, *-le*,
+   *ng/ck/gh* closing a syllable, contractions sung with their word); the
+   language guessed from the lyrics. Text in parentheses is a backing
+   vocal, left out.
+   - **Anchors from the chart.** A line's `[Chord]` markers say which
+     syllable each chord falls on; the section's grid, as played (repeats
+     unrolled, a bare repeat given its source's bars), says in which bar
+     and on which beat each chord comes. A dynamic programme lays the
+     markers, in order, on the chord changes, in order (a change with no
+     marker is skipped: instrumental bars; a marker whose chord isn't
+     played where it could be is left unplaced). When the grid's chords
+     come round again (a line's chord in several bars), the singing
+     decides: the notes sung between two candidate places are counted
+     against the syllables between the two markers, and a marker's beat
+     must have a note on it. Each placed marker is a time in the recording
+     (through the sync's grid).
+   - **Lines without a chord placed** get their expected start between
+     their section's placed lines, by syllables; a section with none
+     spreads its lines over its bars.
+   - **Placing.** Phrases end at a rest of an eighth or more (at the
+     song's tempo, through the grid). Each chord's syllable goes on the
+     note sung nearest its beat, from an eighth early (a pushed syllable)
+     to half a bar late (a quarter when the sync is only an estimate); the
+     syllables before a line's first chord (a pickup: "When the
+     [G]night…") on the notes just before it, within a bar; between two
+     chords, one syllable a note. After the last chord, the line takes the
+     notes of its phrase, and the next phrases while syllables are left,
+     never past the next line's first note nor into its expected place:
+     extra notes hold the last syllable (a melisma), extra syllables share
+     the last note. A line placed without chords takes the phrase starting
+     nearest where it's expected (within a bar; half a bar when the sync
+     is an estimate). A line's confidence is how well its syllables fit
+     its notes, lower when its chords weren't all placed, lower still
+     when it had none, and when the sync is an estimate — which the view
+     then says ("placement depends on the sync — save the sync for better
+     results").
 
 5. **Writing it** (`melody/alphatex.go`, `melody/musicxml.go`). alphaTex
    for the page (one voice, treble clef — an octave down, `8vb`, when the
@@ -112,9 +133,13 @@ when the line is edited it lapses.
 
 ## Limits
 
-- **Melisma**: extra notes go to the end of the line. A run sung on one
-  syllable mid-line puts the following syllables early until an editor
-  shifts the line (one shift moves the whole line).
+- **Melisma**: between two chords, extra notes go to the syllable before
+  the next chord. A run sung on one syllable puts the following syllables
+  early until the next chord's syllable, which is held to its beat; a
+  line with one chord drifts more than one with several (an editor's
+  shift moves the whole line).
+- **Chords over the words** are what holds a line: a chart without them
+  places its lines by its sections' bars and the phrases only.
 - **Ad-libs, backing vocals, doubled lead**: the split keeps them in the
   vocals part; a short ad-lib phrase is usually left out by the
   alignment, but harmonies sung with the lead confuse the pitch tracker
