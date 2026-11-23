@@ -50,30 +50,38 @@ import (
 // CastVote when the proposal is no longer 'open'.
 var ErrAlreadyDecided = fmt.Errorf("proposal is already decided")
 
-// ErrGuestNoVote is CastVote's refusal of a guest member: only the core
-// members vote (a guest proposes, sees the proposals and listens).
-var ErrGuestNoVote = fmt.Errorf("guest members don't vote: only the band's core members rate its proposals: %w", ErrForbidden)
+// ErrGuestNoVote is CastVote's refusal of a member whose role doesn't
+// vote (by default, a guest: they propose, see the proposals and listen).
+var ErrGuestNoVote = fmt.Errorf("your role in this band doesn't vote: %w", ErrForbidden)
 
 // Who may do what with a band's proposals and pools: today's rules, each
 // in one place, to switch to the band's roles (HasBandPrivilege) without
 // touching their callers.
 
-// MayVote says whether personID votes on bandID's proposals: its core
-// members.
+// MayVote says whether personID votes on bandID's proposals (and is
+// counted in their tallies): their role grants vote (docs/band-roles.md;
+// by default, the core members).
 func (st *Store) MayVote(ctx context.Context, bandID, personID int64) (bool, error) {
-	return st.IsCurrentBandCore(ctx, bandID, personID)
+	return st.HasBandPrivilege(ctx, bandID, personID, BandPrivVote)
 }
 
 // MayDecideProposal says whether personID adds or turns down bandID's
-// proposals by hand: any current member.
+// proposals by hand: their role grants decide_proposals (by default, any
+// current member; a band may keep it to a staff).
 func (st *Store) MayDecideProposal(ctx context.Context, bandID, personID int64) (bool, error) {
-	return st.IsCurrentBandMember(ctx, bandID, personID)
+	return st.HasBandPrivilege(ctx, bandID, personID, BandPrivDecideProposals)
+}
+
+// MayPropose says whether personID proposes songs to bandID: their role
+// grants propose (by default, any current member).
+func (st *Store) MayPropose(ctx context.Context, bandID, personID int64) (bool, error) {
+	return st.HasBandPrivilege(ctx, bandID, personID, BandPrivPropose)
 }
 
 // MayShareListen says whether personID adds songs to bandID's Discover
-// and Influences: any current member.
+// and Influences: proposing's privilege, propose.
 func (st *Store) MayShareListen(ctx context.Context, bandID, personID int64) (bool, error) {
-	return st.IsCurrentBandMember(ctx, bandID, personID)
+	return st.MayPropose(ctx, bandID, personID)
 }
 
 // MaxStars is the top of the scale: 1 and 2 are against, 3 and 4 for.
@@ -183,8 +191,8 @@ type BandProposalSnapshot struct {
 
 // CreateProposal records a new 'new_song' or 'new_reference' proposal of
 // targetVariantID: the song for the songbook, or the band's song the
-// recording is for. Any current band member may propose (the HTTP
-// layer's requireBandMember). A set list target must be the band's.
+// recording is for. A member whose role grants propose (MayPropose; by
+// default, any current member). A set list target must be the band's.
 //
 // It notifies no one (band_proposals_notify.go): a new proposal shows on
 // the band's To vote chip and in its "what's new".
@@ -194,6 +202,11 @@ func (st *Store) CreateProposal(ctx context.Context, bandID, proposerID int64, k
 	}
 	if targetVariantID == 0 {
 		return 0, fmt.Errorf("a proposal must reference an existing variant id: %w", ErrInvalid)
+	}
+	if may, err := st.MayPropose(ctx, bandID, proposerID); err != nil {
+		return 0, err
+	} else if !may {
+		return 0, fmt.Errorf("person %d may not propose songs to band %d: %w", proposerID, bandID, ErrForbidden)
 	}
 	if len(payload) == 0 || string(payload) == "null" {
 		payload = json.RawMessage("{}")
@@ -264,7 +277,7 @@ func (st *Store) CreateProposedSong(ctx context.Context, personID, bandID int64,
 	if title == "" {
 		return 0, fmt.Errorf("a song needs a title: %w", ErrInvalid)
 	}
-	ok, err := st.IsCurrentBandMember(ctx, bandID, personID)
+	ok, err := st.MayPropose(ctx, bandID, personID)
 	if err != nil {
 		return 0, err
 	}
@@ -320,11 +333,10 @@ const proposalCols = `
 	coalesce(v.ratings, 0), coalesce(v.star_sum, 0), coalesce(v.positive, 0), coalesce(v.negative, 0), coalesce(v.no_thanks, 0)`
 
 // seenSQL is whether person (the query's parameter $n) sees a proposal's
-// votes: it's decided, or they're a core member who voted on it.
+// votes: it's decided, or they voted on it and their role votes.
 func seenSQL(n int) string {
 	return fmt.Sprintf(`(bp.status <> 'open' OR EXISTS (SELECT 1 FROM proposal_votes mv
-		JOIN band_members mb ON mb.band_id = bp.band_id AND mb.person_id = mv.person_id AND upper_inf(mb.validity) AND mb.status = 'core'
-		WHERE mv.proposal_id = bp.id AND mv.person_id = $%d))`, n)
+		WHERE mv.proposal_id = bp.id AND mv.person_id = $%d AND has_band_privilege(bp.band_id, mv.person_id, 'vote')))`, n)
 }
 
 const proposalFrom = `
@@ -337,8 +349,7 @@ const proposalFrom = `
 		       count(*) FILTER (WHERE stars >= 3)::int AS positive, count(*) FILTER (WHERE stars <= 2)::int AS negative,
 		       count(*) FILTER (WHERE no_thanks)::int AS no_thanks
 		FROM proposal_votes pv WHERE pv.proposal_id = bp.id
-		  AND EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = bp.band_id AND bm.person_id = pv.person_id
-		              AND upper_inf(bm.validity) AND bm.status = 'core')) v ON true`
+		  AND has_band_privilege(bp.band_id, pv.person_id, 'vote')) v ON true`
 
 func scanProposal(row pgx.Row) (*BandProposal, error) {
 	var p BandProposal
@@ -552,14 +563,15 @@ func memberName(m BandMember) string {
 }
 
 // TallyOf is where a proposal's vote stands with ballots, among the
-// band's current members, as viewer sees it. Only the core
-// members vote: a ballot from anyone else (a guest, a former member) is
-// left out of everything, and "voted" counts core members only.
+// band's current members, as viewer sees it. Only the members whose
+// role votes (BandMember.Votes; by default the core members) count: a
+// ballot from anyone else (a guest, a former member) is left out of
+// everything, and "n of m voted" counts them only.
 func TallyOf(ballots []ProposalBallot, members []BandMember, viewer int64) ProposalTally {
 	t := ProposalTally{Rated: []ProposalBallot{}, NoThanks: []ProposalBallot{}, NotVoted: []string{}}
 	core := map[int64]bool{}
 	for _, m := range members {
-		if m.Status == "core" {
+		if m.Votes {
 			core[m.PersonID] = true
 		}
 	}
@@ -597,7 +609,7 @@ func TallyOf(ballots []ProposalBallot, members []BandMember, viewer int64) Propo
 		t.AvgText = fmt.Sprintf("%.1f", math.Round(t.Avg*10)/10)
 	}
 	for _, m := range members {
-		if m.Status != "core" {
+		if !m.Votes {
 			continue
 		}
 		t.Members++

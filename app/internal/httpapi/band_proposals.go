@@ -935,13 +935,13 @@ func writeProposalErr(w http.ResponseWriter, r *http.Request, s *Server, err err
 	}
 	switch {
 	case errors.Is(err, store.ErrGuestNoVote):
-		answer(http.StatusForbidden, i18n.T(lang, "Guest members don’t vote: only the band’s core members rate the songs proposed."))
+		answer(http.StatusForbidden, i18n.T(lang, "Your role in this band doesn’t vote."))
 	case errors.Is(err, store.ErrNotFound):
 		answer(http.StatusNotFound, i18n.T(lang, "This proposal isn’t there any more. Reload the page."))
 	case errors.Is(err, store.ErrAlreadyDecided):
 		answer(http.StatusConflict, i18n.T(lang, "This one has already been decided. Reload to see how."))
 	case errors.Is(err, store.ErrForbidden):
-		answer(http.StatusForbidden, i18n.T(lang, "Only a core member of the band can do that."))
+		answer(http.StatusForbidden, i18n.T(lang, "Your role in this band doesn’t allow that."))
 	case errors.Is(err, store.ErrInvalid):
 		answer(http.StatusBadRequest, i18n.T(lang, "Check what you entered, then try again."))
 	default:

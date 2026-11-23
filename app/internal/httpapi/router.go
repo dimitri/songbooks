@@ -438,8 +438,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 
 	// Band proposals + voting (phase 7): propose a new song (an existing
 	// catalog variant, for the band's repertoire) or a new reference URL
-	// for an existing band variant; core members vote (stars or no
-	// thanks), any current member accepts or turns down by hand. See
+	// for an existing band variant. Who proposes, votes (stars or no
+	// thanks) and accepts or turns down by hand is the member's role's
+	// (propose, vote, decide_proposals: docs/band-roles.md; by default
+	// any member proposes and decides, core members vote). See
 	// internal/store/band_proposals.go.
 	// The band's Repertoire holds the songs to vote on and to discover
 	// (menu PR 5a); their old addresses lead there.
@@ -447,10 +449,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /bands/{id}/catalog/discover", s.requireBandMember(s.handleBandListensPage("discover")))
 	mux.HandleFunc("GET /bands/{id}/proposals", s.movedInBand("/catalog/vote"))
 	mux.HandleFunc("GET /bands/{id}/listening-party", s.movedInBand("/catalog/discover"))
-	mux.HandleFunc("POST /api/bands/{id}/proposals", s.requireBandMember(s.handleCreateProposal))
+	mux.HandleFunc("POST /api/bands/{id}/proposals", s.requireBandPrivilege(store.BandPrivPropose, s.handleCreateProposal))
 	mux.HandleFunc("GET /bands/{id}/proposals/{proposalID}", s.requireBandMember(s.handleBandProposalDetailPage))
-	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/accept", s.requireBandMember(s.handleAcceptProposal))
-	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/reject", s.requireBandMember(s.handleRejectProposal))
+	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/accept", s.requireBandPrivilege(store.BandPrivDecideProposals, s.handleAcceptProposal))
+	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/reject", s.requireBandPrivilege(store.BandPrivDecideProposals, s.handleRejectProposal))
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/votes", s.requireBandMember(s.handleCastVote))
 	// Votes with stars, proposing through the new song-adding flow, the
 	// vote's player; the band's pools to listen to, Discover and
@@ -458,15 +460,15 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /bands/{id}/catalog/vote/listen", s.requireBandMember(s.handleVoteListen))
 	mux.HandleFunc("GET /api/bands/{id}/proposals/{proposalID}/tally", s.requireBandMember(s.handleProposalTally))
 	mux.HandleFunc("GET /api/bands/{id}/proposal-lookup", s.requireBandMember(s.handleProposalLookup))
-	mux.HandleFunc("POST /api/bands/{id}/proposal-drafts", s.requireBandMember(s.handleCreateProposalDraft))
+	mux.HandleFunc("POST /api/bands/{id}/proposal-drafts", s.requireBandPrivilege(store.BandPrivPropose, s.handleCreateProposalDraft))
 	mux.HandleFunc("GET /api/bands/{id}/proposal-drafts/{songID}", s.requireBandMember(s.handleGetProposalDraft))
-	mux.HandleFunc("PUT /api/bands/{id}/proposal-drafts/{songID}", s.requireBandMember(s.handlePutProposalDraft))
-	mux.HandleFunc("DELETE /api/bands/{id}/proposal-drafts/{songID}", s.requireBandMember(s.handleDeleteProposalDraft))
+	mux.HandleFunc("PUT /api/bands/{id}/proposal-drafts/{songID}", s.requireBandPrivilege(store.BandPrivPropose, s.handlePutProposalDraft))
+	mux.HandleFunc("DELETE /api/bands/{id}/proposal-drafts/{songID}", s.requireBandPrivilege(store.BandPrivPropose, s.handleDeleteProposalDraft))
 	mux.HandleFunc("GET /bands/{id}/catalog/influences", s.requireBandMember(s.handleBandListensPage("influences")))
 	mux.HandleFunc("GET /bands/{id}/catalog/discover/listen", s.requireBandMember(s.handleBandListensPlay("discover")))
 	mux.HandleFunc("GET /bands/{id}/catalog/influences/listen", s.requireBandMember(s.handleBandListensPlay("influences")))
 	mux.HandleFunc("GET /api/bands/{id}/listen-lookup", s.requireBandMember(s.handleListenLookup))
-	mux.HandleFunc("POST /api/bands/{id}/listens", s.requireBandMember(s.handleAddListen))
+	mux.HandleFunc("POST /api/bands/{id}/listens", s.requireBandPrivilege(store.BandPrivPropose, s.handleAddListen))
 	mux.HandleFunc("DELETE /api/bands/{id}/listens/{listenID}", s.requireBandMember(s.handleDeleteListen))
 	mux.HandleFunc("PUT /api/bands/{id}/listens/{listenID}/proposal", s.requireBandMember(s.handleListenProposed))
 

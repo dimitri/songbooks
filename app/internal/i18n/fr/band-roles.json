@@ -37,5 +37,7 @@
   "Your role doesn’t let you change the band’s look.": "Votre rôle ne vous permet pas de changer l’apparence du groupe.",
   "Your role doesn’t let you invite people.": "Votre rôle ne vous permet pas d’inviter des personnes.",
   "Your role doesn’t let you rename the band.": "Votre rôle ne vous permet pas de renommer le groupe.",
+  "Your role in this band doesn’t allow that.": "Votre rôle dans ce groupe ne le permet pas.",
+  "Your role in this band doesn’t vote.": "Votre rôle dans ce groupe ne vote pas.",
   "e.g. Staff": "ex. Équipe"
 }

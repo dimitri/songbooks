@@ -12,9 +12,9 @@ import (
 
 func votesMembers() []BandMember {
 	return []BandMember{
-		{PersonID: 1, DisplayName: "Ann", Status: "core"},
-		{PersonID: 2, DisplayName: "Bob", Status: "core"},
-		{PersonID: 3, DisplayName: "Cid", Status: "core"},
+		{PersonID: 1, DisplayName: "Ann", Status: "core", Votes: true},
+		{PersonID: 2, DisplayName: "Bob", Status: "core", Votes: true},
+		{PersonID: 3, DisplayName: "Cid", Status: "core", Votes: true},
 		{PersonID: 4, DisplayName: "Gus", Status: "guest"},
 	}
 }

@@ -94,8 +94,8 @@ func TestStarVotes(t *testing.T) {
 
 	// A guest doesn't vote; someone outside the band neither.
 	w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/votes", f.Band, b), map[string]any{"stars": 3})
-	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "core members") {
-		t.Errorf("a guest's vote: %d %s, want 403 saying only core members vote", w.Code, w.Body.String())
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "doesn’t vote") {
+		t.Errorf("a guest's vote: %d %s, want 403 saying their role doesn't vote", w.Code, w.Body.String())
 	}
 	if _, err := st.CastVote(ctx, b, f.Guest, store.Vote{Stars: 3}); err != store.ErrGuestNoVote {
 		t.Errorf("a guest's vote in the store: %v", err)
