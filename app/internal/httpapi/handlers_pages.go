@@ -787,6 +787,11 @@ type viewerMeasure struct {
 	MapAnnotate       bool
 	MapMark, MapLabel string
 
+	// Played: the played bars this drawn bar is read from — each pass
+	// through a repeat, the pass that takes an ending, each "times:"
+	// (assignPlayedBars, playedbars.go); data-played.
+	Played []int
+
 	// Tab is this bar's note-level tab notation, from the section's
 	// "score:" field (internal/tab) — nil for the common case of a bar
 	// with no such data, which renders exactly as before. Set by
@@ -1982,6 +1987,11 @@ type mapCell struct {
 	Mark, Label  string
 	RecallBars   int
 	RecallOf     string // "" unless GridDuplicateOf named a differently-labeled source section
+	// RecallStart and RecallPlayed: the section's first played bar and
+	// all of them (data-global-bar, data-played) — the cell stands for
+	// every bar the section plays, so it lights while any of them plays.
+	RecallStart  int
+	RecallPlayed string
 }
 
 type mapLine struct {
@@ -2031,6 +2041,7 @@ func buildMapLines(sections []viewerSection) []mapLine {
 			cells = append(cells, mapCell{
 				IsRecall: true, SectionStart: true, Mark: sec.Mark, Label: label,
 				RecallBars: sec.BarCount, RecallOf: sec.GridDuplicateOf,
+				RecallStart: sec.StartBar, RecallPlayed: joinBars(spanBars(sec.StartBar, sec.BarCount)),
 			})
 			continue
 		}
@@ -2477,6 +2488,7 @@ func buildSections(sg *song.Song) []viewerSection {
 		}
 		globalBar += sec.BarCount
 	}
+	assignPlayedBars(sg, sections)
 	return sections
 }
 
