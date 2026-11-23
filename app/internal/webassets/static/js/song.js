@@ -376,9 +376,11 @@ const ICONS = {
     barsByPlayed = new Map();
     for (const b of bars) {
       // A drawn bar is read on every pass through a repeat (or a D.S.,
-      // in the Jazz chart), an ending on the pass that takes it, a Map
-      // recall cell on each of its section's bars: data-played lists
-      // them (playedbars.go). A bar without one is read at its own.
+      // in the Jazz chart), an ending on the pass that takes it, and on
+      // those of every later section replaying its grid without drawing
+      // it (a bare "Verse 2"); a Map recall cell on each of its section's
+      // bars: data-played lists them (playedbars.go). A bar without one
+      // is read at its own.
       const list = b.dataset.played ? b.dataset.played.split(' ') : [b.dataset.globalBar];
       for (const v of list) {
         const n = parseInt(v, 10);
@@ -611,8 +613,10 @@ const ICONS = {
     // A reflowed row keeps its hidden original next to the visible copy:
     // highlight the copy on screen. Nothing lit when the chart doesn't
     // follow (Lyrics only, switched off).
+    // A Map recall cell stands for a section replaying an earlier grid:
+    // the grid's bars light rather than the cell, when they're drawn.
     const matches = lit ? (barsByPlayed.get(bar) || []) : [];
-    const barEl = matches.find(b => b.offsetParent) || matches[0] || null;
+    const barEl = matches.find(b => b.offsetParent && !b.classList.contains('bar-recall')) || matches.find(b => b.offsetParent) || matches[0] || null;
     currentPlayedBar = bar;
     if (barEl && started) barEl.style.setProperty('--playhead', String(Math.min(1, position - bar)));
     if (barEl !== currentBarEl) {
