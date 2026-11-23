@@ -9712,3 +9712,11 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .catalogue-edit-text pre { margin: 0.4rem 0 0; padding: 0.6rem; max-height: 30rem; overflow: auto; font-size: 0.8rem; background: var(--bg-sunken); border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
 .catalogue-edit-text summary { cursor: pointer; }
 .history-summary { margin: 0 0 0.2rem; font-style: italic; }
+.catalogue-choice { border: 0; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.catalogue-choice label { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; }
+.catalogue-choice label input { margin-top: 0.25rem; flex: none; }
+.catalogue-choice small { display: block; color: var(--fg-muted); }
+.catalogue-choice-recording { display: grid; gap: 0.5rem; }
+.catalogue-choice-recording[hidden] { display: none; }
+.catalogue-label-row { margin-top: 0.8rem; }
+.topbar-label { color: var(--fg-muted); }

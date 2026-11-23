@@ -47,9 +47,9 @@
 
   // "Link" says what a link is, for the songbook's owner.
   function linkHint(target) {
-    if (!target) return t('“Add” links the song as it is: it plays the shared version until someone makes their own.');
-    if (target.ownerKind === 'person') return t('“Add” links the song as it is: you play the shared version until you make your own.');
-    return t('“Add” links the song as it is: %s plays the shared version until someone edits %s’s version.', target.ownerName, target.ownerName);
+    if (!target) return t('“Add” links the song as it is: it plays the shared song until someone makes their own arrangement.');
+    if (target.ownerKind === 'person') return t('“Add” links the song as it is: you play the shared song until you make your own arrangement.');
+    return t('“Add” links the song as it is: %s plays the shared song until someone edits %s’s arrangement.', target.ownerName, target.ownerName);
   }
 
   // ---- The Add / Create dialog -------------------------------------
@@ -131,7 +131,7 @@
     const goes = el('select');
     const who = el('fieldset', 'field-group addsong-who');
     who.append(el('legend', '', t('Who sees it')));
-    for (const [v, text, h2] of [['private', t('badge|private'), ''], ['public', t('badge|public'), t('everyone signed in sees it, links it, makes their own version')]]) {
+    for (const [v, text, h2] of [['private', t('badge|private'), ''], ['public', t('badge|public'), t('everyone signed in sees it, links it, makes their own arrangement')]]) {
       const l = el('label', 'addsong-who-choice');
       const r = el('input'); r.type = 'radio'; r.name = 'addsong-who'; r.value = v; r.checked = v === 'private';
       const span = el('span', '', text);
@@ -395,7 +395,7 @@
     if (w.songs.length > 1) {
       const head = el('div', 'addsong-work-head');
       head.append(el('span', 'addsong-work-title', w.title));
-      head.append(el('span', 'addsong-versions', tn(w.songs.length, '%d version', '%d versions')));
+      head.append(el('span', 'addsong-versions', tn(w.songs.length, '%d recording or arrangement', '%d recordings and arrangements')));
       li.append(head);
     }
     const ul = el('ul', 'addsong-songs');
@@ -534,7 +534,7 @@
     close.addEventListener('click', () => pick.close());
     head.append(h, close);
     const song = el('p', 'addto-song');
-    const hint = el('p', 'hint', t('A link: the songbook plays the song as it is, in its own key, until someone makes their own version.'));
+    const hint = el('p', 'hint', t('A link: the songbook plays the song as it is, in its own key, until someone makes their own arrangement.'));
     const list = el('ul', 'addto-list');
     const status = el('p', 'form-status');
     status.setAttribute('role', 'status');

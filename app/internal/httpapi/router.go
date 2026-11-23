@@ -339,6 +339,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/big-songbook/songs/{id}/report", s.requireAuth(s.handleReportCatalogueSong))
 	mux.HandleFunc("POST /api/big-songbook/reports/{id}/handled", s.requireAuth(s.handleHandleCatalogueReport))
 	mux.HandleFunc("POST /api/big-songbook/people/{id}/ban", s.requireAuth(s.handleCatalogueBan))
+	mux.HandleFunc("PUT /api/variants/{id}/reference-label", s.requireAuth(s.handlePutReferenceLabel))
+	mux.HandleFunc("GET /api/reference-title", s.requireAuth(s.handleReferenceTitle))
 
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
 	mux.HandleFunc("POST /api/variants/{id}/versions", s.requireAuth(s.handleNewVersion))

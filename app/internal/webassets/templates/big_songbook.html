@@ -20,7 +20,7 @@
   <h1>{{t "The Big Songbook"}}</h1>
 </header>
 <main class="index big-songbook">
-  <p class="catalog-intro">{{t "Every public song, the versions of one song together: the catalogue’s, and the ones bands and communities made public. Everyone signed in plays them, adds them to a songbook, makes their own version."}}</p>
+  <p class="catalog-intro">{{t "Every public song, one song’s recordings and arrangements together: the catalogue’s, and the ones bands and communities made public. Everyone signed in plays them, adds them to a songbook, makes their own arrangement."}}</p>
   {{if or .IsStaff .IsReviewer}}
   <p class="big-staff">
     {{if .IsStaff}}{{if .Duplicates}}<a class="chip-link" href="/big-songbook/duplicates">{{tn .Duplicates "%d duplicate to review" "%d duplicates to review"}} &rarr;</a>
@@ -37,7 +37,7 @@
   <nav class="space-views find-scopes" aria-label="{{t "Where they come from"}}">
     {{range .Froms}}<a href="{{.Href}}" class="space-view{{if .Active}} active{{end}}"{{if .Active}} aria-current="page"{{end}}>{{t .Label}}</a>{{end}}
   </nav>
-  <p class="hint big-count">{{tn (len .Works) "%d song" "%d songs"}}{{if ne (len .Works) .Songs}} &middot; {{tn .Songs "%d version" "%d versions"}}{{end}}</p>
+  <p class="hint big-count">{{tn (len .Works) "%d song" "%d songs"}}{{if ne (len .Works) .Songs}} &middot; {{tn .Songs "%d recording or arrangement" "%d recordings and arrangements"}}{{end}}</p>
 
   {{if .Works}}
   <ul class="big-works">
@@ -45,7 +45,7 @@
     <li class="big-work" data-work-id="{{$w.WorkID}}">
       <div class="big-work-head">
         <a class="big-work-title" href="/works/{{$w.WorkID}}">{{$w.Title}}</a>
-        {{if gt (len $w.Songs) 1}}<span class="addsong-versions">{{tn (len $w.Songs) "%d version" "%d versions"}}</span>{{end}}
+        {{if gt (len $w.Songs) 1}}<span class="addsong-versions">{{tn (len $w.Songs) "%d recording or arrangement" "%d recordings and arrangements"}}</span>{{end}}
       </div>
       <ul class="big-versions">
       {{range $w.Songs}}
@@ -97,7 +97,7 @@
   <h1>{{t "Duplicates"}}</h1>
 </header>
 <main class="index big-dups">
-  <p class="catalog-intro">{{t "Public songs that are the same song: the same title and artist, or the same reference video. Keep one; merge the other into it — its songbook entries (with their keys), set list lines, band recordings and the versions made from it move to the one kept, its history stays readable there, and its old links open the one kept."}}</p>
+  <p class="catalog-intro">{{t "Public songs that are the same song: the same title, artist and reference label, or the same reference video. Keep one; merge the other into it — its songbook entries (with their keys), set list lines, band recordings and the arrangements made from it move to the one kept, its history stays readable there, and its old links open the one kept."}}</p>
   {{range $gi, $g := .Groups}}
   <section class="card big-dup" data-group="{{$gi}}">
     <h2 class="big-dup-title">{{$g.Title}}</h2>
@@ -110,7 +110,7 @@
           <a href="/song/{{$s.ID}}">{{t "Song %d" $s.ID}}</a> — {{$s.Title}} — {{$s.Artist}}{{with $s.VersionName}} — {{.}}{{end}}
           <span class="owner-badge is-public">{{if $s.Catalogue}}{{t "The Big Songbook"}}{{else}}{{$s.OwnerName}}{{end}}</span>
           <p class="hint">
-            {{tn $s.Entries "%d songbook entry" "%d songbook entries"}} &middot; {{tn $s.Setlists "%d set list" "%d set lists"}} &middot; {{tn $s.Recordings "%d band recording" "%d band recordings"}} &middot; {{tn $s.Versions "%d version made from it" "%d versions made from it"}} &middot; {{tn $s.Media "%d file" "%d files"}}
+            {{tn $s.Entries "%d songbook entry" "%d songbook entries"}} &middot; {{tn $s.Setlists "%d set list" "%d set lists"}} &middot; {{tn $s.Recordings "%d band recording" "%d band recordings"}} &middot; {{tn $s.Versions "%d arrangement made from it" "%d arrangements made from it"}} &middot; {{tn $s.Media "%d file" "%d files"}}
             {{with $s.ReferenceURL}}<br><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{else}}<br>{{t "no reference video"}}{{end}}
             <br>{{t "created %s" (date $s.CreatedAt "2 January 2006")}} &middot; {{t "revision %d" $s.Version}}
           </p>

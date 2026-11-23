@@ -185,7 +185,7 @@ func TestEditFromTheBandsSetlist(t *testing.T) {
 	// everyone's edits (catalogue_edits.go), their own version offered
 	// beside it (TestCatalogueSongs).
 	if html := as(t, st, f.Outsider).page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, `data-can-edit="true"`) ||
-		strings.Contains(html, "data-edit-offer") || !strings.Contains(html, "Make my version instead") {
+		strings.Contains(html, "data-edit-offer") || !strings.Contains(html, "Make my arrangement instead") {
 		t.Error("an outsider: not the editor on the catalogue's song, with their own version offered")
 	}
 
@@ -413,7 +413,7 @@ func TestSongbookKey(t *testing.T) {
 		if keyed(html) != want {
 			t.Errorf("%s: in the songbook's key %v, want %v", path, keyed(html), want)
 		}
-		if want && (!strings.Contains(html, "songbook-key-line") || !strings.Contains(html, "edit-key-note") || !strings.Contains(html, "Other Lies’s version")) {
+		if want && (!strings.Contains(html, "songbook-key-line") || !strings.Contains(html, "edit-key-note") || !strings.Contains(html, "Other Lies’s song")) {
 			t.Errorf("%s: no line saying whose version, in which key", path)
 		}
 		// Edit is still the band's song, in place.
@@ -516,7 +516,7 @@ func TestCatalogueSongs(t *testing.T) {
 		t.Fatalf("PUT key: %d", w.Code)
 	}
 	html := o.page(fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, mine))
-	if !strings.Contains(html, `data-action="copy"`) || !strings.Contains(html, "Make my version instead") {
+	if !strings.Contains(html, `data-action="copy"`) || !strings.Contains(html, "Make my arrangement instead") {
 		t.Error("no offer of one's own version")
 	}
 	ownVersion := o.variantID(o.do("POST", fmt.Sprintf("/api/variants/%d/fork", f.CatalogSong), nil))

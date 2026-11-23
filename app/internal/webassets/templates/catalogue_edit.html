@@ -12,12 +12,28 @@
 <div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}>
   <p class="hint">{{if .CatalogueGated}}{{t "The Big Songbook’s song: your edit changes it for everyone. An edit that keeps it following its recording is applied at once; one that changes its structure or makes it follow the recording less well waits for review."}}{{else}}{{t "The Big Songbook’s song: your edit changes it for everyone, at once."}}{{end}}
     {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
-    {{if .CanEditChart}}<button type="button" class="link-like" id="edit-offer-go" data-action="copy">{{t "Make my version instead"}}</button><span class="form-status" id="edit-offer-status" role="status"></span>{{end}}</p>
+    {{if .CanEditChart}}<button type="button" class="link-like" id="edit-offer-go" data-action="copy">{{t "Make my arrangement instead"}}</button><span class="form-status" id="edit-offer-status" role="status"></span>{{end}}</p>
   <label class="catalogue-summary-field">
     <span>{{t "What did you change?"}} <span class="field-optional">{{t "(optional)"}}</span></span>
     <input type="text" id="catalogue-edit-summary" maxlength="200" autocomplete="off" placeholder="{{t "e.g. fixed the chorus chords"}}" enterkeyhint="done">
   </label>
 </div>
+{{end}}
+
+{{/* The Reference view, on The Big Songbook's song: its reference label,
+     shown after its artist (the album, "Live at …", "Cover"…; prefilled
+     with the video's title while it has none). catalogue-edit.js saves
+     it. */}}
+{{define "catalogue-reference-label"}}
+<form class="catalogue-label-row form-stack" id="catalogue-label-form" data-variant-id="{{.VariantID}}">
+  <div class="field">
+    <label for="catalogue-label-input">{{t "Reference label"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+    <p class="field-hint" id="catalogue-label-hint">{{t "Which recording this is, shown after the artist: the album, “Live at …, 1994”, “Original”, “Cover”."}}</p>
+    <input type="text" id="catalogue-label-input" maxlength="80" aria-describedby="catalogue-label-hint" value="{{if .VersionName}}{{.VersionName}}{{else}}{{.RefTitle}}{{end}}" autocomplete="off" enterkeyhint="done">
+  </div>
+  <p class="form-status" role="status"></p>
+  <div class="form-actions"><button type="submit">{{t "Save the label"}}</button></div>
+</form>
 {{end}}
 
 {{/* Above the chart: the viewer's edit of this song waiting for review. */}}
@@ -44,6 +60,33 @@
   </form>
 </dialog>
 {{end}}
+{{/* A new reference, title or artist: a fix of this song, or another
+     recording (another song of The Big Songbook). */}}
+<dialog class="edit-offer-dialog" id="catalogue-choice-dialog" aria-labelledby="catalogue-choice-title">
+  <form method="dialog" class="form-stack" id="catalogue-choice-form">
+    <h2 id="catalogue-choice-title">{{t "A fix, or another recording?"}}</h2>
+    <p class="hint" id="catalogue-choice-text"></p>
+    <fieldset class="catalogue-choice">
+      <label><input type="radio" name="kind" value="fix" checked> <span><strong>{{t "A fix"}}</strong> <small>{{t "the same recording: a dead link, a typo"}}</small></span></label>
+      <label><input type="radio" name="kind" value="recording"> <span><strong>{{t "Another recording"}}</strong> <small>{{t "album and live, original and cover: another song of The Big Songbook, this one kept as it is"}}</small></span></label>
+    </fieldset>
+    <div class="catalogue-choice-recording" id="catalogue-choice-recording" hidden>
+      <div class="field" id="catalogue-choice-ref-field">
+        <label for="catalogue-choice-ref">{{t "Its video"}}</label>
+        <input type="url" id="catalogue-choice-ref" placeholder="{{t "e.g. https://youtube.com/watch?v=…"}}" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="catalogue-choice-label">{{t "Reference label"}}</label>
+        <input type="text" id="catalogue-choice-label" maxlength="80" placeholder="{{t "e.g. Live at the Olympia, 1994"}}" autocomplete="off">
+      </div>
+    </div>
+    <p class="form-status" id="catalogue-choice-status" role="status"></p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" formnovalidate>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="catalogue-choice-go">{{t "Save"}}</button>
+    </div>
+  </form>
+</dialog>
 <dialog class="edit-offer-dialog" id="catalogue-saved-dialog" aria-labelledby="catalogue-saved-title">
   <form method="dialog">
     <h2 id="catalogue-saved-title"></h2>

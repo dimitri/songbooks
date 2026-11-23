@@ -1627,10 +1627,10 @@ const ICONS = {
     if (!res || !res.ok || !data || !data.variantId) {
       Forms.busy(btn, false);
       Forms.status(status, (data && data.message) || (action === 'band'
-        ? t("Couldn't make the band's version of this song. Try again.")
+        ? t("Couldn't make the band's arrangement of this song. Try again.")
         : action === 'community'
-          ? t("Couldn't make the community's version of this song. Try again.")
-          : t("Couldn't make your own version of this song. Try again.")), 'error');
+          ? t("Couldn't make the community's arrangement of this song. Try again.")
+          : t("Couldn't make your own arrangement of this song. Try again.")), 'error');
       return;
     }
     const params = new URLSearchParams(location.search);
@@ -1659,7 +1659,7 @@ const ICONS = {
     const input = document.getElementById('new-version-name');
     const name = (input?.value || '').trim();
     if (!name) {
-      Forms.status(status, t('Name the new version.'), 'error');
+      Forms.status(status, t('Name the new arrangement.'), 'error');
       input?.focus();
       return;
     }
@@ -1672,7 +1672,7 @@ const ICONS = {
     const data = res ? await res.json().catch(() => ({})) : null;
     if (!res || !res.ok || !data || !data.variantId) {
       Forms.busy(btn, false);
-      Forms.status(status, (data && (data.message || data.error)) || t("Couldn't make the new version. Try again."), 'error');
+      Forms.status(status, (data && (data.message || data.error)) || t("Couldn't make the new arrangement. Try again."), 'error');
       return;
     }
     const params = new URLSearchParams(location.search);
@@ -1685,7 +1685,7 @@ const ICONS = {
   document.querySelectorAll('[data-song-publish]').forEach((el) => el.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     const makePublic = btn.dataset.songPublish !== 'true';
-    if (makePublic && !confirm(t('Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own version.'))) return;
+    if (makePublic && !confirm(t('Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own arrangement.'))) return;
     // Private again: who links it keeps a frozen copy; said first.
     if (!makePublic && !confirm(await songUses('private'))) return;
     Forms.busy(btn, true);

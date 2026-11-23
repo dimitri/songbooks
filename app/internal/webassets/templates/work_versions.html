@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "All versions"}} — Songbooks</title>
+<title>{{t "Recordings and arrangements"}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,7 +13,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/catalog">{{template "icon-back"}} {{t "Catalog"}}</a>
-  <h1>{{t "All versions"}}</h1>
+  <h1>{{t "Recordings and arrangements"}}</h1>
 </header>
 <main class="index">
   {{range .Variants}}
@@ -22,7 +22,7 @@
     <p class="hint">{{t .Visibility}}{{if .Public}} &middot; {{t "songbook|public"}}{{end}}{{if .ForkedFromID}} &middot; {{t "a copy of"}} <a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "version %s" (deref64 .ForkedFromID)}}</a>{{end}}</p>
     <div class="variant-actions">
       <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">{{t "Add to my songbook"}}</button>
-      {{if .CanCopy}}<button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">{{t "Make my version"}}</button>{{end}}
+      {{if .CanCopy}}<button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">{{t "Make my arrangement"}}</button>{{end}}
       <a href="/variants/{{.VariantID}}/history">{{t "Revision history"}}</a>
     </div>
 
@@ -36,7 +36,7 @@
     </ul>
     <form class="annotate-form form-stack" data-variant-id="{{.VariantID}}">
       <div class="field">
-        <label for="note-{{.VariantID}}">{{t "Your note on this version"}}</label>
+        <label for="note-{{.VariantID}}">{{t "Your note on this one"}}</label>
         <textarea id="note-{{.VariantID}}" name="body" rows="2" class="prose" required></textarea>
       </div>
       <div class="form-actions"><button type="submit" class="primary">{{t "Add note"}}</button></div>

@@ -23,7 +23,7 @@ type dbtx interface {
 }
 
 // Work is a lightweight title+artist identity, the catalog's backbone for
-// "browse by artist/alphabetical" and "all versions of this song" views.
+// "browse by artist/alphabetical" and "this song’s recordings and arrangements" views.
 // Not every variant needs a hand-picked work — FindOrCreateWork
 // auto-creates one from a variant's own title/artist when it's created.
 type Work struct {
@@ -258,7 +258,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // ListVariantsForWork lists every version of one work that viewerID
 // may see (song_visible: the public ones, and the private ones of the
 // person, their bands and their communities), public first — the work's
-// "all versions of this song" page.
+// "this song’s recordings and arrangements" page.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), coalesce(w.album, '')

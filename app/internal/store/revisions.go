@@ -55,6 +55,10 @@ type VariantSnapshot struct {
 	Artist       string `json:"artist"`
 	ReferenceURL string `json:"reference_url"`
 	Body         string `json:"body"`
+	// VersionName: a catalogue song's reference label before a change of
+	// it (SetReferenceLabel); nil in the snapshots of other edits, whose
+	// revert leaves it as it is.
+	VersionName *string `json:"version_name,omitempty"`
 }
 
 // Revision is one row of an entity's revision history, as the API/history
@@ -231,10 +235,10 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			return fmt.Errorf("revision %d has a non-numeric variant id %q: %w", revisionID, entityID, err)
 		}
 
-		var curTitle, curArtist, curRef, curBody string
+		var curTitle, curArtist, curRef, curBody, curName string
 		err = tx.QueryRow(ctx, `
-			SELECT title, artist, reference_url, body FROM songs WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curTitle, &curArtist, &curRef, &curBody)
+			SELECT title, artist, reference_url, body, version_name FROM songs WHERE id = $1 FOR UPDATE`, id).
+			Scan(&curTitle, &curArtist, &curRef, &curBody, &curName)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("no such variant %d: %w", id, ErrNotFound)
 		}
@@ -243,16 +247,19 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		}
 
 		actor := &actorPersonID
-		if err := st.RecordRevision(ctx, tx, "variant", entityID, actor, VariantSnapshot{
-			Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody,
-		}); err != nil {
+		undo := VariantSnapshot{Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody}
+		if snap.VersionName != nil {
+			undo.VersionName = &curName
+		}
+		if err := st.RecordRevision(ctx, tx, "variant", entityID, actor, undo); err != nil {
 			return err
 		}
 
 		if _, err := tx.Exec(ctx, `
-			UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1
+			UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1,
+			                 version_name = coalesce($6, version_name)
 			WHERE id = $5`,
-			snap.Title, snap.Artist, snap.ReferenceURL, snap.Body, id); err != nil {
+			snap.Title, snap.Artist, snap.ReferenceURL, snap.Body, id, snap.VersionName); err != nil {
 			return err
 		}
 		if _, err := shiftLeadSync(ctx, tx, id, curBody, snap.Body); err != nil {

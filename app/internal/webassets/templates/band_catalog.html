@@ -60,7 +60,7 @@
       <details class="row-menu">
         <summary aria-label="{{t "More for %s" .Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+          <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
           <p class="hint">{{t (printf "visibility|%s" .Visibility)}}</p>
@@ -83,7 +83,7 @@
       <details class="row-menu">
         <summary aria-label="{{t "More for %s" .Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+          <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
           <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByUsername}}</p>

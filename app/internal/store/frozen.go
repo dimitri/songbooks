@@ -60,13 +60,13 @@ func (u *SongUses) Sentence(lang string) string {
 		parts = append(parts, i18n.N(lang, u.Setlists, "%d set list lists it", "%d set lists list it"))
 	}
 	if u.BandVersions > 0 {
-		parts = append(parts, i18n.N(lang, u.BandVersions, "%d band has its own version", "%d bands have their own version"))
+		parts = append(parts, i18n.N(lang, u.BandVersions, "%d band has its own arrangement", "%d bands have their own arrangement"))
 	}
 	if u.PersonVersions > 0 {
-		parts = append(parts, i18n.N(lang, u.PersonVersions, "%d person has their own version", "%d people have their own version"))
+		parts = append(parts, i18n.N(lang, u.PersonVersions, "%d person has their own arrangement", "%d people have their own arrangement"))
 	}
 	if u.CommunityVersions > 0 {
-		parts = append(parts, i18n.N(lang, u.CommunityVersions, "%d community has its own version", "%d communities have their own version"))
+		parts = append(parts, i18n.N(lang, u.CommunityVersions, "%d community has its own arrangement", "%d communities have their own arrangement"))
 	}
 	switch len(parts) {
 	case 0:

@@ -2896,10 +2896,10 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	//     coaching community, its coach and the students the song is
 	//     given to, from its songbooks or from none (communityEditOffer).
 	//   - CanCopy without CanEdit: Edit says whose song it is and offers
-	//     "Make my version" (POST /api/variants/{id}/fork). Never a closed
+	//     "Make my arrangement" (POST /api/variants/{id}/fork). Never a closed
 	//     songbook's song; without any of these, there's no Edit.
 	// CanNewVersion (the song is the viewer's to edit, not the
-	// catalogue's): "New version from this", named, beside it. CanPublish:
+	// catalogue's): "New arrangement from this", named, beside it. CanPublish:
 	// make it public or private.
 	var canEdit, canCopy, canNewVersion, canPublish, canDelete bool
 	// canEditChart: the editor opens on this song's chart — who edits it,
