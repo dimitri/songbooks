@@ -9859,22 +9859,23 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .vote-ctl[aria-busy="true"] { opacity: 0.75; }
 .vote-ctl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
 .vote-stars { display: inline-flex; gap: 0.15rem; }
+/* The five buttons (the thumbs down, then the 4 stars): identical boxes,
+   each an SVG in the same 24-unit box, centred alike — one baseline,
+   one size, even gaps. */
 .vote-star {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer;
-  font-size: 1.85rem; line-height: 1; color: color-mix(in srgb, var(--fg-faint) 45%, transparent); transition: transform 0.08s ease, color 0.08s ease;
+  line-height: 0; color: color-mix(in srgb, var(--fg-faint) 45%, transparent); transition: transform 0.08s ease, color 0.08s ease;
 }
+.vote-star .icon { width: 1.75rem; height: 1.75rem; display: block; }
 .vote-star:hover { transform: scale(1.12); background: none; }
 .vote-star.is-on { color: #d99a1e; }
 .vote-stars.is-preview .vote-star.is-on { color: color-mix(in srgb, #d99a1e 70%, transparent); }
-.vote-stars .vote-star:nth-child(2) { margin-right: 0.35rem; } /* 1–2 against, 3–4 for */
 .vote-star:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-/* No thanks: a thumbs down, one of the stars (.vote-star) — faint when
-   not chosen, the danger colour when chosen. */
-.vote-nothanks { display: inline-flex; align-items: center; justify-content: center; }
-.vote-nothanks .icon-no-thanks { width: 1.45rem; height: 1.45rem; }
+/* No thanks: the thumbs down, faint until chosen, then the danger colour. */
 .vote-nothanks.is-on { color: var(--danger); }
 .vote-nothanks.is-preview { color: color-mix(in srgb, var(--danger) 70%, transparent); }
-.vote-ctl-gap { width: 0.6rem; height: 1.6rem; border-left: 1px solid var(--border); margin-left: 0.3rem; }
+.vote-ctl-gap { flex: none; width: 1px; height: 1.6rem; background: var(--border); margin: 0 0.45rem; }
 .no-mark { display: inline-flex; vertical-align: -0.15em; }
 .no-mark .icon-no-thanks { width: 1em; height: 1em; }
 .vote-chip.is-no { display: inline-flex; align-items: center; gap: 0.2rem; }
@@ -9906,10 +9907,10 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   .vote-listen { grid-column: 3; grid-row: 1 / span 2; align-self: start; min-width: 2.9rem; min-height: 2.9rem; }
   .vote-listen span { display: none; }
   .vote-line .vote-names { font-size: 0.8rem; }
-  .vote-star { width: 2.9rem; height: 2.9rem; font-size: 2rem; }
-  .vote-nothanks .icon-no-thanks { width: 1.6rem; height: 1.6rem; }
+  .vote-star { width: 2.9rem; height: 2.9rem; }
+  .vote-star .icon { width: 1.85rem; height: 1.85rem; }
   .vote-ctl-row { flex-wrap: nowrap; gap: 0.4rem; }
-  .vote-ctl-gap { margin-left: 0.1rem; width: 0.3rem; }
+  .vote-ctl-gap { margin: 0 0.3rem; }
   .songbook-head .songbook-actions { width: 100%; }
   .songbook-head .songbook-actions .setlist-action { flex: 1 1 0; justify-content: center; min-height: 2.75rem; }
 }

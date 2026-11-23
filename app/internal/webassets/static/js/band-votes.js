@@ -59,6 +59,9 @@
   // sit with the stars: the same size, the same states.
   const NO = '<svg class="icon icon-no-thanks" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="4" height="11" rx="1"/><path d="M8 4.5C8 3.67 8.67 3 9.5 3H17c.8 0 1.5.5 1.8 1.2l2.6 6.4c.1.3.2.5.2.8V13c0 1.1-.9 2-2 2h-5.2l.8 3.9c.2.9-.3 1.8-1.1 2.2-.5.2-1.1 0-1.4-.4L8.5 15.4c-.3-.4-.5-.9-.5-1.4z"/></svg>';
   const noIcon = () => { const s = el('span', 'no-mark'); s.innerHTML = NO; return s; };
+  // The control's star: an SVG in the thumbs down's own 24-unit box, so
+  // the five sit in identical buttons, centred alike, on one line.
+  const STAR_SVG = '<svg class="icon icon-vote-star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>';
 
   async function send(bandId, proposalId, v) {
     const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
@@ -176,7 +179,8 @@
     const stars = el('div', 'vote-stars');
     const buttons = [];
     for (let n = 1; n <= MAX; n++) {
-      const b = el('button', 'vote-star', STAR);
+      const b = el('button', 'vote-star');
+      b.innerHTML = STAR_SVG;
       b.type = 'button';
       b.dataset.stars = n;
       b.setAttribute('aria-label', trn(n, '%d star', '%d stars') + ' — ' + tr(meaning(n)));
