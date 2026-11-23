@@ -63,15 +63,30 @@ func TestPlayedBarsLightTheDrawnBar(t *testing.T) {
 		{"times: over a repeat", "[Verse]\ntimes: 2\ngrid: |: G | C :| D |\n", map[string][]string{
 			"Verse": {"G=0,2,5,7", "C=1,3,6,8", "D=4,9"},
 		}},
-		{"a bare repeat section draws no bars", "[Verse]\ngrid: |: G | C :|\n[Chorus]\ngrid: | D |\n[Verse]\n[Chorus]\n", map[string][]string{
-			"Verse 1":  {"G=0,2", "C=1,3"},
-			"Chorus 1": {"D=4"},
+		// A bare repeat draws no bars: the bars of the grid it replays
+		// light, pass by pass.
+		{"a bare repeat section", "[Verse]\ngrid: |: G | C :|\n[Chorus]\ngrid: | D |\n[Verse]\n[Chorus]\n", map[string][]string{
+			"Verse 1":  {"G=0,2,5,7", "C=1,3,6,8"},
+			"Chorus 1": {"D=4,9"},
+		}},
+		{"a bare repeat with times:", "[Verse]\ngrid: | G | C |\n[Verse]\ntimes: 2\n", map[string][]string{
+			"Verse 1": {"G=0,2,4", "C=1,3,5"},
+		}},
+		{"same as an earlier grid", "[Verse]\ngrid: |: G | (1.) C :| (2.) D |\n[Verse]\ngrid: |: G | (1.) C :| (2.) D |\n", map[string][]string{
+			"Verse 1": {"G=0,2,4,6", "C=1,5", "D=3,7"},
+		}},
+		// The previous Chorus, not the first, when the second changed.
+		{"the nearest earlier grid", "[Chorus]\ngrid: | D | D |\n[Chorus]\ngrid: | E | E |\n[Chorus]\n", map[string][]string{
+			"Chorus 1": {"D=0", "D=1"},
+			"Chorus 2": {"E=2,4", "E=3,5"},
 		}},
 		{"lead:", "lead: 2\n\n[Intro]\ngrid: |: G | C :|\n", map[string][]string{
 			"Intro": {"lead=0", "lead=1", "G=2,4", "C=3,5"},
 		}},
+		// An inferred Solo shows as a chip (its placeholder bars hidden,
+		// keeping its passes): the grid it solos over lights.
 		{"a Solo over a repeated grid", "[Verse]\ngrid: |: G | C | (1.) D :| (2.) Em |\n[Solo]\n", map[string][]string{
-			"Verse": {"G=0,3", "C=1,4", "D=2", "Em=5"},
+			"Verse": {"G=0,3,6,9", "C=1,4,7,10", "D=2,8", "Em=5,11"},
 			"Solo":  {"…=6,9", "…=7,10", "…=8", "…=11"},
 		}},
 	}
@@ -84,7 +99,8 @@ func TestPlayedBarsLightTheDrawnBar(t *testing.T) {
 }
 
 // The Map draws the same bars; a section it recalls in one cell (a bare
-// repeat) lights that cell for each of the section's bars.
+// repeat) lights the bars of the grid it replays (the cell keeps them
+// all, for a click and the cycle).
 func TestPlayedBarsOnTheMap(t *testing.T) {
 	secs := buildSections(song.Parse("[Verse]\ngrid: |: G | C :|\n[Chorus]\ngrid: | D |\n[Verse]\n"))
 	var got []string
@@ -97,7 +113,7 @@ func TestPlayedBarsOnTheMap(t *testing.T) {
 			got = append(got, c.Measure.Beats[0].Text+"="+c.Measure.PlayedAttr())
 		}
 	}
-	want := []string{"G=0 2", "C=1 3", "D=4", "recall@5=5 6 7 8"}
+	want := []string{"G=0 2 5 7", "C=1 3 6 8", "D=4", "recall@5=5 6 7 8"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Map cells %v, want %v", got, want)
 	}
@@ -145,6 +161,9 @@ times: 2
 	// own lights one of them.
 	rows := map[int]int{}
 	for _, s := range secs {
+		if recalled(s) {
+			continue // a chip: its grid, if any, isn't shown
+		}
 		for _, l := range s.Lines {
 			for _, m := range l.Measures {
 				for _, p := range m.Played {
@@ -153,24 +172,35 @@ times: 2
 			}
 		}
 	}
-	for _, s := range secs {
-		draws := len(s.Lines) > 0
-		for p := s.StartBar; p < s.StartBar+s.BarCount; p++ {
-			if draws && rows[p] != 1 {
-				t.Errorf("Song view: played bar %d (%s) lights %d bars", p, s.Label, rows[p])
-			}
-			if !draws && rows[p] != 0 {
-				t.Errorf("Song view: played bar %d of %s (no bars of its own) lights %d", p, s.Label, rows[p])
+	for p := 0; p < total; p++ {
+		if rows[p] != 1 {
+			t.Errorf("Song view: played bar %d lights %d bars", p, rows[p])
+		}
+	}
+	// The Map: on one bar (a recall cell only stands for its section).
+	cellsLit := map[int]int{}
+	for _, l := range buildMapLines(secs) {
+		for _, c := range l.Cells {
+			if !c.IsRecall {
+				for _, p := range c.Measure.Played {
+					cellsLit[p]++
+				}
 			}
 		}
 	}
-	if rows[0] != 1 {
-		t.Errorf("the lead bar lights %d bars", rows[0])
+	for p := 0; p < total; p++ {
+		if cellsLit[p] != 1 {
+			t.Errorf("Map: played bar %d lights %d bars", p, cellsLit[p])
+		}
 	}
-	// The second pass through Verse 1 is its first bar again.
-	v1 := secs[0]
-	if first := v1.Lines[0].Measures[1]; !reflect.DeepEqual(first.Played, []int{1, 9}) {
-		t.Errorf("Verse 1's bar 1 lights for %v, want 1 and 9", first.Played)
+	// Verse 2 writes Verse 1's grid again ("same as Verse 1"): its passes
+	// light Verse 1's bars.
+	if v2 := secs[2]; v2.GridDuplicateOf == "" || len(v2.Lines) != 0 {
+		t.Fatalf("Verse 2: want a duplicate of Verse 1's grid, drawn as such")
+	}
+	// (The Solo, over Verse 2's grid that draws no bars, lights them too.)
+	if first := secs[0].Lines[0].Measures[1]; !reflect.DeepEqual(first.Played[:4], []int{1, 9, secs[2].StartBar, secs[2].StartBar + 8}) {
+		t.Errorf("Verse 1's bar 1 lights for %v, want 1, 9 and Verse 2's two passes first", first.Played)
 	}
 	// The Jazz chart: every played bar, lead included, on one cell.
 	ch := buildJazzChart(sg, secs)
@@ -209,7 +239,21 @@ times: 2
 			}
 		}
 	}
-	if len(end2.Played) != 1 || end2.Played[0] != ch2.StartBar+6 {
+	if len(end2.Played) == 0 || end2.Played[0] != ch2.StartBar+6 {
 		t.Errorf("Chorus's 2nd ending lights for %v, want %d", end2.Played, ch2.StartBar+6)
+	}
+}
+
+// A tab row's bars: each one's played bars, for the tab cursor
+// (alphatab-tab.js), a repeat's bars on every pass.
+func TestPlayedBarsOfATabRow(t *testing.T) {
+	l := viewerLine{Measures: []viewerMeasure{
+		{GlobalBar: 0, Played: []int{0, 4}},
+		{GlobalBar: 1, Played: []int{1, 5}},
+		{GlobalBar: 2, Played: []int{2}},
+		{GlobalBar: 3},
+	}}
+	if got := l.PlayedBars(); got != "0 4,1 5,2,3" {
+		t.Errorf("PlayedBars %q", got)
 	}
 }

@@ -1879,6 +1879,12 @@ type viewerSection struct {
 	// ahead of this section's (its first grid): not its bars, in no
 	// BarCount — the song plays them before StartBar.
 	LeadBars int
+	// PlayOrder and GridSame (assignPlayedBars, playedbars.go): the
+	// written bar of its grid each of its played bars is read from, and
+	// the first section writing the same grid (-1 for none) — what a view
+	// needs to light the drawn bar a played bar is read from.
+	PlayOrder []int
+	GridSame  int
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
@@ -1989,7 +1995,9 @@ type mapCell struct {
 	RecallOf     string // "" unless GridDuplicateOf named a differently-labeled source section
 	// RecallStart and RecallPlayed: the section's first played bar and
 	// all of them (data-global-bar, data-played) — the cell stands for
-	// every bar the section plays, so it lights while any of them plays.
+	// every bar the section plays: a click plays from there, the cycle
+	// tints it. While it plays, the bars of the grid it replays light
+	// (lightedBars); the cell only when the Map draws no such bars.
 	RecallStart  int
 	RecallPlayed string
 }
@@ -2026,15 +2034,26 @@ func (l mapLine) Pickups() int {
 // exact same predicate the old per-section view's "is-compact" styling
 // used (see play.html's sheet-body template), just evaluated here instead
 // of left to CSS.
+// recalled: sec states nothing new of its own (a bare repeat, "same as
+// …", a "(repeat)", chords continuing, an inferred Solo): the Map draws it
+// as one recall cell, the Song view as a chip (is-compact, its grid if
+// any hidden), not its bars.
+func recalled(sec viewerSection) bool {
+	return sec.GridDuplicateOf != "" || sec.Repeat || sec.IsReference || sec.Compact || sec.InferredNote != ""
+}
+
 func buildMapLines(sections []viewerSection) []mapLine {
+	// The played bars each drawn bar lights: its section's, and those of
+	// the sections the Map recalls in a cell, on the bars of the grid
+	// they replay (lightedBars).
+	lit := lightedBars(sections, func(i int) bool { return !recalled(sections[i]) && len(sections[i].Measures) > 0 })
 	var cells []mapCell
-	for _, sec := range sections {
+	for si, sec := range sections {
 		label := sec.Label
 		if sec.LabelNumber != 0 {
 			label = fmt.Sprintf("%s %d", label, sec.LabelNumber)
 		}
-		isRecall := sec.GridDuplicateOf != "" || sec.Repeat || sec.IsReference || sec.Compact || sec.InferredNote != ""
-		if isRecall {
+		if recalled(sec) {
 			if sec.BarCount <= 0 {
 				continue // nothing to show at all (an unresolved reference)
 			}
@@ -2046,7 +2065,12 @@ func buildMapLines(sections []viewerSection) []mapLine {
 			continue
 		}
 		badge := false
+		w := 0
 		for _, m := range sec.Measures {
+			setPlayed(&m, lit[si], w)
+			if !m.Lead {
+				w++
+			}
 			// The section starts after the song's lead bars drawn ahead
 			// of it: its name rides on its own bar 1.
 			if !badge && !m.Lead {

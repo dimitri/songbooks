@@ -826,6 +826,33 @@
   // holds that bar, so song.js leaves the scrolling to this.
   let cursorRow = null;
   let cursorSystem = null;
+  // The played bars each of a row's bars is read from (data-played-bars,
+  // "0 8,1 9,2,3": a bar on each pass through a repeat, an ending on the
+  // pass that takes it, a bare repeat section's passes on the grid it
+  // replays); without it, the row's bars from data-first-bar on.
+  function rowPlayed(row) {
+    const raw = row.dataset.playedBars;
+    if (row._playedRaw !== raw) {
+      row._playedRaw = raw;
+      row._played = raw ? raw.split(',').map((bar) => bar.split(' ').map(Number)) : null;
+    }
+    return row._played;
+  }
+  // Which of row's n bars plays played bar barNo: -1 for none.
+  function localBar(row, barNo, n) {
+    const played = rowPlayed(row);
+    if (!played) {
+      const i = barNo - parseInt(row.dataset.firstBar, 10);
+      return i >= 0 && i < n ? i : -1;
+    }
+    const i = played.findIndex((ps) => ps.includes(barNo));
+    return i < n ? i : -1;
+  }
+  // The played bars of row's bar i.
+  function barPlayed(row, i) {
+    const played = rowPlayed(row);
+    return played ? played[i] || [] : [parseInt(row.dataset.firstBar, 10) + i];
+  }
   function cursorEls(row) {
     let bar = row.querySelector(':scope > .tab-cursor-bar');
     let beat = row.querySelector(':scope > .tab-cursor-beat');
@@ -845,8 +872,8 @@
     for (const r of document.querySelectorAll('.alphatab-row[data-first-bar]')) {
       const a = r._alphaTabApi;
       if (!r.offsetParent || !a || !a.score || !a.renderer || !a.renderer.boundsLookup) continue;
-      const i = barNo - parseInt(r.dataset.firstBar, 10);
-      if (i >= 0 && i < a.score.masterBars.length) { row = r; api = a; local = i; break; }
+      const i = localBar(r, barNo, a.score.masterBars.length);
+      if (i >= 0) { row = r; api = a; local = i; break; }
     }
     if (!row) { hideCursor(); return false; }
     const lookup = api.renderer.boundsLookup;
@@ -913,7 +940,13 @@
         const mb = lookup.findMasterBarByIndex(i);
         if (!mb) continue;
         const r = mb.realBounds, sys = mb.lineAlignedBounds || mb.visualBounds || r;
-        if (x >= r.x && x < r.x + r.w && y >= sys.y && y < sys.y + sys.h) return parseInt(row.dataset.firstBar, 10) + i;
+        if (x >= r.x && x < r.x + r.w && y >= sys.y && y < sys.y + sys.h) {
+          // A bar read on several passes: the pass nearest the music.
+          const ps = barPlayed(row, i);
+          const pos = window.songbooksReferencePosition && window.songbooksReferencePosition();
+          const cur = pos ? pos.bar : 0;
+          return ps.length ? ps.reduce((best, b) => (Math.abs(b - cur) < Math.abs(best - cur) ? b : best), ps[0]) : null;
+        }
       }
     }
     return null;
@@ -923,12 +956,10 @@
     document.querySelectorAll(`.tab-range.${kind}`).forEach((e) => e.remove());
     if (from === null || from === undefined || to <= from) return;
     for (const row of tabRows()) {
-      const first = parseInt(row.dataset.firstBar, 10);
       const api = row._alphaTabApi;
       const lookup = api.renderer.boundsLookup;
       for (let i = 0; i < api.score.masterBars.length; i++) {
-        const b = first + i;
-        if (b < from || b >= to) continue;
+        if (!barPlayed(row, i).some((b) => b >= from && b < to)) continue;
         const mb = lookup.findMasterBarByIndex(i);
         if (!mb) continue;
         const r = mb.realBounds, sys = mb.lineAlignedBounds || mb.visualBounds || r;
