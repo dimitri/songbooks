@@ -248,11 +248,8 @@ func (st *Store) CanInvitePerson(ctx context.Context, actorID, targetID int64) (
 	var ok bool
 	err := st.db.QueryRow(ctx, `
 		SELECT EXISTS (
-			SELECT 1 FROM band_members a
-			JOIN band_role_privileges brp ON brp.role_id = a.role_id AND brp.privilege = $4
-			JOIN band_members b ON a.band_id = b.band_id
-			WHERE a.person_id = $1 AND upper_inf(a.validity)
-			  AND b.person_id = $2 AND upper_inf(b.validity)
+			SELECT 1 FROM band_members b
+			WHERE b.person_id = $2 AND upper_inf(b.validity) AND has_band_privilege(b.band_id, $1, $4)
 			UNION ALL
 			SELECT 1 FROM community_members a
 			JOIN community_role_privileges crp ON crp.role_id = a.role_id AND crp.privilege = $3

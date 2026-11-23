@@ -10160,3 +10160,10 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 }
 .band-roles-table .band-role-yes { color: var(--accent-ink); font-weight: 700; }
 .band-roles-table .band-role-no { color: var(--fg-faint); }
+
+/* ---- An archived band (docs/band-roles.md): its badge, the note on
+   each of its pages, its line in All my groups. ---- */
+.badge-archived { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: var(--bg-sunken); color: var(--fg-muted); border: 1px solid var(--border); vertical-align: middle; }
+.space-archived { margin: 0 0 0.8rem; padding: 0.5rem 0.75rem; border-radius: var(--radius); background: var(--warn-bg); color: var(--warn); font-size: 0.9rem; }
+.archived-bands { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
+.archived-bands li { display: flex; align-items: center; gap: 0.5rem; }

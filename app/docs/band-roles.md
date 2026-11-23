@@ -8,7 +8,7 @@ catalog, the defaults, `HasBandPrivilege`), `internal/store/roles.go`
 (the role operations, written once for both: `roleScope`, `GroupRoles`),
 `internal/httpapi/roles.go` (the roles API, both kinds),
 `internal/httpapi/band_roles.go` + `templates/band_roles.html` +
-`static/js/band-roles.js` (the editor), migration 0130.
+`static/js/band-roles.js` (the editor), migrations 0130 and 0131.
 
 ## The rule
 
@@ -60,9 +60,9 @@ for a privilege instead (below).
 | `manage_members` | Invite people (every way: an account by username, one-off and personal links, the roster link and its names, the band's open link and QR code); change others' instruments | ✓ | |
 | `remove_members` | Remove a member | ✓ | ✓ |
 | `manage_roles` | Give members a role; create, rename, delete roles, change what they allow | ✓ | |
-| `edit_band` | Rename the band, say what it plays | ✓ | ✓ |
+| `rename_archive` | Rename the band; archive and unarchive it (the one privilege an archived band still grants) | ✓ | |
+| `edit_band` | Say what the band plays (covers or original music) | ✓ | ✓ |
 | `edit_look` | The band's look (colours, fonts), logo, card picture, language | ✓ | |
-| `delete_band` | Delete the band | ✓ | ✓ |
 
 Proposals (docs/band-votes.md): `store.MayPropose`, `MayVote`,
 `MayDecideProposal` and `MayShareListen` ask `HasBandPrivilege` (propose,
@@ -86,12 +86,13 @@ that gates it now.
 | PDF exports (songbook, LilyPond) | `GET /bands/{id}/export-*.pdf` | any member | any member |
 | The band's events in one's calendar feed, an event's page and .ics, register oneself | `calendar.go`, `events.go` | any member | any member |
 | Rate a recording (stars) | `PUT …/recordings/{recID}/stars` | any member | any member (one's own rating) |
-| Rename the band | `POST /api/bands/{id}/name` | any member | `edit_band` |
+| Rename the band | `POST /api/bands/{id}/name` | any member | `rename_archive` (core by default: the user's decision) |
+| Archive / unarchive the band | `POST /api/bands/{id}/archive` | — (new) | `rename_archive` |
 | What it plays | `POST …/music-type` | any member | `edit_band` |
 | Look (brand), logo | `POST …/brand`, `PUT/DELETE …/brand/logo` | core | `edit_look` |
 | Card picture | `POST …/card-image` | core | `edit_look` |
 | Language | `PUT …/locale` | core | `edit_look` |
-| Delete the band | `DELETE /api/bands/{id}` | any member | `delete_band` |
+| Delete the band | `DELETE /api/bands/{id}` | any member | site admins only (the user's decision; no privilege) |
 | Add an account by username | `POST …/members` | core | `manage_members` |
 | One-off link, personal invite, new link for a placeholder | `POST …/invites`, `…/personal-invites`, `…/members/{p}/invite-link`, `/api/people/{p}/personal-invites` (`CanInvitePerson`) | core | `manage_members` |
 | Roster link and its names, close it | `POST …/group-invites…` | core | `manage_members` |
@@ -149,8 +150,35 @@ took any role id; they're held to the community in the path now):
 - `DELETE /api/bands/{id}/roles/{roleID}` (custom roles no one holds)
 - `POST /api/bands/{id}/members/{personID}/role` `{roleId}`
 
+## Deleting, renaming, archiving (migration 0131)
+
+The user's decisions:
+
+- **Deleting a band is for site admins only**, for now: no privilege,
+  `requireAdmin` on `DELETE /api/bands/{id}`, the button on the band's
+  Settings only for them. `delete_band` was dropped from every role.
+- **Renaming and archiving** is `rename_archive`, the core role's by
+  default (migration 0131 also gave it to every band's own role holding
+  `manage_roles`, its staff). `edit_band` keeps what the band plays.
+- **Archiving** (`bands.archived_at`; the Settings' "Archive the band",
+  `POST /api/bands/{id}/archive {archived}`): an archived band is read
+  only for everyone — `has_band_privilege` grants nothing but
+  `rename_archive` while it is, site admins included (`bandPrivilege`,
+  `bandPrivs`) — so no song, songbook, set list, event, proposal, vote,
+  invite, role or look changes. It leaves the menus (the space switcher,
+  `ListSpaces`) and the home page's and the bands page's cards
+  (`ListBandsForPerson`); its members still reach it from **All my
+  groups** (`ListArchivedBandsForPerson`), with an "Archived" badge, and
+  each of its pages says it's archived (the space header). Holders of
+  `rename_archive` unarchive it from its Settings; renaming stays
+  possible while archived.
+
 ## Not yet
 
+- An archived band's open invite links still let people join it (closing
+  them is a manage_members action, off while archived); leaving the band
+  (remove_members) is off too while archived. Personal things stay a
+  member's own: their instruments, rating a recording.
 - Invites (links, QR, roster) still give core or guest; a link for a
   band's own role would follow the community's (its links carry a role
   name).

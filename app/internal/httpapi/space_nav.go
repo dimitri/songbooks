@@ -160,6 +160,9 @@ type SpaceNav struct {
 	Name     string
 	Home     string // the space's home page, every section's path is under it
 	Brand    *brand.Theme
+	// Archived: an archived band (docs/band-roles.md), read only — every
+	// page of it says so.
+	Archived bool
 	Sections []SpaceTab
 	Gear     *SpaceTab
 	// SeeAs is a site admin's "See as…" on a coaching community's pages
@@ -377,6 +380,7 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		}
 		nav := newSpaceNav(spaceBand, band.ID, band.Name, spaceRole{Staff: core, SeeMembers: true, PersonID: person.ID}, section)
 		nav.Brand = webassets.BrandLookupFor("band", band.ID)
+		nav.Archived = band.Archived()
 		if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {
 			nav.withHints(hints)
 		}

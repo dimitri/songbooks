@@ -23,13 +23,16 @@
   <div class="card card--md">
     <h2>{{t "The band"}}</h2>
     <form class="form-stack" id="band-settings-form">
-      {{if not (.BandRoles.Privs.Can "edit_band")}}<p class="hint">{{t "Your role doesn’t let you rename the band."}}</p>{{end}}
-      <fieldset class="band-settings-fields"{{if not (.BandRoles.Privs.Can "edit_band")}} disabled{{end}}>
+      {{/* The name: rename_archive; what it plays: edit_band
+           (docs/band-roles.md). */}}
+      {{$rename := .BandRoles.Privs.Can "rename_archive"}}{{$edit := .BandRoles.Privs.Can "edit_band"}}
+      <fieldset class="band-settings-fields"{{if not (or $rename $edit)}} disabled{{end}}>
       <div class="field">
         <label for="settings-name">{{t "Band name"}}</label>
-        <input type="text" id="settings-name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done">
+        <input type="text" id="settings-name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done"{{if not $rename}} readonly aria-describedby="settings-name-hint"{{end}}>
+        {{if not $rename}}<p class="field-hint" id="settings-name-hint">{{if .Band.Archived}}{{t "The band is archived: read only."}}{{else}}{{t "Your role doesn’t let you rename the band."}}{{end}}</p>{{end}}
       </div>
-      <fieldset class="field-group">
+      <fieldset class="field-group"{{if not $edit}} disabled{{end}}>
         <legend>{{t "What the band plays"}}</legend>
         <p class="field-hint" id="music-type-hint">{{t "An original band’s songbook is grouped by album."}}</p>
         <label class="check"><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> {{t "Covers"}}</label>
@@ -115,7 +118,19 @@
   {{/* Who may do what (band_roles.html, docs/band-roles.md). */}}
   {{template "band-roles-editor" .BandRoles}}
 
-  {{if .BandRoles.Privs.Can "delete_band"}}
+  {{/* Archiving (rename_archive): read only for everyone, out of the
+       menus and the home page, still reachable from All my groups. */}}
+  {{if .BandRoles.Privs.Can "rename_archive"}}
+  <div class="card card--narrow" id="archive">
+    <h2>{{if .Band.Archived}}{{t "Archived band"}}{{else}}{{t "Archive the band"}}{{end}}</h2>
+    <p class="hint">{{if .Band.Archived}}{{t "Read only for every member, and out of the menus and the home page; its members find it in All my groups. Unarchive it to use it again."}}{{else}}{{t "For a band that has stopped: it becomes read only for every member, and leaves the menus and the home page; its members still find it in All my groups. You can unarchive it."}}{{end}}</p>
+    <button type="button" id="archive-band-btn" data-archived="{{if .Band.Archived}}1{{end}}">{{if .Band.Archived}}{{t "Unarchive %s" .Band.Name}}{{else}}{{t "Archive %s" .Band.Name}}{{end}}</button>
+    <p id="archive-band-result" class="form-status" role="status"></p>
+  </div>
+  {{end}}
+
+  {{/* Deleting a band: site admins only, for now. */}}
+  {{if .Me.IsAdmin}}
   <div class="card card--narrow danger-zone">
     <h2>{{t "Delete the band"}}</h2>
     <p class="hint">{{t "Deletes %s, its songbook, set lists and calendar, for every member. This can’t be undone." .Band.Name}}</p>
@@ -140,8 +155,10 @@ document.getElementById('band-settings-form').addEventListener('submit', (e) => 
       const res = await post('name', {name});
       if (!res || !res.ok) throw new Error(t('Couldn’t rename the band. Try again.'));
     }
-    const res = await post('music-type', {musicType});
-    if (!res || !res.ok) throw new Error(t('Couldn’t save what the band plays. Try again.'));
+    if (musicType !== {{.Band.MusicType}}) {
+      const res = await post('music-type', {musicType});
+      if (!res || !res.ok) throw new Error(t('Couldn’t save what the band plays. Try again.'));
+    }
     location.reload();
   });
 });
@@ -154,6 +171,18 @@ if (localeSelect) localeSelect.addEventListener('change', async () => {
   }).catch(() => null);
   if (res && res.ok) { location.reload(); return; }
   Forms.status(status, t('Couldn’t save the language. Try again.'), 'error');
+});
+document.getElementById('archive-band-btn')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const archived = !btn.dataset.archived;
+  if (archived && !confirm(t('Archive %s? It becomes read only for every member, and leaves the menus.', bandName))) return;
+  Forms.busy(btn, true);
+  const res = await fetch(`/api/bands/${bandId}/archive`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({archived}),
+  }).catch(() => null);
+  if (res && res.ok) { location.reload(); return; }
+  Forms.busy(btn, false);
+  Forms.status(document.getElementById('archive-band-result'), t('Couldn’t change that. Try again.'), 'error');
 });
 document.getElementById('delete-band-btn')?.addEventListener('click', async (e) => {
   if (!confirm(t('Delete %s and its whole songbook for every member? This can’t be undone.', bandName))) return;

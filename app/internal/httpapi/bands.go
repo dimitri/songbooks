@@ -87,15 +87,20 @@ func (s *Server) requireBandPrivilegeSaying(priv, forbidden string, next http.Ha
 }
 
 // bandPrivilege is store.HasBandPrivilege for the signed-in person, a
-// site admin let through (as requireBandPrivilege): the check a band
-// handler makes for an action its route doesn't gate.
+// site admin let through (as requireBandPrivilege) — but for
+// rename_archive, an archived band is read only for admins too: the
+// check a band handler makes for an action its route doesn't gate.
 func (s *Server) bandPrivilege(r *http.Request, bandID int64, priv string) (bool, error) {
 	person := personFromContext(r)
 	if person == nil {
 		return false, nil
 	}
 	if person.IsAdmin {
-		return true, nil
+		if priv == store.BandPrivRenameArchive {
+			return true, nil
+		}
+		archived, err := s.store.BandArchived(r.Context(), bandID)
+		return !archived, err
 	}
 	return s.store.HasBandPrivilege(r.Context(), bandID, person.ID, priv)
 }
@@ -109,7 +114,8 @@ func (s *Server) bandPrivs(r *http.Request, bandID int64) (store.BandPrivs, erro
 		return store.BandPrivs{}, nil
 	}
 	if person.IsAdmin {
-		return store.AllBandPrivs(), nil
+		archived, err := s.store.BandArchived(r.Context(), bandID)
+		return store.AllBandPrivs(archived), err
 	}
 	return s.store.BandPrivileges(r.Context(), bandID, person.ID)
 }
@@ -617,8 +623,8 @@ func (s *Server) handleSetBandMemberStatus(w http.ResponseWriter, r *http.Reques
 }
 
 // handleDeleteBand permanently deletes a band and everything under it:
-// for a member whose role grants delete_band — by default any member,
-// core or guest, as before roles; a band can keep it to some.
+// site admins only, for now (the user's decision, docs/band-roles.md); a
+// band's members archive it instead (handleSetBandArchived).
 func (s *Server) handleDeleteBand(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err := s.store.DeleteBand(r.Context(), bandID); err != nil {
@@ -630,6 +636,30 @@ func (s *Server) handleDeleteBand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// handleSetBandArchived is POST /api/bands/{id}/archive {"archived":
+// true|false}: archives the band (read only for everyone, out of the
+// menus and the home page, its members still reach it from "All my
+// groups") or unarchives it — rename_archive (by default, core).
+func (s *Server) handleSetBandArchived(w http.ResponseWriter, r *http.Request) {
+	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Archived bool `json:"archived"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.store.SetBandArchived(r.Context(), bandID, req.Archived); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"archived": req.Archived})
 }
 
 // handleCreateBandInvite makes a single-use band invite link, valid for 7

@@ -24,9 +24,9 @@ const (
 	BandPrivManageMembers    = "manage_members"    // invite people (every way: links, QR, roster), edit others' instruments
 	BandPrivRemoveMembers    = "remove_members"    // remove someone from the band
 	BandPrivManageRoles      = "manage_roles"      // give members a role, edit the band's roles
-	BandPrivEditBand         = "edit_band"         // rename the band, say what it plays
+	BandPrivRenameArchive    = "rename_archive"    // rename the band, archive and unarchive it (still granted while archived)
+	BandPrivEditBand         = "edit_band"         // say what the band plays (covers or original music)
 	BandPrivEditLook         = "edit_look"         // the band's look, logo, card picture and language
-	BandPrivDeleteBand       = "delete_band"       // delete the band
 )
 
 // AllBandPrivileges is the catalog, in the roles editor's order.
@@ -34,20 +34,21 @@ var AllBandPrivileges = []string{
 	BandPrivEditSongbook, BandPrivPublish, BandPrivManageSetlists, BandPrivManageEvents, BandPrivManageRecordings,
 	BandPrivPropose, BandPrivVote, BandPrivDecideProposals,
 	BandPrivManageMembers, BandPrivRemoveMembers, BandPrivManageRoles,
-	BandPrivEditBand, BandPrivEditLook, BandPrivDeleteBand,
+	BandPrivRenameArchive, BandPrivEditBand, BandPrivEditLook,
 }
 
 // BandRoleDefaults is what the two built-in roles grant in a new band:
 // the rights core and guest members had before roles (the inventory in
-// docs/band-roles.md). Migration 0130's seed_band_roles seeds the same
-// (TestBandRoleDefaultsMatchSeed).
+// docs/band-roles.md), but renaming and archiving, core's only, and
+// deleting, site admins' only. seed_band_roles (migration 0131) seeds the
+// same (TestBandRoleDefaultsMatchSeed).
 var BandRoleDefaults = map[string][]string{
 	"core": AllBandPrivileges,
 	"guest": {
 		BandPrivEditSongbook, BandPrivManageSetlists, BandPrivManageEvents, BandPrivManageRecordings,
 		BandPrivPropose, BandPrivDecideProposals,
 		BandPrivRemoveMembers,
-		BandPrivEditBand, BandPrivDeleteBand,
+		BandPrivEditBand,
 	},
 }
 
@@ -68,13 +69,17 @@ type BandRole = Role
 // let through by the HTTP layer, as before: requireBandPrivilege,
 // Server.bandPrivilege). Not a current member: false.
 func (st *Store) HasBandPrivilege(ctx context.Context, bandID, personID int64, priv string) (bool, error) {
-	return bandRoles.hasPrivilege(ctx, st.db, bandID, personID, priv)
+	return hasBandPrivilege(ctx, st.db, bandID, personID, priv)
 }
 
 // hasBandPrivilege is HasBandPrivilege inside an open transaction (see
 // isCurrentBandMember).
+// It is has_band_privilege (migration 0131): the role's privilege, and
+// nothing but rename_archive while the band is archived.
 func hasBandPrivilege(ctx context.Context, q dbtx, bandID, personID int64, priv string) (bool, error) {
-	return bandRoles.hasPrivilege(ctx, q, bandID, personID, priv)
+	var ok bool
+	err := q.QueryRow(ctx, `SELECT has_band_privilege($1, $2, $3)`, bandID, personID, priv).Scan(&ok)
+	return ok, err
 }
 
 // BandPrivs is what one member's role grants, for a page to ask
@@ -84,11 +89,14 @@ type BandPrivs map[string]bool
 // Can reports whether the role grants priv.
 func (p BandPrivs) Can(priv string) bool { return p[priv] }
 
-// AllBandPrivs is every privilege: a site admin's.
-func AllBandPrivs() BandPrivs {
+// AllBandPrivs is every privilege: a site admin's (only rename_archive
+// while the band is archived).
+func AllBandPrivs(archived bool) BandPrivs {
 	out := BandPrivs{}
 	for _, p := range AllBandPrivileges {
-		out[p] = true
+		if !archived || p == BandPrivRenameArchive {
+			out[p] = true
+		}
 	}
 	return out
 }
@@ -100,9 +108,15 @@ func (st *Store) BandPrivileges(ctx context.Context, bandID, personID int64) (Ba
 	if err != nil {
 		return nil, err
 	}
+	archived, err := st.BandArchived(ctx, bandID)
+	if err != nil {
+		return nil, err
+	}
 	out := BandPrivs{}
 	for _, p := range list {
-		out[p] = true
+		if !archived || p == BandPrivRenameArchive {
+			out[p] = true
+		}
 	}
 	return out, nil
 }
@@ -165,4 +179,26 @@ func (st *Store) SetBandMemberRole(ctx context.Context, bandID, personID, roleID
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// BandArchived reports whether bandID is archived (read only).
+func (st *Store) BandArchived(ctx context.Context, bandID int64) (bool, error) {
+	var archived bool
+	err := st.db.QueryRow(ctx, `SELECT coalesce((SELECT archived_at IS NOT NULL FROM bands WHERE id = $1), false)`, bandID).Scan(&archived)
+	return archived, err
+}
+
+// SetBandArchived archives bandID (read only for everyone, out of the
+// menus and the home page, still its members' from "All my groups") or
+// unarchives it.
+func (st *Store) SetBandArchived(ctx context.Context, bandID int64, archived bool) error {
+	tag, err := st.db.Exec(ctx, `
+		UPDATE bands SET archived_at = CASE WHEN $2 THEN coalesce(archived_at, now()) END WHERE id = $1`, bandID, archived)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
+	}
+	return nil
 }

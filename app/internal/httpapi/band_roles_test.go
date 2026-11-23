@@ -136,8 +136,15 @@ func TestBandPrivilegesGateRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := fmt.Sprintf("/api/bands/%d", bandID)
-	if w := e.do("POST", b+"/name", `{"name":"Renamed `+e.sfx+`"}`, guest); w.Code != http.StatusOK {
+	// Renaming is rename_archive, core's; what it plays stays every member's.
+	if w := e.do("POST", b+"/name", `{"name":"Renamed `+e.sfx+`"}`, guest); w.Code != http.StatusForbidden {
 		t.Errorf("a guest renames the band: %d %s", w.Code, w.Body)
+	}
+	if w := e.do("POST", b+"/name", `{"name":"Renamed `+e.sfx+`"}`, core); w.Code != http.StatusOK {
+		t.Errorf("core renames the band: %d %s", w.Code, w.Body)
+	}
+	if w := e.do("POST", b+"/music-type", `{"musicType":"covers"}`, guest); w.Code != http.StatusOK {
+		t.Errorf("a guest says what the band plays: %d %s", w.Code, w.Body)
 	}
 	if w := e.do("PUT", b+"/locale", `{"locale":"fr"}`, guest); w.Code != http.StatusForbidden {
 		t.Errorf("a guest sets the language: %d", w.Code)
@@ -212,4 +219,122 @@ func disabledTicks(page string) int {
 		}
 	}
 	return n
+}
+
+// TestBandDeleteAdminOnly: no member deletes a band, core included; a
+// site admin does, and only they see the button.
+func TestBandDeleteAdminOnly(t *testing.T) {
+	e := newInviteEnv(t)
+	ctx := context.Background()
+	coreID, core := e.person("Core")
+	adminID, admin := e.person("Admin")
+	if err := e.st.SetAdmin(ctx, adminID, true); err != nil {
+		t.Fatal(err)
+	}
+	bandID, err := e.st.CreateBand(ctx, "Doomed "+e.sfx, coreID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range e.mustRoles(t, bandID) {
+		if r.HasPrivilege("delete_band") {
+			t.Errorf("%s grants delete_band", r.Name)
+		}
+	}
+	if page := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", core).Body.String(); strings.Contains(page, `id="delete-band-btn"`) {
+		t.Error("core sees the delete button")
+	}
+	if page := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", admin).Body.String(); !strings.Contains(page, `id="delete-band-btn"`) {
+		t.Error("a site admin doesn't see the delete button")
+	}
+	if w := e.do("DELETE", fmt.Sprintf("/api/bands/%d", bandID), "", core); w.Code != http.StatusForbidden {
+		t.Errorf("core deletes the band: %d", w.Code)
+	}
+	if w := e.do("DELETE", fmt.Sprintf("/api/bands/%d", bandID), "", admin); w.Code != http.StatusOK {
+		t.Errorf("an admin deletes the band: %d %s", w.Code, w.Body)
+	}
+}
+
+// TestBandArchive: core archives (a guest can't); archived, the band is
+// read only for everyone — admins too — but unarchiving, gone from the
+// switcher and the home page's cards, listed with a badge in All my
+// groups, its pages say so; unarchived, all is back.
+func TestBandArchive(t *testing.T) {
+	e := newInviteEnv(t)
+	ctx := context.Background()
+	coreID, core := e.person("Core")
+	guestID, guest := e.person("Guest")
+	adminID, admin := e.person("Admin")
+	if err := e.st.SetAdmin(ctx, adminID, true); err != nil {
+		t.Fatal(err)
+	}
+	bandID, err := e.st.CreateBand(ctx, "Shelved "+e.sfx, coreID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.AddBandMember(ctx, bandID, guestID, "guest", coreID); err != nil {
+		t.Fatal(err)
+	}
+	b := fmt.Sprintf("/api/bands/%d", bandID)
+	if w := e.do("POST", b+"/archive", `{"archived":true}`, guest); w.Code != http.StatusForbidden {
+		t.Errorf("a guest archives: %d", w.Code)
+	}
+	if w := e.do("POST", b+"/archive", `{"archived":true}`, core); w.Code != http.StatusOK {
+		t.Fatalf("core archives: %d %s", w.Code, w.Body)
+	}
+
+	for who, c := range map[string]*http.Cookie{"core": core, "guest": guest, "admin": admin} {
+		if w := e.do("POST", b+"/variants", `{"title":"New","artist":"X"}`, c); w.Code != http.StatusForbidden {
+			t.Errorf("%s adds a song to an archived band: %d", who, w.Code)
+		}
+		if w := e.do("POST", "/api/setlists", fmt.Sprintf(`{"scope":"band","band_id":%d,"title":"Set"}`, bandID), c); w.Code != http.StatusForbidden {
+			t.Errorf("%s makes a set list: %d", who, w.Code)
+		}
+		if w := e.do("POST", b+"/events", `{"name":"Rehearsal","eventType":"rehearsal","startsAt":"2030-01-01T20:00:00Z"}`, c); w.Code != http.StatusForbidden {
+			t.Errorf("%s makes an event: %d", who, w.Code)
+		}
+		if w := e.do("POST", b+"/name", `{"name":"Again"}`, c); who != "guest" && w.Code != http.StatusOK {
+			t.Errorf("%s renames the archived band: %d", who, w.Code)
+		}
+	}
+	if w := e.do("POST", b+"/music-type", `{"musicType":"covers"}`, guest); w.Code != http.StatusForbidden {
+		t.Errorf("a guest edits an archived band: %d", w.Code)
+	}
+	if ok, _ := e.st.HasBandPrivilege(ctx, bandID, guestID, store.BandPrivPropose); ok {
+		t.Error("proposing to an archived band")
+	}
+	if page := e.do("GET", fmt.Sprintf("/bands/%d", bandID), "", guest).Body.String(); !strings.Contains(page, `class="space-archived"`) {
+		t.Error("the archived band's page doesn't say so")
+	}
+	spaces, _ := e.st.ListSpaces(ctx, guestID)
+	for _, sp := range spaces {
+		if sp.Kind == "band" && sp.ID == bandID {
+			t.Error("the archived band is in the switcher")
+		}
+	}
+	if bands, _ := e.st.ListBandsForPerson(ctx, guestID); len(bands) != 0 {
+		t.Errorf("the archived band is in the cards: %v", bands)
+	}
+	groups := e.do("GET", "/groups", "", guest).Body.String()
+	if !strings.Contains(groups, fmt.Sprintf(`href="/bands/%d"`, bandID)) || !strings.Contains(groups, `class="badge-archived"`) {
+		t.Error("All my groups doesn't list the archived band with its badge")
+	}
+
+	if w := e.do("POST", b+"/archive", `{"archived":false}`, core); w.Code != http.StatusOK {
+		t.Fatalf("core unarchives: %d %s", w.Code, w.Body)
+	}
+	if w := e.do("POST", b+"/variants", `{"title":"Back","artist":"X"}`, guest); w.Code != http.StatusOK {
+		t.Errorf("a guest adds a song once unarchived: %d %s", w.Code, w.Body)
+	}
+	if bands, _ := e.st.ListBandsForPerson(ctx, guestID); len(bands) != 1 {
+		t.Error("the unarchived band isn't back in the cards")
+	}
+}
+
+func (e *inviteEnv) mustRoles(t *testing.T, bandID int64) []store.BandRole {
+	t.Helper()
+	roles, err := e.st.ListBandRoles(context.Background(), bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return roles
 }
