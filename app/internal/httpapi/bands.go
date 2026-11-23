@@ -1003,7 +1003,7 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	}
 	ranges := s.melodyRanges(r.Context(), rowIDs)
 	for i := range rows {
-		rows[i].Voice = ranges.voice(s.langOfRequest(r), rows[i].VariantID, rows[i].Key, 0, nil)
+		rows[i].Voice = ranges.voice(s.langOfRequest(r), rows[i].VariantID, rows[i].Key, 0)
 	}
 
 	// An "original" act's repertoire reads naturally grouped by the

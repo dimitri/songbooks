@@ -5,8 +5,8 @@
 // draws the range as one bar; this fetches the two bars (small SVGs the
 // server draws, cached there and here) for the rows as they come into
 // view — never alphaTab per row: a songbook lists dozens. A tap on a bar
-// opens the song's Melody view at that bar. With a voice to weigh it
-// against (data-zone), the fit beside it follows the notes drawn.
+// opens the song's Melody view at that bar. An indication only: no
+// verdict on anyone's voice (that's the coach's call).
 (() => {
   const cache = new Map(); // url → Promise<data|null>
   const store = (() => { try { return window.sessionStorage; } catch (e) { return null; } })();
@@ -23,7 +23,6 @@
     cache.set(url, p);
     return p;
   };
-  const tr = (m, ...a) => (window.t ? window.t(m, ...a) : m.replace(/%[ds]/g, () => String(a.shift())));
 
   // The song's page at a bar, in its Melody view: the row's own link
   // (its songbook, its key) when the row has one.
@@ -35,20 +34,6 @@
     u.searchParams.set('view', 'melody');
     u.searchParams.set('bar', String(bar));
     return u.pathname + u.search;
-  }
-
-  function fit(box, low, high) {
-    const z = (box.dataset.zone || '').split(',').map(Number);
-    if (z.length < 2 || !z[0]) return;
-    const up = high - z[1], down = z[0] - low;
-    const parts = [];
-    if (up > 0) parts.push(tr('%d high', up));
-    if (down > 0) parts.push(tr('%d low', down));
-    let f = box.querySelector('.row-voice-fit');
-    if (!f) { f = document.createElement('span'); f.className = 'row-voice-fit'; box.append(f); }
-    f.textContent = parts.length ? parts.join(' · ') : tr('fits');
-    box.classList.toggle('is-out', parts.length > 0);
-    box.classList.toggle('is-fit', parts.length === 0);
   }
 
   function draw(el, d) {
@@ -69,8 +54,6 @@
     }
     el.replaceChildren(wrap);
     el.classList.add('is-bars');
-    const box = el.closest('.row-voice');
-    if (box) fit(box, d.low, d.high);
   }
 
   // The rows in view (and a little ahead) only, once each.

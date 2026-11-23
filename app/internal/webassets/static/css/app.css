@@ -10057,9 +10057,6 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 /* ---- coach-proposals: a songbook row's melody range (row_voice.go),
    a student's proposals to the coach (coach_proposals.go). ---- */
 .row-voice { display: inline-flex; align-items: baseline; gap: 0.35rem; margin-left: 0.4rem; font-size: 0.78rem; font-weight: 400; color: var(--fg-muted); white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: baseline; }
-.row-voice-fit { padding: 0 0.45rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); font-weight: 600; }
-.row-voice.is-fit .row-voice-fit { color: var(--ok, var(--fg-muted)); }
-.row-voice.is-out .row-voice-fit { color: var(--fg); }
 .song-link .row-voice { margin-left: 0; }
 .cbk-row .gig-title .cbk-voice { display: block; margin-top: 0.15rem; }
 .cbk-row .gig-title .cbk-voice .row-voice { margin-left: 0; }

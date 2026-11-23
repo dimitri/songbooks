@@ -342,14 +342,13 @@ entry's semitones), treble or treble-8vb as the melody sheet writes it
   minutes) and in the browser. A melody with no bars yet (its recording
   not synced) keeps its range.
 
-For a student looking at their own songbook (with the coach, or their
-own *My songbook*), and for the coach looking at a student's songbook or
-filtering theirs by a student (the row then shows that student's key),
-how it sits in their voice beside it: *fits*, *2 high*, *1 low* —
-semitones out of their comfortable zone when the coach noted it, else
-out of their whole range (row_voice.go; for the analysed melody, its
-drawn notes). Information, no verdict; nothing when the melody isn't
-known; no notification.
+An indication, nothing more: the row says where the melody goes, never
+whether it suits someone — which notes a student sings in chest voice,
+which in falsetto, is the coach's call, not the app's. The coach's
+songbook filtered by a student shows the melody at that student's key.
+Nothing when the melody isn't known; no notification. (The key pickers'
+voice strip stays: the student's range drawn with the melody over it,
+no words of judgement.)
 
 ## The song the coach and the students share
 

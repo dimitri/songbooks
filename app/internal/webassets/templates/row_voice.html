@@ -1,7 +1,7 @@
 {{/* A songbook row's melody (httpapi/row_voice.go): its range as one
      small bar, its lowest and highest notes, at the row's key; when the
      melody is analysed, the bars where it first reaches them, fetched as
-     the row comes into view (row-range.js); how it sits in the student's
-     voice beside it ("fits", "2 high"). Needs a rowVoice; nothing when
-     the melody isn't known. */}}
-{{define "row-voice"}}{{if or .Range .Src}}<span class="row-voice{{if .Out}} is-out{{else if .Fit}} is-fit{{end}}{{if .Src}} is-analysed{{end}}" title="{{.Title}}"{{with .Zone}} data-zone="{{.}}"{{end}}><span class="row-voice-staff"{{with .Src}} data-row-range="{{.}}"{{end}}>{{.Staff}}</span>{{with .Fit}}<span class="row-voice-fit">{{.}}</span>{{end}}</span>{{end}}{{end}}
+     the row comes into view (row-range.js). An indication only: no
+     verdict on anyone's voice. Needs a rowVoice; nothing when the melody
+     isn't known. */}}
+{{define "row-voice"}}{{if or .Range .Src}}<span class="row-voice{{if .Src}} is-analysed{{end}}" title="{{.Title}}"><span class="row-voice-staff"{{with .Src}} data-row-range="{{.}}"{{end}}>{{.Staff}}</span></span>{{end}}{{end}}

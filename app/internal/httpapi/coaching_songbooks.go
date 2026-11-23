@@ -60,8 +60,7 @@ func keyPill(key string, semitones int) string {
 type bookSong struct {
 	store.StudentSong
 	Pill string // "" in the original key
-	// Voice: the song's melody at their key, how it sits in their voice
-	// (row_voice.go).
+	// Voice: the song's melody at their key (row_voice.go).
 	Voice rowVoice
 }
 
@@ -218,10 +217,9 @@ func (s *Server) studentBooksData(r *http.Request, community *store.Community, p
 			ids[i] = all[i].VariantID
 		}
 		ranges := s.melodyRanges(ctx, ids)
-		zone, _ := s.store.StudentVoiceZone(ctx, personID, community.ID)
 		lang := s.langOfRequest(r)
 		for i := range all {
-			all[i].Voice = ranges.voice(lang, all[i].VariantID, all[i].Key, all[i].Semitones, zone)
+			all[i].Voice = ranges.voice(lang, all[i].VariantID, all[i].Key, all[i].Semitones)
 		}
 	}
 	data["BookID"] = sbID

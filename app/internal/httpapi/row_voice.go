@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,12 +19,12 @@ import (
 // songbook rows"): wherever a songbook lists its songs (a person's
 // songbook, a band's, the coach's one songbook, a student's), the song's
 // melody, lowest to highest note, from the recording the player uses
-// (song_melody_ranges, store.SongMelodyRanges), at the row's key: "A2–E4".
-// For a student looking at their own songbook (or the coach filtering
-// theirs), how it sits in their voice at that key: "fits", "2 high", "1
-// low" — semitones out of their comfortable zone when the coach noted
-// it, else out of their whole range. Information, no verdict; nothing
-// when the melody isn't known. Template "row-voice" (row_voice.html).
+// (song_melody_ranges, store.SongMelodyRanges), at the row's key, drawn as
+// one small bar; when the melody is analysed, the bars where it first
+// reaches its lowest and highest notes. An indication only: whether a
+// note suits a voice (chest, falsetto…) is the coach's call, so the row
+// weighs it against no one's voice. Nothing when the melody isn't known.
+// Template "row-voice" (row_voice.html).
 
 // rowVoice is what a row says of the song's melody.
 type rowVoice struct {
@@ -34,17 +33,11 @@ type rowVoice struct {
 	// (melody.RangeSVG); Label its words for a screen reader ("Range
 	// A2–E4"). Src: the melody is analysed, its lowest and highest bars
 	// are fetched from there when the row is in view (row-range.js,
-	// handleGetRowRange). Zone: "low,high,comfort" for the fit the bars
-	// are weighed against, "" with none.
+	// handleGetRowRange).
 	Staff template.HTML
 	Label string
 	Src   string
-	Zone  string
-	// Fit: "fits", "2 high", "1 low", "2 high · 1 low"; "" with no voice
-	// to weigh it against. Out: it doesn't fit.
-	Fit   string
-	Out   bool
-	Title string // "melody A2–E4 · comfortable zone C3–A4"
+	Title string // "melody A2–E4"
 }
 
 // melodySpan names a range moved by n semitones: "A2–E4".
@@ -52,37 +45,14 @@ func melodySpan(lang string, m store.MelodyRange, n int) string {
 	return i18n.NoteName(lang, m.Low+n) + "–" + i18n.NoteName(lang, m.High+n)
 }
 
-// rowVoiceOf is a row's melody at n semitones from the recording's key,
-// weighed against zone when there is one; the zero rowVoice (nothing to
-// show) when the melody isn't known (ok false).
-func rowVoiceOf(lang string, m store.MelodyRange, ok bool, n int, zone *store.VoiceZone) rowVoice {
+// rowVoiceOf is a row's melody at n semitones from the recording's key;
+// the zero rowVoice (nothing to show) when it isn't known (ok false).
+func rowVoiceOf(lang string, m store.MelodyRange, ok bool, n int) rowVoice {
 	if !ok || m.Low <= 0 || m.High < m.Low {
 		return rowVoice{}
 	}
 	v := rowVoice{Range: melodySpan(lang, m, n)}
 	v.Title = i18n.T(lang, "melody %s", v.Range)
-	if zone == nil {
-		return v
-	}
-	zoneText := i18n.NoteName(lang, zone.Low) + "–" + i18n.NoteName(lang, zone.High)
-	if zone.Comfort {
-		v.Title = i18n.T(lang, "melody %s · comfortable zone %s", v.Range, zoneText)
-	} else {
-		v.Title = i18n.T(lang, "melody %s · range %s", v.Range, zoneText)
-	}
-	high, low := m.High+n-zone.High, zone.Low-(m.Low+n)
-	var parts []string
-	if high > 0 {
-		parts = append(parts, i18n.T(lang, "%d high", high))
-	}
-	if low > 0 {
-		parts = append(parts, i18n.T(lang, "%d low", low))
-	}
-	if len(parts) == 0 {
-		v.Fit = i18n.T(lang, "fits")
-		return v
-	}
-	v.Fit, v.Out = strings.Join(parts, " · "), true
 	return v
 }
 
@@ -107,12 +77,12 @@ func (s *Server) melodyRanges(ctx context.Context, ids []int64) rowMelodies {
 }
 
 // voice is song's row: its melody at n semitones from the recording's
-// key (key: the song's own, for the notes' spelling), weighed against
-// zone; drawn as one bar when its range is known, its lowest and
-// highest bars to come when it's analysed.
-func (rm rowMelodies) voice(lang string, song int64, key string, n int, zone *store.VoiceZone) rowVoice {
+// key (key: the song's own, for the notes' spelling), drawn as one bar
+// when its range is known, its lowest and highest bars to come when it's
+// analysed.
+func (rm rowMelodies) voice(lang string, song int64, key string, n int) rowVoice {
 	m, known := rm.ranges[song]
-	v := rowVoiceOf(lang, m, known, n, zone)
+	v := rowVoiceOf(lang, m, known, n)
 	if v.Range != "" {
 		k, _ := melody.KeyOf(key, n, false)
 		v.Label = i18n.T(lang, "Range %s", v.Range)
@@ -122,13 +92,6 @@ func (rm rowMelodies) voice(lang string, song int64, key string, n int, zone *st
 		v.Src = fmt.Sprintf("/api/songs/%d/row-range?k=%d", song, n)
 		if v.Title == "" {
 			v.Title = i18n.T(lang, "the melody’s lowest and highest notes")
-		}
-		if zone != nil {
-			c := 0
-			if zone.Comfort {
-				c = 1
-			}
-			v.Zone = fmt.Sprintf("%d,%d,%d", zone.Low, zone.High, c)
 		}
 	}
 	return v
@@ -259,26 +222,4 @@ func rowRangeOf(lang string, sc *melody.Score, k, rangeLo, rangeHi int) *rowRang
 		{Bar: ph - 1, Kind: "high", Label: lh, SVG: svg[1]},
 	}
 	return out
-}
-
-// songbookVoiceZone is whose voice a songbook's rows are weighed against
-// for viewerID: a student's songbook, for that student (and their coach);
-// the viewer's own songbook, for them when they're a student somewhere
-// (their voice there). nil otherwise, and when no voice is noted.
-func (s *Server) songbookVoiceZone(ctx context.Context, viewerID int64, sb *store.Songbook) *store.VoiceZone {
-	switch {
-	case sb.IsStudent() && sb.StudentPersonID != 0 && sb.OwnerCommunityID != 0:
-		student := sb.StudentPersonID
-		if student != viewerID {
-			if ok, err := s.store.HasAnyCommunityManagePrivilege(ctx, sb.OwnerCommunityID, viewerID); err != nil || !ok {
-				return nil
-			}
-		}
-		z, _ := s.store.StudentVoiceZone(ctx, student, sb.OwnerCommunityID)
-		return z
-	case sb.OwnerKind == "person" && sb.OwnerPersonID == viewerID:
-		z, _ := s.store.StudentVoiceZone(ctx, viewerID, 0)
-		return z
-	}
-	return nil
 }

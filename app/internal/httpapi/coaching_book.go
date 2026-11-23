@@ -30,9 +30,8 @@ type bookAssignment struct {
 	SongbookID int64
 	Semitones  int
 	KeyText    string // "G −2", "G", "−2", "" (original, no key known)
-	// Voice: the song's melody at their key and how it sits in a
-	// student's voice, shown on the row when the book is filtered on
-	// them (row_voice.go).
+	// Voice: the song's melody at their key, shown on the row when the
+	// book is filtered on them (row_voice.go).
 	Voice rowVoice
 }
 
@@ -119,13 +118,6 @@ func (s *Server) coachBookData(r *http.Request, community *store.Community, repI
 	for _, m := range students {
 		firsts[firstWord(m.DisplayName)]++
 	}
-	// Each student's voice, their rows' melody weighed against it.
-	zones := map[int64]*store.VoiceZone{}
-	for _, m := range students {
-		if z, err := s.store.StudentVoiceZone(ctx, m.PersonID, community.ID); err == nil {
-			zones[m.PersonID] = z
-		}
-	}
 	var filters []bookFilter
 	assign := func(sbID int64, a bookAssignment) error {
 		songs, err := s.store.ListStudentSongs(ctx, sbID)
@@ -186,15 +178,11 @@ func (s *Server) coachBookData(r *http.Request, community *store.Community, repI
 	ranges := s.melodyRanges(ctx, ids)
 	for i := range out {
 		out[i].StudentSong = keyed[i]
-		out[i].Voice = ranges.voice(lang, out[i].VariantID, out[i].Key, 0, nil)
+		out[i].Voice = ranges.voice(lang, out[i].VariantID, out[i].Key, 0)
 		for j := range out[i].Assigned {
 			a := &out[i].Assigned[j]
 			a.KeyText = chipKey(out[i].Key, a.Semitones)
-			var zone *store.VoiceZone
-			if a.Kind == "student" {
-				zone = zones[a.PersonID]
-			}
-			a.Voice = ranges.voice(lang, out[i].VariantID, out[i].Key, a.Semitones, zone)
+			a.Voice = ranges.voice(lang, out[i].VariantID, out[i].Key, a.Semitones)
 		}
 		sort.SliceStable(out[i].Assigned, func(x, y int) bool {
 			ax, ay := out[i].Assigned[x], out[i].Assigned[y]

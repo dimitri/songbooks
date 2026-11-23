@@ -255,18 +255,29 @@ func TestSongProposalFlow(t *testing.T) {
 		t.Error("her own song left her songbook")
 	}
 
-	// Her Songbooks section: Plain's melody at her key and where it sits
-	// in her voice; the proposal taken.
+	// Her Songbooks section: Plain's melody at her key, an indication
+	// only (no verdict on her voice: that's the coach's); the proposal
+	// taken.
 	_, body = do(zoe, "GET", page, "")
-	for _, want := range []string{"Taken: in your songbook", "B♭3–F5", "15 high", "comfortable zone D3–D4"} {
+	for _, want := range []string{"Taken: in your songbook", `aria-label="Range B♭3–F5"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Zoé's Songbooks section after: no %q", want)
 		}
 	}
+	noVerdict := func(where, body string) {
+		t.Helper()
+		for _, not := range []string{"15 high", "14 high", " low<", ">fits<", "row-voice-fit", "comfortable zone", "data-zone"} {
+			if strings.Contains(body, not) {
+				t.Errorf("%s: a verdict on the voice, %q", where, not)
+			}
+		}
+	}
+	noVerdict("Zoé's Songbooks section", body)
 	// The coach's songbook: the melody in the song's own key on the row,
-	// Zoé's fit in her chip, for the filter by her; the community's new
+	// at Zoé's key in her chip, for the filter by her; the community's new
 	// arrangement (its recording not analysed yet) says nothing.
 	_, body = do(coach, "GET", page, "")
+	noVerdict("the coach's songbook", body)
 	rowOf := func(title string) string {
 		t.Helper()
 		i := strings.Index(body, fmt.Sprintf(`data-title="%s"`, title))
@@ -276,25 +287,25 @@ func TestSongProposalFlow(t *testing.T) {
 		r := body[i:]
 		return r[:strings.Index(r, `class="cbk-assign"`)]
 	}
-	if row := rowOf("Plain"); !strings.Contains(row, `aria-label="Range A3–E5"`) || !strings.Contains(row, `<template class="cbk-chip-voice">`) || !strings.Contains(row, "15 high") {
+	if row := rowOf("Plain"); !strings.Contains(row, `aria-label="Range A3–E5"`) || !strings.Contains(row, `<template class="cbk-chip-voice">`) || !strings.Contains(row, `aria-label="Range B♭3–F5"`) {
 		t.Errorf("the coach's row: %s", row)
 	}
 	if row := rowOf("Own Song"); strings.Contains(row, "row-voice") || !strings.Contains(row, fmt.Sprintf(`data-person="%d"`, zoe)) {
 		t.Errorf("the taken song's row: %s", row)
 	}
-	// Her own songbook: the range at its key there (the song's own), her
-	// voice; the band's song (no melody known) nothing.
+	// Her own songbook: the range at its key there (the song's own); the
+	// band's song (no melody known) nothing.
 	_, body = do(zoe, "GET", fmt.Sprintf("/songbooks/%d", mine), "")
-	if !strings.Contains(body, "A3–E5") || !strings.Contains(body, "14 high") {
-		t.Error("her own songbook doesn't show the melody and her fit")
+	if !strings.Contains(body, `aria-label="Range A3–E5"`) {
+		t.Error("her own songbook doesn't show the melody")
 	}
-	if _, body := do(zoe, "GET", fmt.Sprintf("/songbooks/%d", zoeBook), ""); !strings.Contains(body, "B♭3–F5") || !strings.Contains(body, "15 high") {
-		t.Error("her songbook with the coach doesn't show the melody at her key and her fit")
+	noVerdict("her own songbook", body)
+	_, body = do(zoe, "GET", fmt.Sprintf("/songbooks/%d", zoeBook), "")
+	if !strings.Contains(body, `aria-label="Range B♭3–F5"`) {
+		t.Error("her songbook with the coach doesn't show the melody at her key")
 	}
-	if _, body := do(coach, "GET", fmt.Sprintf("/songbooks/%d", zoeBook), ""); !strings.Contains(body, "15 high") {
-		t.Error("the coach doesn't see Zoé's fit on her songbook")
-	}
-	if _, body := do(max, "GET", fmt.Sprintf("/songbooks/%d", took.SongbookID), ""); strings.Contains(body, "15 high") {
+	noVerdict("her songbook with the coach", body)
+	if _, body := do(max, "GET", fmt.Sprintf("/songbooks/%d", took.SongbookID), ""); strings.Contains(body, "B♭3–F5") {
 		t.Error("another student sees Zoé's songbook")
 	}
 
