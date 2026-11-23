@@ -29,6 +29,17 @@
     </div>
   </div>
 
+  {{if and (eq .Event.OwnerKind "band") (eq .Event.EventType "listening_party")}}
+  {{/* A band's listening party (docs/band-votes.md): its page, where the
+       band listens to the songs proposed and rates them. */}}
+  <div class="card party-event">
+    <h3>{{t "Listening party"}}</h3>
+    <p class="hint">{{t "Listen to the songs proposed together. One of you plays them on the band’s speakers; each core member rates them on their phone while they play."}}</p>
+    <div class="next-up-actions">
+      <a class="chip-link primary" href="/bands/{{.Event.OwnerBandID}}/catalog/discover?event={{.Event.ID}}">{{template "icon-play"}} {{t "Open the listening party"}}</a>
+    </div>
+  </div>
+  {{end}}
   {{if eq .Event.OwnerKind "band"}}
   {{/* A band's own date (a rehearsal, a gig): everyone in it is coming,
        so no registration; what matters is the set list to work on. */}}

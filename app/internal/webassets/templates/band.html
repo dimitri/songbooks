@@ -107,7 +107,7 @@
         <div class="attention-title">
           {{if eq .Kind "new_song"}}{{t "Vote on a new song: %s" .TargetTitle}}{{else}}{{t "Vote on a new recording for %s" .TargetTitle}}{{end}}
         </div>
-        <div class="attention-subtitle">{{t "proposed by %s" .ProposerUsername}} &middot; {{t "%d yes, %d veto so far" .YesVotes .VetoVotes}}</div>
+        <div class="attention-subtitle">{{t "proposed by %s" .ProposerName}} &middot; {{if .Ratings}}{{t "★ %s · %d for, %d against" .AvgText .Positive .Negative}}{{else}}{{t "no stars yet"}}{{end}}{{if .NoThanks}} &middot; {{tn .NoThanks "%d no thanks" "%d no thanks"}}{{end}}</div>
       </a>
     {{end}}
     {{range .Changes}}

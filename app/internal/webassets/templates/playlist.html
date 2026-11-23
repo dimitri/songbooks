@@ -10,17 +10,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{docTitle (t "playlist") .Owner}}</title>
+<title>{{if .Vote}}{{docTitle (t "Listen and vote") .Owner}}{{else}}{{docTitle (t "playlist") .Owner}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
 </head>
-<body class="playlist-page"{{template "brand-body" $brand}}>
+<body class="playlist-page{{if .Vote}} vote-player{{end}}"{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.Back}}">{{template "icon-back"}} {{.Owner}}</a>
-  <h1>{{.Owner}} <span class="pl-h1-sub">{{t "playlist"}}</span></h1>
+  <h1>{{.Owner}} <span class="pl-h1-sub">{{if .Vote}}{{if .Vote.Party}}{{t "listening party"}}{{else}}{{t "songs to vote on"}}{{end}}{{else}}{{t "playlist"}}{{end}}</span></h1>
 </header>
 <main class="pl">
   {{if .Tracks}}
@@ -41,6 +41,9 @@
       </div>
       <span class="pl-source" id="pl-source"></span>
     </div>
+    {{if .Vote}}{{/* The stars for the song playing (band-votes.js player()). */}}
+    {{if .Vote.Party}}<p class="pl-party-note">{{t "You host the listening party: the song playing shows on every member’s phone, to rate."}}</p>{{end}}
+    <div class="pl-vote" id="pl-vote"></div>{{end}}
     <div class="pl-sections" id="pl-sections" aria-label="{{t "Sections"}}"></div>
     <div class="pl-scrub">
       <span id="pl-pos">0:00</span>
@@ -60,7 +63,7 @@
         <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">{{t "Reference"}}</a>
       </div>{{end}}
       <button type="button" class="rp-chip" id="pl-restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> {{t "Restart"}}</button>
-      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .VideoFirst}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
+      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .Vote}}{{t "Open the proposal"}}{{else if .VideoFirst}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
     </div>
   </section>
 
@@ -73,6 +76,7 @@
         <span class="pl-row-eq" aria-hidden="true"><i></i><i></i><i></i></span>
         {{with $t.Cover}}<img class="pl-row-cover" src="{{.}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}
         <span class="pl-row-text"><strong>{{$t.Title}}</strong><small>{{$t.Subtitle}}</small></span>
+        {{if $.Vote}}<span class="pl-row-score" data-score="{{$t.ProposalID}}"></span>{{end}}
         <span class="pl-row-kind kind-{{$t.Source}}" title="{{t $t.SourceLabel}}">{{if eq $t.Source "video"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 7.5v5l4.2-2.5z" fill="currentColor"/></svg>{{else if eq $t.Source "band"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{else}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h1.5M6 7v6M8.5 4.5v11M11 7.5v5M13.5 5.5v9M16 8.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{end}}</span>
       </button></li>
       {{end}}
@@ -86,11 +90,20 @@
     {{end}}
   </section>
 
+  {{if .Vote}}
+  <section class="pl-map vote-panel" aria-label="{{t "Where the vote stands"}}">
+    <h2>{{t "Where the vote stands"}}</h2>
+    <p class="vote-note" id="vote-panel-note" hidden></p>
+    <div class="vote-sum is-full" id="vote-panel-sum"></div>
+    <p class="vote-panel-links" id="vote-panel-links"></p>
+  </section>
+  {{else}}
   <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if .VideoFirst}}{{t "The lesson playing"}}{{else}}{{t "The song playing"}}{{end}}">
     {{if .VideoFirst}}<div class="pl-stage-video"><div id="pl-stage-frame"></div></div>
     <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#">{{t "Open the lesson"}}</a></p>
     {{else}}<iframe id="pl-map-frame" title="{{t "The song playing"}}" loading="lazy"></iframe>{{end}}
   </section>
+  {{end}}
   {{else}}
   <p class="dl-empty">{{t "Nothing to play yet: add a recording, or a YouTube link, from a song’s Reference view."}}</p>
   {{end}}
@@ -103,7 +116,7 @@
 (() => {
   const tracks = {{.TracksJSON}};
   const album = {{.Owner}};
-  const storeKey = `songbooks:playlist:{{.Songbook.ID}}`;
+  const storeKey = {{.StoreKey}} || `songbooks:playlist:{{.Songbook.ID}}`;
   const $ = (id) => document.getElementById(id);
   const audio = new Audio();
   audio.preload = 'auto';
@@ -247,7 +260,10 @@
     }
     remember();
     render();
+    // The vote's player (band-votes.js) follows the song playing.
+    document.dispatchEvent(new CustomEvent('playlist:track', {detail: {index, track: t}}));
   }
+  window.SongbooksPlaylist = {track: () => track(), playing: () => playing()};
   const next = () => load(index + 1, true);
   const prev = () => (now() > 3 ? (isVideo() ? yt.seekTo(0) : (audio.currentTime = 0)) : load(index - 1, true));
   function toggle() {
@@ -314,6 +330,10 @@
   load(index, false, resume && resume.i === index ? resume.t : 0);
 })();
 </script>
+{{if .Vote}}
+<script src="/static/js/band-votes.js?v={{staticVersion}}"></script>
+<script>BandVotes.player({bandId: {{.Vote.BandID}}, party: {{.Vote.Party}}, eventId: {{.Vote.EventID}}, canVote: {{.Vote.CanVote}}, tallies: {{.Vote.TalliesJSON}}});</script>
+{{end}}
 {{end}}
 </body>
 </html>

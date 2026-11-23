@@ -1235,8 +1235,13 @@ func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	rule, err := s.store.BandProposalRule(r.Context(), bandID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "band_settings", map[string]any{
 		"Me": person, "Band": band, "IsCore": isCore || person.IsAdmin,
-		"Locale": locale,
+		"Locale": locale, "ProposalRule": rule,
 	})
 }

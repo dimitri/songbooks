@@ -17,146 +17,65 @@
   {{template "space-back" .Space}}
   <h1>{{template "space-section-name" .Space}}</h1>
 </header>
-<main class="index">
+<main class="index votes-page party-page">
   {{template "space-nav" .Space}}
-  <div class="songbook-head">{{template "space-views" .Space}}</div>
-
-  <p class="hint">{{t "Throw in songs you’d like the band to check out, then vote right here — these are the band’s open song proposals on their own (see"}} <a href="/bands/{{.Band.ID}}/catalog/vote">{{t "all proposals"}}</a>{{t "), so a session doesn’t get lost in the full list. A single veto rejects a song immediately; otherwise it auto-accepts into the songbook once more than half of the band’s %d current members vote yes." .MemberCount}}</p>
-
-  <div class="card" style="max-width:520px">
-    <h2>{{t "Throw in a song"}}</h2>
-    <form class="form-stack" id="submit-form">
-      <div class="field">
-        <label for="song-input">{{t "Song"}}</label>
-        <p class="field-hint" id="song-input-hint">{{t "Type a title or an artist, then pick the song from the list."}}</p>
-        <input type="search" id="song-input" aria-describedby="song-input-hint" autocomplete="off" enterkeyhint="search">
-        <input type="hidden" id="variant-id-input">
-        <div id="song-results" class="attention-list song-pick-results" aria-live="polite"></div>
-      </div>
-      <div class="field">
-        <label for="note-input">{{t "Note"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <input type="text" id="note-input" placeholder="{{t "e.g. great for the second set"}}" autocomplete="off">
-      </div>
-      <div class="form-actions">
-        <button type="submit" id="submit-btn" class="primary">{{t "Add to the queue"}}</button>
-      </div>
-      <p id="submit-result" class="form-status" role="status"></p>
-    </form>
+  <div class="songbook-head">
+    {{template "space-views" .Space}}
+    <div class="setlist-actions songbook-actions">
+      <button type="button" class="setlist-action" data-propose>{{template "icon-plus"}} {{t "Propose a song"}}</button>
+    </div>
   </div>
 
-  <div class="table-scroll"><table class="card" style="width:100%">
-    <thead><tr><th>{{t "Song"}}</th><th>{{t "Submitted by"}}</th><th>{{t "Votes"}}</th><th></th></tr></thead>
-    <tbody>
-    {{range .Proposals}}
-      <tr data-proposal-id="{{.ID}}">
-        <td><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}{{t "Song %s" (deref64 .TargetVariantID)}}{{end}}</a></td>
-        <td>{{.ProposerUsername}}</td>
-        <td class="vote-tally">{{t "%d yes / %d veto" .YesVotes .VetoVotes}}</td>
-        <td>
-          <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">{{t "Vote yes"}}</button>
-          <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">{{t "Veto"}}</button>
-          <p class="form-status" role="status"></p>
-        </td>
-      </tr>
-    {{else}}
-      <tr><td colspan="4" class="hint">{{t "Nothing in the queue yet — throw in a song above."}}</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
+  {{/* The listening party (the event type; docs/band-votes.md): the band
+       listens together to the songs proposed. One member hosts — plays
+       them on the band's speakers with the vote's player (?party=1) —
+       and every member's phone shows the song playing, to rate while it
+       plays (band-votes.js party(): it follows the host every few
+       seconds). The same proposals, stars and player as To vote. */}}
+  <section class="party-head card">
+    <div class="party-head-text">
+      <h2>{{if .Event}}{{.Event.Name}}{{else}}{{t "Listening party"}}{{end}}</h2>
+      {{if .Event}}<p class="hint">{{date .Event.StartsAt "Monday 2 January, 15:04"}}{{with .Event.Location}} · {{.}}{{end}} · <a href="/events/{{.Event.ID}}">{{t "The event"}}</a></p>{{end}}
+      <p class="hint">{{t "Listen to the songs proposed together. One of you plays them on the band’s speakers; each core member rates them on their phone while they play."}}</p>
+      {{if not .CanVote}}<p class="vote-guest-note">{{t "You’re a guest member: you listen along; the core members vote."}}</p>{{end}}
+    </div>
+    {{if .Cards}}<a class="button-link primary party-host" href="/bands/{{.Band.ID}}/catalog/vote/listen?party=1{{with .Event}}&amp;event={{.ID}}{{end}}">{{template "icon-play"}} {{t "Host: play the songs"}}</a>{{end}}
+  </section>
+
+  {{if .Cards}}
+  <section class="party-now card is-idle" id="party-now" aria-live="polite" aria-label="{{t "Playing now"}}">
+    <p class="party-now-state" id="party-now-state"></p>
+    <div class="party-now-song">
+      <img id="party-now-thumb" alt="" hidden referrerpolicy="no-referrer">
+      <div>
+        <h2 id="party-now-title">{{t "Nothing playing yet"}}</h2>
+        <p class="vote-artist" id="party-now-sub">{{t "When the host plays a song, it shows here, to rate while it plays."}}</p>
+      </div>
+    </div>
+    <p class="vote-note" id="party-now-note" hidden></p>
+    <div id="party-now-ctl"></div>
+    <div class="vote-sum is-full" id="party-now-sum"></div>
+  </section>
+
+  <h2 class="party-queue-head">{{tn (len .Cards) "%d song proposed" "%d songs proposed"}} <span class="hint">{{t "in the order they came"}}</span></h2>
+  <div class="vote-list party-queue">
+  {{range .Cards}}
+    {{template "vote-card" (dict "C" . "Band" $.Band "CanVote" $.CanVote)}}
+  {{end}}
+  </div>
+  {{else}}
+  <div class="vote-empty">
+    <p><strong>{{t "No song proposed yet."}}</strong> {{t "Paste a YouTube link to propose one: its lyrics and chord grids come with it."}}</p>
+    <button type="button" class="primary" data-propose>{{t "Propose a song"}}</button>
+  </div>
+  {{end}}
 </main>
+<script type="application/json" id="propose-config">{"bandId": {{.Band.ID}}, "canVote": {{.CanVote}}, "setlists": []}</script>
+<script src="/static/js/band-votes.js?v={{staticVersion}}"></script>
+<script src="/static/js/proposal-flow.js?v={{staticVersion}}"></script>
 <script>
-const bandId = {{.Band.ID}};
-
-// Song picker: search the catalog as you type and pick a result (same
-// as the Proposals tab's). The picked song's id goes in the hidden
-// field; typing again clears it.
-function songPicker(input, hidden, list) {
-  let timer;
-  async function search() {
-    const q = input.value.trim();
-    list.replaceChildren();
-    if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
-    const hits = res && res.ok ? await res.json().catch(() => []) : [];
-    if (!hits.length) {
-      const p = document.createElement('p');
-      p.className = 'attention-empty';
-      p.textContent = res && res.ok ? t('No songs match that.') : t('Couldn’t search the catalog. Try again.');
-      list.append(p);
-      return;
-    }
-    for (const hit of hits) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'attention-row';
-      const ti = document.createElement('span');
-      ti.className = 'attention-title';
-      ti.textContent = hit.title;
-      b.append(ti);
-      if (hit.artist) {
-        const a = document.createElement('span');
-        a.className = 'attention-subtitle';
-        a.textContent = hit.artist;
-        b.append(a);
-      }
-      b.addEventListener('click', () => {
-        hidden.value = hit.variantId;
-        input.value = hit.artist ? `${hit.title} — ${hit.artist}` : hit.title;
-        list.replaceChildren();
-        Forms.fieldError(input, '');
-        input.focus();
-      });
-      list.append(b);
-    }
-  }
-  input.addEventListener('input', () => {
-    hidden.value = '';
-    clearTimeout(timer);
-    timer = setTimeout(search, 250);
-  });
-  // Enter searches until a song is picked, then submits the form.
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !hidden.value) { e.preventDefault(); clearTimeout(timer); search(); }
-  });
-}
-songPicker(document.getElementById('song-input'), document.getElementById('variant-id-input'), document.getElementById('song-results'));
-
-document.getElementById('submit-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const songInput = document.getElementById('song-input');
-  const targetVariantId = Number(document.getElementById('variant-id-input').value);
-  const note = document.getElementById('note-input').value.trim();
-  if (!targetVariantId) {
-    Forms.fieldError(songInput, songInput.value.trim() ? t('Pick the song from the list under the field.') : t('Enter a song title or artist, then pick the song.'));
-    songInput.focus();
-    return;
-  }
-  Forms.run(form, document.getElementById('submit-btn'), async () => {
-    const res = await fetch(`/api/bands/${bandId}/proposals`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({kind: 'new_song', targetVariantId, payload: {note}}),
-    });
-    if (!res.ok) throw new Error(t('Couldn’t add it to the queue. Try again.'));
-    location.reload();
-  });
-});
-document.querySelectorAll('.vote-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (btn.dataset.vote === 'veto' && !confirm(t('Veto %s? One veto turns it down straight away.', btn.dataset.title ? t('“%s”', btn.dataset.title) : t('this song')))) return;
-    const st = btn.parentElement.querySelector('.form-status');
-    Forms.status(st, '');
-    Forms.busy(btn, true);
-    const res = await fetch(`/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({vote: btn.dataset.vote}),
-    }).catch(() => null);
-    if (res && res.ok) { location.reload(); return; }
-    Forms.busy(btn, false);
-    // 409: someone else's vote or decision got there first.
-    Forms.status(st, res && res.status === 409 ? t('This one has already been decided. Reload to see how.') : t('Couldn’t record your vote. Try again.'), 'error');
-  });
-});
+BandVotes.list();
+{{if .Cards}}BandVotes.party({bandId: {{.Band.ID}}, now: {{.NowJSON}}, canVote: {{.CanVote}}});{{end}}
 </script>
 </div>
 {{template "global-tabbar" $}}

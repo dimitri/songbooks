@@ -74,7 +74,7 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 			{Key: "catalog", Label: "Songbook", Path: "/catalog", Icon: "icon-catalog", ViewsInPage: true, Filters: []SpaceSection{
 				{Key: "all", Label: "Songs", Path: "/catalog"},
 				{Key: "vote", Label: "To vote", Path: "/catalog/vote"},
-				{Key: "discover", Label: "Discover", Path: "/catalog/discover"},
+				{Key: "discover", Label: "Listening party", Path: "/catalog/discover"},
 			}},
 			{Key: "setlists", Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},
 			{Key: "events", Label: "Calendar", Path: "/events", Icon: "icon-calendar"},

@@ -1,11 +1,12 @@
 {{define "band_proposal"}}
 {{$brand := brandFor "band" .Band.ID}}
+{{$c := .Card}}
 <!doctype html>
 <html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{docTitle (t "Proposal #%d" .Proposal.ID) .Band.Name}}</title>
+<title>{{docTitle .Proposal.TargetTitle .Band.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -15,65 +16,147 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/bands/{{.Band.ID}}/catalog/vote">{{template "icon-back"}} {{t "To vote"}}</a>
-  <h1>{{t "Proposal #%d" .Proposal.ID}}</h1>
+  <h1>{{.Proposal.TargetTitle}}{{with .Proposal.TargetVersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</h1>
 </header>
-<main class="index">
-  <div class="card" style="max-width:560px">
-    <p><strong>{{t "Kind:"}}</strong> {{if eq .Proposal.Kind "new_song"}}{{t "New song"}}{{else if eq .Proposal.Kind "new_reference"}}{{t "Reference recording"}}{{else}}{{.Proposal.Kind}}{{end}}</p>
-    <p><strong>{{t "Variant:"}}</strong> {{if .Proposal.TargetTitle}}<a href="/song/{{deref64 .Proposal.TargetVariantID}}">{{.Proposal.TargetTitle}}</a>{{else}}{{t "variant %s" (deref64 .Proposal.TargetVariantID)}}{{end}}</p>
-    <p><strong>{{t "Proposed by:"}}</strong> {{t "%s on %s" .Proposal.ProposerUsername (.Proposal.CreatedAt.Format "2006-01-02 15:04")}}</p>
-    <p><strong>{{t "Status:"}}</strong> {{t (printf "proposal|%s" .Proposal.Status)}}
-      {{if .Proposal.DecidedAt}} ({{.Proposal.DecidedAt.Format "2006-01-02 15:04"}}{{if .Proposal.DecidedByUsername}}, {{t "by %s" .Proposal.DecidedByUsername}}{{else}}, {{t "by vote"}}{{end}}){{end}}
-    </p>
-  </div>
+<main class="index proposal-page">
+  {{/* One proposal (docs/band-votes.md): its recording and video, the
+       viewer's vote, every member's, the votes' history, a core
+       member's decision by hand. */}}
+  <div class="proposal-layout">
+    <section class="proposal-media" aria-label="{{t "The recording"}}">
+      {{if .Video}}
+      <div class="proposal-video" id="proposal-video">
+        <button type="button" class="proposal-video-play" id="proposal-video-play" data-video="{{.Video}}" aria-label="{{t "Play the video"}}">
+          <img src="https://i.ytimg.com/vi/{{.Video}}/hqdefault.jpg" alt="" referrerpolicy="no-referrer">
+          <span class="proposal-video-icon" aria-hidden="true">{{template "icon-play"}}</span>
+        </button>
+      </div>
+      {{end}}
+      {{if not .Video}}
+      <div class="proposal-cover" aria-hidden="true">
+        {{with $c.Thumb}}<img src="{{.}}" alt="" referrerpolicy="no-referrer">{{end}}
+        <span class="proposal-cover-band">{{.Band.Name}}</span>
+        <span class="proposal-cover-title">{{.Proposal.TargetTitle}}</span>
+      </div>
+      {{end}}
+      {{if .Audio}}
+      <div class="proposal-audio">
+        <p class="hint">{{t "Its recording (MP3)"}}</p>
+        <audio controls preload="none" src="{{.Audio}}" id="proposal-audio"></audio>
+      </div>
+      {{end}}
+      {{if and (not .Video) (not .Audio)}}<p class="hint">{{t "Nothing to play yet: add a recording, or a YouTube link, from the song’s Reference view."}}</p>{{end}}
+      <div class="proposal-facts">
+        {{with .Proposal.TargetArtist}}<p class="vote-artist">{{.}}</p>{{end}}
+        <p class="vote-meta">
+          <span class="vote-kind{{if eq .Proposal.Kind "new_reference"}} is-ref{{end}}">{{if eq .Proposal.Kind "new_reference"}}{{t "Another recording"}}{{else}}{{t "New song"}}{{end}}</span>
+          {{if eq .Proposal.Target "setlist"}}<span class="vote-target">{{t "for the set list “%s”" $c.SetlistTitle}}</span>{{end}}
+          <span>{{t "proposed by %s, %s" .Proposal.ProposerName (date .Proposal.CreatedAt "2 Jan 2006")}}</span>
+        </p>
+        {{with .Proposal.Note}}<p class="vote-note">“{{.}}”</p>{{end}}
+        <p class="proposal-links">
+          {{if .Proposal.TargetVariantID}}<a href="/song/{{deref64 .Proposal.TargetVariantID}}">{{t "Open the song"}}</a>{{end}}
+          {{if eq .Proposal.Status "open"}}<a href="/bands/{{.Band.ID}}/catalog/vote/listen?start={{.Proposal.ID}}">{{t "Listen with the others to vote on"}}</a>{{end}}
+        </p>
+      </div>
+    </section>
 
-  {{if eq .Proposal.Status "open"}}
-  <div class="card card--narrow">
-    <h2>{{t "Cast your vote"}}</h2>
-    <p class="hint">{{t "Auto-accepts once more than half of the band’s %d current members vote yes. A single veto rejects immediately, no matter how many yes votes exist." .MemberCount}}</p>
-    <button type="button" id="vote-yes-btn">{{t "vote yes"}}</button>
-    <button type="button" id="vote-veto-btn" class="danger">{{t "veto"}}</button>
-    <button type="button" id="accept-btn" class="primary">{{t "accept now"}}</button>
-    <button type="button" id="reject-btn" class="danger">{{t "reject now"}}</button>
-    <p id="vote-result" class="hint"></p>
-  </div>
-  {{end}}
+    <section class="proposal-vote" aria-label="{{t "The vote"}}">
+      <article class="vote-card proposal-card" data-band="{{.Band.ID}}" data-proposal="{{.Proposal.ID}}" data-status="{{.Proposal.Status}}" data-title="{{.Proposal.TargetTitle}}" data-tally="{{$c.TallyJSON}}">
+        {{if eq .Proposal.Status "open"}}
+        {{if .CanVote}}<h2>{{t "Your vote"}}</h2>
+        <div data-ctl></div>
+        {{else}}<h2>{{t "The vote"}}</h2>
+        <p class="vote-guest-note">{{t "You’re a guest member: you propose songs and listen to them; the core members vote."}}</p>{{end}}
+        {{else}}
+        <h2>{{if eq .Proposal.Status "accepted"}}{{t "Accepted"}}{{else}}{{t "Turned down"}}{{end}}</h2>
+        <p class="vote-decided is-{{.Proposal.Status}}">{{date .Proposal.DecidedAt "2 Jan 2006, 15:04"}} · {{if .Proposal.DecidedByUsername}}{{t "by %s" .Proposal.DecidedByUsername}}{{else}}{{t "by the votes"}}{{end}}</p>
+        {{end}}
+        <h3 class="proposal-sub">{{t "Where the vote stands"}}</h3>
+        <div class="vote-sum is-full" data-sum></div>
+      </article>
 
-  <div class="table-scroll"><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Who"}}</th><th>{{t "Vote"}}</th><th>{{t "When"}}</th></tr></thead>
-    <tbody>
-    {{range .Votes}}
-      <tr><td data-label="{{t "Who"}}">{{.Username}}</td><td data-label="{{t "Vote"}}">{{t (printf "vote|%s" .Vote)}}</td><td data-label="{{t "When"}}">{{.CastAt.Format "2006-01-02 15:04"}}</td></tr>
-    {{else}}
-      <tr><td colspan="3" class="hint">{{t "No votes yet."}}</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
+      {{if and .IsCore (eq .Proposal.Status "open")}}
+      <div class="card proposal-decide">
+        <h3>{{t "Decide now"}}</h3>
+        <p class="hint">{{t "A core member can settle it without waiting for every vote."}}</p>
+        <div class="form-actions">
+          <button type="button" id="accept-btn"{{if $c.Tally.Blocked}} disabled aria-describedby="accept-blocked"{{end}}>{{t "Accept it"}}</button>
+          <button type="button" id="reject-btn" class="danger">{{t "Turn it down"}}</button>
+        </div>
+        {{if $c.Tally.Blocked}}<p class="field-hint" id="accept-blocked">{{t "Held back by a core member’s no thanks: it can go in once they change their vote."}}</p>{{end}}
+        <p class="form-status" id="decide-status" role="status"></p>
+      </div>
+      {{end}}
+
+      {{if .History}}
+      <details class="card proposal-history">
+        <summary><h3>{{t "History of the votes"}}</h3></summary>
+        <ol class="proposal-history-list">
+        {{range .History}}
+          <li><span class="proposal-history-who">{{.Name}}</span>
+            {{if .LegacyVote}}{{if eq .LegacyVote "yes"}}{{t "voted yes (now 3 stars)"}}{{else}}{{t "vetoed (now no thanks)"}}{{end}}
+            {{else if .NoThanks}}{{t "said no thanks"}}{{else if .Stars}}<span class="stars-inline" aria-label="{{tn .Stars "%d star" "%d stars"}}">{{.Stars}}★</span>{{else}}{{t "took their vote back"}}{{end}}
+            <time class="hint" datetime="{{.CastAt.Format "2006-01-02T15:04:05Z07:00"}}">{{date .CastAt "2 Jan, 15:04"}}</time></li>
+        {{end}}
+        </ol>
+      </details>
+      {{end}}
+    </section>
+  </div>
 </main>
+<script src="/static/js/band-votes.js?v={{staticVersion}}"></script>
 <script>
-const bandId = {{.Band.ID}};
-const proposalId = {{.Proposal.ID}};
-async function vote(voteValue) {
-  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({vote: voteValue}),
+BandVotes.list();
+(() => {
+  const bandId = {{.Band.ID}}, proposalId = {{.Proposal.ID}};
+  // Keys 1–4 and N vote here too.
+  const box = document.querySelector('.proposal-card [data-ctl]');
+  // The video plays in place, on a click (nothing from YouTube before).
+  const play = document.getElementById('proposal-video-play');
+  play?.addEventListener('click', () => {
+    const f = document.createElement('iframe');
+    f.src = `https://www.youtube-nocookie.com/embed/${play.dataset.video}?autoplay=1&playsinline=1`;
+    f.title = {{t "The video"}};
+    f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    f.allowFullscreen = true;
+    play.replaceWith(f);
+    document.getElementById('proposal-audio')?.pause();
   });
-  if (res.ok) { location.reload(); return; }
-  const data = await res.json().catch(() => ({}));
-  document.getElementById('vote-result').textContent = data.error || t('vote failed');
-}
-document.getElementById('vote-yes-btn') && document.getElementById('vote-yes-btn').addEventListener('click', () => vote('yes'));
-document.getElementById('vote-veto-btn') && document.getElementById('vote-veto-btn').addEventListener('click', () => vote('veto'));
-document.getElementById('accept-btn') && document.getElementById('accept-btn').addEventListener('click', async () => {
-  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/accept`, {method: 'POST'});
-  if (res.ok) location.reload();
-  else { const data = await res.json().catch(() => ({})); document.getElementById('vote-result').textContent = data.error || t('accept failed'); }
-});
-document.getElementById('reject-btn') && document.getElementById('reject-btn').addEventListener('click', async () => {
-  const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/reject`, {method: 'POST'});
-  if (res.ok) location.reload();
-  else { const data = await res.json().catch(() => ({})); document.getElementById('vote-result').textContent = data.error || t('reject failed'); }
-});
+  // The recording goes on in the mini player on the next page.
+  const audio = document.getElementById('proposal-audio');
+  if (audio && window.SongbooksNowPlaying) {
+    const key = audio.getAttribute('src');
+    SongbooksNowPlaying.register({
+      media: audio,
+      info: () => (audio.currentSrc ? {key, src: key, title: {{.Proposal.TargetTitle}}, subtitle: {{.Band.Name}}, page: location.pathname} : null),
+      owns: (k) => SongbooksNowPlaying.same(key, k),
+      resume: (state, from) => { audio.currentTime = from.at || 0; if (from.play) audio.play().catch(() => {}); return true; },
+    });
+  }
+  async function decide(btn, what, confirmText) {
+    if (confirmText && !confirm(confirmText)) return;
+    const st = document.getElementById('decide-status');
+    Forms.status(st, '');
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/${what}`, {method: 'POST'}).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    const data = res ? await res.json().catch(() => ({})) : {};
+    Forms.busy(btn, false);
+    Forms.status(st, data.message || t('Couldn’t save that. Try again.'), 'error');
+  }
+  document.getElementById('accept-btn')?.addEventListener('click', (e) => decide(e.currentTarget, 'accept'));
+  document.getElementById('reject-btn')?.addEventListener('click', (e) => decide(e.currentTarget, 'reject', t('Turn down “%s” without waiting for the votes?', {{.Proposal.TargetTitle}})));
+  if (box) {
+    // The control BandVotes.list() made answers the keys.
+    const press = (v) => box.querySelector(v.noThanks ? '.vote-nothanks' : `.vote-star[data-stars="${v.stars}"]`)?.click();
+    document.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || BandVotes.typing(e.target)) return;
+      const v = BandVotes.voteForKey(e.key);
+      if (v) { e.preventDefault(); press(v); }
+    });
+  }
+})();
 </script>
 </div>
 {{template "global-tabbar" $}}

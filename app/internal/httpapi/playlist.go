@@ -122,6 +122,12 @@ type playlistTrack struct {
 	Cover       string            `json:"cover,omitempty"` // the song's cover art (docs/covers.md)
 	Album       string            `json:"album,omitempty"`
 	both        bool              // has both its own and a reference recording
+
+	// A proposal to vote on (band_proposals.go): its id, and its video
+	// on YouTube to watch.
+	ProposalID int64  `json:"proposal,omitempty"`
+	Watch      string `json:"watch,omitempty"`
+	Note       string `json:"note,omitempty"`
 }
 
 // playlistSection is a section of a track: its name, its length in bars

@@ -17,207 +17,91 @@
   {{template "space-back" .Space}}
   <h1>{{template "space-section-name" .Space}}</h1>
 </header>
-<main class="index">
+<main class="index votes-page">
   {{template "space-nav" .Space}}
-  <div class="songbook-head">{{template "space-views" .Space}}</div>
 
-  {{/* Proposals and Discover (née "listening party") are two real tabs
-       now, each its own route, even though they share the same
-       underlying proposal/vote queue (Discover is just open 'new_song'
-       proposals) — see listening_party.html's own comment for why. */}}
-
-  <p class="hint">{{t "Suggest a song for the songbook, or a new reference recording. It goes in once more than half of the %d members vote yes; one veto turns it down. Any member can also accept or reject it directly." .MemberCount}}</p>
-
-  <div class="form-with-list">
-    <div class="card">
-      <h2>{{t "New proposal"}}</h2>
-      <form class="form-stack" id="create-proposal-form">
-        <fieldset class="field-group">
-          <legend>{{t "What are you suggesting?"}}</legend>
-          <label class="check"><input type="radio" name="proposal-kind" value="new_song" checked> {{t "A song for the songbook"}}</label>
-          <label class="check"><input type="radio" name="proposal-kind" value="new_reference"> {{t "A reference recording for a song already in it"}}</label>
-        </fieldset>
-        <div class="field">
-          <label for="proposal-song">{{t "Song"}}</label>
-          <p class="field-hint" id="proposal-song-hint">{{t "Type a title or an artist, then pick the song from the list."}}</p>
-          <input type="search" id="proposal-song" aria-describedby="proposal-song-hint" autocomplete="off" enterkeyhint="search">
-          <input type="hidden" id="proposal-variant-id">
-          <div id="proposal-song-results" class="attention-list song-pick-results" aria-live="polite"></div>
-        </div>
-        <div class="field" id="proposal-url-field">
-          <label for="proposal-url">{{t "Link to the recording"}}</label>
-          <p class="field-hint" id="proposal-url-hint">{{t "A YouTube, Spotify or other web link."}}</p>
-          <input type="url" id="proposal-url" placeholder="https://…" aria-describedby="proposal-url-hint" autocomplete="off" autocapitalize="none" spellcheck="false" required>
-        </div>
-        <div class="field">
-          <label for="proposal-note">{{t "Note"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-          <input type="text" id="proposal-note" placeholder="{{t "e.g. would work as an opener"}}" autocomplete="off">
-        </div>
-        <div class="form-actions">
-          <button type="submit" id="create-proposal-btn" class="primary">{{t "Propose"}}</button>
-        </div>
-        <p id="create-proposal-result" class="form-status" role="status"></p>
-      </form>
+  {{/* The songs proposed to the band (docs/band-votes.md): each member
+       rates them 1 to 4 stars or says no thanks; sorted by their average
+       stars. Proposing goes through the new song-adding flow
+       (proposal-flow.js); the player plays them one after another with
+       the stars under it (playlist.html). */}}
+  <div class="songbook-head">
+    {{template "space-views" .Space}}
+    <div class="setlist-actions songbook-actions">
+      {{if .OpenCount}}<a class="setlist-action" href="/bands/{{.Band.ID}}/catalog/vote/listen">{{template "icon-play"}} {{if .CanVote}}{{t "Listen and vote"}}{{else}}{{t "Listen"}}{{end}}</a>{{end}}
+      <button type="button" class="setlist-action primary" data-propose>{{template "icon-plus"}} {{t "Propose a song"}}</button>
     </div>
+  </div>
 
-    <div class="table-scroll"><table class="card table-stack" style="width:100%">
-      <thead><tr><th>{{t "Kind"}}</th><th>{{t "Song"}}</th><th>{{t "Proposer"}}</th><th>{{t "Status"}}</th><th>{{t "Votes"}}</th><th></th></tr></thead>
-      <tbody>
-      {{range .Proposals}}
-        <tr data-proposal-id="{{.ID}}">
-          <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "new_reference"}}{{t "Reference recording"}}{{else}}{{.Kind}}{{end}}</td>
-          <td data-label="{{t "Song"}}"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}{{t "Song %s" (deref64 .TargetVariantID)}}{{end}}</a></td>
-          <td data-label="{{t "Proposer"}}">{{.ProposerUsername}}</td>
-          <td data-label="{{t "Status"}}">{{t (printf "proposal|%s" .Status)}}</td>
-          <td data-label="{{t "Votes"}}">{{t "%d yes / %d veto" .YesVotes .VetoVotes}}</td>
-          <td>
-          {{if eq .Status "open"}}
-            <button type="button" class="vote-btn" data-proposal-id="{{.ID}}" data-vote="yes">{{t "Vote yes"}}</button>
-            <button type="button" class="vote-btn danger" data-proposal-id="{{.ID}}" data-vote="veto" data-title="{{.TargetTitle}}">{{t "Veto"}}</button>
-            <button type="button" class="accept-btn primary" data-proposal-id="{{.ID}}">{{t "Accept"}}</button>
-            <button type="button" class="reject-btn danger" data-proposal-id="{{.ID}}" data-title="{{.TargetTitle}}">{{t "Reject"}}</button>
-            <p class="form-status" role="status"></p>
-          {{end}}
-          </td>
-        </tr>
+  <p class="hint vote-rule">
+    {{t "Each core member rates the songs 1 to 4 stars — 3 and 4 are for it, 1 and 2 against — or says No thanks."}}
+    {{if eq .Rule "veto"}}{{t "It goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against; a core member’s No thanks turns it down at once."}}{{else if eq .Rule "count"}}{{t "It goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against; a No thanks counts against it."}}{{else}}{{t "It goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against; a core member’s No thanks holds it back."}}{{end}}
+    <a href="/bands/{{.Band.ID}}/settings#votes">{{t "How the band votes"}}</a>
+  </p>
+  {{if not .CanVote}}<p class="vote-guest-note">{{t "You’re a guest member: you propose songs and listen to them; the core members vote."}}</p>{{end}}
+
+  <div class="vote-toolbar">
+    <nav class="vote-filter seg" aria-label="{{t "Which proposals"}}">
+      <a href="?status=open&amp;sort={{.Sort}}"{{if eq .Status "open"}} class="active" aria-current="page"{{end}}>{{t "proposals|Open"}} <span class="seg-count">{{.OpenCount}}</span></a>
+      <a href="?status=decided&amp;sort={{.Sort}}"{{if eq .Status "decided"}} class="active" aria-current="page"{{end}}>{{t "Decided"}} <span class="seg-count">{{.DecidedCount}}</span></a>
+    </nav>
+    <nav class="vote-sort seg" aria-label="{{t "Sort by"}}">
+      <span class="seg-label" aria-hidden="true">{{t "Sort:"}}</span>
+      <a href="?status={{.Status}}&amp;sort=stars"{{if eq .Sort "stars"}} class="active" aria-current="true"{{end}}>{{t "Stars"}}</a>
+      <a href="?status={{.Status}}&amp;sort=newest"{{if eq .Sort "newest"}} class="active" aria-current="true"{{end}}>{{t "Newest"}}</a>
+      <a href="?status={{.Status}}&amp;sort=no_thanks"{{if eq .Sort "no_thanks"}} class="active" aria-current="true"{{end}}>{{t "Most no thanks"}}</a>
+    </nav>
+  </div>
+
+  <div class="vote-list">
+  {{range .Cards}}
+    {{template "vote-card" (dict "C" . "Band" $.Band "CanVote" $.CanVote)}}
+  {{else}}
+    <div class="vote-empty">
+      {{if eq .Status "open"}}
+      <p><strong>{{t "Nothing to vote on."}}</strong> {{t "Paste a YouTube link to propose a song: its lyrics and chord grids come with it."}}</p>
+      <button type="button" class="primary" data-propose>{{t "Propose a song"}}</button>
       {{else}}
-        <tr><td colspan="6" class="hint">{{t "No proposals yet."}}</td></tr>
+      <p>{{t "No proposal decided yet."}}</p>
       {{end}}
-      </tbody>
-    </table></div>
+    </div>
+  {{end}}
   </div>
 </main>
-<script>
-const bandId = {{.Band.ID}};
-
-// Song picker: search the catalog as you type and pick a result. The
-// picked song's id goes in the hidden field; typing again clears it.
-function songPicker(input, hidden, list) {
-  let timer;
-  async function search() {
-    const q = input.value.trim();
-    list.replaceChildren();
-    if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}&band=${bandId}`).catch(() => null);
-    const hits = res && res.ok ? await res.json().catch(() => []) : [];
-    if (!hits.length) {
-      const p = document.createElement('p');
-      p.className = 'attention-empty';
-      p.textContent = res && res.ok ? t('No songs match that.') : t('Couldn’t search the catalog. Try again.');
-      list.append(p);
-      return;
-    }
-    for (const hit of hits) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'attention-row';
-      const ti = document.createElement('span');
-      ti.className = 'attention-title';
-      ti.textContent = hit.title;
-      b.append(ti);
-      if (hit.artist) {
-        const a = document.createElement('span');
-        a.className = 'attention-subtitle';
-        a.textContent = hit.artist;
-        b.append(a);
-      }
-      b.addEventListener('click', () => {
-        hidden.value = hit.variantId;
-        input.value = hit.artist ? `${hit.title} — ${hit.artist}` : hit.title;
-        list.replaceChildren();
-        Forms.fieldError(input, '');
-        input.focus();
-      });
-      list.append(b);
-    }
-  }
-  input.addEventListener('input', () => {
-    hidden.value = '';
-    clearTimeout(timer);
-    timer = setTimeout(search, 250);
-  });
-  // Enter searches until a song is picked, then submits the form.
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !hidden.value) { e.preventDefault(); clearTimeout(timer); search(); }
-  });
-}
-songPicker(document.getElementById('proposal-song'), document.getElementById('proposal-variant-id'), document.getElementById('proposal-song-results'));
-
-// The link field only applies to a reference recording; disabled, it's
-// also left out of the form's checks.
-function syncKind() {
-  const isRef = document.querySelector('input[name="proposal-kind"]:checked').value === 'new_reference';
-  const field = document.getElementById('proposal-url-field');
-  field.style.display = isRef ? '' : 'none';
-  document.getElementById('proposal-url').disabled = !isRef;
-}
-document.querySelectorAll('input[name="proposal-kind"]').forEach(r => r.addEventListener('change', syncKind));
-syncKind();
-
-document.getElementById('create-proposal-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const kind = document.querySelector('input[name="proposal-kind"]:checked').value;
-  const songInput = document.getElementById('proposal-song');
-  const targetVariantId = Number(document.getElementById('proposal-variant-id').value);
-  const note = document.getElementById('proposal-note').value.trim();
-  if (!targetVariantId) {
-    Forms.fieldError(songInput, songInput.value.trim() ? t('Pick the song from the list under the field.') : t('Enter a song title or artist, then pick the song.'));
-    songInput.focus();
-    return;
-  }
-  const payload = kind === 'new_reference' ? {url: document.getElementById('proposal-url').value.trim(), note} : {note};
-  Forms.run(form, document.getElementById('create-proposal-btn'), async () => {
-    const propose = (id) => fetch(`/api/bands/${bandId}/proposals`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({kind, targetVariantId: id, payload}),
-    });
-    let res = await propose(targetVariantId);
-    // Another band's song: never the band's; its catalogue version, if asked.
-    if (res.status === 409) {
-      const r = await Forms.bandRefusal(res);
-      if (!r.retryId) throw new Error(r.message || t('Not added.'));
-      res = await propose(r.retryId);
-    }
-    if (!res.ok) throw new Error(t('Couldn’t send the proposal. Check the song and link, then try again.'));
-    location.reload();
-  });
-});
-
-// Vote / accept / reject: each reloads on success, or says what failed
-// in the proposal's own row.
-async function act(btn, url, body, failMsg) {
-  const st = btn.parentElement.querySelector('.form-status');
-  Forms.status(st, '');
-  Forms.busy(btn, true);
-  const res = await fetch(url, body ? {
-    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
-  } : {method: 'POST'}).catch(() => null);
-  if (res && res.ok) { location.reload(); return; }
-  Forms.busy(btn, false);
-  // 409: someone else's vote or decision got there first.
-  Forms.status(st, res && res.status === 409 ? t('This one has already been decided. Reload to see how.') : failMsg, 'error');
-}
-const titleOf = (btn) => btn.dataset.title ? t('“%s”', btn.dataset.title) : t('this song');
-document.querySelectorAll('.vote-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.vote === 'veto' && !confirm(t('Veto %s? One veto turns the proposal down straight away.', titleOf(btn)))) return;
-    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/votes`, {vote: btn.dataset.vote}, t('Couldn’t record your vote. Try again.'));
-  });
-});
-document.querySelectorAll('.accept-btn').forEach(btn => {
-  btn.addEventListener('click', () => act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/accept`, null, t('Couldn’t accept it. Try again.')));
-});
-document.querySelectorAll('.reject-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (!confirm(t('Reject %s without waiting for the vote?', titleOf(btn)))) return;
-    act(btn, `/api/bands/${bandId}/proposals/${btn.dataset.proposalId}/reject`, null, t('Couldn’t reject it. Try again.'));
-  });
-});
-</script>
+<script type="application/json" id="propose-config">{"bandId": {{.Band.ID}}, "canVote": {{.CanVote}}, "setlists": [{{range $i, $s := .Setlists}}{{if $i}}, {{end}}{"id": {{$s.ID}}, "title": {{$s.Title}}}{{end}}]}</script>
+<script src="/static/js/band-votes.js?v={{staticVersion}}"></script>
+<script src="/static/js/proposal-flow.js?v={{staticVersion}}"></script>
+<script>BandVotes.list();</script>
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
+
+{{/* One proposal as a card (the To vote list, the listening party):
+     its song, who proposed it and why, where its vote stands and the
+     viewer's vote (band-votes.js fills [data-sum] and [data-ctl]).
+     Called with (dict "C" proposalCard "Band" band). */}}
+{{define "vote-card"}}{{with .C}}
+<article class="vote-card{{if ne .Status "open"}} is-decided{{end}}" id="p{{.ID}}" data-band="{{$.Band.ID}}" data-proposal="{{.ID}}" data-status="{{.Status}}"
+  data-title="{{.TargetTitle}}" data-sub="{{.TargetArtist}}" data-note="{{.Note}}" data-tally="{{.TallyJSON}}">
+  <a class="vote-thumb" href="/bands/{{$.Band.ID}}/proposals/{{.ID}}" tabindex="-1" aria-hidden="true">
+    {{if .Thumb}}<img src="{{.Thumb}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="vote-thumb-none">{{if .TargetTitle}}{{slice .TargetTitle 0 1}}{{else}}♪{{end}}</span>{{end}}
+  </a>
+  <div class="vote-main">
+    <h2 class="vote-title"><a href="/bands/{{$.Band.ID}}/proposals/{{.ID}}">{{if .TargetTitle}}{{.TargetTitle}}{{else}}{{t "Song %s" (deref64 .TargetVariantID)}}{{end}}</a>{{with .TargetVersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</h2>
+    <p class="vote-artist">{{.TargetArtist}}</p>
+    <p class="vote-meta">
+      <span class="vote-kind{{if eq .Kind "new_reference"}} is-ref{{end}}">{{if eq .Kind "new_reference"}}{{t "Another recording"}}{{else}}{{t "New song"}}{{end}}</span>
+      {{if eq .Target "setlist"}}<span class="vote-target">{{t "for the set list “%s”" .SetlistTitle}}</span>{{end}}
+      <span>{{t "proposed by %s, %s" .ProposerName (date .CreatedAt "2 Jan")}}</span>
+    </p>
+    {{with .Note}}<p class="vote-note">“{{.}}”</p>{{end}}
+    <div class="vote-sum" data-sum></div>
+    {{if eq .Status "open"}}{{if $.CanVote}}<div data-ctl></div>{{end}}
+    {{else}}<p class="vote-decided is-{{.Status}}">{{if eq .Status "accepted"}}{{t "Accepted %s" (date .DecidedAt "2 Jan")}}{{else}}{{t "Turned down %s" (date .DecidedAt "2 Jan")}}{{end}}{{if .DecidedByUsername}} · {{t "by %s" .DecidedByUsername}}{{else}} · {{t "by the votes"}}{{end}}</p>{{end}}
+  </div>
+  {{if eq .Status "open"}}<a class="vote-listen" href="/bands/{{$.Band.ID}}/catalog/vote/listen?start={{.ID}}" aria-label="{{t "Listen to “%s”" .TargetTitle}}">{{template "icon-play"}}<span>{{t "Listen"}}</span></a>{{end}}
+</article>
+{{end}}{{end}}

@@ -29,6 +29,7 @@ import (
 	"app/internal/reftitle"
 	"app/internal/songimport"
 	"app/internal/store"
+	"app/internal/ytaudio"
 )
 
 func main() {
@@ -191,6 +192,16 @@ func main() {
 		}
 		return d.Text, nil
 	}
+	// A band's proposal (docs/band-votes.md): the new song's chart as the
+	// quick add fetches it, with where it came from, and its recording.
+	httpapi.ProposalDraft = func(ctx context.Context, st *store.Store, title, artist string) (*httpapi.ProposalDraftResult, error) {
+		d, err := songimport.VocalDraft(ctx, st, title, artist)
+		if err != nil {
+			return nil, err
+		}
+		return &httpapi.ProposalDraftResult{Text: d.Text, URL: d.URL, IReal: d.IReal, Notes: d.Notes}, nil
+	}
+	httpapi.ProposalAudio = ytaudio.Download
 	// A demo copy (the local stack, staging; never production) gets the
 	// admin page's demo data panel (docs/demo-data.md).
 	httpapi.DemoData = os.Getenv("SONGBOOKS_DEMO_DATA") == "1"

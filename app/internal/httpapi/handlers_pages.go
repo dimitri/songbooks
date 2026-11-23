@@ -691,7 +691,7 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 			}
 			attention = append(attention, attentionItem{
 				Kind: "votes", Title: title,
-				Subtitle: i18n.T(lang, "Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
+				Subtitle: proposalSubtitle(lang, p),
 				When:     timeAgo(lang, p.CreatedAt),
 				Link:     fmt.Sprintf("/bands/%d/proposals/%d", b.ID, p.ID),
 			})
