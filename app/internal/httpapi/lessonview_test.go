@@ -61,10 +61,11 @@ func TestLessonViewData(t *testing.T) {
 }
 
 // TestLessonViewTabs renders the song page: a "content: gp" song shows
-// the lesson's tabs, Video, Score and Mixer, and nothing else to pick a
-// view by (the chart's switcher, hidden, keeps only its engine role); its
-// video block is there when it has a reference, not without; a chart's
-// page has no lesson tabs.
+// the lesson's views, Score and Mixer, and nothing else to pick a view by
+// (the chart's switcher, hidden, keeps only its engine role); with a
+// video (its reference), the video, the one player's switch (Watch the
+// lesson / Play along) and its controls, the phone's Practise and ←
+// Lesson; without, no video and no switch; a chart's page has none of it.
 func TestLessonViewTabs(t *testing.T) {
 	render := func(text string) string {
 		sg := song.Parse(text)
@@ -92,8 +93,13 @@ func TestLessonViewTabs(t *testing.T) {
 	if !strings.Contains(body, "</html>") {
 		t.Fatalf("incomplete page")
 	}
-	if got := strings.Join(tabsOf(body), ","); got != "video,score,mixer" {
-		t.Errorf("tabs: %q, want video,score,mixer", got)
+	if got := strings.Join(tabsOf(body), ","); got != "score,mixer" {
+		t.Errorf("tabs: %q, want score,mixer", got)
+	}
+	for _, want := range []string{`data-mode="watch"`, `data-mode="play"`, `id="lesson-watch"`, `class="lesson-practise primary" data-screen="practice"`, `class="lesson-back" data-screen="lesson"`, `data-has-video="1"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s", want)
+		}
 	}
 	if !strings.Contains(body, `id="lesson-stage-video" data-video="abcdefghijk"`) {
 		t.Errorf("no video block for the song's reference")
@@ -106,8 +112,8 @@ func TestLessonViewTabs(t *testing.T) {
 	if got := strings.Join(tabsOf(body), ","); got != "score,mixer" {
 		t.Errorf("tabs without a video: %q, want score,mixer", got)
 	}
-	if strings.Contains(body, `id="lesson-stage-video"`) {
-		t.Errorf("a video block without a video")
+	if strings.Contains(body, `id="lesson-stage-video"`) || strings.Contains(body, `id="lesson-mode"`) || strings.Contains(body, `data-has-video`) {
+		t.Errorf("a video, or its switch, without a video")
 	}
 
 	body = render("title: Shuffle\nreference: https://youtu.be/abcdefghijk\n\n[Song]\ngrid: | A7 | D7 | A7 | E7 |\n")

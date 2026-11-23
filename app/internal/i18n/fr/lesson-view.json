@@ -1,7 +1,16 @@
 {
-  "the lesson’s video, the score under it": "la vidéo du cours, la partition dessous",
-  "the score alone": "la partition seule",
   "Play the video: %s": "Lire la vidéo : %s",
   "the file’s MIDI sound: on or off": "le son MIDI du fichier : activé ou non",
-  "MIDI volume": "Volume MIDI"
+  "MIDI volume": "Volume MIDI",
+  "the score": "la partition",
+  "What the player plays": "Ce que joue le lecteur",
+  "the player plays the lesson’s video": "le lecteur joue la vidéo du cours",
+  "Watch the lesson": "Regarder la leçon",
+  "the player plays the recording, the score following": "le lecteur joue l’enregistrement, la partition suit",
+  "Play along": "Jouer avec",
+  "5 seconds back": "5 secondes en arrière",
+  "5 seconds on": "5 secondes en avant",
+  "loop: a first tap marks where it starts, a second where it ends, a third stops it": "boucle : un premier appui marque son début, un deuxième sa fin, un troisième l’arrête",
+  "screen|Lesson": "Leçon",
+  "Practise": "Pratiquer"
 }
