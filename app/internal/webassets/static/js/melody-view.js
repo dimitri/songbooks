@@ -51,7 +51,8 @@
   }
 
   // The page's size (gp-view.js geometry): an A4 sheet at most 860 px
-  // wide, the whole width on a phone; bars a line as stay readable.
+  // wide, the whole width on a phone; bars a line as leave room for the
+  // words (alphaTab spaces the notes, not the syllables).
   function geometry() {
     const wrap = $('.melody-sheet-wrap');
     const avail = Math.max(280, wrap.clientWidth);
@@ -61,7 +62,7 @@
     const my = Math.round(pageW * (phone ? 0.06 : 0.07));
     const scale = phone ? 0.85 : 1;
     const contentW = pageW - 2 * mx;
-    const perRow = Math.max(1, Math.min(4, Math.floor(contentW / scale / 175)));
+    const perRow = Math.max(1, Math.min(4, Math.floor(contentW / scale / (phone ? 160 : 215))));
     return { phone, pageW, pageH: Math.round((pageW * 297) / 210), mx, my, gap: phone ? 14 : 28, scale, perRow, contentW };
   }
   function applyGeometry(g) {
@@ -163,8 +164,9 @@
     const r = s.display.resources;
     r.staffLineColor = new alphaTab.model.Color(0x7a, 0x70, 0x64);
     r.mainGlyphColor = r.secondaryGlyphColor = r.scoreInfoColor = r.barSeparatorColor = ink;
-    // The page has the song's title: none again on the score.
-    for (const n of ['ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright', 'TrackNames']) {
+    // The page has the song's title: none again on the score; and no
+    // dynamics (alphaTab marks the first note f: nothing was measured).
+    for (const n of ['EffectDynamics', 'ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright', 'TrackNames']) {
       if (alphaTab.NotationElement[n] !== undefined) s.notation.elements.set(alphaTab.NotationElement[n], false);
     }
     return s;

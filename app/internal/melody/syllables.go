@@ -287,6 +287,15 @@ func englishOnset(a, b rune) bool {
 }
 
 func englishSyllables(w []rune) []string {
+	// A contraction's tail ("'s", "'ll", "n't") is sung with the word.
+	if i := strings.LastIndexAny(string(w), "'’"); i > 0 {
+		head := []rune(string(w)[:i])
+		if tail := string(w)[i:]; len([]rune(tail)) <= 3 && len(head) > 1 {
+			parts := englishSyllables(head)
+			parts[len(parts)-1] += tail
+			return parts
+		}
+	}
 	low := []rune(strings.ToLower(string(w)))
 	n := len(low)
 	vowel := func(i int) bool { return isVowelEN(low[i], i, low) }
@@ -308,5 +317,7 @@ func englishSyllables(w []rune) []string {
 		return []string{string(w)}
 	}
 	// "ng", "ck" end a syllable: sing-ing, pick-ing.
-	return cut(w, nuc, englishOnset, func(a, b rune) bool { return (a == 'n' && b == 'g') || (a == 'c' && b == 'k') })
+	return cut(w, nuc, englishOnset, func(a, b rune) bool {
+		return (a == 'n' && b == 'g') || (a == 'c' && b == 'k') || (a == 'g' && b == 'h')
+	})
 }

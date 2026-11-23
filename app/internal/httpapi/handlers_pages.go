@@ -3032,11 +3032,10 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	data["RefHead"] = refHead
 	// The Melody view (melody_sheet.go): offered on a song with lyrics and
-	// a recording a melody can come from; it says itself when it's ready.
-	if data["HasLyrics"] == true {
-		if ok, err := s.store.HasMelodySource(r.Context(), variantID); err == nil && ok {
-			data["HasMelody"] = true
-		}
+	// a recording a melody can come from (it says itself when it's
+	// ready), or on any song whose melody is found.
+	if source, found, err := s.store.HasMelodySource(r.Context(), variantID); err == nil && (found || (source && data["HasLyrics"] == true)) {
+		data["HasMelody"] = true
 	}
 	data["RefTitle"] = refHead.Title
 	s.songOwnershipData(r, data, variantID, variant)

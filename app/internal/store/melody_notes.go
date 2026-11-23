@@ -108,11 +108,17 @@ func (st *Store) GetSongMelody(ctx context.Context, variantID int64, analyzer st
 }
 
 // HasMelodySource is whether a song has a recording a melody can come
-// from (the song page's Melody view is offered then).
-func (st *Store) HasMelodySource(ctx context.Context, variantID int64) (bool, error) {
-	var ok bool
-	err := st.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM song_audio WHERE variant_id = $1 AND category IN ('youtube', 'band'))`, variantID).Scan(&ok)
-	return ok, err
+// from, and whether a melody was found in it (for its vocals part as it
+// is now): the song page offers its Melody view on a song with lyrics and
+// such a recording, or on any song whose melody is found.
+func (st *Store) HasMelodySource(ctx context.Context, variantID int64) (source, found bool, err error) {
+	err = st.db.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM song_audio WHERE variant_id = $1 AND category IN ('youtube', 'band')),
+		       EXISTS (SELECT 1 FROM song_audio a
+		               JOIN song_audio_stems s ON s.song_audio_id = a.id AND s.stem = 'vocals' AND s.source_sha256 = a.sha256
+		               JOIN song_melody_notes mn ON mn.song_audio_id = a.id AND mn.stem_created_at = s.created_at AND mn.ok
+		               WHERE a.variant_id = $1 AND a.category IN ('youtube', 'band'))`, variantID).Scan(&source, &found)
+	return source, found, err
 }
 
 // MelodyLyricShift is an editor's correction of a lyric line's place on

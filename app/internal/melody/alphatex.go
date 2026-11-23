@@ -104,7 +104,7 @@ var durations = map[int]struct {
 
 // lowClef: a voice sung this low is written on the treble clef an octave
 // down (a man's voice), not under a forest of ledger lines.
-const lowClef = 57
+const lowClef = 60
 
 // median MIDI note of the sheet, transposed.
 func (s Score) medianNote() int {

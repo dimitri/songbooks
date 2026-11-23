@@ -9723,6 +9723,8 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 body:has(#sheet[data-render-mode="melody"]) #song-structure-strip { display: none !important; }
 body:has(#sheet[data-render-mode="melody"]) .notes-fab { display: none; }
 .melody-bar { align-items: center; }
+.melody-bar .gp-tool { min-height: 0; min-width: 0; height: 2rem; font: inherit; font-size: 0.82rem; }
+@media (max-width: 600px) { .melody-bar .gp-tool { height: 2.5rem; width: 2.75rem; justify-content: center; padding: 0; } }
 .melody-badge { display: inline-flex; align-items: center; height: 1.6rem; padding: 0 0.6rem; border-radius: 999px; border: 1px dashed var(--accent); color: var(--accent-ink, var(--accent)); background: var(--accent-bg); font-size: 0.78rem; font-weight: 600; cursor: help; }
 .melody-conf { font-size: 0.78rem; color: var(--fg-faint); min-width: 0; }
 .melody-page.is-empty .melody-bar, .melody-page.is-empty .melody-sheet-wrap, .melody-page.is-empty .melody-fix { display: none; }

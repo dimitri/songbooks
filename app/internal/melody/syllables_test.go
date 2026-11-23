@@ -56,6 +56,9 @@ func TestSyllablesEnglish(t *testing.T) {
 		{"yesterday", "ye-ster-day"},
 		{"Hello, my friend!", "Hel-lo, my friend!"},
 		{"little", "litt-le"},
+		{"laughing", "laugh-ing"},
+		{"someone's", "so-meone's"}, // two, as sung (a compound cut by rule)
+		{"don't", "don't"},
 	} {
 		if got := joinSyls(SplitLine(c.in, English)); got != c.want {
 			t.Errorf("%q: %q, want %q", c.in, got, c.want)

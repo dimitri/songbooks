@@ -307,6 +307,12 @@ func TestAlphaTex(t *testing.T) {
 	if !strings.Contains(tex, `\ks (a)`) || !strings.Contains(tex, "D4.4") || !strings.Contains(tex, "F#4") {
 		t.Errorf("transposed:\n%s", tex)
 	}
+	// A man's voice (an octave down): the treble clef an octave lower.
+	s.Transpose = -12
+	s.Key, _ = KeyOf("G", -12, false)
+	if tex, _ = s.AlphaTex(); !strings.Contains(tex, `\ottava (8vb)`) || !strings.Contains(tex, "C3.4") {
+		t.Errorf("low voice:\n%s", tex)
+	}
 	// Bb: flats.
 	k, _ := KeyOf("F", 0, false)
 	if st, alt, oct := k.spell(70); st != "B" || alt != -1 || oct != 4 {
