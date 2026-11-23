@@ -32,7 +32,7 @@ func (st *Store) NextMelodyRange(ctx context.Context, analyzer string) (*MelodyR
 		FROM song_audio_stems s
 		JOIN song_audio a ON a.id = s.song_audio_id AND a.sha256 = s.source_sha256
 		LEFT JOIN song_melody_ranges m ON m.song_audio_id = s.song_audio_id
-		WHERE s.stem = 'vocals'
+		WHERE s.stem = 'vocals' AND a.category <> 'gp' -- a Guitar Pro backing track isn't split (0123)
 		  AND (m.song_audio_id IS NULL OR m.stem_created_at <> s.created_at OR m.stem_sha256 <> s.source_sha256 OR m.analyzer <> $1)
 		ORDER BY s.created_at DESC LIMIT 1`, analyzer).Scan(&j.SongAudioID, &j.StemSHA256, &j.StemAt)
 	if errors.Is(err, pgx.ErrNoRows) {
