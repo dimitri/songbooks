@@ -280,3 +280,7 @@ html.sync-sheet-open { overflow: hidden; }
   .sync-analysis-sum { white-space: normal; flex-basis: 100%; order: 3; }
   .sync-ana-fixes .sync-btn { flex: 1 1 auto; }
 }
+
+/* "From the start" (⏮, Home): the very start of the recording. On a
+   phone, the icon alone. */
+@media (max-width: 560px) { .sync-start span { display: none; } }

@@ -2159,10 +2159,11 @@
           <ul class="sync-history" id="sync-history" hidden></ul>
         </div>
         <div class="sync-wave" id="sync-wave">
-          <canvas class="sync-wave-canvas" id="sync-wave-canvas" tabindex="0" role="img" aria-label="{{t "The recording: drag a section’s marker to move its start (Alt: without snapping); pinch or Ctrl + wheel to zoom, drag or wheel to scroll, click to play from there."}}" title="{{t "Drag a section’s marker to move its start (Alt: without snapping). Pinch or Ctrl + wheel: zoom. Drag or wheel: scroll. Click: play from there."}}"></canvas>
+          <canvas class="sync-wave-canvas" id="sync-wave-canvas" tabindex="0" role="img" aria-label="{{t "The recording: click or tap anywhere to move the playhead there, drag the playhead to scrub, ← → to step it, Home for the very start; drag a section’s marker by its name or its grip to move its start (Alt: without snapping); pinch or Ctrl + wheel to zoom, drag or wheel to scroll."}}" title="{{t "Click: the playhead there. Drag the playhead: scrub. ← →: step it (Shift: 5 s), Home: the very start. Drag a marker by its name or its grip to move its start (Alt: without snapping). Pinch or Ctrl + wheel: zoom. Drag or wheel: scroll."}}"></canvas>
           <canvas class="sync-wave-overview" id="sync-wave-overview" aria-hidden="true"></canvas>
         </div>
         <div class="sync-sheet-transport">
+          <button type="button" class="sync-btn sync-start" id="sync-start" title="{{t "From the very start of the recording (Home)"}}" aria-label="{{t "From the very start of the recording (Home)"}}">{{template "icon-to-start"}}<span>{{t "From the start"}}</span></button>
           <button type="button" class="sync-btn" id="sync-back" aria-label="{{t "back 5 seconds"}}">−5 s</button>
           <button type="button" class="sync-btn sync-play" id="sync-play" aria-label="{{t "play/pause (Space)"}}">{{template "icon-play"}}</button>
           <span class="sync-time" id="sync-time">0:00.0</span>

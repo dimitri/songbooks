@@ -6,10 +6,13 @@
 // syncpoints, Ableton's warp markers (app/reports/sync-ui-review.md).
 //
 // Gestures: trackpad pinch, Ctrl/⌘ + wheel or a phone's two fingers zoom
-// around the pointer; the wheel or a drag scrolls; a click seeks (on a
-// section's band it also picks that section); a marker drags (snapping,
-// Alt to place it freely); the overview strip under it shows the window
-// and moves it. While playing, the view follows the playhead until you
+// around the pointer; the wheel or a drag scrolls; a click or tap
+// anywhere but a marker's handle seeks (on a section's band it also picks
+// that section); the playhead line drags to scrub; a marker drags by its
+// handles only — its name in the top band, its grip at the bottom —
+// (snapping, Alt to place it freely), so a click on its line seeks like
+// anywhere else; the overview strip under it shows the window and moves
+// it. While playing, the view follows the playhead until you
 // scroll or zoom yourself.
 //
 // Canvas, at the screen's pixel ratio; peaks at several resolutions
@@ -350,8 +353,9 @@
     function markerAt(p, touch) {
       const d = o.data();
       const reach = touch ? 18 : 7;
+      // By its handles only: the band at the top, the grip at the bottom.
       const inLane = p.y <= BAND || p.y >= H - GRIP - 4;
-      if (touch && !inLane) return null;
+      if (!inLane) return null;
       let best = null, bd = Infinity;
       for (const s of d.sections) {
         if (s.t === null) continue;
@@ -368,6 +372,12 @@
       const f = d.fixes.find((x) => inBox(x._box, p));
       if (f) return { kind: 'fix', f };
       return null;
+    }
+    // On the playhead line (outside the markers' handles): it drags.
+    function onPlayhead(p, touch) {
+      const now = o.now();
+      if (!(now >= view.start && now <= view.start + view.span)) return false;
+      return Math.abs(M.tToX(now, view, W) - p.x) <= (touch ? 14 : 5);
     }
     function sectionAtX(px) {
       const d = o.data();
@@ -396,6 +406,10 @@
         drag = { kind: 'marker', i: m.i, x0: p.x, moved: false };
         o.dragStart(m.i);
         e.preventDefault();
+      } else if (onPlayhead(p, e.pointerType !== 'mouse')) {
+        drag = { kind: 'scrub' };
+        following = false;
+        cv.style.cursor = 'col-resize';
       } else {
         drag = { kind: 'pan', x0: p.x, y0: p.y, start0: view.start, moved: false, pick: pickAt(p) };
       }
@@ -408,7 +422,7 @@
         if (e.pointerType === 'mouse') {
           const m = markerAt(p, false);
           const pk = !m && pickAt(p);
-          cv.style.cursor = m ? 'ew-resize' : pk ? 'pointer' : 'grab';
+          cv.style.cursor = m ? 'ew-resize' : pk ? 'pointer' : onPlayhead(p, false) ? 'col-resize' : 'grab';
           if ((m && m.i) !== (hover && hover.i)) { hover = m; invalidate(); }
         }
         return;
@@ -426,6 +440,11 @@
         drag.free = e.altKey;
         o.dragMove(drag.i, M.xToT(Math.max(0, Math.min(W, p.x)), view, W), { free: e.altKey, pxPerSec: pxPerSec() });
         edgeScroll();
+        invalidate();
+        return;
+      }
+      if (drag.kind === 'scrub') {
+        o.seek(Math.max(0, Math.min(dur(), M.xToT(Math.max(0, Math.min(W, p.x)), view, W))));
         invalidate();
         return;
       }

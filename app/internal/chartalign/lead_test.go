@@ -37,3 +37,30 @@ func TestAlignLeadStartsTheRecording(t *testing.T) {
 		}
 	}
 }
+
+// The recording's bar 1 is the first downbeat of a regular, sure run of
+// beats: a tracker's beats over talk or a room before the music (uneven,
+// unsure) aren't it.
+func TestFirstMusicDownbeat(t *testing.T) {
+	var beats []float64
+	var pos []int
+	var act []float64
+	// Talk: uneven "beats", some sure enough, some called downbeats.
+	for i, b := range []float64{0.5, 1.3, 1.6, 2.9, 3.3, 4.1} {
+		beats, pos, act = append(beats, b), append(pos, 1+i%2*2), append(act, 0.4)
+	}
+	// The band from 5 s: a beat every 0.6 s, a downbeat every four.
+	music := len(beats)
+	for k := 0; k < 40; k++ {
+		beats, pos, act = append(beats, 5+0.6*float64(k)), append(pos, 1+k%4), append(act, 0.9)
+	}
+	g := grid{beats: beats, pos: pos, act: act, B: 4}
+	if got := firstMusicDownbeat(&Recording{}, g, len(beats)-1); got != music {
+		t.Errorf("bar 1 at beat %d (%.2f s), want %d (5 s)", got, beats[max(0, got)], music)
+	}
+	// No regular run anywhere (rubato): the first sure downbeat still.
+	g2 := grid{beats: beats[:music], pos: pos[:music], act: act[:music], B: 4}
+	if got := firstMusicDownbeat(&Recording{}, g2, music-1); got != 0 {
+		t.Errorf("rubato: bar 1 at beat %d, want 0", got)
+	}
+}
