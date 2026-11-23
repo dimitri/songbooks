@@ -182,9 +182,9 @@ func line(key, text string) Line {
 
 func TestAlignLinesEqualCounts(t *testing.T) {
 	var notes []audioanalysis.SungNote
-	notes = append(notes, phraseNotes(0, 6)...)  // "Sing a little song to me" 6 syllables (sing a litt le song to me: 7)
-	notes = append(notes, phraseNotes(4, 5)...)  // 5
-	notes = append(notes, phraseNotes(8, 7)...)  // 7
+	notes = append(notes, phraseNotes(0, 6)...) // "Sing a little song to me" 6 syllables (sing a litt le song to me: 7)
+	notes = append(notes, phraseNotes(4, 5)...) // 5
+	notes = append(notes, phraseNotes(8, 7)...) // 7
 	lines := []Line{line("0:0", "walking in the rain"), line("0:1", "under the sky"), line("0:2", "nobody knows my name")}
 	sp := spans(notes)
 	ph := PhrasesFromNotes(sp, 0.35)

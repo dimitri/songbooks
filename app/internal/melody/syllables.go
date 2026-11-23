@@ -150,7 +150,9 @@ func Syllables(word string, lang Lang, next string) []string {
 	return parts
 }
 
-func isVowelFR(r rune) bool { return strings.ContainsRune("aeiouyàâäéèêëîïôöùûüÿœæ", unicode.ToLower(r)) }
+func isVowelFR(r rune) bool {
+	return strings.ContainsRune("aeiouyàâäéèêëîïôöùûüÿœæ", unicode.ToLower(r))
+}
 func isVowelEN(r rune, i int, w []rune) bool {
 	l := unicode.ToLower(r)
 	if strings.ContainsRune("aeiouéèêëïöü", l) {

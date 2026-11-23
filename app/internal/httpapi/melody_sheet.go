@@ -105,9 +105,9 @@ type melodyResponse struct {
 	Category string `json:"category,omitempty"`
 	AlphaTex string `json:"alphaTex,omitempty"`
 	// Bars: the played bar of each of the score's bars.
-	Bars  []int            `json:"bars,omitempty"`
+	Bars  []int             `json:"bars,omitempty"`
 	Marks []melody.BeatMark `json:"marks,omitempty"`
-	Lines []melodyLine     `json:"lines,omitempty"`
+	Lines []melodyLine      `json:"lines,omitempty"`
 	// SyncSource: "points", "markers" or "analysis" (estimated from the
 	// recording's beats, nothing saved); SyncEstimated: a program placed
 	// it and nobody checked it.
