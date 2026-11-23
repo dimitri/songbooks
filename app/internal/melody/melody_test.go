@@ -167,100 +167,252 @@ func spans(notes []audioanalysis.SungNote) []Span {
 	return out
 }
 
-// phraseNotes makes count notes from t, 0.3 s each.
-func phraseNotes(t float64, count int) []audioanalysis.SungNote {
-	var out []audioanalysis.SungNote
-	for k := range count {
-		out = append(out, audioanalysis.SungNote{Start: t + 0.3*float64(k), End: t + 0.3*float64(k) + 0.28, Pitch: 64, Conf: 0.9})
+// At 120 bpm in 4/4: an eighth is 0.25 s, a bar 2 s.
+var opts = PlaceOptions{Eighth: func(float64) float64 { return 0.25 }, Bar: func(float64) float64 { return 2 }}
+
+// sung: notes at the times given, each until the next (less a breath of
+// 0.05 s), the last 0.45 s; a -1 ends a phrase (a rest).
+func sung(times ...float64) []Span {
+	var out []Span
+	for i, t := range times {
+		if t < 0 {
+			continue
+		}
+		end := t + 0.45
+		if i+1 < len(times) && times[i+1] >= 0 {
+			end = times[i+1] - 0.05
+		}
+		out = append(out, Span{t, end})
 	}
 	return out
 }
 
 func line(key, text string) Line {
-	return Line{Key: key, Text: text, Syls: SplitLine(text, English), From: math.NaN(), To: math.NaN()}
+	return Line{Key: key, Text: text, Syls: SplitLine(text, English), Start: math.NaN()}
 }
 
-func TestAlignLinesEqualCounts(t *testing.T) {
-	var notes []audioanalysis.SungNote
-	notes = append(notes, phraseNotes(0, 6)...) // "Sing a little song to me" 6 syllables (sing a litt le song to me: 7)
-	notes = append(notes, phraseNotes(4, 5)...) // 5
-	notes = append(notes, phraseNotes(8, 7)...) // 7
-	lines := []Line{line("0:0", "walking in the rain"), line("0:1", "under the sky"), line("0:2", "nobody knows my name")}
-	sp := spans(notes)
-	ph := PhrasesFromNotes(sp, 0.35)
-	if len(ph) != 3 {
-		t.Fatalf("%d phrases", len(ph))
+// chorded is a line with its chords: "When the [G]night has come".
+func chorded(key, text string) (Line, []ChordMark) {
+	var segs []Segment
+	for i, part := range strings.Split(text, "[") {
+		if i == 0 {
+			segs = append(segs, Segment{Text: part})
+			continue
+		}
+		c, t, _ := strings.Cut(part, "]")
+		segs = append(segs, Segment{Chord: c, Text: t})
 	}
-	fits, lyr := AlignLines(lines, ph, sp, nil)
-	for i, f := range fits {
-		if !f.Matched || f.First != ph[i].First {
-			t.Errorf("line %d: %+v, want phrase %d", i, f, i)
+	marks, t := MarksOf(segs, English)
+	return Line{Key: key, Text: t, Syls: SplitLine(t, English), Start: math.NaN()}, marks
+}
+
+func grid(chords ...string) [][]string {
+	out := make([][]string, len(chords))
+	for i, c := range chords {
+		out[i] = []string{c, c, c, c}
+	}
+	return out
+}
+
+func lyricAt(lyr []NoteLyric, n int) string {
+	if lyr[n].Hold {
+		return "_"
+	}
+	if len(lyr[n].Syls) == 0 {
+		return ""
+	}
+	return sylToken(lyr[n].Syls)
+}
+
+func TestMarksOf(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want string
+	}{
+		{"When the [G]night has [Em]come", "2:G 4:Em"},
+		{"[C]Oh dar[Em]ling", "0:C 2:Em"},
+		{"[D]I lo[G]ve you", "0:D 1:G"},
+		{"[A]la la [A]la", "0:A 2:A"},
+	} {
+		_, marks := chorded("0:0", c.in)
+		var got []string
+		for _, m := range marks {
+			got = append(got, fmt.Sprintf("%d:%s", m.Syl, m.Chord))
+		}
+		if strings.Join(got, " ") != c.want {
+			t.Errorf("%q: %v, want %s", c.in, got, c.want)
 		}
 	}
-	// "wal-king in the rain" (5) on 6 notes: the last note holds "rain".
-	if lyr[0].Syls[0].Text != "wal" || !lyr[5].Hold || lyr[4].Syls[0].Text != "rain" {
-		t.Errorf("spread: %+v", lyr[:6])
+}
+
+func TestAnchorLines(t *testing.T) {
+	l0, m0 := chorded("0:0", "[G]walking in the [Em]rain")
+	l1, m1 := chorded("0:1", "[C]under the [D]sky, [G]oh")
+	as := AnchorLines(grid("G", "G", "Em", "Em", "C", "D", "G", "G"), [][]ChordMark{m0, m1}, []int{len(l0.Syls), len(l1.Syls)}, nil)
+	if fmt.Sprint(as) != "[[{0 0} {4 2}] [{0 4} {3 5} {4 6}]]" {
+		t.Errorf("anchors %v", as)
+	}
+	// One chord all along: the syllables' share decides which bar.
+	l0, m0 = chorded("0:0", "[G]one two three four")
+	l1, m1 = chorded("0:1", "[G]five six seven eight")
+	as = AnchorLines(grid("G", "G", "G", "G"), [][]ChordMark{m0, m1}, []int{len(l0.Syls), len(l1.Syls)}, nil)
+	if fmt.Sprint(as) != "[[{0 0}] [{0 2}]]" {
+		t.Errorf("one chord: %v", as)
+	}
+	// A repeat played twice (the grid as played): the second pass's line
+	// on the second pass's bars; a chord the grid doesn't play: unplaced.
+	l0, m0 = chorded("0:0", "[Am]first time round")
+	l1, m1 = chorded("0:1", "[Am]second time [B7]round")
+	as = AnchorLines(grid("Am", "F", "Am", "F"), [][]ChordMark{m0, m1}, []int{len(l0.Syls), len(l1.Syls)}, nil)
+	if fmt.Sprint(as) != "[[{0 0}] [{0 2}]]" {
+		t.Errorf("repeat: %v", as)
 	}
 }
 
-func TestAlignLinesExtraPhrase(t *testing.T) {
-	// An ad-lib (two notes) between two lines: left out.
-	var notes []audioanalysis.SungNote
-	notes = append(notes, phraseNotes(0, 5)...)
-	notes = append(notes, phraseNotes(3, 2)...)
-	notes = append(notes, phraseNotes(6, 6)...)
-	lines := []Line{line("0:0", "hold me now darling"), line("0:1", "never let me go away")}
-	sp := spans(notes)
-	fits, _ := AlignLines(lines, PhrasesFromNotes(sp, 0.35), sp, nil)
-	if fits[0].First != 0 || fits[1].First != 7 {
+// TestAnchorLinesBySinging: a chord that comes round every other bar
+// (Am F Am F …) and two lines starting on Am: the syllables' share alone
+// would put the second line a pass late; the notes sung (as many as its
+// syllables from bar 4, nothing in bars 2–3) put it on bar 4.
+func TestAnchorLinesBySinging(t *testing.T) {
+	l0, m0 := chorded("0:0", "When the [Am]night has come and the land is dark and I")
+	l1, m1 := chorded("0:1", "[Am]see")
+	bars := grid("Am", "F", "Am", "F", "Am", "F", "Am", "F")
+	syls := []int{len(l0.Syls), len(l1.Syls)}
+	// Line 1: a pickup of 2 before bar 0, 11 more in bars 0–1; line 2's one
+	// syllable on bar 4 and held.
+	onsets := []float64{-0.25, -0.125}
+	for k := range 11 {
+		onsets = append(onsets, float64(k)*0.125)
+	}
+	onsets = append(onsets, 4)
+	notes := func(a, b float64) int {
+		n := 0
+		for _, o := range onsets {
+			if o >= a-1.0/16 && o < b-1.0/16 {
+				n++
+			}
+		}
+		return n
+	}
+	if as := AnchorLines(bars, [][]ChordMark{m0, m1}, syls, nil); fmt.Sprint(as) == "[[{2 0}] [{0 4}]]" {
+		t.Logf("the share alone found it too: %v", as)
+	}
+	if as := AnchorLines(bars, [][]ChordMark{m0, m1}, syls, notes); fmt.Sprint(as) != "[[{2 0}] [{0 4}]]" {
+		t.Errorf("by the notes: %v", as)
+	}
+}
+
+// TestPlaceLinesPickupDoesNotDrift is the "line 2 drifts a bar" report:
+// line 1 ends on a held note and a melisma, line 2 starts with a pickup
+// ("and the") sung just before its bar with no rest between: line 2's
+// chord syllable stays on its bar, the pickup on the notes before it,
+// line 1's melisma doesn't push it on.
+func TestPlaceLinesPickupDoesNotDrift(t *testing.T) {
+	l0, m0 := chorded("0:0", "When the [G]night has come")
+	l1, m1 := chorded("0:1", "and the [Em]land is dark")
+	// Bars of 2 s from 2 s: line 1's G on bar 1 (4 s), line 2's Em on bar 3 (8 s).
+	l0.Anchors = []Anchor{{m0[0].Syl, 4}}
+	l1.Anchors = []Anchor{{m1[0].Syl, 8}}
+	l0.Start, l1.Start = 3, 7
+	//               When the  night has come (held) melisma  and  the  land is  dark
+	notes := sung(3, 3.5, 4, 4.5, 5, 6.5, 7, 7.5, 8, 8.5, 9)
+	fits, lyr := PlaceLines([]Line{l0, l1}, notes, opts, nil)
+	var got []string
+	for i := range notes {
+		got = append(got, lyricAt(lyr, i))
+	}
+	if strings.Join(got, " ") != "When the night has come _ and the land is dark" {
+		t.Fatalf("lyrics: %q", strings.Join(got, " "))
+	}
+	if fits[1].First != 6 || fits[1].AnchorNote != 8 || fits[0].Last != 5 {
+		t.Errorf("fits %+v", fits)
+	}
+}
+
+// TestPlaceLinesShiftedOnsets: the singer pushes the chords' syllables
+// an eighth early and drags others: each still lands on its own.
+func TestPlaceLinesShiftedOnsets(t *testing.T) {
+	l0, m0 := chorded("0:0", "[G]walking in the [Em]rain")
+	l1, m1 := chorded("0:1", "[C]under the [D]sky")
+	l0.Anchors = []Anchor{{m0[0].Syl, 2}, {m0[1].Syl, 6}}
+	l1.Anchors = []Anchor{{m1[0].Syl, 10}, {m1[1].Syl, 12}}
+	//              wal   king in   the  rain        un    der  the  sky
+	notes := sung(1.8, 2.6, 3.3, 4.1, 5.8, -1, 9.78, 10.6, 11.2, 12.1)
+	_, lyr := PlaceLines([]Line{l0, l1}, notes, opts, nil)
+	var got []string
+	for i := range notes {
+		got = append(got, lyricAt(lyr, i))
+	}
+	if strings.Join(got, " ") != "wal- king in the rain un- der the sky" {
+		t.Fatalf("lyrics: %q", strings.Join(got, " "))
+	}
+}
+
+func TestPlaceLinesWeakAndAdLib(t *testing.T) {
+	// No chords: each line where its section's share puts it; an ad-lib
+	// between them is left out.
+	l0, l1 := line("0:0", "hold me now darling"), line("0:1", "never let me go")
+	l0.Start, l1.Start = 2, 6
+	notes := sung(2, 2.5, 3, 3.5, 4, -1, 4.9, 5.2, -1, 6.1, 6.5, 7, 7.5, 8)
+	fits, lyr := PlaceLines([]Line{l0, l1}, notes, opts, nil)
+	if fits[0].First != 0 || fits[0].Last != 4 || fits[1].First != 7 || lyr[5].Line != -1 || lyr[6].Line != -1 {
 		t.Fatalf("fits %+v", fits)
 	}
-}
-
-func TestAlignLinesMissingPhrase(t *testing.T) {
-	// Three lines, two phrases: the middle line, whose section the sync
-	// puts where no phrase is, finds none.
-	var notes []audioanalysis.SungNote
-	notes = append(notes, phraseNotes(0, 5)...)
-	notes = append(notes, phraseNotes(10, 5)...)
-	lines := []Line{line("0:0", "one two three four five"), line("1:0", "six seven eight nine"), line("2:0", "ten eleven twelve")}
-	lines[0].From, lines[0].To = 0, 4
-	lines[1].From, lines[1].To = 4, 9
-	lines[2].From, lines[2].To = 9, 14
-	sp := spans(notes)
-	fits, _ := AlignLines(lines, PhrasesFromNotes(sp, 0.35), sp, nil)
-	if !fits[0].Matched || fits[1].Matched || !fits[2].Matched || fits[2].First != 5 {
-		t.Fatalf("fits %+v", fits)
+	if fits[0].Anchored || fits[0].Conf >= 0.7 {
+		t.Errorf("a line placed by its share is less sure: %+v", fits[0])
 	}
 }
 
-func TestAlignLinesShift(t *testing.T) {
-	notes := phraseNotes(0, 6)
-	sp := spans(notes)
-	lines := []Line{line("0:0", "la la la")}
-	fits, lyr := AlignLines(lines, PhrasesFromNotes(sp, 0.35), sp, map[string]int{"0:0": 2})
-	if fits[0].First != 2 || fits[0].Shift != 2 || len(lyr[0].Syls) != 0 || lyr[2].Syls[0].Text != "la" {
+func TestPlaceLinesMissingAndStrict(t *testing.T) {
+	l0, m0 := chorded("0:0", "[G]one two three")
+	l1, m1 := chorded("0:1", "[C]four five six")
+	l0.Anchors = []Anchor{{m0[0].Syl, 2}}
+	l1.Anchors = []Anchor{{m1[0].Syl, 10}}
+	l0.Start, l1.Start = 2, 10
+	// Line 2's notes come 0.8 s after its chord (a held note before it).
+	notes := sung(2, 2.5, 3, -1, 10.8, 11.3, 11.8)
+	fits, _ := PlaceLines([]Line{l0, l1}, notes, opts, nil)
+	if !fits[1].Matched || fits[1].First != 3 {
+		t.Fatalf("late but within half a bar: %+v", fits[1])
+	}
+	strict := opts
+	strict.Strict = true
+	fits, _ = PlaceLines([]Line{l0, l1}, notes, strict, nil)
+	if fits[1].Anchored || fits[1].Conf > fits[0].Conf {
+		t.Errorf("strict: %+v", fits[1])
+	}
+	// Nothing sung near a line: it finds nothing.
+	fits, _ = PlaceLines([]Line{l0, l1}, sung(2, 2.5, 3), opts, nil)
+	if fits[1].Matched {
+		t.Errorf("an unsung line placed: %+v", fits[1])
+	}
+}
+
+func TestPlaceLinesShiftAndJoin(t *testing.T) {
+	l := line("0:0", "la la la")
+	l.Start = 0
+	notes := sung(0, 0.5, 1, 1.5, 2, 2.5)
+	fits, lyr := PlaceLines([]Line{l}, notes, opts, map[string]int{"0:0": 2})
+	if fits[0].First != 2 || fits[0].Shift != 2 || lyr[0].Line != -1 || lyricAt(lyr, 2) != "la" {
 		t.Fatalf("shift: %+v %+v", fits[0], lyr[:3])
 	}
-}
-
-func TestAlignMoreSyllablesThanNotes(t *testing.T) {
-	notes := phraseNotes(0, 3)
-	sp := spans(notes)
-	_, lyr := AlignLines([]Line{line("0:0", "hello beautiful")}, PhrasesFromNotes(sp, 0.35), sp, nil)
-	if len(lyr[2].Syls) != 3 { // hel / lo / beau+ti+ful
-		t.Fatalf("last note: %+v", lyr[2])
-	}
-	if tok := sylToken(lyr[2].Syls); tok != "beautiful" {
-		t.Errorf("token %q", tok)
+	l = line("0:0", "hello beautiful")
+	l.Start = 0
+	_, lyr = PlaceLines([]Line{l}, sung(0, 0.5, 1), opts, nil)
+	if tok := lyricAt(lyr, 2); tok != "beautiful" { // hel / lo / beau+ti+ful
+		t.Errorf("last note %q", tok)
 	}
 }
 
-func TestPhrasesFromSpans(t *testing.T) {
-	notes := []Span{{0, 0.3}, {0.3, 0.6}, {2, 2.3}, {2.3, 2.6}, {5, 5.2}}
-	ph := PhrasesFromSpans(notes, [][2]float64{{0, 1}, {1.9, 3}})
-	if len(ph) != 3 || ph[0] != (Phrase{0, 1}) || ph[1] != (Phrase{2, 3}) || ph[2] != (Phrase{4, 4}) {
-		t.Fatalf("phrases %+v", ph)
+func TestInterpolate(t *testing.T) {
+	nan := math.NaN()
+	got := Interpolate([]float64{nan, 10, nan, nan, 20}, []int{4, 5, 5, 5, 4}, 0, 30)
+	if fmt.Sprint(got) != "[0 10 13.333333333333334 16.666666666666668 20]" {
+		t.Errorf("interpolated %v", got)
+	}
+	got = Interpolate([]float64{nan, nan}, []int{3, 3}, 4, 12)
+	if fmt.Sprint(got) != "[4 8]" {
+		t.Errorf("a section without anchors: %v", got)
 	}
 }
 
@@ -277,8 +429,9 @@ func sampleScore() Score {
 	for i, p := range sh.Notes {
 		sp[i] = Span{notes[p.Src].Start, notes[p.Src].End}
 	}
-	lines := []Line{line("0:0", "hello my dear friend, a song")}
-	fits, lyr := AlignLines(lines, PhrasesFromNotes(sp, 0.35), sp, nil)
+	l := line("0:0", "hello my dear friend, a song")
+	l.Start = 0
+	fits, lyr := PlaceLines([]Line{l}, sp, opts, nil)
 	low := map[int]bool{}
 	for i, f := range fits {
 		if f.Conf < LowLineConf {
@@ -364,5 +517,21 @@ func TestMusicXML(t *testing.T) {
 		if !strings.Contains(x, want) {
 			t.Errorf("no %q in MusicXML", want)
 		}
+	}
+}
+
+// TestPlaceLinesWeakLineLeavesThePickup: a line placed by its share (an
+// unsung line of the section before) never takes the notes an anchored
+// line claims, its pickup included.
+func TestPlaceLinesWeakLineLeavesThePickup(t *testing.T) {
+	l0 := line("0:3", "that I never talk about")
+	l0.Start = 3.2
+	l1, m1 := chorded("1:0", "On the [Am]night bus")
+	l1.Anchors = []Anchor{{m1[0].Syl, 4}}
+	l1.Start = 3.5
+	notes := sung(3, 3.5, 4, 4.5)
+	fits, lyr := PlaceLines([]Line{l0, l1}, notes, opts, nil)
+	if fits[0].Matched || lyricAt(lyr, 0) != "On" || lyricAt(lyr, 2) != "night" {
+		t.Fatalf("fits %+v, lyrics %q %q", fits, lyricAt(lyr, 0), lyricAt(lyr, 2))
 	}
 }

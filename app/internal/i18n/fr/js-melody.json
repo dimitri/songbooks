@@ -12,5 +12,6 @@
   "a note earlier": "une note plus tôt",
   "a note later": "une note plus tard",
   "melody": "mélodie",
-  "Could not load the melody.": "Impossible de charger la mélodie."
+  "Could not load the melody.": "Impossible de charger la mélodie.",
+  "placement depends on the sync — save the sync for better results": "le placement dépend de la synchro — enregistrez la synchro pour un meilleur résultat"
 }

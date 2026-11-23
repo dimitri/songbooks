@@ -158,3 +158,14 @@ func TestMelodyNotesOfSungLine(t *testing.T) {
 		t.Fatalf("notes %v, want %v", got, line)
 	}
 }
+
+func TestDropOutliers(t *testing.T) {
+	var ns []SungNote
+	for i := range 10 {
+		ns = append(ns, SungNote{Start: float64(i), End: float64(i) + 0.5, Pitch: 60 + float64(i%5), Conf: 1})
+	}
+	ns = append(ns, SungNote{Start: 11, End: 11.2, Pitch: 38, Conf: 1})
+	if got := dropOutliers(ns); len(got) != 10 {
+		t.Fatalf("%d notes kept, want 10 (the one two octaves down gone)", len(got))
+	}
+}
