@@ -46,8 +46,20 @@
         && (!who || (who === 'none' ? ws.length === 0 : ws.includes(who)));
       row.hidden = !ok;
       shown += ok ? 1 : 0;
+      voiceFor(row, who);
     });
     if (none) none.hidden = shown > 0;
+  }
+  // Filtered on a student: the row's melody at their key, and how it sits
+  // in their voice (the chip's, row_voice.go); else the song's own.
+  function voiceFor(row, who) {
+    const box = row.querySelector('.cbk-voice');
+    if (!box) return;
+    if (!('orig' in box.dataset)) box.dataset.orig = box.innerHTML;
+    const m = /^s:(\d+)$/.exec(who);
+    const chip = m && row.querySelector(`.cbk-chip[data-kind="student"][data-person="${m[1]}"]`);
+    const tpl = chip && chip.querySelector('template.cbk-chip-voice');
+    box.innerHTML = tpl ? tpl.innerHTML : box.dataset.orig;
   }
   search?.addEventListener('input', apply);
   filter?.addEventListener('change', apply);
@@ -257,7 +269,7 @@
       if (rout) rout.textContent = keyText(row.dataset.key, n);
       window.VoiceStrip?.key(rstrip, n);
     };
-    window.VoiceStrip?.show(rstrip, { variant: Number(row.dataset.variant), community, person: Number(row.dataset.person), coach: true, semitones: 0 });
+    window.VoiceStrip?.show(rstrip, { variant: Number(row.dataset.variant), community, person: Number(row.dataset.person), coach: true, semitones: Number(row.dataset.semitones) || 0 });
     row.querySelector('.coach-key-down')?.addEventListener('click', () => move(-1));
     row.querySelector('.coach-key-up')?.addEventListener('click', () => move(1));
     const gone = () => {
@@ -279,11 +291,27 @@
         .then(() => { gone(); window.SongbooksUnread?.refresh(); setTimeout(() => location.reload(), 300); })
         .catch((err) => { e.target.disabled = false; alert(err.message || t('Couldn’t add it.')); });
     });
-    row.querySelector('.cbook-request-decline').addEventListener('click', (e) => {
-      e.target.disabled = true;
-      send(`${api}/song-requests/${row.dataset.request}/decline`, 'POST')
+    // A proposal declined: a word for the student first (optional).
+    const reply = row.querySelector('.cbook-request-reply');
+    const decline = (btn, body) => {
+      btn.disabled = true;
+      send(`${api}/song-requests/${row.dataset.request}/decline`, 'POST', body)
         .then(() => { gone(); window.SongbooksUnread?.refresh(); })
-        .catch((err) => { e.target.disabled = false; alert(err.message || t('Couldn’t save.')); });
+        .catch((err) => { btn.disabled = false; alert(err.message || t('Couldn’t save.')); });
+    };
+    row.querySelector('.cbook-request-decline').addEventListener('click', (e) => {
+      if (!reply) { decline(e.target, undefined); return; }
+      reply.hidden = false;
+      row.querySelector('.cbook-request-actions').hidden = true;
+      reply.querySelector('textarea').focus();
+    });
+    reply?.querySelector('.cbook-request-reply-cancel').addEventListener('click', () => {
+      reply.hidden = true;
+      row.querySelector('.cbook-request-actions').hidden = false;
+    });
+    reply?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      decline(reply.querySelector('.cbook-request-decline-send'), { reply: reply.querySelector('textarea').value.trim() });
     });
   });
   page.querySelector('.cbook-request.is-open')?.scrollIntoView({ block: 'center' });

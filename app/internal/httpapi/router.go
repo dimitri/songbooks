@@ -509,6 +509,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/communities/{id}/song-requests", s.requireCommunityMember(s.handlePostSongRequest))
 	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/add", s.requireCommunityMember(s.handlePostSongRequestAdd))
 	mux.HandleFunc("POST /api/communities/{id}/song-requests/{requestID}/decline", s.requireCommunityMember(s.handlePostSongRequestDecline))
+	// A student proposes a song of their own to the coach (coach_proposals.go);
+	// the coach answers it with the requests' add / decline above.
+	mux.HandleFunc("GET /api/communities/{id}/song-proposals/songs", s.requireCommunityMember(s.handleGetProposableSongs))
+	mux.HandleFunc("POST /api/communities/{id}/song-proposals", s.requireCommunityMember(s.handlePostSongProposal))
 	mux.HandleFunc("GET /api/songs/{id}/coach-keys", s.requireAuth(s.handleGetCoachKeys))
 	// A student's range with the song's melody over it, where a key is chosen (voice_strip.go).
 	mux.HandleFunc("GET /api/songs/{id}/voice-strip", s.requireAuth(s.handleGetVoiceStrip))

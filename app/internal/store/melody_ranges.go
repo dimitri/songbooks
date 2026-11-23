@@ -79,3 +79,77 @@ func (st *Store) SongMelodyRange(ctx context.Context, variantID int64) (low, hig
 	}
 	return low, high, err == nil, err
 }
+
+// MelodyRange is a song's melody, lowest to highest, MIDI notes.
+type MelodyRange struct {
+	Low, High int
+}
+
+// SongMelodyRanges is SongMelodyRange for many songs at once (a
+// songbook's rows): the songs whose range is known, by song.
+func (st *Store) SongMelodyRanges(ctx context.Context, variantIDs []int64) (map[int64]MelodyRange, error) {
+	out := map[int64]MelodyRange{}
+	if len(variantIDs) == 0 {
+		return out, nil
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT DISTINCT ON (a.variant_id) a.variant_id, m.low_midi, m.high_midi
+		FROM song_audio a
+		JOIN song_audio_stems s ON s.song_audio_id = a.id AND s.stem = 'vocals' AND s.source_sha256 = a.sha256
+		JOIN song_melody_ranges m ON m.song_audio_id = a.id AND m.stem_created_at = s.created_at AND m.ok
+		WHERE a.variant_id = ANY($1)
+		ORDER BY a.variant_id, CASE a.category WHEN 'youtube' THEN 0 WHEN 'band' THEN 1 ELSE 2 END`, variantIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var m MelodyRange
+		if err := rows.Scan(&id, &m.Low, &m.High); err != nil {
+			return nil, err
+		}
+		out[id] = m
+	}
+	return out, rows.Err()
+}
+
+// VoiceZone is a student's voice as a songbook row weighs a song's melody
+// against it: their comfortable zone (tessitura) when the coach noted it,
+// else their whole range, lowest to highest noted; MIDI notes.
+type VoiceZone struct {
+	Low, High int
+	Comfort   bool // the comfortable zone, not the whole range
+}
+
+// StudentVoiceZone is personID's voice in coaching community communityID,
+// or, communityID 0, in the first coaching community they're a current
+// student of that has it noted; nil when none is.
+func (st *Store) StudentVoiceZone(ctx context.Context, personID, communityID int64) (*VoiceZone, error) {
+	var tLow, tHigh, rLow, rHigh *int
+	err := st.db.QueryRow(ctx, `
+		SELECT p.tessitura_low_midi, p.tessitura_high_midi,
+		       (SELECT min(low_midi) FROM student_voice_ranges r WHERE r.community_id = c.id AND r.person_id = $1),
+		       (SELECT max(high_midi) FROM student_voice_ranges r WHERE r.community_id = c.id AND r.person_id = $1)
+		FROM communities c
+		JOIN community_members cm ON cm.community_id = c.id AND cm.person_id = $1 AND upper_inf(cm.validity)
+		LEFT JOIN student_voice_profiles p ON p.community_id = c.id AND p.person_id = $1
+		WHERE c.kind = 'coaching' AND ($2 = 0 OR c.id = $2)
+		  AND ((p.tessitura_low_midi IS NOT NULL AND p.tessitura_high_midi IS NOT NULL)
+		       OR EXISTS (SELECT 1 FROM student_voice_ranges r WHERE r.community_id = c.id AND r.person_id = $1
+		                  AND r.low_midi IS NOT NULL AND r.high_midi IS NOT NULL))
+		ORDER BY c.id LIMIT 1`, personID, communityID).Scan(&tLow, &tHigh, &rLow, &rHigh)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if tLow != nil && tHigh != nil && *tLow <= *tHigh {
+		return &VoiceZone{Low: *tLow, High: *tHigh, Comfort: true}, nil
+	}
+	if rLow != nil && rHigh != nil && *rLow <= *rHigh {
+		return &VoiceZone{Low: *rLow, High: *rHigh}, nil
+	}
+	return nil, nil
+}

@@ -60,6 +60,11 @@ type SongRights struct {
 	// gave it to them): they edit it in place, as the coach does — not
 	// another student's song, not the repertoire's others.
 	AssignedStudent bool
+	// ViaProposal: the person sees the song only because a student
+	// proposed it to a coaching community they coach, and the proposal
+	// waits (coaching_proposals.go): open it, play it, nothing else — no
+	// link, no arrangement, no edit.
+	ViaProposal bool
 
 	See     bool // open it, play it, export it, download its files
 	Edit    bool // change it in place
@@ -75,7 +80,7 @@ type SongRights struct {
 // link (§4): a band or a community links public songs and its own; a
 // person, anything they see. A closed songbook's song goes nowhere else.
 func (r *SongRights) CanLinkFrom(o Owner) bool {
-	if r == nil || !r.See {
+	if r == nil || !r.See || r.ViaProposal {
 		return false
 	}
 	if r.Owner == o {
@@ -92,7 +97,7 @@ func (r *SongRights) CanLinkFrom(o Owner) bool {
 // its owner's own, outside that songbook (New version from this is for
 // whoever edits it).
 func (r *SongRights) CanVersionFor(o Owner) bool {
-	if r == nil || !r.See {
+	if r == nil || !r.See || r.ViaProposal {
 		return false
 	}
 	if r.Owner == o {
@@ -186,6 +191,12 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	}
 	if r.Closed {
 		r.Publish = false
+	}
+	// A student's song proposed to their coach, while it waits.
+	if !r.See && !r.Closed {
+		if err := proposalSongRights(ctx, q, r, personID); err != nil {
+			return nil, err
+		}
 	}
 	// The catalogue: open edits (catalogue_edits.go).
 	if r.Catalogue {

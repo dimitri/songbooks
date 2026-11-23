@@ -108,8 +108,19 @@ func (s *Server) handleGetVoiceStrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ok, err := s.store.CommunityHasSong(ctx, community.ID, variantID); err != nil || !ok {
-		http.NotFound(w, r)
-		return
+		// A song a student proposes (coach_proposals.go): their own
+		// strip over any song they see, while they pick its key; the
+		// coach's, over a song they proposed, while it waits.
+		mine := studentID == v.PersonID && !v.Coach
+		if mine {
+			mine, _ = s.store.CanViewVariant(ctx, studentID, variantID)
+		}
+		if !mine {
+			if q, err := s.store.WaitingProposal(ctx, community.ID, studentID, variantID); err != nil || q == nil {
+				http.NotFound(w, r)
+				return
+			}
+		}
 	}
 	lang := s.langOfRequest(r)
 	out := voiceStrip{Registers: []stripBar{}}

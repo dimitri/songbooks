@@ -121,6 +121,9 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		// keys a row's control offers, for whoever can change the songbook.
 		Semitones int
 		Keys      []keyOption
+		// Voice: the song's melody at this key, and how it sits in the
+		// student's voice (row_voice.go).
+		Voice rowVoice
 	}
 	canKey := false
 	canEdit, _ := s.store.CanEditSongbook(r.Context(), p.ID, id)
@@ -169,6 +172,8 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	ranges := s.melodyRanges(r.Context(), allIDs)
+	zone := s.songbookVoiceZone(r.Context(), p.ID, sb)
 	var out []songbookGroup
 	for _, g := range groups {
 		sg := songbookGroup{Label: g.Label}
@@ -193,6 +198,8 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 			if canKey {
 				row.Keys = keyOptions(s.langOf(w), ownKey, row.Semitones)
 			}
+			m, known := ranges[vid]
+			row.Voice = rowVoiceOf(s.langOf(w), m, known, row.Semitones, zone)
 			sg.Songs = append(sg.Songs, row)
 		}
 		out = append(out, sg)

@@ -27,25 +27,41 @@
 
   {{if .Requests}}
   <section class="home-section cbook-requests" id="requests">
-    <div class="home-section-head"><h3>{{t "Requests"}} <span class="cbook-count">{{len .Requests}}</span></h3><span class="hint">{{t "songs your students asked for"}}</span></div>
+    <div class="home-section-head"><h3>{{t "Requests"}} <span class="cbook-count">{{len .Requests}}</span></h3><span class="hint">{{t "songs your students asked for or proposed"}}</span></div>
     <ul class="cbook-request-list">
     {{range .Requests}}
-      <li class="cbook-request{{if eq .ID $.OpenRequest}} is-open{{end}}" id="request-{{.ID}}" data-request="{{.ID}}" data-person="{{.PersonID}}" data-variant="{{.VariantID}}" data-key="{{.Key}}" data-semitones="0">
+      <li class="cbook-request{{if .IsProposal}} is-proposal{{end}}{{if eq .ID $.OpenRequest}} is-open{{end}}" id="request-{{.ID}}" data-request="{{.ID}}" data-person="{{.PersonID}}" data-variant="{{.StripVariant}}" data-key="{{.Key}}" data-semitones="{{.Start}}" data-kind="{{.Kind}}" data-student="{{.StudentFirst}}">
         <div class="cbook-request-what">
-          <strong>{{.StudentName}}</strong> <span class="hint">{{t "asks for"}}</span> <a href="/song/{{.VariantID}}">{{.Title}}</a>{{with .Artist}} <span class="hint">· {{.}}</span>{{end}}
-          <div class="hint">{{date .CreatedAt "Mon 2 Jan, 15:04"}}</div>
+          <span class="cbook-request-kind">{{if .IsProposal}}{{t "proposed by the student"}}{{else}}{{t "asked from your repertoire"}}{{end}}</span>
+          <strong>{{.StudentName}}</strong> <span class="hint">{{if .IsProposal}}{{t "proposes"}}{{else}}{{t "asks for"}}{{end}}</span> <a href="/song/{{.VariantID}}">{{.Title}}</a>{{with .Artist}} <span class="hint">· {{.}}</span>{{end}}
+          <div class="hint">{{date .CreatedAt "Mon 2 Jan, 15:04"}}{{if .IsProposal}}{{if .WishedSemitones}} · {{t "would like it in %s" (or .WishedKey (t "original"))}}{{end}}{{end}}</div>
+          {{if .IsProposal}}
+          {{with .Note}}<p class="cbook-request-note"><q>{{.}}</q></p>{{end}}
+          <p class="hint cbook-request-accept">{{if eq .Accept "copy"}}{{t "Their own song: taking it makes the community’s arrangement of it, which you and they edit; theirs stays as it is."}}{{else if eq .Accept "link"}}{{t "A public song: taking it links it in the repertoire."}}{{else if eq .Accept "own"}}{{t "The community’s song already."}}{{end}}</p>
+          {{end}}
         </div>
         <div class="cbook-request-actions">
-          {{if $.KeyPicker}}
+          <a class="chip-link cbook-request-listen" href="/song/{{.VariantID}}">{{template "icon-play"}} {{t "Listen"}}</a>
+          {{if or $.KeyPicker .IsProposal}}
           <span class="coach-key" title="{{t "the key, in semitones from the reference recording"}}">
             <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
-            <output>{{with keyIn .Key 0}}{{.}} ({{t "original"}}){{else}}{{t "original"}}{{end}}</output>
+            <output>{{.PickerText}}</output>
             <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
           </span>
           {{end}}
-          <button type="button" class="primary cbook-request-add">{{t "Add to their songbook"}}</button>
+          <button type="button" class="primary cbook-request-add">{{if .IsProposal}}{{t "Take it"}}{{else}}{{t "Add to their songbook"}}{{end}}</button>
           <button type="button" class="cbook-request-decline">{{t "Not now"}}</button>
         </div>
+        {{if .IsProposal}}
+        <form class="cbook-request-reply" hidden>
+          <label class="sr-only" for="reply-{{.ID}}">{{t "A word for %s (optional)" .StudentFirst}}</label>
+          <textarea id="reply-{{.ID}}" rows="2" maxlength="1000" placeholder="{{t "A word for %s (optional)" .StudentFirst}}"></textarea>
+          <div class="form-actions">
+            <button type="submit" class="cbook-request-decline-send">{{t "Decline"}}</button>
+            <button type="button" class="cbook-request-reply-cancel">{{t "Cancel"}}</button>
+          </div>
+        </form>
+        {{end}}
         <div class="voice-strip cbook-request-strip" hidden></div>
       </li>
     {{end}}
@@ -82,11 +98,12 @@
       <a class="gig-title" href="/song/{{.VariantID}}{{if .InRepertoire}}?songbook={{$.RepertoireID}}{{end}}">
         {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
+        <span class="cbk-voice">{{template "row-voice" .Voice}}</span>
         {{if not .InRepertoire}}<span class="cbk-elsewhere">{{t "not in the repertoire"}}</span>{{end}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <div class="cbk-assigned">
-        {{range .Assigned}}<button type="button" class="cbk-chip{{if eq .Kind "group"}} is-group{{end}}" data-kind="{{.Kind}}" data-person="{{.PersonID}}" data-group="{{.GroupID}}" data-songbook="{{.SongbookID}}" data-semitones="{{.Semitones}}" data-name="{{.FullName}}" title="{{t "%s: the key, or take it out" .FullName}}"><span class="cbk-chip-name">{{.Name}}</span>{{with .KeyText}} <span class="cbk-chip-key">{{.}}</span>{{end}}</button>{{end}}
+        {{range .Assigned}}<button type="button" class="cbk-chip{{if eq .Kind "group"}} is-group{{end}}" data-kind="{{.Kind}}" data-person="{{.PersonID}}" data-group="{{.GroupID}}" data-songbook="{{.SongbookID}}" data-semitones="{{.Semitones}}" data-name="{{.FullName}}" title="{{t "%s: the key, or take it out" .FullName}}"><span class="cbk-chip-name">{{.Name}}</span>{{with .KeyText}} <span class="cbk-chip-key">{{.}}</span>{{end}}{{if .Voice.Range}}<template class="cbk-chip-voice">{{template "row-voice" .Voice}}</template>{{end}}</button>{{end}}
         <button type="button" class="cbk-assign">{{template "icon-plus"}} {{t "Assign"}}</button>
       </div>
     </div>

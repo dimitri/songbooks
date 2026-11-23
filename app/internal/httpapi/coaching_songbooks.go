@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"app/internal/chordsym"
@@ -25,6 +26,18 @@ import (
 //     per group (their songbook, their voice, where they stand), ordered
 //     by the next lesson, and the repertoire, each song to add to a
 //     student's or a group's songbook in their key.
+
+// pickerText is a key picker's text: "A (+2)", "G (original)", "+2",
+// "original".
+func pickerText(lang, key string, n int) string {
+	if n != 0 {
+		return keyPill(key, n)
+	}
+	if name := chordsym.KeyIn(key, 0); name != "" {
+		return name + " (" + i18n.T(lang, "original") + ")"
+	}
+	return i18n.T(lang, "original")
+}
 
 // keyPill is a song's key for a student, as its pill says it: "C (−3)",
 // "−3" for a song with no key known, "" in the original key (the
@@ -47,6 +60,9 @@ func keyPill(key string, semitones int) string {
 type bookSong struct {
 	store.StudentSong
 	Pill string // "" in the original key
+	// Voice: the song's melody at their key, how it sits in their voice
+	// (row_voice.go).
+	Voice rowVoice
 }
 
 func bookSongs(songs []store.StudentSong) []bookSong {
@@ -68,10 +84,26 @@ type askRow struct {
 }
 
 // requestView is a request waiting on the coach, with the song's key (the
-// key picker's start).
+// key picker's start). A proposal (coach_proposals.go) says more: the key
+// the student would like, where the picker starts (that key), which song
+// enters the repertoire and how.
 type requestView struct {
 	store.SongRequest
 	Key string
+	// Start: the picker's start, semitones from Key; WishedKey: the key
+	// the student would like, named ("A", "+2"), "" when none said.
+	Start     int
+	WishedKey string
+	// StripVariant: the song whose melody the voice strip draws.
+	StripVariant int64
+	// StudentFirst: the student's first name; PickerText: the picker's
+	// key at Start ("A (+2)", "G (original)").
+	StudentFirst string
+	PickerText   string
+	// Accept says what accepting does: "link" (a public song, linked),
+	// "copy" (the student's private song: the community's arrangement made
+	// from it), "own" (the community's already, or its arrangement of it).
+	Accept string
 }
 
 // coachBookCard is the coach's card of one student's or one group's
@@ -180,6 +212,19 @@ func (s *Server) studentBooksData(r *http.Request, community *store.Community, p
 		data["BookName"] = sb.Name
 	}
 	all := bookSongs(s.withKeys(ctx, songs))
+	if len(all) > 0 {
+		ids := make([]int64, len(all))
+		for i := range all {
+			ids[i] = all[i].VariantID
+		}
+		ranges := s.melodyRanges(ctx, ids)
+		zone, _ := s.store.StudentVoiceZone(ctx, personID, community.ID)
+		lang := s.langOfRequest(r)
+		for i := range all {
+			m, known := ranges[all[i].VariantID]
+			all[i].Voice = rowVoiceOf(lang, m, known, all[i].Semitones, zone)
+		}
+	}
 	data["BookID"] = sbID
 	data["BookCount"] = len(all)
 	shown := all
@@ -218,6 +263,9 @@ func (s *Server) studentBooksData(r *http.Request, community *store.Community, p
 			InBook: in[e.VariantID], Asked: !in[e.VariantID] && asked[e.VariantID] == store.SongRequestPending})
 	}
 	data["Repertoire"] = rows
+	if err := s.studentProposalsData(r, community, personID, sbID, data); err != nil {
+		return err
+	}
 	// Their groups' songbooks, and the community's other songbooks they
 	// may open (never another student's, nor a group they aren't in).
 	var groups []store.CoachingGroup
@@ -284,7 +332,12 @@ func (s *Server) coachBooksData(r *http.Request, community *store.Community, rep
 	}
 	views := make([]requestView, len(requests))
 	for i, q := range requests {
-		views[i] = requestView{SongRequest: q, Key: s.songKeyOf(ctx, q.VariantID)}
+		views[i] = requestView{SongRequest: q, Key: s.songKeyOf(ctx, q.VariantID), StripVariant: q.VariantID}
+		if q.IsProposal() {
+			s.proposalView(r, &views[i])
+		}
+		views[i].StudentFirst = firstWord(q.StudentName)
+		views[i].PickerText = pickerText(s.langOfRequest(r), views[i].Key, views[i].Start)
 	}
 	data["Requests"] = views
 	data["OpenRequest"] = int64(0)
@@ -618,7 +671,8 @@ func (s *Server) handlePostSongRequestAdd(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		Semitones int `json:"semitones"`
+		Semitones int    `json:"semitones"`
+		Reply     string `json:"reply"`
 	}
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -628,6 +682,14 @@ func (s *Server) handlePostSongRequestAdd(w http.ResponseWriter, r *http.Request
 	}
 	if req.Semitones < -12 || req.Semitones > 12 {
 		httpError(w, http.StatusBadRequest, "key out of range")
+		return
+	}
+	// A song the student proposed: accepted (coach_proposals.go).
+	if q.IsProposal() {
+		reply, ok := s.replyOf(w, r, req.Reply)
+		if ok {
+			s.acceptProposal(w, r, community, q, req.Semitones, reply)
+		}
 		return
 	}
 	ctx := r.Context()
@@ -669,17 +731,52 @@ func (s *Server) handlePostSongRequestAdd(w http.ResponseWriter, r *http.Request
 }
 
 // handlePostSongRequestDecline is POST
-// /api/communities/{id}/song-requests/{requestID}/decline: not now. The
-// student may ask again.
+// /api/communities/{id}/song-requests/{requestID}/decline {reply}: not
+// now. The student may ask again. A proposal declined: the student is
+// told, with the coach's note (reply, optional).
 func (s *Server) handlePostSongRequestDecline(w http.ResponseWriter, r *http.Request) {
 	community, q, ok := s.coachSongRequest(w, r)
 	if !ok {
 		return
 	}
-	if err := s.store.DecideSongRequest(r.Context(), q.ID, store.SongRequestDeclined, personFromContext(r).ID); err != nil && !errors.Is(err, store.ErrNotFound) {
+	var req struct {
+		Reply string `json:"reply"`
+	}
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+	}
+	reply, ok := s.replyOf(w, r, req.Reply)
+	if !ok {
+		return
+	}
+	if err := s.store.AnswerSongRequest(r.Context(), q.ID, store.SongRequestDeclined, personFromContext(r).ID, reply); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusConflict, "already answered")
+			return
+		}
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = s.store.MarkNotificationsReadByLink(r.Context(), "song_request", songRequestLink(community.ID, q.ID))
+	if q.IsProposal() {
+		if err := s.declineProposal(r, community, q, reply); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// replyOf is the coach's note to the student, trimmed: false (answered)
+// when it's too long.
+func (s *Server) replyOf(w http.ResponseWriter, r *http.Request, reply string) (string, bool) {
+	reply = strings.TrimSpace(reply)
+	if len([]rune(reply)) > store.MaxProposalNote {
+		httpError(w, http.StatusBadRequest, i18n.T(s.langOfRequest(r), "A note is %d characters at most.", store.MaxProposalNote))
+		return "", false
+	}
+	return reply, true
 }

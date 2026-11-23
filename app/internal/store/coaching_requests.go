@@ -21,7 +21,15 @@ const (
 	SongRequestDeclined = "declined"
 )
 
-// SongRequest is a student's request for a song of the repertoire.
+// Request kinds: a song of the repertoire asked for, or a song of the
+// student's own proposed (migration 0128, coaching_proposals.go).
+const (
+	SongRequestAsk     = "ask"
+	SongRequestPropose = "propose"
+)
+
+// SongRequest is a student's request for a song of the repertoire, or
+// their proposal of a song of their own (Kind).
 type SongRequest struct {
 	ID          int64
 	CommunityID int64
@@ -32,7 +40,20 @@ type SongRequest struct {
 	Artist      string
 	Status      string
 	CreatedAt   time.Time
+	Kind        string
+	// A proposal's: the student's note, the key they'd like (semitones
+	// from the song's own key, nil: none said); the coach's answer, and
+	// the song that entered the repertoire (0: none yet).
+	Note            string
+	WishedSemitones *int
+	Reply           string
+	ResultVariantID int64
+	DecidedAt       *time.Time
 }
+
+// IsProposal reports whether the request is the student's own song
+// proposed, not a song of the repertoire asked for.
+func (q SongRequest) IsProposal() bool { return q.Kind == SongRequestPropose }
 
 // RepertoireSongbook is a community's repertoire: its default songbook, 0
 // when it has none.
@@ -62,7 +83,8 @@ func (st *Store) RequestSong(ctx context.Context, communityID, personID, variant
 	err = st.db.QueryRow(ctx, `
 		INSERT INTO coaching_song_requests (community_id, person_id, variant_id) VALUES ($1, $2, $3)
 		ON CONFLICT (community_id, person_id, variant_id) DO UPDATE SET
-			status = 'pending', created_at = now(), decided_at = NULL, decided_by_person_id = NULL
+			status = 'pending', created_at = now(), decided_at = NULL, decided_by_person_id = NULL,
+			kind = 'ask', note = '', wished_semitones = NULL, reply = '', result_variant_id = NULL
 			WHERE coaching_song_requests.status <> 'pending'
 		RETURNING id`, communityID, personID, variantID).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -74,12 +96,14 @@ func (st *Store) RequestSong(ctx context.Context, communityID, personID, variant
 	return id, err == nil, err
 }
 
-const songRequestColumns = `r.id, r.community_id, r.person_id, p.display_name, r.variant_id, s.title, s.artist, r.status, r.created_at
+const songRequestColumns = `r.id, r.community_id, r.person_id, p.display_name, r.variant_id, s.title, s.artist, r.status, r.created_at,
+	r.kind, r.note, r.wished_semitones, r.reply, coalesce(r.result_variant_id, 0), r.decided_at
 	FROM coaching_song_requests r JOIN people p ON p.id = r.person_id JOIN songs s ON s.id = r.variant_id`
 
 func scanSongRequest(row pgx.Row) (SongRequest, error) {
 	var q SongRequest
-	err := row.Scan(&q.ID, &q.CommunityID, &q.PersonID, &q.StudentName, &q.VariantID, &q.Title, &q.Artist, &q.Status, &q.CreatedAt)
+	err := row.Scan(&q.ID, &q.CommunityID, &q.PersonID, &q.StudentName, &q.VariantID, &q.Title, &q.Artist, &q.Status, &q.CreatedAt,
+		&q.Kind, &q.Note, &q.WishedSemitones, &q.Reply, &q.ResultVariantID, &q.DecidedAt)
 	return q, err
 }
 
@@ -139,12 +163,18 @@ func (st *Store) StudentSongRequests(ctx context.Context, communityID, personID 
 // SongRequestDeclined): ErrNotFound when it isn't waiting any more (the
 // other coach was quicker).
 func (st *Store) DecideSongRequest(ctx context.Context, id int64, status string, byPersonID int64) error {
+	return st.AnswerSongRequest(ctx, id, status, byPersonID, "")
+}
+
+// AnswerSongRequest is DecideSongRequest with the coach's note to the
+// student (a proposal declined: why, what instead).
+func (st *Store) AnswerSongRequest(ctx context.Context, id int64, status string, byPersonID int64, reply string) error {
 	if status != SongRequestAdded && status != SongRequestDeclined {
 		return errors.New("a request is added or declined")
 	}
 	tag, err := st.db.Exec(ctx, `
-		UPDATE coaching_song_requests SET status = $2, decided_at = now(), decided_by_person_id = $3
-		WHERE id = $1 AND status = 'pending'`, id, status, nullID(byPersonID))
+		UPDATE coaching_song_requests SET status = $2, decided_at = now(), decided_by_person_id = $3, reply = $4
+		WHERE id = $1 AND status = 'pending'`, id, status, nullID(byPersonID), reply)
 	if err != nil {
 		return err
 	}

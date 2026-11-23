@@ -626,6 +626,10 @@ func saveSongTx(ctx context.Context, tx pgx.Tx, e SongSave) (songSaveResult, err
 	if _, err := shiftLeadSync(ctx, tx, e.SongID, curBody, e.Body); err != nil {
 		return out, err
 	}
+	// Its key moved: the keys songbooks keep it in stay (entry_keys.go).
+	if _, err := keepEntryKeys(ctx, tx, e.SongID, curBody, e.Body); err != nil {
+		return out, err
+	}
 	out.before = curBody
 	return out, nil
 }

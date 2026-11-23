@@ -9758,3 +9758,50 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .catalogue-label-row { margin-top: 0.8rem; }
 .topbar-label { color: var(--fg-muted); }
 
+
+/* ---- coach-proposals: a songbook row's melody range (row_voice.go),
+   a student's proposals to the coach (coach_proposals.go). ---- */
+.row-voice { display: inline-flex; align-items: baseline; gap: 0.35rem; margin-left: 0.4rem; font-size: 0.78rem; font-weight: 400; color: var(--fg-muted); white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: baseline; }
+.row-voice-fit { padding: 0 0.45rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); font-weight: 600; }
+.row-voice.is-fit .row-voice-fit { color: var(--ok, var(--fg-muted)); }
+.row-voice.is-out .row-voice-fit { color: var(--fg); }
+.song-link .row-voice { margin-left: 0; }
+.cbk-row .gig-title .cbk-voice { display: block; margin-top: 0.15rem; }
+.cbk-row .gig-title .cbk-voice .row-voice { margin-left: 0; }
+.cbk-voice:empty { display: none; }
+.cbook-song .row-voice { flex: none; margin-left: 0; }
+.gig-title .row-voice { margin-left: 0.5rem; }
+@media (max-width: 640px) {
+  .cbook-song { flex-wrap: wrap; row-gap: 0; }
+  .cbook-song .row-voice { order: 3; flex-basis: 100%; margin: -0.35rem 0 0.4rem; }
+}
+
+.cbook-request-kind { display: block; margin-bottom: 0.15rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--fg-muted); }
+.cbook-request.is-proposal .cbook-request-kind { color: var(--accent-ink); }
+.cbook-request-note { margin: 0.35rem 0 0; font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cbook-request-accept { margin: 0.25rem 0 0; font-size: 0.82rem; }
+.cbook-request-listen { display: inline-flex; align-items: center; gap: 0.3rem; }
+.cbook-request-reply { flex: 1 0 100%; display: grid; gap: 0.5rem; }
+.cbook-request-reply[hidden], .cbook-request-actions[hidden] { display: none; }
+.cbook-request-reply textarea { width: 100%; }
+
+.cbook-proposals .home-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.cbook-proposals .home-section-head button { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cbook-proposals > .hint { margin: 0 0 0.6rem; }
+.cbook-proposal-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
+.cbook-proposal { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); }
+.cbook-proposal:last-child { border-bottom: none; }
+.cbook-proposal:target { box-shadow: inset 3px 0 0 var(--accent); }
+.cbook-proposal-notes { flex: 1 0 100%; display: grid; gap: 0.15rem; font-size: 0.88rem; }
+.cbook-proposal-notes p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cbook-state.is-declined { color: var(--fg-muted); font-style: italic; font-weight: 400; }
+
+.propose-dialog { max-width: 32rem; }
+.propose-dialog .propose-intro { margin: 0.3rem 0 0; }
+.propose-dialog select, .propose-dialog textarea { width: 100%; }
+.propose-dialog .propose-fixed { margin: 0; font-weight: 600; }
+.propose-dialog .propose-fixed[hidden], .propose-dialog .propose-find[hidden], .propose-dialog select[hidden], .propose-dialog label[hidden] { display: none; }
+.propose-dialog .propose-find { justify-self: start; margin-top: 0.35rem; }
+.propose-dialog .propose-song-hint:empty { display: none; }
+.propose-dialog .propose-key[hidden] { display: none; }
+.propose-dialog .form-status.is-error { color: var(--danger); }

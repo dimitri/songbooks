@@ -198,6 +198,7 @@
       {{range .BookSongs}}
         <li class="cbook-song">
           <a class="cbook-song-title" href="/song/{{.VariantID}}?songbook={{$.BookID}}"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></a>
+          {{template "row-voice" .Voice}}
           {{template "cbook-key-pill" .}}
         </li>
       {{end}}
@@ -235,6 +236,8 @@
     {{end}}
   </div>
 
+  {{template "cbook-proposals" .}}
+
   {{if .GroupBooks}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{template "coach-groups-label"}}</h3></div>
@@ -255,7 +258,8 @@
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{if .IsCoach}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
+{{if or .IsCoach .CanPropose}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
+{{if .CanPropose}}<script src="/static/js/propose-song.js?v={{staticVersion}}"></script>{{end}}
 {{if .IsCoach}}<script src="/static/js/add-song.js?v={{staticVersion}}"></script>{{end}}
 <script>
 (() => {
