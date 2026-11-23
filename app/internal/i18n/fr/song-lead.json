@@ -17,5 +17,6 @@
   "names the file's bar the chart's first played bar falls on — the lead's, when there is one: a file opening with a count-in bar and a chart with": "désigne la mesure du fichier où tombe la première mesure jouée de la grille — celle de l’amorce s’il y en a une : un fichier qui commence par une mesure de décompte et une grille avec",
   "need no": "n’ont pas besoin de",
   "%d lead bar, before bar 1": "%d mesure d’amorce, avant la mesure 1",
-  "%d lead bars, before bar 1": "%d mesures d’amorce, avant la mesure 1"
+  "%d lead bars, before bar 1": "%d mesures d’amorce, avant la mesure 1",
+  "The recording's time before the lead is no bar: nothing is numbered or clicked there. Changing the lead moves what is synced bar by bar (a Guitar Pro file's sync, the Mixer's flags) with the bars.": "Le temps de l’enregistrement avant l’amorce n’est aucune mesure : rien n’y est numéroté ni cliqué. Changer l’amorce déplace avec les mesures ce qui est synchronisé mesure par mesure (la synchro d’un fichier Guitar Pro, les drapeaux du Mixeur)."
 }

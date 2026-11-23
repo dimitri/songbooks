@@ -3213,7 +3213,6 @@ window.songbooksDecodable = function (buf) {
     isPlaying, play, pause,
     seek: (t) => seek(t),
     sections,
-    get bpm() { return bpm; },
     beatsPerBar, barLabel,
     // Each section's start as the chart follows it now, with its origin
     // ("auto" for the detection's).
@@ -3243,6 +3242,10 @@ window.songbooksDecodable = function (buf) {
     // The panel, at a tool's line (the song bar's Outils, the header's key).
     openLine,
    });
+  // The tempo now (a saved one below, the Guitar Pro file's while its
+  // synthesizer plays), not the one the page opened with.
+  Object.defineProperty(window.songbooksPlayer, 'bpm', { get: () => bpm, configurable: true, enumerable: true });
+
   // The song's tempo saved (Tap tempo's "Use this tempo", tap-tempo.js;
   // a Source save, song.js): the chart's bar is that long at once. The
   // estimate — the in-memory detection, which starts from the tempo — is
