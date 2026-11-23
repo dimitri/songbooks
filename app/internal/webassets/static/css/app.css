@@ -10080,3 +10080,29 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .propose-dialog .propose-song-hint:empty { display: none; }
 .propose-dialog .propose-key[hidden] { display: none; }
 .propose-dialog .form-status.is-error { color: var(--danger); }
+
+/* ---- row-range: a songbook row's melody as small staves (row_voice.go,
+   melody/staffsvg.go, row-range.js). ---- */
+.row-voice-staff { display: inline-flex; align-items: center; color: var(--fg); vertical-align: middle; }
+.row-voice-staff:empty { display: none; }
+.row-voice-staff .rr-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.rr-svg .rr-hi { color: var(--accent-ink, var(--accent)); }
+.rr-svg text { font-family: inherit; }
+.rr-bars { display: inline-flex; flex-wrap: wrap; align-items: flex-start; gap: 0.2rem 0.5rem; }
+.rr-bar { display: inline-block; border-radius: 6px; cursor: pointer; padding: 0 0.15rem; }
+.rr-bar:hover { background: var(--bg-sunken); }
+.rr-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row-voice.is-analysed { align-items: center; }
+.row-voice:has(.row-voice-staff:not(:empty)) { align-items: center; vertical-align: middle; }
+@media (max-width: 640px) {
+  /* A phone: the melody on its own line under the title, the two bars
+     side by side, shrunk to share it; the fit after them. */
+  .song-link .row-voice, .gig-title .row-voice, .cbook-song .row-voice { display: flex; flex-wrap: wrap; width: 100%; margin: 0.3rem 0 0.2rem; }
+  .row-voice.is-analysed .row-voice-staff.is-bars { flex: 1 0 100%; min-width: 0; }
+  .rr-bars { flex-wrap: nowrap; width: 100%; }
+  .rr-bar { flex: 0 1 auto; min-width: 0; }
+}
+/* The student's card is narrow: the bars on their own line under the
+   title, the key pill staying beside the title. */
+.cbook-song:has(.row-voice) { flex-wrap: wrap; row-gap: 0; }
+.cbook-song .row-voice { order: 3; flex-basis: 100%; margin: 0 0 0.4rem; }

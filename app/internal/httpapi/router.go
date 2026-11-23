@@ -201,6 +201,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("PUT /api/songs/{id}/meta", s.requireVariantRole("chart", s.handlePutMeta))
 	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
 	mux.HandleFunc("GET /api/songs/{id}/raw", s.requireVariantRole("viewer", s.handleGetRaw))
+	// A songbook row's lowest and highest bars of the melody (row_voice.go).
+	mux.HandleFunc("GET /api/songs/{id}/row-range", s.requireVariantRole("viewer", s.handleGetRowRange))
 	mux.HandleFunc("GET /api/songs/{id}/structure", s.requireVariantRole("viewer", s.handleGetSongStructure))
 	mux.HandleFunc("GET /api/songs/{id}/drummer-rows", s.requireVariantRole("viewer", s.handleGetDrummerRows))
 	mux.HandleFunc("GET /api/songs/{id}/mixer", s.requireVariantRole("viewer", s.handleGetSongMixer))

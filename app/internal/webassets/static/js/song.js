@@ -1075,7 +1075,11 @@ const ICONS = {
     // (the "Follow the music" switch is on unless turned off for this
     // song), unless the reader has picked another view for this song.
     const coaching = sheet.dataset.coaching && document.querySelector('#mode-segmented button[data-value="lyrics"]');
-    const saved = embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score'
+    // ?view=melody (a songbook row's lowest or highest bar, row-range.js):
+    // the Melody view, wherever the song is opened from.
+    const askedMelody = new URLSearchParams(location.search).get('view') === 'melody'
+      && document.querySelector('#mode-segmented button[data-value="melody"]');
+    const saved = askedMelody ? 'melody' : embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score'
       : coaching ? (localStorage.getItem(songModeKey) || 'lyrics')
       : localStorage.getItem('songbooks-default-mode');
     // Drummer view only for a song that has a drum part: on any other it

@@ -167,3 +167,47 @@ func (st *Store) SetMelodyLyricShift(ctx context.Context, variantID int64, s Mel
 		variantID, s.Section, s.Line, s.Text, s.Shift, who)
 	return err
 }
+
+// SongsWithMelody are those of the songs whose melody is found (notes
+// for the vocals part, as it is now, of a recording a melody comes
+// from, found by analyzer): a songbook's rows show their lowest and
+// highest bars.
+func (st *Store) SongsWithMelody(ctx context.Context, variantIDs []int64, analyzer string) (map[int64]bool, error) {
+	out := map[int64]bool{}
+	if len(variantIDs) == 0 {
+		return out, nil
+	}
+	rows, err := st.db.Query(ctx, `
+		SELECT DISTINCT a.variant_id FROM song_audio a
+		JOIN song_audio_stems s ON s.song_audio_id = a.id AND s.stem = 'vocals' AND s.source_sha256 = a.sha256
+		JOIN song_melody_notes mn ON mn.song_audio_id = a.id AND mn.stem_created_at = s.created_at AND mn.ok AND mn.analyzer = $2
+		WHERE a.variant_id = ANY($1) AND a.category IN ('youtube', 'band')`, variantIDs, analyzer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// MelodyStamp is what a song's melody bars are drawn from, as a string
+// that changes when it does: the song's version and its melody's notes
+// (when found). "" for no such song.
+func (st *Store) MelodyStamp(ctx context.Context, variantID int64) (string, error) {
+	var stamp string
+	err := st.db.QueryRow(ctx, `
+		SELECT s.version::text || '/' || coalesce((SELECT max(mn.created_at)::text FROM song_audio a
+		                                           JOIN song_melody_notes mn ON mn.song_audio_id = a.id
+		                                           WHERE a.variant_id = s.id), '')
+		FROM songs s WHERE s.id = $1`, variantID).Scan(&stamp)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return stamp, err
+}

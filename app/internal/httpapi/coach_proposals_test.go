@@ -276,7 +276,7 @@ func TestSongProposalFlow(t *testing.T) {
 		r := body[i:]
 		return r[:strings.Index(r, `class="cbk-assign"`)]
 	}
-	if row := rowOf("Plain"); !strings.Contains(row, `<span class="row-voice-range">A3–E5</span>`) || !strings.Contains(row, `<template class="cbk-chip-voice">`) || !strings.Contains(row, "15 high") {
+	if row := rowOf("Plain"); !strings.Contains(row, `aria-label="Range A3–E5"`) || !strings.Contains(row, `<template class="cbk-chip-voice">`) || !strings.Contains(row, "15 high") {
 		t.Errorf("the coach's row: %s", row)
 	}
 	if row := rowOf("Own Song"); strings.Contains(row, "row-voice") || !strings.Contains(row, fmt.Sprintf(`data-person="%d"`, zoe)) {
