@@ -26,6 +26,16 @@ func renderSongMap(doc *gopdf.GoPdf, s *song.Song, th theme, hideNotes bool) err
 		rowSize = 13.0
 		rowH    = rowSize * 2.0
 	)
+	// The song's lead-in, before its first section: in none of them.
+	if n := s.LeadIn(); n > 0 {
+		unit := "bars"
+		if n == 1 {
+			unit = "bar"
+		}
+		c.ensureSpace(rowH)
+		c.textAt(c.curX()+28, c.y+rowSize*0.8, fmt.Sprintf("Lead-in  —  %d %s, before bar 1", n, unit), faceSans, rowSize, th.meta)
+		c.y += rowH
+	}
 	for i, sec := range s.Sections {
 		label := sec.Label
 		if label == "" {
@@ -38,10 +48,6 @@ func renderSongMap(doc *gopdf.GoPdf, s *song.Song, th theme, hideNotes bool) err
 				unit = "bar"
 			}
 			line += fmt.Sprintf("  —  %d %s", n, unit)
-		}
-		if n := sec.Lead; n > 0 && !sec.Repeat {
-			// Played before the section's bar 1, not counted in its bars.
-			line += fmt.Sprintf("  (+ %d lead)", n)
 		}
 		if sec.Repeat {
 			line += "  (repeat)"

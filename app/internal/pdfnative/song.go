@@ -124,9 +124,7 @@ func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize 
 	// "lead:" bars: on the first row on top of its 4-bar phrase, as the
 	// web chart has it.
 	pickupSec := tab.FirstGridSection(s)
-	if s.LeadIn() > 0 {
-		pickupSec = s.OpeningSection()
-	} else if !tab.StartsWithPickup(s, pickupSec) {
+	if s.LeadIn() == 0 && !tab.StartsWithPickup(s, pickupSec) {
 		pickupSec = -1
 	}
 	marks := map[string]string{}
@@ -216,6 +214,21 @@ func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th 
 	return candidateSizes[len(candidateSizes)-1], true
 }
 
+// withLeadDrawn is s with its "lead:" bars (song.LeadMeasures, in no
+// section) written ahead of its first grid's bars, where the chart draws
+// them; the song itself is left untouched.
+func withLeadDrawn(s *song.Song) *song.Song {
+	lead := s.LeadMeasures()
+	si := tab.FirstGridSection(s)
+	if len(lead) == 0 || si < 0 {
+		return s
+	}
+	cp := *s
+	cp.Sections = append([]song.Section(nil), s.Sections...)
+	cp.Sections[si].Measures = append(lead, s.Sections[si].Measures...)
+	return &cp
+}
+
 // renderSong draws one full song, starting a fresh page, at whatever size
 // fitSongToPage determines it needs (one page if at all possible, two as a
 // last resort for a genuinely long chart). ModeMap is handled separately
@@ -227,8 +240,7 @@ func renderSong(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th the
 	if mode == ModeMap {
 		return renderSongMap(doc, s, th, hideNotes)
 	}
-	// "lead:" bars drawn ahead of their section's first bar.
-	s = song.WithLeads(s)
+	s = withLeadDrawn(s)
 	cols = songCols(s, mode, cols)
 	size, allowPage2 := fitSongToPage(doc, s, scores, th, mode, hideNotes, cols)
 	doc.AddPage()

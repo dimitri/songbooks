@@ -666,7 +666,7 @@ func barGeometry(n, slots int, pickup bool, width float64) (xs, ws []float64) {
 }
 
 // barGeometryN is barGeometry for a row opening with pickups pickups (a
-// "lead:" line's bars, song.WithLeads), each pickupWidth wide.
+// "lead:" line's bars, song.LeadMeasures), each pickupWidth wide.
 func barGeometryN(n, slots, pickups int, width float64) (xs, ws []float64) {
 	pk := 0.0
 	if pickups > 0 && n > pickups {
@@ -687,7 +687,7 @@ func barGeometryN(n, slots, pickups int, width float64) (xs, ws []float64) {
 }
 
 // leadTag prints a small "lead" under the first of a run of "lead:" bars
-// (song.WithLeads): played before the section's first bar, not counted —
+// (song.LeadMeasures): the song's bars before bar 1, in no section —
 // the web chart's .lead-tag.
 func (c *canvas) leadTag(measures []song.Measure, i int, bx, below, size float64) {
 	if !measures[i].Lead || (i > 0 && measures[i-1].Lead) {
@@ -720,9 +720,9 @@ const phraseBars = 4
 // line gets the tempo+time-signature cell before its opening barline —
 // see renderSongBody's one-shot firstStaffDrawn tracking.
 func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float64, mode Mode, hideNotes bool, globalBeats int, firstStaff, pickup bool, tempo, timeNum, timeDen string) {
-	// The song's opening section: its pickup bar, or its "lead:" bars
-	// (song.WithLeads), as many as it has — on the first row, on top of
-	// its "bars:" count.
+	// The song's first grid: its pickup bar, or the song's "lead:" bars
+	// drawn ahead of it (withLeadDrawn), as many as it has — on the first
+	// row, on top of its "bars:" count.
 	leads, pickups := 0, 0
 	if pickup {
 		leads = song.LeadBars(sec.Measures)

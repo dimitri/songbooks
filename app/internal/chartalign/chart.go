@@ -46,13 +46,7 @@ const MaxBars = 2000
 // earlier one of the same name), a chord per beat. The bars of each
 // section number from info's StartBar, as in the player. No more than
 // MaxBars bars are read in all: a section cut short says so (Cut).
-//
-// A section's "lead:" bars (song.WithLeads) are played once, ahead of its
-// passes, and only by the section that writes them: the player counts
-// them in its bars (the song's lead-in, before bar 1, on the opening
-// section).
 func Chart(sg *song.Song, info []SectionInfo) []Section {
-	sg = song.WithLeads(sg)
 	global := BeatsOf(orDefault(sg.Get("time"), "4/4"))
 	var out []Section
 	budget := MaxBars
@@ -96,7 +90,7 @@ func Chart(sg *song.Song, info []SectionInfo) []Section {
 					if len(d.Measures) == 0 {
 						continue
 					}
-					if (len(unroll(d.Measures, j, global, in.BarCount+1))-song.LeadBars(d.Measures))*max(1, sec.Times) == in.BarCount {
+					if len(unroll(d.Measures, j, global, in.BarCount+1))*max(1, sec.Times) == in.BarCount {
 						def = j
 						break
 					}
@@ -120,14 +114,6 @@ func Chart(sg *song.Song, info []SectionInfo) []Section {
 				B = BeatsOf(d.Time)
 			}
 			once := unroll(d.Measures, def, B, limit)
-			// Its lead, once (another section's isn't played again).
-			if lead := min(song.LeadBars(d.Measures), len(once)); lead > 0 {
-				if def == in.Index {
-					s.Bars = append(s.Bars, once[:lead]...)
-					s.Lead = lead
-				}
-				once = once[lead:]
-			}
 			// "times:" plays it again, as far as the limit.
 			for t := 0; t < max(1, sec.Times) && len(once) > 0 && len(s.Bars) < limit; t++ {
 				s.Bars = append(s.Bars, once[:min(len(once), limit-len(s.Bars))]...)
@@ -163,26 +149,11 @@ func orDefault(s, d string) string {
 // unroll plays a grid's measures, at most limit bars: repeats, their
 // counts and endings in song.PlayOrder's order, "%" and "%%" the bars
 // played just before.
-//
-// A bar's Measure counts the grid's written bars, as the song's text has
-// them: a "lead:" bar (song.WithLeads) isn't one — it has none, and no
-// DefSection to fix a chord in.
 func unroll(ms []song.Measure, def, B, limit int) []Bar {
 	order := song.PlayOrder(ms, limit)
 	out := make([]Bar, 0, len(order))
-	lead := song.LeadBars(ms)
 	for _, i := range order {
 		m := ms[i]
-		if m.Lead {
-			bb := B
-			if m.Meter != "" {
-				bb = BeatsOf(m.Meter)
-			}
-			beats, slots := expand(m.Tokens, bb)
-			out = append(out, Bar{Beats: beats, Slots: slots, DefSection: -1, Measure: -1})
-			continue
-		}
-		i -= lead
 		switch {
 		case len(m.Tokens) == 1 && m.Tokens[0] == "%" && len(out) > 0:
 			out = append(out, out[len(out)-1])

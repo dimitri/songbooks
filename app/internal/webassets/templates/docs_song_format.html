@@ -97,12 +97,12 @@
     <aside class="toc">
       <h3>{{t "On this page"}}</h3>
       <ul>
-        <li><a href="#header">{{t "Header fields"}}</a></li>
-        <li><a href="#sections">{{t "Sections"}}</a>
+        <li><a href="#header">{{t "Header fields"}}</a>
           <ul>
             <li class="sub"><a href="#lead">{{t "Lead-in"}} (<code>lead:</code>)</a></li>
           </ul>
         </li>
+        <li><a href="#sections">{{t "Sections"}}</a></li>
         <li><a href="#grid">{{t "Chord grid"}}</a></li>
         <li><a href="#lyrics">{{t "Lyrics"}}</a></li>
         <li><a href="#chords">{{t "Chord diagrams"}}</a>
@@ -191,6 +191,7 @@ score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
           <tr><td><code>tempo</code></td><td>{{t "Beats per minute, e.g."}} <code>96</code>.</td></tr>
           <tr><td><code>swing</code></td><td>{{t "Swung playback for written straight notes:"}} <code>8</code> {{t "plays eighths as a shuffle (the triplet's long-short),"}} <code>16</code> {{t "does the same for sixteenths. Leave it out for straight time."}}</td></tr>
           <tr><td><code>time</code></td><td>{{t "Time signature, e.g."}} <code>4/4</code>, <code>6/8</code>.</td></tr>
+          <tr><td><code>lead</code></td><td>{{t "Bars played before the song starts — a count-in, an instrument's lead-in — in no section:"}} <code>lead: 1</code> {{t "(a bar of rest), or bars with chords:"}} <code>lead: | G |</code>. {{t "See"}} <a href="#lead">{{t "Lead-in"}}</a>.</td></tr>
           <tr><td><code>capo</code></td><td>{{t "Capo fret, printed as an annotation."}}</td></tr>
           <tr><td><code>transpose</code></td><td>{{t "Semitones to transpose for display — never changes the chord text itself. To rewrite the song in another key, use"}} <a href="#chords-keys">{{t "Transpose in the editor"}}</a> {{t "instead."}}</td></tr>
           <tr><td><code>gp_source</code></td><td>{{t "The name of the Guitar Pro file kept with the song (set when one is imported or saved). See"}} <a href="#gp">{{t "Guitar Pro file"}}</a>.</td></tr>
@@ -202,6 +203,15 @@ score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
           <tr><td><code>chord:</code></td><td>{{t "One fretboard diagram — see"}} <a href="#chords">{{t "Chord diagrams"}}</a>{{t ". Repeatable."}}</td></tr>
           <tr><td><code>chord[Key]:</code></td><td>{{t "One fretboard diagram entered for another key of the song — see"}} <a href="#chords-keys">{{t "Diagrams for several keys"}}</a>{{t ". Repeatable."}}</td></tr>
         </table>
+        <h3 id="lead">{{t "Lead-in"}} (<code>lead:</code>)</h3>
+        <pre><code>title: Stand By Me
+lead: 1
+
+[Intro]
+grid: | G | G | Em | Em |</code></pre>
+        <p>{{t "The lead is the song's, not a section's: the song starts with it, then its first section starts at bar 1. Its bars are drawn on the first section's first row, before its bar 1, lighter and tagged “lead”, and played — the recording's time before bar 1, a count-in when playing from the start — but in no section: not in the bar numbers (the lead bar is bar 0; with"}} <code>lead: 2</code>{{t ", bars -1 and 0), not in any section's bars, never in a section's loop. The set list's click track counts them in before bar 1."}}</p>
+        <p><code>lead: N</code> {{t "is N bars of rest;"}} <code>lead: | . | D7 |</code> {{t "writes them as a grid, one bar per"}} <code>|</code>{{t ", played once (repeat signs are ignored)."}} {{t "The first section's"}} <code>bars:</code> {{t "line counts its own bars only: the lead rides on its first row on top of them. A"}} <code>lead:</code> {{t "line written inside the first section is read as the song's."}}</p>
+        <p>{{t "Synced recordings: the first section's marker stays at its bar 1, so adding a lead moves nothing; the lead takes the recording's time before that marker, squeezed into it when it is shorter than the lead, counted in before the recording when the first section starts right at 0:00."}} {{t "Next to a Guitar Pro file,"}} <code>gp_start:</code> {{t "names the file's bar the chart's first played bar falls on — the lead's, when there is one: a file opening with a count-in bar and a chart with"}} <code>lead: 1</code> {{t "need no"}} <code>gp_start:</code>.</p>
       </section>
 
       <section id="sections">
@@ -214,16 +224,8 @@ score[guitar]: g,4 &lt;d' g'&gt;8. g,16 bes,8 c d f16 g
           <tr><td><code>bars:</code></td><td>{{t "How many bars per printed row — one number for all rows"}} (<code>bars: 4</code>){{t ", or a comma list for different row lengths"}} (<code>bars: 4,5</code>{{t ", the last value repeating)."}}</td></tr>
           <tr><td><code>times:</code></td><td>{{t "How many times this section is actually played through (>1 — affects the structure map, not the printed grid)."}}</td></tr>
           <tr><td><code>note:</code></td><td>{{t "A free-text performance direction for this section occurrence (e.g."}} <code>GTR + claviers only</code>{{t "). Repeatable."}}</td></tr>
-          <tr><td><code>lead:</code></td><td>{{t "Bars played before the section's first bar — a count-in, an instrument's lead-in — without a section or a counted bar of their own:"}} <code>lead: 1</code> {{t "(a bar of rest), or bars with chords:"}} <code>lead: | G |</code>. {{t "See"}} <a href="#lead">{{t "Lead-in"}}</a>.</td></tr>
           <tr><td><code>score[label]:</code></td><td>{{t "A note-level voice for this section (drum, bass, guitar...) — see"}} <a href="#score">{{t "Note-level scores"}}</a>.</td></tr>
         </table>
-        <h3 id="lead">{{t "Lead-in"}} (<code>lead:</code>)</h3>
-        <pre><code>[Intro]
-lead: 1
-grid: | G | C | G | D |</code></pre>
-        <p>{{t "On the song's first section, the lead bars are the song's lead-in: drawn on the section's first row, before its first bar, lighter and tagged “lead”; played, and counted in the recording's time (sync, loops, the player's bar grid), but not in the bar numbers — bar 1 stays the section's first written bar, the lead bar before it is bar 0 (with"}} <code>lead: 2</code>{{t ", bars -1 and 0). The set list's click track counts them in before bar 1."}}</p>
-        <p><code>lead: N</code> {{t "is N bars of rest;"}} <code>lead: | . | D7 |</code> {{t "writes them as a grid, one bar per"}} <code>|</code>{{t ", played once (repeat signs are ignored). A"}} <code>bars:</code> {{t "line counts the section's own bars only: the lead rides on its first row on top of them. A bare repeat of the section later doesn't play the lead again."}}</p>
-        <p>{{t "On a later section there is no “before the song”: its lead bars are played as that section's first bars and numbered like the rest."}} {{t "Next to a Guitar Pro file,"}} <code>gp_start:</code> {{t "names the file's bar the chart's first played bar falls on — the lead's, when there is one: a file opening with a count-in bar and a chart with"}} <code>lead: 1</code> {{t "need no"}} <code>gp_start:</code>.</p>
       </section>
 
       <section id="grid">

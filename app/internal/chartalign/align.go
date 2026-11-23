@@ -22,9 +22,6 @@ type Section struct {
 	// not all read; Count: its bars as the player counts them.
 	Cut   bool `json:"-"`
 	Count int  `json:"-"`
-	// Lead: its first bars are its "lead:" (song.WithLeads), played once
-	// before its own.
-	Lead int `json:"-"`
 }
 
 // Bar is one played bar of the chart: a chord per beat ("" none, "N.C.").
@@ -644,9 +641,7 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 			totalCost += c
 			totalBeats += n
 		}
-		// (A section opening with a lead isn't regrouped: its grid line
-		// doesn't hold the lead's bars.)
-		if out.Played != out.Written && !last && secs[si].Lead == 0 {
+		if out.Played != out.Written && !last {
 			out.Grid = regroup(chartAt[st:next], g.pos[st:next], g.B)
 		}
 		res.Sections = append(res.Sections, out)

@@ -2,7 +2,6 @@ package song
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -46,14 +45,5 @@ func TestPlayOrderLimit(t *testing.T) {
 	}
 	if d := time.Since(start); d > time.Second {
 		t.Errorf("took %s", d)
-	}
-}
-
-// A lead is played once: a ":|" with no "|:" repeats from the bar after it.
-func TestPlayOrderLead(t *testing.T) {
-	sg := WithLeads(Parse("[Intro]\nlead: 1\ngrid: | G | C :|\n"))
-	got := PlayOrder(sg.Sections[0].Measures, 0)
-	if want := []int{0, 1, 2, 1, 2}; !reflect.DeepEqual(got, want) {
-		t.Errorf("PlayOrder = %v, want %v", got, want)
 	}
 }

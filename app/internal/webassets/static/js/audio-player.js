@@ -133,11 +133,14 @@ window.songbooksDecodable = function (buf) {
   // bar by bar, when its synthesizer plays.
   const beatsIn = (b) => (activeCategory === 'synth' && synth && synth.beats[b]) || beatsPerBar;
   // A song opening with a pickup numbers it 0, so the first full bar is 1;
-  // a "lead:" line of several bars numbers them -1, 0. leadIn is how many
+  // a "lead:" line of several bars (before the first section, in none)
+  // numbers them -1, 0. leadIn is how many
   // bars come before bar 1 (each mode draws its own copy of a bar: counted
   // once, by its played number).
   const leadIn = () => new Set([...document.querySelectorAll('#sheet .bar-pickup[data-global-bar]')].map((el) => el.dataset.globalBar)).size;
   const hasPickup = () => leadIn() > 0;
+  // The song's "lead:" bars alone (a written pickup bar isn't one).
+  const leadBarCount = () => new Set([...document.querySelectorAll('#sheet .bar-lead[data-global-bar]')].map((el) => el.dataset.globalBar)).size;
   const barLabel = (b) => String(b - leadIn() + 1);
 
   function sections() {
@@ -367,6 +370,16 @@ window.songbooksDecodable = function (buf) {
         const t = at(b);
         grid.push(t);
         if (t > duration) break;
+      }
+      // The song's "lead:" bars, in no section, take the recording's time
+      // before its first section (its marker is at bar 1): at the chart's
+      // pace, back from there. A lead longer than the time there is is
+      // squeezed into it, from the recording's start — not started before
+      // the recording; with no time at all (bar 1 at 0:00) it stays before
+      // it, counted in like a pickup.
+      const lead = leadBarCount();
+      if (lead > 0 && grid.length > lead && grid[0] < 0 && grid[lead] > 0) {
+        for (let b = 0; b < lead; b++) grid[b] = (grid[lead] * b) / lead;
       }
     }
     refreshTimeline();

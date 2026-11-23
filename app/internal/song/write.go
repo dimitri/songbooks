@@ -19,6 +19,9 @@ func Write(s *Song) string {
 		b.WriteString(f.Value)
 		b.WriteString("\n")
 	}
+	if v := s.LeadLine(); v != "" {
+		b.WriteString("lead: " + v + "\n")
+	}
 	for _, refs := range [][]ChordRef{s.Chords, s.OtherChords} {
 		for _, c := range refs {
 			if c.Key == "" {
@@ -58,9 +61,6 @@ func Write(s *Song) string {
 			} else {
 				b.WriteString("gp[" + r.Track + "]: " + r.Spec + "\n")
 			}
-		}
-		if v := sec.LeadLine(); v != "" {
-			b.WriteString("lead: " + v + "\n")
 		}
 		if len(sec.BarsPerLine) > 0 {
 			b.WriteString("bars: " + writeBars(sec.BarsPerLine) + "\n")

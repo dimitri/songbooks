@@ -7,87 +7,86 @@ import (
 )
 
 func TestParseLead(t *testing.T) {
-	src := "title: T\n\n[Intro]\nlead: 1\ngrid: | G | C |\n\n[Verse]\nlead: | D7 | . |\ngrid: | G |\n\n[Bridge]\nlead: 40\ngrid: | Em |\n"
-	s := Parse(src)
-	if got := s.Sections[0]; got.Lead != 1 || got.LeadGrid != nil || len(got.Measures) != 2 {
-		t.Fatalf("Intro: lead %d grid %v, %d bars", got.Lead, got.LeadGrid, len(got.Measures))
+	s := Parse("title: T\nlead: | D7 | . |\n\n[Intro]\ngrid: | G | C |\n")
+	if s.Lead != 2 || len(s.LeadGrid) != 2 || s.LeadGrid[0].Tokens[0] != "D7" || s.LeadGrid[1].Tokens[0] != "." {
+		t.Fatalf("lead = %d %+v", s.Lead, s.LeadGrid)
 	}
-	v := s.Sections[1]
-	if v.Lead != 2 || len(v.LeadGrid) != 2 || v.LeadGrid[0].Tokens[0] != "D7" || v.LeadGrid[1].Tokens[0] != "." {
-		t.Fatalf("Verse lead = %d %+v", v.Lead, v.LeadGrid)
+	if len(s.Meta) != 1 || len(s.Sections[0].Measures) != 2 {
+		t.Errorf("meta %v, Intro %d bars", s.Meta, len(s.Sections[0].Measures))
 	}
-	if s.Sections[2].Lead != maxLead {
-		t.Errorf("lead: 40 = %d, want capped at %d", s.Sections[2].Lead, maxLead)
+	if got := Parse("title: T\nlead: 40\n").Lead; got != maxLead {
+		t.Errorf("lead: 40 = %d, want capped at %d", got, maxLead)
 	}
-	again := Parse(Write(s))
-	if !reflect.DeepEqual(s, again) {
-		t.Errorf("round-trip mismatch\n%s", Write(s))
-	}
-	if w := Write(s); !strings.Contains(w, "lead: 1\n") || !strings.Contains(w, "lead: |D7 | .|\n") {
-		t.Errorf("Write:\n%s", w)
+	for _, src := range []string{
+		"title: T\nlead: 1\n\n[Intro]\ngrid: | G |\n",
+		"title: T\nlead: |D7 | .|\n\n[Intro]\ngrid: | G |\n",
+	} {
+		s := Parse(src)
+		again := Parse(Write(s))
+		if !reflect.DeepEqual(s, again) {
+			t.Errorf("round-trip mismatch\n%s", Write(s))
+		}
+		if w := Write(s); !strings.Contains(w, "title: T\nlead: ") {
+			t.Errorf("Write puts the lead elsewhere:\n%s", w)
+		}
 	}
 }
 
-func TestParseLeadNotALead(t *testing.T) {
+// "lead:" in the song's first section (the form it first had) is the
+// song's; in a later section it's no field (a lyric line, as it reads).
+func TestParseLeadInASection(t *testing.T) {
+	s := Parse("[Intro]\nlead: 1\ngrid: | G |\n\n[Verse]\nlead: 2\ngrid: | C |\n")
+	if s.Lead != 1 {
+		t.Errorf("first section's lead: song lead %d", s.Lead)
+	}
+	if v := s.Sections[1]; len(v.Lyrics) != 1 {
+		t.Errorf("a later section's lead: %d lyric lines", len(v.Lyrics))
+	}
+	if w := Write(s); !strings.HasPrefix(w, "lead: 1\n") {
+		t.Errorf("Write:\n%s", w)
+	}
 	// A lyric that happens to start with "lead:" stays a lyric.
-	s := Parse("[Verse]\nlead: the way\n")
-	if s.Sections[0].Lead != 0 || len(s.Sections[0].Lyrics) != 1 {
-		t.Fatalf("got lead %d, %d lyric lines", s.Sections[0].Lead, len(s.Sections[0].Lyrics))
+	s = Parse("[Verse]\nlead: the way\n")
+	if s.Lead != 0 || len(s.Sections[0].Lyrics) != 1 {
+		t.Fatalf("got lead %d, %d lyric lines", s.Lead, len(s.Sections[0].Lyrics))
 	}
 	// Repeat signs in a lead are dropped: it is played once.
-	s = Parse("[Intro]\nlead: |: G :|\n")
-	if m := s.Sections[0].LeadGrid[0]; m.Open || m.Close {
+	s = Parse("lead: |: G :|\n")
+	if m := s.LeadGrid[0]; m.Open || m.Close {
 		t.Errorf("lead bar kept its repeat sign: %+v", m)
 	}
 	// A score voice ends at a lead line.
 	s = Parse("[Intro]\nscore[gtr]: e4 f g a\nlead: 1\n")
-	if s.Sections[0].Lead != 1 || strings.Contains(s.Sections[0].Scores[0].Body, "lead") {
-		t.Errorf("score swallowed the lead: %+v", s.Sections[0])
+	if s.Lead != 1 || strings.Contains(s.Sections[0].Scores[0].Body, "lead") {
+		t.Errorf("score swallowed the lead: %+v", s)
 	}
 }
 
-func TestWithLeads(t *testing.T) {
-	s := Parse("[Intro]\nlead: 2\ngrid: | G | C |\n\n[Verse]\nlead: | D7 |\ngrid: | G |\n\n[Outro] (repeat)\n")
-	if s.OpeningSection() != 0 || s.LeadIn() != 2 {
-		t.Fatalf("opening %d lead-in %d", s.OpeningSection(), s.LeadIn())
+func TestLeadMeasures(t *testing.T) {
+	s := Parse("lead: | D7 |\n")
+	s.Lead = 2 // a written bar and a rest
+	ms := s.LeadMeasures()
+	if len(ms) != 2 || !ms[0].Lead || ms[0].Tokens[0] != "D7" || ms[1].Tokens[0] != "R" || LeadBars(ms) != 2 || s.LeadIn() != 2 {
+		t.Errorf("LeadMeasures = %+v", ms)
 	}
-	p := WithLeads(s)
-	if p == s {
-		t.Fatal("WithLeads returned the song itself")
-	}
-	if s.Sections[0].Lead != 2 || len(s.Sections[0].Measures) != 2 {
-		t.Error("WithLeads changed the song it was given")
-	}
-	in := p.Sections[0].Measures
-	if len(in) != 4 || !in[0].Lead || !in[1].Lead || in[2].Lead || in[0].Tokens[0] != "R" || in[2].Tokens[0] != "G" {
-		t.Errorf("Intro played = %+v", in)
-	}
-	if LeadBars(in) != 2 || p.LeadIn() != 2 {
-		t.Errorf("LeadBars = %d, LeadIn = %d", LeadBars(in), p.LeadIn())
-	}
-	if v := p.Sections[1].Measures; len(v) != 2 || !v[0].Lead || v[0].Tokens[0] != "D7" {
-		t.Errorf("Verse played = %+v", v)
-	}
-	if WithLeads(p) != p {
-		t.Error("WithLeads of an expanded song isn't itself")
-	}
-	plain := Parse("[Intro]\ngrid: | G |\n")
-	if WithLeads(plain) != plain || plain.LeadIn() != 0 {
-		t.Error("a song without a lead changed")
-	}
-	// A lead on a section with no grid of its own still opens the song.
-	s = Parse("[Intro]\nlead: 1\nsome words\n\n[Verse]\ngrid: | G |\n")
-	if s.OpeningSection() != 0 || s.LeadIn() != 1 {
-		t.Errorf("lead-only intro: opening %d lead-in %d", s.OpeningSection(), s.LeadIn())
+	if (&Song{}).LeadMeasures() != nil {
+		t.Error("no lead, bars")
 	}
 }
 
 func TestTransposeLead(t *testing.T) {
-	res, err := TransposeText("key: G\n\n[Intro]\nlead: | G | D7 |\ngrid: | G |\n\n[Verse]\nlead: 1\n", TransposeOptions{To: "A"})
+	res, err := TransposeText("key: G\nlead: | G | D7 |\n\n[Intro]\ngrid: | G |\n", TransposeOptions{To: "A"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(res.Text, "lead: | A | E7 |") || !strings.Contains(res.Text, "lead: 1") {
+	if !strings.Contains(res.Text, "lead: | A | E7 |") {
+		t.Errorf("transposed:\n%s", res.Text)
+	}
+	res, err = TransposeText("key: G\n\n[Intro]\nlead: | G |\ngrid: | G |\n\n[Verse]\nlead: 1\n", TransposeOptions{To: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Text, "[Intro]\nlead: | A |") || !strings.Contains(res.Text, "lead: 1") {
 		t.Errorf("transposed:\n%s", res.Text)
 	}
 }

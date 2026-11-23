@@ -102,11 +102,11 @@ func TestPickupRowsInPrint(t *testing.T) {
 	}
 }
 
-// TestLeadRowsInPrint: a "lead:" line's bars ride on the opening section's
+// TestLeadRowsInPrint: the song's "lead:" bars ride on its first grid's
 // first row, half a bar wide each, on top of its phrase or its "bars:".
 func TestLeadRowsInPrint(t *testing.T) {
-	sg := song.WithLeads(song.Parse("time: 4/4\n\n[Intro]\nlead: 2\nbars: 4\ngrid: | G | G | G | G | C | C | C | C |\n"))
-	if sg.LeadIn() != 2 || tab.FirstGridSection(sg) != 0 || !tab.StartsWithPickup(sg, 0) {
+	sg := withLeadDrawn(song.Parse("time: 4/4\nlead: 2\n\n[Intro]\nbars: 4\ngrid: | G | G | G | G | C | C | C | C |\n"))
+	if sg.LeadIn() != 2 || song.LeadBars(sg.Sections[0].Measures) != 2 || !tab.StartsWithPickup(sg, 0) {
 		t.Fatalf("lead-in %d", sg.LeadIn())
 	}
 	n := len(sg.Sections[0].Measures)
@@ -117,7 +117,7 @@ func TestLeadRowsInPrint(t *testing.T) {
 		t.Errorf("lead 2, no bars:: %v", rows)
 	}
 	// lead: 1 isn't one of the "bars:" either (a written pickup bar is).
-	one := song.WithLeads(song.Parse("[Intro]\nlead: 1\nbars: 4\ngrid: | G | G | G | G | C | C | C | C |\n"))
+	one := withLeadDrawn(song.Parse("lead: 1\n\n[Intro]\nbars: 4\ngrid: | G | G | G | G | C | C | C | C |\n"))
 	if rows := sectionBarRowsN([]int{4}, len(one.Sections[0].Measures), false, 1); !reflect.DeepEqual(rows, []barRow{{Bars: 5, Cap: 4}, {Bars: 4, Cap: 4}}) {
 		t.Errorf("lead 1 + bars: 4: %v", rows)
 	}
@@ -126,7 +126,7 @@ func TestLeadRowsInPrint(t *testing.T) {
 		t.Errorf("2 leads + 4: xs %v ws %v", xs, ws)
 	}
 	// The whole PDF draws, every mode.
-	src := "title: Lead\ntime: 4/4\n\n[Intro]\nlead: | D7 | . |\nbars: 4\ngrid: | G | G | G | G | C | C | C | C |\n\n[Verse]\nlead: 1\ngrid: | G | C |\n"
+	src := "title: Lead\ntime: 4/4\nlead: | D7 | . |\n\n[Intro]\nbars: 4\ngrid: | G | G | G | G | C | C | C | C |\n\n[Verse]\ngrid: | G | C |\n"
 	for _, mode := range []Mode{ModeDefault, ModeJazz, ModeLyrics, ModeMap} {
 		if _, err := New().ExportSong(context.Background(), "", src, nil, Options{Mode: mode}); err != nil {
 			t.Errorf("render mode %v: %v", mode, err)
