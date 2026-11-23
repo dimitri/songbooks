@@ -3179,7 +3179,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	// A lesson, or a song all in its Guitar Pro file: the lesson view
 	// (lessonview.go), its video first.
-	lessonViewData(data, sg)
+	var course *songLesson
+	if data["GPFileName"] != nil {
+		if l, err := s.store.CourseLessonOfSong(r.Context(), variantID); err == nil && l != nil {
+			course = &songLesson{Title: l.Title, VideoID: s.lessonVideo(*l)}
+		}
+	}
+	lessonViewData(data, sg, course)
 	// The key's chip in the dock names the key: "Ton −1 · C#m".
 	data["SongKeyName"] = songKeyName(sg)
 	// "Je joue": the reader's parts here, a level each (player_parts.go).

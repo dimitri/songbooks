@@ -8122,6 +8122,10 @@ body:has(#lesson-tabs) #view-stack :is([data-forward]:not([data-forward="score"]
    over its display: none, and it sat at the end of the page — in sight
    under a lesson's short screen. */
 body:not(.stage):has(#lesson-tabs) .stage-exit { display: none; }
+/* A lesson is played in its file's key (lessonview.go): no transposing —
+   not in the header, the player (its Key, its panel's line, the phone
+   card's), the Mixer, nor the editor's Transpose. */
+body:has(#lesson-tabs) :is(.topbar-key, #topbar-key-open, #audio-key-btn, #audio-key-tool, #audio-card-key, #audio-line-key, .daw-key, #transpose-open, #transpose-panel) { display: none !important; }
 /* A phone's screens' own buttons: on a wide screen, none. */
 .lesson-practice-head, .lesson-practise { display: none; }
 

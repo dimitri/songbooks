@@ -707,7 +707,7 @@
      place (beside the song's actions); on a phone they stay here, on the
      practice screen. */}}
 <span id="lesson-tabs-home" hidden></span>
-<div class="view-tabs lesson-tabs" id="lesson-tabs" role="group" aria-label="{{t "View"}}" data-tab="score" data-screen="{{if .LessonVideoID}}lesson{{else}}practice{{end}}">
+<div class="view-tabs lesson-tabs" id="lesson-tabs" role="group" aria-label="{{t "View"}}" data-tab="score" data-screen="{{if .LessonVideoID}}lesson{{else}}practice{{end}}" data-variant="{{.VariantID}}">
   <button type="button" data-lesson-tab="score" class="active" aria-pressed="true" title="{{t "the score"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>
   <button type="button" data-lesson-tab="mixer" aria-pressed="false" title="{{t "mixer"}}">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
 </div>
@@ -720,6 +720,18 @@
     // says the practice one, or there's no video.
     const view = new URLSearchParams(location.search).get('view');
     document.documentElement.dataset.lessonScreen = view === 'practice' || view === 'lesson' ? view : tabs.dataset.screen;
+    // A lesson is played in its file's key: one kept from an earlier visit
+    // is dropped before the player (audio-player.js) reads it.
+    try {
+      const k = `songbooks:player:${tabs.dataset.variant}`;
+      const p = JSON.parse(localStorage.getItem(k) || 'null');
+      if (p && p.semitones) { p.semitones = 0; localStorage.setItem(k, JSON.stringify(p)); }
+    } catch (e) { /* nothing kept */ }
+    // …and its key shortcuts (- and =) do nothing: first in line, before
+    // the player's own listeners.
+    window.addEventListener('keydown', (e) => {
+      if (['-', '=', '+', '_'].includes(e.key) && !e.metaKey && !e.ctrlKey && !(e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) e.stopImmediatePropagation();
+    }, true);
   })();
 </script>
 {{if .LessonVideoID}}

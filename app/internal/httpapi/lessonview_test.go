@@ -10,11 +10,13 @@ import (
 	"app/internal/store"
 )
 
-// TestLessonViewData: a song all in its Guitar Pro file, or whose chart
-// was only read from it (gp_source, every section's bars from the file, no
-// lyrics), gets the lesson view, in a course or not; its video is the
-// lesson's, else the song's reference. A chart of its own (written by
-// hand, sung, a section added by hand) and a song without a file don't.
+// TestLessonViewData: a song with its Guitar Pro file is a lesson when it's
+// one of a course's lessons (whichever way it's opened), all in its file,
+// or its chart was only read from it (gp_source, every section's bars from
+// the file, no lyrics); its video is the lesson's (the course's lesson's,
+// the panel's), else the song's reference; its keys are taken away. A
+// chart of its own (written by hand, sung, a section added by hand)
+// outside a course, and a song without a file, aren't lessons.
 func TestLessonViewData(t *testing.T) {
 	const ref = "reference: https://youtu.be/abcdefghijk\n"
 	gpOnly := song.Parse("title: Shuffle\ncontent: gp\n" + ref + "\n[Song]\ngp[#1]: 1-12\n")
@@ -32,31 +34,55 @@ func TestLessonViewData(t *testing.T) {
 		}
 		return d
 	}
+	course := &songLesson{Title: "Cours 5", VideoID: "coursevideo"}
 	cases := []struct {
 		name      string
 		sg        *song.Song
 		data      map[string]any
+		course    *songLesson
 		view      bool
 		video, by string
 	}{
-		{"content: gp", gpOnly, file(nil), true, "abcdefghijk", "Shuffle"},
-		{"content: gp, no file", gpOnly, map[string]any{}, false, "", ""},
-		{"imported from its file", imported, file(nil), true, "abcdefghijk", "Shuffle"},
-		{"imported, a lesson", imported, file(lesson("lessonvideo")), true, "lessonvideo", "Cours 5"},
-		{"imported, a lesson without a video", imported, file(lesson("")), true, "abcdefghijk", "Cours 5"},
-		{"imported, sung", sung, file(nil), false, "", ""},
-		{"imported, a section added by hand", added, file(nil), false, "", ""},
-		{"a chart by hand, in a course", chart, file(lesson("lessonvideo")), false, "", ""},
-		{"a chart by hand", chart, file(nil), false, "", ""},
+		{"content: gp", gpOnly, file(nil), nil, true, "abcdefghijk", "Shuffle"},
+		{"content: gp, no file", gpOnly, map[string]any{}, nil, false, "", ""},
+		{"imported from its file", imported, file(nil), nil, true, "abcdefghijk", "Shuffle"},
+		{"imported, opened in its course", imported, file(lesson("lessonvideo")), course, true, "lessonvideo", "Cours 5"},
+		{"imported, a lesson without a video", imported, file(lesson("")), &songLesson{Title: "Cours 5"}, true, "abcdefghijk", "Cours 5"},
+		{"imported, sung", sung, file(nil), nil, false, "", ""},
+		{"imported, a section added by hand", added, file(nil), nil, false, "", ""},
+		{"a chart by hand, a course's lesson, opened from elsewhere", chart, file(nil), course, true, "coursevideo", "Cours 5"},
+		{"a section added by hand, a course's lesson", added, file(nil), course, true, "coursevideo", "Cours 5"},
+		{"a chart by hand", chart, file(nil), nil, false, "", ""},
+		{"a course's lesson without its file", chart, map[string]any{}, course, false, "", ""},
 	}
 	for _, c := range cases {
-		lessonViewData(c.data, c.sg)
+		lessonViewData(c.data, c.sg, c.course)
 		view, _ := c.data["LessonView"].(bool)
 		video, _ := c.data["LessonVideoID"].(string)
 		by, _ := c.data["LessonVideoTitle"].(string)
 		if view != c.view || video != c.video || by != c.by {
 			t.Errorf("%s: view %v video %q (%q), want %v %q (%q)", c.name, view, video, by, c.view, c.video, c.by)
 		}
+	}
+}
+
+// A lesson is played in its file's key: a student's, a songbook's or a
+// coach's key is taken away; a chart keeps them.
+func TestLessonViewKeys(t *testing.T) {
+	keys := func() map[string]any {
+		return map[string]any{"GPFileName": "a.gp", "StudentKey": -2, "StudentKeySet": true, "StudentKeyName": "D", "KeyContext": "Ada", "KeyMine": true, "SongbookKey": struct{}{}, "CoachStudentKeys": int64(3)}
+	}
+	d := keys()
+	lessonViewData(d, song.Parse("title: Shuffle\ncontent: gp\n\n[Song]\ngp[#1]: 1-12\n"), nil)
+	for _, k := range []string{"StudentKey", "StudentKeySet", "StudentKeyName", "KeyContext", "KeyMine", "SongbookKey", "CoachStudentKeys"} {
+		if _, ok := d[k]; ok {
+			t.Errorf("a lesson keeps %s", k)
+		}
+	}
+	d = keys()
+	lessonViewData(d, song.Parse("title: Shuffle\n\n[Song]\ngrid: | A7 | D7 |\n"), nil)
+	if d["StudentKeySet"] != true || d["SongbookKey"] == nil {
+		t.Errorf("a chart lost its keys: %v", d)
 	}
 }
 
@@ -74,7 +100,7 @@ func TestLessonViewTabs(t *testing.T) {
 			"Sections": buildSections(sg), "GPFileName": "a.gp", "GPOnly": isGPOnly(sg), "HasGPView": isGPOnly(sg),
 			"Tempo": "120", "Time": "4/4", "TimeNum": "4", "TimeDen": "4", "BrandKind": "", "BrandID": int64(0),
 		}
-		lessonViewData(data, sg)
+		lessonViewData(data, sg, nil)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/song/7?lang=en", nil)
 		(&Server{}).render(&langWriter{ResponseWriter: w, r: r}, "song", data)
