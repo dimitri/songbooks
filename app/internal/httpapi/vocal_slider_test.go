@@ -81,7 +81,10 @@ func TestCoachKeysPermissions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	song, err := st.CreateVariant(ctx, store.OwnerPerson, coach.ID, "Song", "", coach.ID)
+	// The community's song (its repertoire's): a community's songbooks,
+	// a student's among them, hold its own songs and public ones, never
+	// the coach's private song (store.LinkCheck; checked below).
+	song, err := st.CreateCommunityVariant(ctx, c, "Song", "", coach.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,6 +182,21 @@ func TestCoachKeysPermissions(t *testing.T) {
 	}
 	if _, n, ok, _ := st.StudentKeyOf(ctx, george.ID, song); !ok || n != 2 {
 		t.Fatalf("George's key: %d %v", n, ok)
+	}
+	// The coach's own private song, in Poppy's songbook from before the
+	// ownership model: George can't be given it (a 409 that says why),
+	// the community's songbooks don't hold a person's private song.
+	private, err := st.CreateVariant(ctx, store.OwnerPerson, coach.ID, "Mine", "", coach.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddToSongbook(ctx, sb, private, coach.ID); err != nil {
+		t.Fatal(err)
+	}
+	w := call(coach, s.handlePostCoachKey, "POST", "/api/songs/x/coach-keys",
+		fmt.Sprintf(`{"communityId":%d,"personId":%d,"semitones":1}`, c, george.ID), map[string]string{"id": fmt.Sprint(private)})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"private"`) {
+		t.Fatalf("the coach's private song for George: %d %s", w.Code, w.Body)
 	}
 
 	// The player options: the staff's to turn on, not a student's; and

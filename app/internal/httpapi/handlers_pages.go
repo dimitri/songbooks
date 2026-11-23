@@ -2892,7 +2892,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	//     "Make Mercy's version" (POST /api/bands/{id}/catalog/fork/{song}),
 	//     which takes the link's place, then edits that.
 	//   - CommunityOffer: the same from a community's songbook, for who
-	//     edits its repertoire ("Make the community's version").
+	//     edits its repertoire ("Make the community's version"); in a
+	//     coaching community, its coach and the students the song is
+	//     given to, from its songbooks or from none (communityEditOffer).
 	//   - CanCopy without CanEdit: Edit says whose song it is and offers
 	//     "Make my version" (POST /api/variants/{id}/fork). Never a closed
 	//     songbook's song; without any of these, there's no Edit.
@@ -2910,7 +2912,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if rights != nil {
 			canEdit = rights.Edit
 			canPublish = rights.Publish
-			canNewVersion = rights.Edit && !rights.Catalogue && !rights.Closed
+			// In a coaching community, New version from this is the
+			// coach's: a student edits the song they're given, in place.
+			canNewVersion = rights.Edit && !rights.Catalogue && !rights.Closed && !(rights.Coaching && !rights.Publish)
 			// Delete this song… (the More menu): who edits and publishes
 			// it, never the catalogue's from here; a confirmation says who
 			// links it first (versions_sync.go).
@@ -3312,20 +3316,31 @@ type songCommunityOffer struct {
 	CommunityID int64
 	Name        string
 	SongbookID  int64
+	// Coaching: a coaching community's, whose version every songbook of
+	// its takes (the repertoire, each student's and group's), the coach
+	// and the students it's given to editing it (docs/coaching.md).
+	Coaching bool
 }
 
 // communityEditOffer is that offer, or nil: the page was opened from a
 // community's songbook (?songbook=) that links the song (not the
-// community's own), personID edits the community's repertoire, and the
-// community may make its version (a public song).
+// community's own), personID may make the community's version
+// (store.MayMakeVersion: who edits its repertoire; in a coaching
+// community, the coach, and a student the song is given to), and the
+// community may (a public song). Opened from elsewhere, a song a
+// coaching community links that personID can't edit in place offers that
+// community's version when they may make it (coachingEditOffer).
 func (s *Server) communityEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *songCommunityOffer {
+	ctx := r.Context()
 	id, err := strconv.ParseInt(r.URL.Query().Get("songbook"), 10, 64)
 	if err != nil || id <= 0 {
-		return nil
+		if rights.Edit {
+			return nil
+		}
+		return s.coachingEditOffer(r, personID, variant, rights)
 	}
-	ctx := r.Context()
 	sb, err := s.store.GetSongbook(ctx, id)
-	if err != nil || sb.OwnerKind != "community" || sb.IsStudent() {
+	if err != nil || sb.OwnerKind != "community" {
 		return nil
 	}
 	owner := sb.Owner()
@@ -3335,14 +3350,37 @@ func (s *Server) communityEditOffer(r *http.Request, personID int64, variant *st
 	if _, in, err := s.store.SongbookEntryKey(ctx, sb.ID, variant.VariantID); err != nil || !in {
 		return nil
 	}
-	if ok, err := s.store.OwnerMayChange(ctx, personID, owner); err != nil || !ok {
+	if ok, err := s.store.MayMakeVersion(ctx, personID, variant.VariantID, owner, false); err != nil || !ok {
 		return nil
 	}
 	c, err := s.store.GetCommunity(ctx, sb.OwnerCommunityID)
 	if err != nil {
 		return nil
 	}
-	return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, SongbookID: sb.ID}
+	return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, SongbookID: sb.ID, Coaching: c.IsCoaching()}
+}
+
+// coachingEditOffer is the community's version offered on a song opened
+// from no songbook (search, home, a link): the first coaching community
+// whose songbooks link it and whose version personID may make — its
+// coach, or a student it's given to.
+func (s *Server) coachingEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *songCommunityOffer {
+	ctx := r.Context()
+	communities, err := s.store.CoachingCommunitiesOfSong(ctx, variant.VariantID)
+	if err != nil {
+		return nil
+	}
+	for _, c := range communities {
+		owner := store.CommunityOwner(c.ID)
+		if rights.Owner == owner || !rights.CanVersionFor(owner) {
+			continue
+		}
+		if ok, err := s.store.MayMakeVersion(ctx, personID, variant.VariantID, owner, false); err != nil || !ok {
+			continue
+		}
+		return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, Coaching: true}
+	}
+	return nil
 }
 
 func variantVersionName(v *store.CatalogVariant) string {

@@ -53,6 +53,13 @@ type SongRights struct {
 	// themselves, a current member of the band or the community; everyone
 	// for The Big Songbook).
 	Member bool
+	// Coaching: the owner is a coaching community (docs/coaching.md).
+	Coaching bool
+	// AssignedStudent: the person is a current student of that coaching
+	// community and their own student songbook holds the song (the coach
+	// gave it to them): they edit it in place, as the coach does — not
+	// another student's song, not the repertoire's others.
+	AssignedStudent bool
 
 	See     bool // open it, play it, export it, download its files
 	Edit    bool // change it in place
@@ -124,6 +131,7 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	err := q.QueryRow(ctx, `
 		SELECT s.owner_kind, coalesce(s.owner_person_id, s.owner_band_id, s.owner_community_id),
 		       s.public, coalesce(c.kind = 'global', false), song_closed(s.id), song_visible(s.id, $2),
+		       coalesce(c.kind = 'coaching', false), `+assignedStudentSQL("s.owner_community_id", "s.id", "$2")+`,
 		       coalesce((SELECT is_admin FROM people WHERE id = $2), false),
 		       EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity)),
 		       EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity) AND bm.status = 'core'),
@@ -137,6 +145,7 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		WHERE s.id = $1`, songID, personID, PrivEditRepertoire,
 		PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings, PrivManageFiles).
 		Scan(&kind, &ownerID, &r.Public, &r.Catalogue, &r.Closed, &r.See,
+			&r.Coaching, &r.AssignedStudent,
 			&admin, &bandMember, &bandCore, &communityMember, &editRepertoire, &staff)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
@@ -147,6 +156,7 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	r.Owner = Owner{Kind: kind, ID: ownerID}
 	if personID <= 0 {
 		r.See = false
+		r.AssignedStudent = false
 		return r, nil
 	}
 	switch {
@@ -162,6 +172,14 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		r.Member = bandMember
 		r.Edit = bandMember
 		r.Publish = bandCore
+	case kind == "community" && r.Coaching:
+		// A coaching community's songs: the coach (its staff, who edit
+		// its repertoire) and the students each song is given to (their
+		// student songbook holds it); edit_repertoire alone, a student's
+		// role's, doesn't open the others.
+		r.Member = communityMember
+		r.Edit = r.See && (editRepertoire && staff || r.AssignedStudent)
+		r.Publish = staff
 	case kind == "community":
 		r.Member = communityMember
 		r.Edit = editRepertoire && r.See
@@ -171,6 +189,28 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		r.Publish = false
 	}
 	return r, nil
+}
+
+// assignedStudentSQL is "person is a current student of the coaching
+// community community and their own student songbook of it holds song"
+// in a query (community, song and person are SQL expressions).
+func assignedStudentSQL(community, song, person string) string {
+	return `EXISTS (SELECT 1 FROM songbook_entries ase
+	               JOIN songbooks asb ON asb.id = ase.songbook_id AND asb.kind = 'student'
+	               JOIN communities ac ON ac.id = asb.owner_community_id AND ac.kind = 'coaching'
+	               JOIN community_members acm ON acm.community_id = ac.id AND acm.person_id = asb.student_person_id
+	                                         AND upper_inf(acm.validity)
+	               WHERE ase.variant_id = ` + song + ` AND asb.owner_community_id = ` + community + `
+	                 AND asb.student_person_id = ` + person + `)`
+}
+
+// IsAssignedStudent reports whether personID is a current student of the
+// coaching community communityID whose own student songbook holds songID
+// (a link or the community's own song).
+func (st *Store) IsAssignedStudent(ctx context.Context, personID, communityID, songID int64) (bool, error) {
+	var ok bool
+	err := st.db.QueryRow(ctx, `SELECT `+assignedStudentSQL("$1::bigint", "$2::bigint", "$3::bigint"), communityID, songID, personID).Scan(&ok)
+	return ok, err
 }
 
 // SongbookRights is what one person may do with one songbook.

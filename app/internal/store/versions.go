@@ -47,6 +47,45 @@ func (st *Store) OwnerMayChange(ctx context.Context, personID int64, o Owner) (b
 	return ownerMayChange(ctx, st.db, personID, o)
 }
 
+// isCoachingCommunity reports whether owner is a coaching community.
+func (st *Store) isCoachingCommunity(ctx context.Context, o Owner) (bool, error) {
+	if o.Kind != "community" {
+		return false, nil
+	}
+	var ok bool
+	err := st.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM communities WHERE id = $1 AND kind = 'coaching')`, o.ID).Scan(&ok)
+	return ok, err
+}
+
+// MayMakeVersion reports whether personID may make owner's version of
+// songID (own: songID is owner's already, New version from this) as far
+// as changing owner's songbooks goes (ownerMayChange) — CanVersionFor is
+// the song's side. A coaching community's version is the coach's to make
+// (its staff, who edit its repertoire), and, of a song it links, the
+// students it's given to (their student songbook holds it): the song the
+// coach and those students work on becomes the community's, which they
+// all edit (SongRights.AssignedStudent). A student makes no other.
+func (st *Store) MayMakeVersion(ctx context.Context, personID, songID int64, owner Owner, own bool) (bool, error) {
+	coaching, err := st.isCoachingCommunity(ctx, owner)
+	if err != nil || !coaching {
+		if err != nil {
+			return false, err
+		}
+		return st.OwnerMayChange(ctx, personID, owner)
+	}
+	staff, err := st.HasAnyCommunityManagePrivilege(ctx, owner.ID, personID)
+	if err != nil {
+		return false, err
+	}
+	if staff {
+		return st.HasCommunityPrivilege(ctx, owner.ID, personID, PrivEditRepertoire)
+	}
+	if own {
+		return false, nil
+	}
+	return st.IsAssignedStudent(ctx, personID, owner.ID, songID)
+}
+
 // MakeVersion makes owner's own version of songID for personID and
 // returns its id: a new song owned by owner, private, its content and
 // media copied, forked_from_id songID, named name ("" when it has none).
@@ -78,12 +117,20 @@ func (st *Store) MakeVersion(ctx context.Context, personID, songID int64, owner 
 		}
 		return 0, st.linkRefusal(ctx, r)
 	}
-	if ok, err := st.OwnerMayChange(ctx, personID, owner); err != nil {
+	own := r.Owner == owner
+	if ok, err := st.MayMakeVersion(ctx, personID, songID, owner, own); err != nil {
 		return 0, err
 	} else if !ok {
 		return 0, fmt.Errorf("person %d may not change %s %d's songbooks: %w", personID, owner.Kind, owner.ID, ErrForbidden)
 	}
-	own := r.Owner == owner
+	// A coaching community's version of a song it links takes the link's
+	// place in every songbook of its, whichever it was made from: the
+	// repertoire, each student's and each group's, their keys kept — the
+	// one song the coach and the students share.
+	coaching, err := st.isCoachingCommunity(ctx, owner)
+	if err != nil {
+		return 0, err
+	}
 	if songbookID != 0 {
 		sb, err := st.GetSongbook(ctx, songbookID)
 		if err != nil {
@@ -159,8 +206,8 @@ func (st *Store) MakeVersion(ctx context.Context, personID, songID int64, owner 
 		SELECT se.songbook_id FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
 		WHERE se.variant_id = $1 AND sb.owner_kind = $2
 		  AND coalesce(sb.owner_person_id, sb.owner_band_id, sb.owner_community_id) = $3
-		  AND ($4 = 0 OR sb.id = $4)
-		ORDER BY sb.id`, songID, owner.Kind, owner.ID, songbookID)
+		  AND ($4 = 0 OR sb.id = $4 OR $5)
+		ORDER BY sb.id`, songID, owner.Kind, owner.ID, songbookID, coaching && !own)
 	if err != nil {
 		return 0, err
 	}
@@ -220,11 +267,56 @@ func (st *Store) MakeVersion(ctx context.Context, personID, songID int64, owner 
 		if err := st.repointOwnerSetlists(ctx, tx, owner, songID, newID, personID); err != nil {
 			return 0, err
 		}
+		if owner.Kind == "community" {
+			if err := repointCommunityRefs(ctx, tx, owner.ID, songID, newID); err != nil {
+				return 0, err
+			}
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, err
 	}
 	return newID, nil
+}
+
+// communityRefs are the coaching tables whose rows of a community point
+// at a song: what a student asked for, was given to practise, sang and
+// was told about it, and its events' programs. They follow the
+// community's version of a song it linked (MakeVersion): the same song to
+// the coach and the students.
+var communityRefs = []struct{ table, column, scope string }{
+	{"coaching_song_requests", "variant_id", "community_id = $3"},
+	{"practice_assignments", "variant_id", "community_id = $3"},
+	{"practice_logs", "variant_id", "community_id = $3"},
+	{"practice_takes", "variant_id", "community_id = $3"},
+	{"teaching_notes", "variant_id", "community_id = $3"},
+	{"event_program", "variant_id", "event_id IN (SELECT id FROM events WHERE owner_community_id = $3)"},
+}
+
+// repointCommunityRefs points communityID's coaching rows (communityRefs)
+// at `to` instead of `from`; a row that would duplicate one of `to`'s is
+// dropped.
+func repointCommunityRefs(ctx context.Context, tx pgx.Tx, communityID, from, to int64) error {
+	for _, ref := range communityRefs {
+		col := songRefColumn{table: ref.table, column: ref.column}
+		if _, err := repointColumnWhere(ctx, tx, col, from, to, ref.scope, communityID); err != nil {
+			return fmt.Errorf("%s.%s: %w", ref.table, ref.column, err)
+		}
+	}
+	return nil
+}
+
+// CommunityVersionOf is communityID's own unnamed version of songID (made
+// by MakeVersion: "Make the community's version"), else songID: what a
+// coaching community's songbook gets when the coach gives a student a
+// song the community has its version of.
+func (st *Store) CommunityVersionOf(ctx context.Context, communityID, songID int64) (int64, error) {
+	var id int64
+	err := st.db.QueryRow(ctx, `
+		SELECT coalesce((SELECT id FROM songs
+		                 WHERE forked_from_id = $2 AND owner_community_id = $1 AND version_name = ''
+		                 ORDER BY id LIMIT 1), $2)`, communityID, songID).Scan(&id)
+	return id, err
 }
 
 // SetVersionName names songID among its owner's versions of the same song.

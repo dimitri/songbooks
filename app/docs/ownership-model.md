@@ -36,7 +36,11 @@ Chapman" are two songs of the same work.
   ownerless today, are owned by the global community (§6).
 - Editing in place: the person; a band's current members (core and
   guest); a community's members with the "edit repertoire" right; the
-  global community's staff (site admins).
+  global community's staff (site admins). In a **coaching** community,
+  the coach (its staff) and, for each of its songs, the students it's
+  given to (their student songbook holds it): not another student's
+  song, not the repertoire's others ([coaching.md](coaching.md), "The
+  song the coach and the students share").
 - **Making public** (a song or a whole songbook): a person for their
   own; a band's **core** members; a community's **staff**.
 - **Everything goes public with the song**: the chart, the reference

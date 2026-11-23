@@ -177,12 +177,23 @@ func (st *Store) repointSong(ctx context.Context, tx pgx.Tx, from, to int64, act
 // repointColumn moves col's rows from `from` to `to`; a row that would
 // then duplicate one of `to`'s (a unique constraint) is dropped instead.
 func repointColumn(ctx context.Context, tx pgx.Tx, col songRefColumn, from, to int64) (int, error) {
+	return repointColumnWhere(ctx, tx, col, from, to, "")
+}
+
+// repointColumnWhere is repointColumn for col's rows that scope (an SQL
+// condition, $3 onwards its args) also picks; "" for all of them.
+func repointColumnWhere(ctx context.Context, tx pgx.Tx, col songRefColumn, from, to int64, scope string, scopeArgs ...any) (int, error) {
 	table := pgx.Identifier{col.table}.Sanitize()
 	column := pgx.Identifier{col.column}.Sanitize()
+	where := column + ` = $1`
+	if scope != "" {
+		where += ` AND (` + scope + `)`
+	}
+	args := append([]any{from, to}, scopeArgs...)
 	if _, err := tx.Exec(ctx, `SAVEPOINT repoint`); err != nil {
 		return 0, err
 	}
-	tag, err := tx.Exec(ctx, `UPDATE `+table+` SET `+column+` = $2 WHERE `+column+` = $1`, from, to)
+	tag, err := tx.Exec(ctx, `UPDATE `+table+` SET `+column+` = $2 WHERE `+where, args...)
 	if err == nil {
 		_, err = tx.Exec(ctx, `RELEASE SAVEPOINT repoint`)
 		return int(tag.RowsAffected()), err
@@ -194,7 +205,7 @@ func repointColumn(ctx context.Context, tx pgx.Tx, col songRefColumn, from, to i
 		return 0, err
 	}
 	// One row at a time, by ctid.
-	rows, err := tx.Query(ctx, `SELECT ctid::text FROM `+table+` WHERE `+column+` = $1`, from)
+	rows, err := tx.Query(ctx, `SELECT ctid::text FROM `+table+` WHERE `+where+` AND $2::bigint IS NOT NULL`, args...)
 	if err != nil {
 		return 0, err
 	}

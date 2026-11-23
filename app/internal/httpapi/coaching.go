@@ -551,6 +551,7 @@ func (s *Server) handlePostCoachingSong(w http.ResponseWriter, r *http.Request) 
 	if !s.writeLinkErr(w, r, s.store.LinkCheck(r.Context(), personFromContext(r).ID, req.VariantID, sb)) {
 		return
 	}
+	req.VariantID = s.coachingSongFor(r.Context(), sb, req.VariantID)
 	if err := s.store.AddToSongbook(r.Context(), sb.ID, req.VariantID, personFromContext(r).ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -2505,7 +2505,13 @@
     {{end}}{{else if .CommunityOffer}}{{with .CommunityOffer}}
     <h2 id="edit-offer-title">{{t "Make the community’s version"}}</h2>
     <p id="edit-offer-text">{{t "This song isn’t %s’s own: its songbook links it. Changing it here would change it for everyone who links it." .Name}}</p>
+    {{if .Coaching}}
+    {{/* A coaching community's version: the one song the coach and the
+         students it's given to share (store.MayMakeVersion). */}}
+    <p class="hint">{{t "%s gets its own version, which the coach and the students it’s given to change together, each keeping their own key. It takes this song’s place in the repertoire and in the students’ and groups’ songbooks; the original stays as it is." .Name}}</p>
+    {{else}}
     <p class="hint">{{t "%s gets its own version, which whoever edits its repertoire can change. It takes this song’s place in the songbook, in the same key; the original stays as it is." .Name}}</p>
+    {{end}}
     <div class="form-actions">
       <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="edit-offer-go" data-action="community" data-community-id="{{.CommunityID}}" data-songbook-id="{{.SongbookID}}">{{t "Make the community’s version"}}</button>

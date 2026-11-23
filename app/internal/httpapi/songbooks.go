@@ -419,7 +419,7 @@ func (s *Server) handleAddSongbookEntry(w http.ResponseWriter, r *http.Request) 
 	if !s.writeLinkErr(w, r, s.store.LinkCheck(r.Context(), p.ID, req.VariantID, sb)) {
 		return
 	}
-	variantID := req.VariantID
+	variantID := s.coachingSongFor(r.Context(), sb, req.VariantID)
 	if err := s.store.AddToSongbook(r.Context(), id, variantID, p.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
