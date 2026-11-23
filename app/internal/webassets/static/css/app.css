@@ -9866,20 +9866,21 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .vote-star:hover { transform: scale(1.12); background: none; }
 .vote-star.is-on { color: #d99a1e; }
 .vote-stars.is-preview .vote-star.is-on { color: color-mix(in srgb, #d99a1e 70%, transparent); }
-.vote-star:nth-child(2) { margin-right: 0.35rem; } /* 1–2 against, 3–4 for */
+.vote-stars .vote-star:nth-child(2) { margin-right: 0.35rem; } /* 1–2 against, 3–4 for */
 .vote-star:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-.vote-nothanks { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; min-width: 2.75rem; padding: 0.35rem 0.9rem 0.35rem 0.7rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg-muted); font-weight: 600; }
-.vote-nothanks .icon-veto { width: 1.35rem; height: 1.35rem; flex: none; }
+/* No thanks: a thumbs down, one of the stars (.vote-star) — faint when
+   not chosen, the danger colour when chosen. */
+.vote-nothanks { display: inline-flex; align-items: center; justify-content: center; }
+.vote-nothanks .icon-no-thanks { width: 1.45rem; height: 1.45rem; }
+.vote-nothanks.is-on { color: var(--danger); }
+.vote-nothanks.is-preview { color: color-mix(in srgb, var(--danger) 70%, transparent); }
 .vote-ctl-gap { width: 0.6rem; height: 1.6rem; border-left: 1px solid var(--border); margin-left: 0.3rem; }
-.veto-mark { display: inline-flex; vertical-align: -0.2em; }
-.veto-mark .icon-veto { width: 1.1em; height: 1.1em; }
-.vote-chip .veto-mark .icon-veto { width: 1.05em; height: 1.05em; }
+.no-mark { display: inline-flex; vertical-align: -0.15em; }
+.no-mark .icon-no-thanks { width: 1em; height: 1em; }
 .vote-chip.is-no { display: inline-flex; align-items: center; gap: 0.2rem; }
 .vote-sum-gap { width: 0.2rem; }
-.proposal-history .veto-mark { color: var(--danger); }
-.pl-score-mine .icon-veto { width: 0.9rem; height: 0.9rem; color: var(--danger); }
-.vote-nothanks:hover { border-color: var(--danger); color: var(--danger); background: var(--bg); }
-.vote-nothanks.is-on { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.proposal-history .no-mark { color: var(--danger); }
+.pl-score-mine .icon-no-thanks { width: 0.85rem; height: 0.85rem; color: var(--danger); }
 .vote-ctl.has-vote.is-no .vote-star { opacity: 0.5; }
 .vote-ctl-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.8rem; font-size: 0.82rem; color: var(--fg-muted); min-height: 1.4rem; }
 .vote-said { font-weight: 600; }
@@ -9906,11 +9907,7 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   .vote-listen span { display: none; }
   .vote-line .vote-names { font-size: 0.8rem; }
   .vote-star { width: 2.9rem; height: 2.9rem; font-size: 2rem; }
-  /* No thanks as its sign alone (its aria-label says it), so the veto
-     and the four stars hold on one line. */
-  .vote-nothanks { padding: 0; width: 2.9rem; height: 2.9rem; justify-content: center; }
-  .vote-nothanks-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .vote-nothanks .icon-veto { width: 1.55rem; height: 1.55rem; }
+  .vote-nothanks .icon-no-thanks { width: 1.6rem; height: 1.6rem; }
   .vote-ctl-row { flex-wrap: nowrap; gap: 0.4rem; }
   .vote-ctl-gap { margin-left: 0.1rem; width: 0.3rem; }
   .songbook-head .songbook-actions { width: 100%; }

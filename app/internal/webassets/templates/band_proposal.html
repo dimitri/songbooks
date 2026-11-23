@@ -90,8 +90,8 @@
         <ol class="proposal-history-list">
         {{range .History}}
           <li><span class="proposal-history-who">{{.Name}}</span>
-            {{if .LegacyVote}}{{if eq .LegacyVote "yes"}}{{t "voted yes (now 3 stars)"}}{{else}}<span class="veto-mark">{{template "icon-veto"}}</span> {{t "vetoed (now no thanks)"}}{{end}}
-            {{else if .NoThanks}}<span class="veto-mark">{{template "icon-veto"}}</span> {{t "said no thanks"}}{{else if .Stars}}<span class="stars-inline" aria-label="{{tn .Stars "%d star" "%d stars"}}">{{.Stars}}★</span>{{else}}{{t "took their vote back"}}{{end}}
+            {{if .LegacyVote}}{{if eq .LegacyVote "yes"}}{{t "voted yes (now 3 stars)"}}{{else}}<span class="no-mark">{{template "icon-no-thanks"}}</span> {{t "vetoed (now no thanks)"}}{{end}}
+            {{else if .NoThanks}}<span class="no-mark">{{template "icon-no-thanks"}}</span> {{t "said no thanks"}}{{else if .Stars}}<span class="stars-inline" aria-label="{{tn .Stars "%d star" "%d stars"}}">{{.Stars}}★</span>{{else}}{{t "took their vote back"}}{{end}}
             <time class="hint" datetime="{{.CastAt.Format "2006-01-02T15:04:05Z07:00"}}">{{date .CastAt "2 Jan, 15:04"}}</time></li>
         {{end}}
         </ol>

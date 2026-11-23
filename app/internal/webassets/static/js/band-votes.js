@@ -2,7 +2,7 @@
 // internal/store/band_proposals.go has the rules).
 //
 // Each core member says "No thanks" — a veto, the strongest no: first,
-// apart from the stars, with its sign (icon-veto) — or rates a proposed
+// apart from the stars, a thumbs down (icon-no-thanks) — or rates a proposed
 // song 1 to 4 stars — an even scale, never right in the middle: 1 and 2
 // are against it, 3 and 4 for it —, or hasn't voted (never 0 stars). The
 // votes are information: any member decides by hand (decide()). The same
@@ -55,10 +55,10 @@
     return e;
   };
   const STAR = '★';
-  // A no thanks is a veto: a "no entry" sign (icons.html's icon-veto),
-  // never a bin — it refuses the song, it deletes nothing.
-  const VETO = '<svg class="icon icon-veto" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="6.9"/><path d="M5.2 14.8 14.8 5.2"/></svg>';
-  const vetoIcon = () => { const s = el('span', 'veto-mark'); s.innerHTML = VETO; return s; };
+  // A no thanks: a thumbs down (icons.html's icon-no-thanks), drawn to
+  // sit with the stars: the same size, the same states.
+  const NO = '<svg class="icon icon-no-thanks" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="4" height="11" rx="1"/><path d="M8 4.5C8 3.67 8.67 3 9.5 3H17c.8 0 1.5.5 1.8 1.2l2.6 6.4c.1.3.2.5.2.8V13c0 1.1-.9 2-2 2h-5.2l.8 3.9c.2.9-.3 1.8-1.1 2.2-.5.2-1.1 0-1.4-.4L8.5 15.4c-.3-.4-.5-.9-.5-1.4z"/></svg>';
+  const noIcon = () => { const s = el('span', 'no-mark'); s.innerHTML = NO; return s; };
 
   async function send(bandId, proposalId, v) {
     const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
@@ -107,7 +107,7 @@
     // The no thanks first (a veto), apart; then the stars.
     if (tally.noThanks && tally.noThanks.length) {
       const no = el('span', 'vote-chip is-no');
-      no.append(vetoIcon(), ' ', trn(tally.noThanks.length, '%d no thanks', '%d no thanks'));
+      no.append(noIcon(), ' ', trn(tally.noThanks.length, '%d no thanks', '%d no thanks'));
       head.append(no, el('span', 'vote-sum-gap'));
     }
     head.append(meter(tally.avg, tally.avgText));
@@ -143,7 +143,7 @@
     if (tally.noThanks && tally.noThanks.length) {
       const p = el('p', 'vote-line vote-line-no');
       const chip = el('span', 'vote-chip is-no');
-      chip.append(vetoIcon(), ' ', tr('No thanks'));
+      chip.append(noIcon(), ' ', tr('No thanks'));
       p.append(chip, ' ', el('span', 'vote-names', tally.noThanks.map((b) => b.name).join(', ')));
       lines.append(p);
     }
@@ -189,15 +189,20 @@
       stars.append(b);
     }
     stars.addEventListener('pointerleave', () => preview(0));
-    // No thanks first — a veto —, then a gap, then the stars. Its word
-    // shows beside its sign, but on a narrow phone (CSS), where the
-    // button's aria-label still says it.
-    const no = el('button', 'vote-nothanks');
+    // No thanks first — a veto —, then a gap, then the stars: a thumbs
+    // down drawn as one of them (the same button, size, states and focus
+    // ring), its words in its aria-label, its title, and the line under
+    // the control on hover or focus.
+    const no = el('button', 'vote-star vote-nothanks');
     no.type = 'button';
     no.setAttribute('aria-label', tr('No thanks'));
     no.title = tr('No thanks: a veto');
-    no.append(vetoIcon(), el('span', 'vote-nothanks-label', tr('No thanks')));
+    no.innerHTML = NO;
     no.addEventListener('click', () => cast(mine && mine.noThanks ? { clear: true } : { noThanks: true }));
+    no.addEventListener('pointerenter', () => preview(0, true));
+    no.addEventListener('focus', () => preview(0, true));
+    no.addEventListener('pointerleave', () => preview(0));
+    no.addEventListener('blur', () => preview(0));
     row.append(no, el('span', 'vote-ctl-gap'), stars);
     const foot = el('div', 'vote-ctl-foot');
     const said = el('span', 'vote-said');
@@ -209,11 +214,12 @@
     status.setAttribute('role', 'status');
     box.append(row, foot, status);
 
-    function preview(n) {
+    function preview(n, refusing) {
       const shown = n || (mine && mine.stars) || 0;
       buttons.forEach((b, i) => b.classList.toggle('is-on', i < shown));
       stars.classList.toggle('is-preview', !!n);
-      said.textContent = n ? tr(meaning(n)) : mine ? (mine.noThanks ? tr('You said no thanks') : tr('Your vote: %s', tr(meaning(mine.stars)))) : tr('Not voted yet');
+      no.classList.toggle('is-preview', !!refusing && !(mine && mine.noThanks));
+      said.textContent = refusing ? tr('No thanks: a veto') : n ? tr(meaning(n)) : mine ? (mine.noThanks ? tr('You said no thanks') : tr('Your vote: %s', tr(meaning(mine.stars)))) : tr('Not voted yet');
     }
     function draw() {
       buttons.forEach((b, i) => {
@@ -338,7 +344,7 @@
         s.append(el('span', 'pl-score-avg', ty.ratings ? `${STAR} ${ty.avgText}` : `${STAR} –`), el('span', 'pl-score-count', votedText(ty)));
         if (ty.mine) {
           const m = el('span', 'pl-score-mine');
-          if (ty.mine.noThanks) { m.append(vetoIcon()); m.setAttribute('aria-label', tr('You said no thanks')); } else m.textContent = STAR.repeat(ty.mine.stars);
+          if (ty.mine.noThanks) { m.append(noIcon()); m.setAttribute('aria-label', tr('You said no thanks')); } else m.textContent = STAR.repeat(ty.mine.stars);
           s.append(m);
         }
         s.title = ty.mine ? tr('You voted') : tr('Not voted yet');

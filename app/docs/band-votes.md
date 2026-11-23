@@ -55,9 +55,12 @@ The editor's Import, as the quick add does (`songimport.VocalDraft`):
 Each **core member** says **No thanks** — a veto, the strongest no — or
 rates a proposal **1 to 4 stars**, an even scale never right in the
 middle: 1 and 2 are against it, 3 and 4 for it. The vote control puts
-No thanks first, with its sign (a "no entry" circle, `icon-veto`: it
-refuses, it deletes nothing), then a gap, then the four stars; the same
-order wherever votes show (the summaries, the history). Not voted is
+No thanks first — a **thumbs down** (`icon-no-thanks`: the "not for
+me" YouTube, Netflix and Pandora use, which everyone reads), drawn as
+one of the stars: the same button, size, states (faint until chosen,
+then the danger colour) and focus ring, its words in its label —, then
+a gap, then the four stars; the same order wherever votes show (the
+summaries, the queue, the history). Not voted is
 "not voted", never 0 stars. A vote is changed or taken back until the
 proposal is decided; every vote, change and take-back is kept
 (`proposal_vote_log`). Keys: 1–4, N for no thanks.
