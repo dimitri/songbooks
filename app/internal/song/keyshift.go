@@ -2,32 +2,28 @@ package song
 
 import "app/internal/chordsym"
 
-// KeyShift is how far a save moved a song's own key, in semitones
-// (-6…+5), 0 when it didn't: what the songbooks keeping the song in a key
-// of their own (a student's, a group's, a band's) take back so that key
-// stays where it was (store.keepEntryKeys).
+// KeyShift is how far a save transposed a song, in semitones (-6…+5), 0
+// when it didn't: what the songbooks keeping the song in a key of their
+// own (a student's, a group's, a band's) take back so that key sounds
+// where it did (store.keepEntryKeys).
 //
-//   - Both sides with a "key:" header in the same mode: the tonic moved
-//     ("G" → "A": +2), whether the chart was transposed with it or the
-//     header alone was put right.
-//   - Otherwise (no header on one side or either, or the mode changed,
-//     "Am" → "C" being a relabel): the chart transposed in place, every
-//     chord it plays moved by the same interval, in the same order, the
-//     same qualities. A chart edited any other way moved nothing.
+// Only chords actually moving is a transposition: every chord the chart
+// plays moved by the same interval, in the same order, the same
+// qualities (at least two of them: one chord changed is a fix). The
+// "key:" header alone changed is a label fix — the header was wrong, the
+// chords and the reference recording don't move — so it moves nothing:
+// the keys kept in songbooks stay as they are (the same semitones, the
+// same sound), only their names follow the header. A chart edited any
+// other way moved nothing either.
 func KeyShift(oldSrc, newSrc string) int {
-	o, n := Parse(oldSrc), Parse(newSrc)
-	if ko, ok := chordsym.ParseKey(o.Get("key")); ok {
-		if kn, ok := chordsym.ParseKey(n.Get("key")); ok && ko.Minor == kn.Minor {
-			return shortest(kn.PitchClass() - ko.PitchClass())
-		}
-	}
-	return chordsShift(UsedChords(o), UsedChords(n))
+	return chordsShift(UsedChords(Parse(oldSrc)), UsedChords(Parse(newSrc)))
 }
 
 // chordsShift is the one interval taking each chord of a to the chord of
-// b in the same place, 0 when there's none (or none needed).
+// b in the same place, 0 when there's none (or none needed), or when
+// there are fewer than two chords to tell a transposition from a fix.
 func chordsShift(a, b []string) int {
-	if len(a) == 0 || len(a) != len(b) {
+	if len(a) < 2 || len(a) != len(b) {
 		return 0
 	}
 	d := -1

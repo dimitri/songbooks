@@ -293,26 +293,31 @@ range with the song's melody over it).
   (`song_proposal_declined`), and their list says *Not this time* and
   the note. They may propose it again.
 
-## A key stays where it was when the song's moves
+## A key stays where it was when the song is transposed
 
 A key kept in a songbook is semitones from the song's own key
 (`songbook_entries.semitones`, `event_program.semitones`). When a save
-moves the song's own key — its `key:` header changed in the same mode
-(G → A), or, without one, the chart transposed in place (every chord
-moved by the same interval) — each kept key is moved back by as much,
-in the save's transaction, so it sounds where it did (song.KeyShift,
-store keepEntryKeys): a student's F (−2) on a song moved from G to A
-becomes −4. It's every save: the editor, a revert, an original's
-changes taken by its arrangement, a catalogue edit applied (a catalogue
-song's chart isn't transposed in place, but its header may be put
-right). Which keys: every key someone chose — an entry not in the
-song's own key, in any songbook (a student's, a group's, a person's, a
-band's), every entry of a student's or a group's songbook (the coach
-gave it in that key, even "original"), every event program's song. An
-entry of any other songbook in the song's own key follows the song (the
-repertoire, the owner's songbook). A key wraps by an octave when it
-would leave ±12. A relabel to the relative key ("Am" → "C") or a chord
-edit moves nothing.
+**transposes** the song — its chords actually move, every chord by the
+same interval, in the same order (at least two of them) — each kept key
+is moved back by as much, in the save's transaction, so it sounds where
+it did (song.KeyShift, store keepEntryKeys): a student's F (−2) on a
+song transposed from G to A becomes −4. It's every save: the editor, a
+revert, an original's changes taken by its arrangement, a catalogue
+edit applied or approved. Which keys: every key someone chose — an
+entry not in the song's own key, in any songbook (a student's, a
+group's, a person's, a band's), every entry of a student's or a group's
+songbook (the coach gave it in that key, even "original"), every event
+program's song. An entry of any other songbook in the song's own key
+follows the song (the repertoire, the owner's songbook). A key wraps by
+an octave when it would leave ±12.
+
+**The `key:` header alone changed is a label fix, not a
+transposition** (2026-11-24): the header was wrong, the chords and the
+reference recording don't move, so no kept key moves either — the same
+semitones, so the same sound (the audio, the chords played); only the
+key's name, read from the header, changes ("Eb" becomes the "F" it
+always was). The same for a relabel to the relative key ("Am" → "C"),
+a chord edit, or a single chord changed (a fix, not a transposition).
 
 ## The song's melody on songbook rows
 

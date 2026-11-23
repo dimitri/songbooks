@@ -8,13 +8,14 @@ import (
 	"time"
 )
 
-// TestKeepEntryKeys: a save moving a song's own key (its key: header, or
-// its chart transposed in place) moves the keys songbooks keep it in back
-// by as much, in the save's transaction, so each sounds where it did: a
-// student's and a group's (even "original"), any chosen key in a person's
-// or a band's songbook, an event program's; an entry in the song's own
-// key elsewhere follows the song. A revert moves them back again; an edit
-// that doesn't move the key moves nothing.
+// TestKeepEntryKeys: a save transposing a song (its chords moved, all by
+// one interval) moves the keys songbooks keep it in back by as much, in
+// the save's transaction, so each sounds where it did: a student's and a
+// group's (even "original"), any chosen key in a person's or a band's
+// songbook, an event program's; an entry in the song's own key elsewhere
+// follows the song. A revert moves them back again; an edit that doesn't
+// move the chords moves nothing — the key: header put right alone is a
+// label fix: every key kept stays (the same sound, a new name).
 func TestKeepEntryKeys(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
@@ -118,6 +119,20 @@ func TestKeepEntryKeys(t *testing.T) {
 	_, err = st.SaveVariantRaw(song, "title: Song\n\n[V]\n[D]la [G]la [A]la\n", "", coach)
 	must(err)
 	check("G → D in place", map[int64]int{zoeBook: 3, maxBook: 5, groupBook: 8, mine: 5, 0: 6})
+
+	// The header alone put right (the chart was in D, its header said
+	// nothing; then a wrong "E"; then "D"): a label fix each time, every
+	// key stays.
+	_, err = st.SaveVariantRaw(song, "title: Song\nkey: E\n\n[V]\n[D]la [G]la [A]la\n", "", coach)
+	must(err)
+	_, err = st.SaveVariantRaw(song, "title: Song\nkey: D\n\n[V]\n[D]la [G]la [A]la\n", "", coach)
+	must(err)
+	check("the header put right", map[int64]int{rep: 0, zoeBook: 3, maxBook: 5, groupBook: 8, mine: 5, other: 0, 0: 6})
+	// Reverting a label fix moves nothing either.
+	revs, err = st.ListRevisions(ctx, "variant", strconv.FormatInt(song, 10))
+	must(err)
+	must(st.RevertRevision(ctx, revs[0].ID, coach))
+	check("a label fix reverted", map[int64]int{zoeBook: 3, maxBook: 5, groupBook: 8, mine: 5, 0: 6})
 }
 
 // TestSongProposals: a student proposes their own song or a public one,
@@ -305,8 +320,9 @@ func TestSongProposals(t *testing.T) {
 }
 
 // TestKeepEntryKeysCatalogue: a catalogue song's key: header put right
-// (its chart isn't transposed in place there) keeps the keys people hold
-// it in, as any save does.
+// (its chart isn't transposed in place there) is a label fix: the keys
+// people hold it in keep their semitones, so the recording and the chords
+// they play sound as before; only the key's name follows the header.
 func TestKeepEntryKeysCatalogue(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
@@ -332,7 +348,7 @@ func TestKeepEntryKeysCatalogue(t *testing.T) {
 	_, err = st.ApplyCatalogueEdit(ctx, CatalogueEditInput{SongID: song, AuthorID: ann, BaseVersion: version, BaseBody: before,
 		Title: "Cat", Body: "title: Cat\nkey: D\n\n[V]\n[C]la [G]la\n", Summary: "the key is D"})
 	must(err)
-	if n, _ := st.EntrySemitones(ctx, mine, song); n != 1 {
-		t.Errorf("Ann's key after C → D: %d, want 1 (still Eb)", n)
+	if n, _ := st.EntrySemitones(ctx, mine, song); n != 3 {
+		t.Errorf("Ann's key after the header C → D: %d, want 3 (the same sound, named F now)", n)
 	}
 }

@@ -9,12 +9,14 @@ import (
 )
 
 // keepEntryKeys keeps the keys songbooks hold a song in where they were
-// when a save moves the song's own key (its key: header, or the chart
-// transposed in place: song.KeyShift). A key is kept as semitones from the
-// song's own (songbook_entries.semitones, event_program.semitones), so a
-// song moved from G to A would take a student's "F (−2)" to G: each one
+// when a save transposes the song — its chords moved, all by the same
+// interval (song.KeyShift). A key is kept as semitones from the song's
+// own (songbook_entries.semitones, event_program.semitones), so a song
+// transposed from G to A would take a student's "F (−2)" to G: each one
 // is moved back by as much, in the save's transaction, wrapped by an
-// octave when it would leave ±12.
+// octave when it would leave ±12. Its key: header alone put right is a
+// label fix, not a transposition: the chords and the recording don't
+// move, so neither does any key kept (only its name follows the header).
 //
 // Which keys: every key someone chose — any entry not in the song's own
 // key, in any songbook (a student's, a group's, a person's, a band's), a
