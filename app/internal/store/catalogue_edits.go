@@ -277,7 +277,6 @@ func (st *Store) ApplyCatalogueEdit(ctx context.Context, in CatalogueEditInput) 
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
-	st.songSaved(ctx, in.SongID, saved.before, in.Body, in.AuthorID)
 	return strconv.Itoa(saved.version), nil
 }
 
@@ -389,7 +388,6 @@ func (st *Store) ApproveCatalogueEdit(ctx context.Context, id, reviewerID int64,
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	st.songSaved(ctx, e.SongID, saved.before, body, e.AuthorID)
 	st.tellAuthor(ctx, e, true)
 	st.queueDrained(ctx)
 	return nil

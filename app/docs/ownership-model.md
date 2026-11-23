@@ -136,8 +136,24 @@ entry, note).
   on an arrangement already the band's, Edit edits it, and "New
   arrangement from this" makes another.
 - **When the song an arrangement came from changes**: the arrangement's
-  owner is told what changed and can take the change or keep theirs
-  (the same idea as the Guitar Pro drift check).
+  page shows what changed, to take the change or keep theirs (the same
+  idea as the Guitar Pro drift check); its editors see it in **Changes
+  in your songs** on their home page (below), with a *Take its changes*
+  link — no notification.
+- **Changes in your songs** (home page, 2026-11-24): no notification
+  is sent for a change upstream. Whoever has a song — in their own or
+  student songbooks, in their bands' songbooks, or as the original of
+  an arrangement they edit — finds its accepted changes (a revision: a
+  save, a catalogue edit applied or approved, a revert, a new reference
+  or label; never a pending edit) listed on their home page as news:
+  the song, the change's one-line summary (or what it changed), who,
+  when, a link to it in the song's history, the arrangement's offer.
+  One row a song (its latest change, "+n changes"), only changes by
+  others, since they had the song, at most 30 days back, only songs
+  they may open. *Mark as seen* empties the list up to the newest
+  change shown (`people.song_news_seen_at`, migration 0133;
+  store/song_news.go). The `version_original_changed` notification is
+  no longer sent.
 - **Making a song private, or deleting it, while others link to it**:
   each songbook linking to it gets a **frozen copy** as it was, owned
   by that songbook's owner; set lists keep working; new people can't
@@ -217,8 +233,9 @@ signed in fixes them — and nothing is lost.
 - **Nothing is lost**: every edit is a revision — who, when, and a
   one-line summary asked at save (optional) — listed in the song's
   History. One click reverts it: by its author while it is the latest,
-  by a trusted editor or the staff any time. The arrangements made from
-  the song are told what changed and take it or keep theirs (§5).
+  by a trusted editor or the staff any time. Whoever has the song (and
+  the arrangements made from it, to take it or keep theirs) finds the
+  change in *Changes in your songs* on their home page (§5).
 - **The reference recording is the anchor**: each catalogue song
   follows one recording, its `reference:`. The "follows the recording"
   check (§3, `songimport.RecordingFit`, cached in `song_recording_fit`)
@@ -227,8 +244,10 @@ signed in fixes them — and nothing is lost.
     chord fixes, lyrics typos, a missing section the recording plays;
   - an edit that makes it worse waits for **review**, and so does one
     that changes the lead-in (`lead:`), the Guitar Pro sync (`gp_start`,
-    the sections' `gp[...]` lines) or the key, or removes the
-    recording. It is saved as a pending edit:
+    the sections' `gp[...]` lines) or the key's name (`key:`: a label
+    fix, no chord or recording moves, but every songbook's key for the
+    song is named from it), or removes the recording. It is saved as a
+    pending edit:
     the song stays as it was for everyone; its author sees "waits for
     review" on the song and opens their text; it becomes current when
     approved (merged with what changed since, where it doesn't touch
@@ -245,7 +264,8 @@ signed in fixes them — and nothing is lost.
   - **another recording** (album and live, original and cover) makes a
     new catalogue song for it — same work, `forked_from_id` set,
     public, The Big Songbook's — with the edited chart and its
-    **reference label** (prefilled with the video's title, #144); the
+    **reference label** (prefilled with the video's title cleaned, as
+    below, #144); the
     original stays as it is. Its artist is that recording's performer:
     the album take and a couple of live ones, even by other artists,
     side by side. A new recording is **never held for review**, a
@@ -256,9 +276,29 @@ signed in fixes them — and nothing is lost.
   artist and label identify the song (§3): the duplicates review (§7)
   takes the same three (or the same video) for duplicates, not two
   recordings labelled apart.
+- **The label from the reference's title** (2026-11-24): a catalogue
+  song with a reference and no label gets one from its recording's
+  title (the one kept in `reference_title` for that link, else fetched
+  from YouTube's oEmbed) — at a new catalogue song or a new reference
+  (a fix of the link, one added, an edit bringing one approved); never
+  over a label someone typed, no revision (an empty label filled loses
+  nothing). The title is cleaned (`reftitle.Label`): cut at its
+  separators (" - ", " | "…) and brackets; the upload's wrapping goes
+  ("(Official Video)", "[HD]", "Lyrics", "Remastered 2011", "Clip
+  officiel"…), and the parts that repeat the song's artist or title;
+  what's left is the label ("Adele - Someone Like You (Live at The
+  Royal Albert Hall)" → "Live at The Royal Albert Hall"; "Oasis -
+  Wonderwall (Official Video)" → none). The songs there before get it
+  from `cmd/reflabels` (a dry run by default — counts and examples, ids
+  and titles —, `--apply` to set them), not from a migration.
 - **The key is the recording's**: a catalogue song isn't transposed in
   place (the editor's Transpose is off on it, and a chart transposed as
-  a whole is refused); keys are set per songbook, student or band.
+  a whole is refused); keys are set per songbook, student or band. Its
+  `key:` header put right is a **label fix**: the chords and the
+  recording don't move, so the keys songbooks keep it in keep their
+  semitones — the same sound — and only their names follow the header
+  (only chords actually moving is a transposition: song.KeyShift,
+  [coaching.md](coaching.md), "A key stays where it was").
 - **Light moderation**: a review queue (The Big Songbook → Review) for
   the staff and the **trusted editors** (10 accepted edits or more,
   computed): each pending edit with what it changes (`songdiff`), the

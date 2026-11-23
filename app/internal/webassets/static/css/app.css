@@ -10165,3 +10165,29 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .space-archived { margin: 0 0 0.8rem; padding: 0.5rem 0.75rem; border-radius: var(--radius); background: var(--warn-bg); color: var(--warn); font-size: 0.9rem; }
 .archived-bands { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
 .archived-bands li { display: flex; align-items: center; gap: 0.5rem; }
+
+/* ---- Home: "Changes in your songs" (song_news.html, catalogue-news).
+   One compact row a song: the song, the change's summary, who and when,
+   and its links on the right; a phone puts the links under the text.
+   The history row a link opens is marked (variant_history.html). ---- */
+.song-news-seen { font: inherit; font-size: 0.84rem; padding: 0.3rem 0.75rem; min-height: 2.2rem; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised); color: var(--fg-muted); cursor: pointer; }
+.song-news-seen:hover { border-color: var(--accent); color: var(--accent-ink); }
+.song-news-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+.song-news-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.65rem 1rem; border-top: 1px solid var(--border); }
+.song-news-row:first-child { border-top: 0; }
+.song-news-text { min-width: 0; flex: 1; }
+.song-news-text p { margin: 0; }
+.song-news-song { font-weight: 600; font-size: 0.95rem; overflow-wrap: anywhere; }
+.song-news-artist, .song-news-label { font-weight: 400; color: var(--fg-muted); }
+.song-news-what { font-size: 0.88rem; color: var(--fg); margin-top: 0.1rem; overflow-wrap: anywhere; }
+.song-news-count { font-size: 0.78rem; color: var(--fg-faint); white-space: nowrap; }
+.song-news-meta { font-size: 0.78rem; color: var(--fg-faint); margin-top: 0.1rem; }
+.song-news-actions { display: flex; gap: 0.4rem; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.song-news-more { margin-top: 0.5rem; }
+.song-news-more > summary { cursor: pointer; font-size: 0.85rem; color: var(--fg-muted); margin-bottom: 0.5rem; }
+.song-news .form-status:empty { display: none; }
+@media (max-width: 600px) {
+  .song-news-row { flex-direction: column; align-items: stretch; gap: 0.45rem; padding: 0.65rem 0.8rem; }
+  .song-news-actions { justify-content: flex-start; }
+}
+tr[id^="rev-"]:target > td { background: var(--accent-bg); }

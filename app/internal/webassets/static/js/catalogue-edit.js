@@ -70,11 +70,15 @@
     refField.hidden = !!data.referenceChanged;
     ref.required = !data.referenceChanged;
     label.value = '';
-    // The new link's title: the label's suggestion, when it comes.
+    // The new link's title, cleaned of its wrapping and of what repeats
+    // the song (the server's reftitle.Label): the label's suggestion,
+    // when it comes.
     const suggest = (link) => {
       if (!link) return;
-      nativeFetch('/api/reference-title?url=' + encodeURIComponent(link)).then((r) => r.ok ? r.json() : {}).then((d) => {
-        if (d && d.title && !label.value.trim()) label.value = d.title;
+      const q = new URLSearchParams({ url: link, title: data.title || '', artist: data.artist || '' });
+      nativeFetch('/api/reference-title?' + q).then((r) => r.ok ? r.json() : {}).then((d) => {
+        const v = d && ('label' in d ? d.label : d.title);
+        if (v && !label.value.trim()) label.value = v;
       }).catch(() => {});
     };
     suggest(data.newReference);

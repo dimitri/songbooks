@@ -390,6 +390,8 @@ func (s *Server) handleCreateCatalogSong(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Its reference label, from the recording's title.
+	s.refLabelNow(r.Context(), variantID)
 	writeJSON(w, http.StatusOK, map[string]int64{"variantId": variantID})
 }
 

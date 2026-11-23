@@ -272,7 +272,9 @@ func catalogueReasonText(lang, why string) string {
 	case "gp":
 		return i18n.T(lang, "it changes how the chart lines up with the Guitar Pro file")
 	case "key":
-		return i18n.T(lang, "it changes the key")
+		// The header alone: a label fix (song.KeyShift), no chord or
+		// recording moves, but every songbook names its key from it.
+		return i18n.T(lang, "it renames the key: no chord moves, but every songbook names its key for this song from it")
 	case "title":
 		return i18n.T(lang, "it changes the title or the artist")
 	case "reference":
@@ -356,7 +358,8 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	if (refChanged || identityChanged) && kind != editKindFix && kind != editKindRecording {
 		// The new link's title, a label's suggestion, comes after
 		// (GET /api/reference-title): the question doesn't wait for it.
-		out := map[string]any{"choose": true, "referenceChanged": refChanged, "identityChanged": identityChanged}
+		out := map[string]any{"choose": true, "referenceChanged": refChanged, "identityChanged": identityChanged,
+			"title": strings.TrimSpace(title), "artist": strings.TrimSpace(artist)}
 		if refChanged {
 			out["newReference"] = newRef
 		}
@@ -373,9 +376,9 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 			}
 			body = setHeaderLine(body, "reference", rec)
 		}
-		label := headerText(r, referenceLabelHeader, 80)
+		label := headerText(r, referenceLabelHeader, reftitle.MaxLabel)
 		if label == "" {
-			label = s.refTitleNow(ctx, rec)
+			label = reftitle.Label(s.refTitleNow(ctx, rec), title, artist)
 		}
 		newID, err := s.store.CreateRecordingVersion(ctx, id, person.ID, title, artist, rec, label, body, summary)
 		if err != nil {
@@ -389,6 +392,9 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		return true
 	}
 	baseVersion := cur.Version
+	// A new reference (a fix: the link put right, or one added): the
+	// song's empty reference label from its title, once saved.
+	newReference := newRef != "" && !sameReference(oldRef, newRef)
 	// Its staff: at once.
 	if rights.Edit {
 		version, err := s.store.SaveSongEdit(ctx, store.SongSave{
@@ -398,6 +404,9 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		if err != nil {
 			writeSaveErr(w, err)
 			return true
+		}
+		if newReference {
+			s.refLabelNow(ctx, id)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"version": version})
 		return true
@@ -427,6 +436,9 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		if err != nil {
 			writeSaveErr(w, err)
 			return true
+		}
+		if newReference {
+			s.refLabelNow(ctx, id)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"version": version})
 		return true
@@ -599,6 +611,12 @@ func (s *Server) handleDecideCatalogueEdit(approve bool) http.HandlerFunc {
 		ctx := r.Context()
 		if approve {
 			err = s.store.ApproveCatalogueEdit(ctx, id, person.ID, req.Note)
+			// It brought a new reference: the song's empty reference
+			// label from its title.
+			if e, gerr := s.store.CatalogueEditByID(ctx, id); err == nil && gerr == nil &&
+				strings.TrimSpace(e.ReferenceURL) != "" && !sameReference(chartHead(e.BaseBody, "reference"), e.ReferenceURL) {
+				s.refLabelNow(ctx, e.SongID)
+			}
 		} else {
 			err = s.store.RejectCatalogueEdit(ctx, id, person.ID, req.Note)
 		}
@@ -774,14 +792,18 @@ func (s *Server) handlePutReferenceLabel(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"label": label})
 }
 
-// handleReferenceTitle is GET /api/reference-title?url=: a reference
-// link's title (a video's, a page's), "" when none is found — the
-// reference label's suggestion when an edit makes another recording.
+// handleReferenceTitle is GET /api/reference-title?url=[&title=&artist=]:
+// a reference link's title (a video's, a page's), "" when none is found,
+// and the reference label made from it for the song's title and artist
+// (reftitle.Label) — the label's suggestion when an edit makes another
+// recording.
 func (s *Server) handleReferenceTitle(w http.ResponseWriter, r *http.Request) {
-	ref := strings.TrimSpace(r.URL.Query().Get("url"))
+	q := r.URL.Query()
+	ref := strings.TrimSpace(q.Get("url"))
 	if !strings.HasPrefix(ref, "https://") && !strings.HasPrefix(ref, "http://") {
-		writeJSON(w, http.StatusOK, map[string]string{"title": ""})
+		writeJSON(w, http.StatusOK, map[string]string{"title": "", "label": ""})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"title": s.refTitleNow(r.Context(), ref)})
+	title := s.refTitleNow(r.Context(), ref)
+	writeJSON(w, http.StatusOK, map[string]string{"title": title, "label": reftitle.Label(title, q.Get("title"), q.Get("artist"))})
 }

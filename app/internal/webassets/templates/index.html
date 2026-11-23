@@ -127,6 +127,8 @@
   </section>
   {{end}}
 
+  {{with .SongNews}}{{template "home-song-news" .}}{{end}}
+
   {{/* Your bands, then your communities: two rows of the same cards,
        each card's line what matters for its kind; a row with no cards
        is left out. */}}

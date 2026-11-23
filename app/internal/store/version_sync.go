@@ -4,154 +4,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
-	"app/internal/i18n"
 	"app/internal/songdiff"
 )
 
 // The original's changes offered to its versions (docs/ownership-model.md
 // §5, migration 0117). A version records the original's chart as it was
 // when it was made or last synced (base_body). When the original's chart
-// changes, each version's owner is told ("The shared version of Gin Lane
-// changed") and, on the version's page, sees what changed since and takes
-// the change — part by part where it applies cleanly (songdiff.Plan,
-// songdiff.Merge) — or keeps theirs; either way the version is synced
+// changes, the version's page shows what changed since and its editors
+// take the change — part by part where it applies cleanly (songdiff.Plan,
+// songdiff.Merge) — or keep theirs; either way the version is synced
 // with the original as it is then.
 //
 // Only a change to the chart counts: not whitespace, comments, or the
 // song's metadata alone (title, artist, reference, cover —
-// songdiff.ChartChanged). A version's owner is told once while the
-// change waits (one unread notification per version), and only those who
-// may still open the original.
+// songdiff.ChartChanged). No notification is sent (2026-11-24): the
+// change is listed on the home page of whoever may take it, with the
+// offer (song_news.go), until they mark the list seen.
 
-// NotificationVersionChanged is the kind of "the original changed".
+// NotificationVersionChanged is the kind of "the original changed",
+// sent until 2026-11-24: the ones still unread are marked read when
+// the version takes or keeps the change.
 const NotificationVersionChanged = "version_original_changed"
 
-// VersionChangedLink is where a version's owner sees what changed.
+// VersionChangedLink is where a version's editors see what changed.
 func VersionChangedLink(versionID int64) string {
 	return fmt.Sprintf("/song/%d#original-changed", versionID)
-}
-
-// songSaved is what follows a save of songID's chart from before to
-// after, once committed: its versions are told. A failure is logged,
-// never the save's.
-func (st *Store) songSaved(ctx context.Context, songID int64, before, after string, actorID int64) {
-	if !songdiff.ChartChanged(before, after) {
-		return
-	}
-	if err := st.tellVersions(ctx, songID, after, actorID); err != nil {
-		log.Printf("song %d saved: telling its versions: %v", songID, err)
-	}
-}
-
-// tellVersions notifies the owners of songID's versions that its chart
-// is now `chart`, unless that's what their version last synced with.
-func (st *Store) tellVersions(ctx context.Context, songID int64, chart string, actorID int64) error {
-	rows, err := st.db.Query(ctx, `
-		SELECT v.id, v.base_body, v.owner_kind, coalesce(v.owner_person_id, v.owner_band_id, v.owner_community_id), o.title
-		FROM songs v JOIN songs o ON o.id = v.forked_from_id
-		WHERE v.forked_from_id = $1 AND v.base_body IS NOT NULL AND v.frozen_at IS NULL
-		ORDER BY v.id`, songID)
-	if err != nil {
-		return err
-	}
-	type version struct {
-		id    int64
-		base  string
-		owner Owner
-		title string
-	}
-	var versions []version
-	for rows.Next() {
-		var v version
-		if err := rows.Scan(&v.id, &v.base, &v.owner.Kind, &v.owner.ID, &v.title); err != nil {
-			rows.Close()
-			return err
-		}
-		versions = append(versions, v)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, v := range versions {
-		if !songdiff.ChartChanged(v.base, chart) {
-			continue
-		}
-		people, err := st.versionEditors(ctx, v.owner)
-		if err != nil {
-			return err
-		}
-		link := VersionChangedLink(v.id)
-		for _, p := range people {
-			if p == actorID {
-				continue
-			}
-			var sees, told bool
-			if err := st.db.QueryRow(ctx, `
-				SELECT song_visible($1, $2),
-				       EXISTS (SELECT 1 FROM notifications WHERE person_id = $2 AND kind = $3 AND link = $4 AND read_at IS NULL)`,
-				songID, p, NotificationVersionChanged, link).Scan(&sees, &told); err != nil {
-				return err
-			}
-			if !sees || told {
-				continue
-			}
-			lang, _ := st.PersonLocale(ctx, p)
-			if lang == "" {
-				lang = "en"
-			}
-			if _, err := st.CreateNotification(ctx, p, NotificationVersionChanged,
-				i18n.T(lang, "The song your arrangement of %s comes from changed", v.title), link); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// versionEditors is who may take a change into owner's version: the
-// person; a band's current members; a community's members who edit its
-// repertoire (The Big Songbook's: the site's admins).
-func (st *Store) versionEditors(ctx context.Context, owner Owner) ([]int64, error) {
-	var q string
-	args := []any{owner.ID}
-	switch owner.Kind {
-	case "person":
-		return []int64{owner.ID}, nil
-	case "band":
-		q = `SELECT bm.person_id FROM band_members bm JOIN band_role_privileges brp ON brp.role_id = bm.role_id AND brp.privilege = $2
-		     WHERE bm.band_id = $1 AND upper_inf(bm.validity) ORDER BY bm.person_id`
-		args = append(args, BandPrivEditSongbook)
-	case "community":
-		q = `SELECT DISTINCT p.id FROM people p
-		     WHERE (EXISTS (SELECT 1 FROM communities c WHERE c.id = $1 AND c.kind = 'global') AND p.is_admin)
-		        OR EXISTS (SELECT 1 FROM community_members cm JOIN community_role_privileges crp ON crp.role_id = cm.role_id
-		                   WHERE cm.community_id = $1 AND cm.person_id = p.id AND upper_inf(cm.validity) AND crp.privilege = $2)
-		     ORDER BY p.id`
-		args = append(args, PrivEditRepertoire)
-	default:
-		return nil, nil
-	}
-	rows, err := st.db.Query(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 // OriginalChange is what the original of a version did since the version
@@ -316,9 +198,6 @@ func (st *Store) SyncWithOriginal(ctx context.Context, personID, versionID int64
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return false, err
-	}
-	if changed {
-		st.songSaved(ctx, versionID, ours, merged, personID)
 	}
 	return changed, nil
 }

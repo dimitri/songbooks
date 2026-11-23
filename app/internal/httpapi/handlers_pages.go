@@ -573,10 +573,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Changes in your songs (song_news.go): news, not notifications.
+	songNews, err := s.songNews(r.Context(), lang, person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	s.render(w, "index", map[string]any{
 		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
 		"Week": week, "MySongbook": mySongbook, "Bands": bandGroups, "Communities": communityGroups,
-		"Attention": attention,
+		"Attention": attention, "SongNews": songNews,
 	})
 }
 

@@ -55,3 +55,36 @@ func (s *Server) fetchRefTitle(ctx context.Context, variantID int64, ref string)
 	}
 	return title
 }
+
+// refLabelNow fills catalogue song songID's reference label from its
+// reference's title (reftitle.Label: the wrapping and what repeats the
+// song taken out) when it has a reference and no label — at a new
+// catalogue song or a new reference, never over a label someone typed
+// (store.FillReferenceLabel). The title kept for that link is used, else
+// it is fetched now (a few seconds at most, reftitle.Timeout) and kept.
+// It returns the label set, "" for none; a failure is only logged.
+func (s *Server) refLabelNow(ctx context.Context, songID int64) string {
+	c, err := s.store.ReferenceLabelCandidate(ctx, songID)
+	if err != nil {
+		log.Printf("reference label of song %d: %v", songID, err)
+	}
+	if c == nil {
+		return ""
+	}
+	title := c.Stored.For(c.ReferenceURL)
+	if title == "" && c.Stored.Due(c.ReferenceURL, 0, time.Now()) {
+		title = s.fetchRefTitle(ctx, songID, c.ReferenceURL)
+	}
+	label := reftitle.Label(title, c.Title, c.Artist)
+	if label == "" {
+		return ""
+	}
+	ok, err := s.store.FillReferenceLabel(context.WithoutCancel(ctx), songID, c.ReferenceURL, label)
+	if err != nil || !ok {
+		if err != nil {
+			log.Printf("reference label of song %d: %v", songID, err)
+		}
+		return ""
+	}
+	return label
+}

@@ -23,7 +23,7 @@
     <tbody>
     {{range .Revisions}}
       {{$e := index $.Edits .ID}}
-      <tr data-revision-id="{{.ID}}">
+      <tr data-revision-id="{{.ID}}" id="rev-{{.ID}}">
         <td data-label="{{t "When"}}">{{date .CreatedAt "2006-01-02 15:04"}}</td>
         <td data-label="{{t "By"}}">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
         <td data-label="{{t "What changed"}}" class="history-changes">

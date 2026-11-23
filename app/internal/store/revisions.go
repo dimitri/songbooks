@@ -219,11 +219,6 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		return err
 	}
 
-	// A song reverted: what its versions are told, once committed.
-	var after *struct {
-		id           int64
-		before, body string
-	}
 	switch entityType {
 	case "variant":
 		var snap VariantSnapshot
@@ -268,10 +263,6 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		if _, err := keepEntryKeys(ctx, tx, id, curBody, snap.Body); err != nil {
 			return err
 		}
-		after = &struct {
-			id           int64
-			before, body string
-		}{id, curBody, snap.Body}
 
 	case "band_member":
 		var snap BandMemberSnapshot
@@ -390,10 +381,6 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 
 	if err := tx.Commit(ctx); err != nil {
 		return err
-	}
-	if after != nil {
-		// A song's versions are told when its chart changed (version_sync.go).
-		st.songSaved(ctx, after.id, after.before, after.body, actorPersonID)
 	}
 	return nil
 }

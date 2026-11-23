@@ -27,7 +27,8 @@ grid: | Am | G | F | E7 |
 grid: | F | G | C | C |
 `
 
-// unread is personID's unread notifications of the version's change.
+// unread is personID's unread notifications of the version's change:
+// none are sent any more (the home page lists the change instead).
 func unread(t *testing.T, st *store.Store, personID int64) []store.Notification {
 	t.Helper()
 	ns, err := st.ListNotifications(context.Background(), personID, true)
@@ -41,6 +42,21 @@ func unread(t *testing.T, st *store.Store, personID int64) []store.Notification 
 		}
 	}
 	return out
+}
+
+// newsOf is personID's home-page news of songID, nil for none.
+func newsOf(t *testing.T, st *store.Store, personID, songID int64) *store.SongNews {
+	t.Helper()
+	ns, err := st.SongNewsFor(context.Background(), personID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range ns {
+		if ns[i].SongID == songID {
+			return &ns[i]
+		}
+	}
+	return nil
 }
 
 func saveCatalogue(t *testing.T, st *store.Store, id int64, body string) {
@@ -62,10 +78,10 @@ func originalVersion(t *testing.T, st *store.Store, id int64) int {
 }
 
 // TestOriginalChangeOfferedToVersion: the band's version of the
-// catalogue's song is told when the catalogue's chart changes — not for
-// whitespace or its title — once while it waits; on the version's page a
-// member takes the change, the parts the band changed too staying the
-// band's, or keeps theirs.
+// catalogue's song is offered the catalogue's chart's changes — not for
+// whitespace or its title —, its members see it on their home page (no
+// notification); on the version's page a member takes the change, the
+// parts the band changed too staying the band's, or keeps theirs.
 func TestOriginalChangeOfferedToVersion(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
@@ -81,12 +97,18 @@ func TestOriginalChangeOfferedToVersion(t *testing.T) {
 		t.Fatal("the version doesn't record the chart it was made from")
 	}
 
-	// Whitespace, then the title alone: nobody is told.
+	// Whitespace: no news. The title alone: news, nothing to take.
 	saveCatalogue(t, st, f.CatalogSong, strings.Replace(leVent, "\n\n[Chorus]", "\n\n\n[Chorus]", 1))
+	if n := newsOf(t, st, f.Core, f.CatalogSong); n != nil {
+		t.Errorf("news of a whitespace change: %+v", n)
+	}
 	titled := strings.Replace(leVent, "title: Le Vent", "title: Le Vent (live)", 1)
 	saveCatalogue(t, st, f.CatalogSong, titled)
 	if n := unread(t, st, f.Core); len(n) != 0 {
 		t.Fatalf("told of a whitespace or title change: %+v", n)
+	}
+	if n := newsOf(t, st, f.Core, f.CatalogSong); n == nil || n.Via != "arrangement" || n.ArrangementID != 0 || n.Changes != 1 {
+		t.Errorf("the title's news: %+v", n)
 	}
 	if c, err := st.OriginalChangeFor(ctx, f.Core, version); err != nil || c != nil {
 		t.Fatalf("a change offered for whitespace or the title: %+v, %v", c, err)
@@ -97,14 +119,22 @@ func TestOriginalChangeOfferedToVersion(t *testing.T) {
 	saveCatalogue(t, st, f.CatalogSong, v2)
 	saveCatalogue(t, st, f.CatalogSong, strings.Replace(v2, "tempo: 96", "tempo: 100", 1))
 	for _, p := range []int64{f.Core, f.Guest} {
-		n := unread(t, st, p)
-		if len(n) != 1 || n[0].Link != store.VersionChangedLink(version) || n[0].Body != "The song your arrangement of Le Vent (live) comes from changed" {
-			t.Errorf("person %d told: %+v", p, n)
+		if n := unread(t, st, p); len(n) != 0 {
+			t.Errorf("person %d notified: %+v", p, n)
+		}
+		if n := newsOf(t, st, p, f.CatalogSong); n == nil || n.ArrangementID != version || n.Changes != 3 || n.Title != "Le Vent (live)" {
+			t.Errorf("person %d's news: %+v", p, n)
 		}
 	}
 	for _, p := range []int64{f.Former, f.Outsider} {
-		if n := unread(t, st, p); len(n) != 0 {
-			t.Errorf("person %d, not a member, told: %+v", p, n)
+		if n := newsOf(t, st, p, f.CatalogSong); n != nil {
+			t.Errorf("person %d, not a member, has news: %+v", p, n)
+		}
+	}
+	home := as(t, st, f.Core).page("/home")
+	for _, want := range []string{"Changes in your songs", "Le Vent (live)", fmt.Sprintf(`href="/song/%d#original-changed"`, version), "Take its changes"} {
+		if !strings.Contains(home, want) {
+			t.Errorf("the home page lacks %q", want)
 		}
 	}
 	html := as(t, st, f.Core).page(fmt.Sprintf("/song/%d", version))
@@ -161,8 +191,8 @@ func TestOriginalChangeOfferedToVersion(t *testing.T) {
 	if store.SongBase(t, st, version) != theirs {
 		t.Error("the version isn't synced with the original")
 	}
-	if n := unread(t, st, f.Core); len(n) != 0 {
-		t.Errorf("still told after the change was taken: %+v", n)
+	if n := newsOf(t, st, f.Core, f.CatalogSong); n == nil || n.ArrangementID != 0 {
+		t.Errorf("the change still offered on the home page after it was taken: %+v", n)
 	}
 	if c, _ := st.OriginalChangeFor(ctx, f.Core, version); c != nil {
 		t.Errorf("still offered after taking it: %+v", c.Parts)

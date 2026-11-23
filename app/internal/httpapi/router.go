@@ -281,6 +281,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /new/setlist", s.requireAuth(s.handleNewSetlist))
 	mux.HandleFunc("POST /notifications/{id}/read", s.requireAuth(s.handleMarkNotificationRead))
 	mux.HandleFunc("POST /notifications/read-all", s.requireAuth(s.handleMarkAllNotificationsRead))
+	// Home: "Changes in your songs" marked seen (song_news.go).
+	mux.HandleFunc("POST /api/song-news/seen", s.requireAuth(s.handleSeeSongNews))
 
 	// Profile (phase 6: instrument choice): a logged-in person's own
 	// account settings — currently just "which instruments do you play",

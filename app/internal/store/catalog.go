@@ -571,8 +571,6 @@ func (st *Store) SaveSongEdit(ctx context.Context, e SongSave) (string, error) {
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
-	// Its versions are told when its chart changed (version_sync.go).
-	st.songSaved(ctx, e.SongID, saved.before, e.Body, e.ActorID)
 	return strconv.Itoa(saved.version), nil
 }
 
@@ -586,7 +584,7 @@ type songSaveResult struct {
 
 // saveSongTx writes e in tx: the song's state before is kept as a
 // revision (with e's summary), its version moves on, its lead's sync
-// follows. The caller commits, then calls songSaved.
+// follows. The caller commits.
 func saveSongTx(ctx context.Context, tx pgx.Tx, e SongSave) (songSaveResult, error) {
 	var out songSaveResult
 	var curTitle, curArtist, curRef, curBody string
