@@ -32,17 +32,17 @@ func noThanks(person int64) ProposalBallot {
 func TestTallyCoreMembersOnly(t *testing.T) {
 	// Gus is a guest and Old has left: neither counts anywhere.
 	ballots := []ProposalBallot{stars(1, 4), stars(2, 1), stars(4, 1), noThanks(9)}
-	tl := TallyOf(ballots, votesMembers(), NoThanksBlock, 2)
+	tl := TallyOf(ballots, votesMembers(), 2)
 	if tl.Ratings != 2 || tl.AvgText != "2.5" || tl.Positive != 1 || tl.Negative != 1 {
 		t.Errorf("ratings %d avg %q for %d against %d, want 2, 2.5, 1, 1", tl.Ratings, tl.AvgText, tl.Positive, tl.Negative)
 	}
 	if tl.Voted != 2 || tl.Members != 3 {
 		t.Errorf("voted %d/%d, want 2/3 (the core members)", tl.Voted, tl.Members)
 	}
-	if strings.Join(tl.NotVoted, ",") != "Cid" || tl.Waiting != 1 {
-		t.Errorf("not voted %v (waiting %d), want Cid alone: a guest is never waited for", tl.NotVoted, tl.Waiting)
+	if strings.Join(tl.NotVoted, ",") != "Cid" {
+		t.Errorf("not voted %v, want Cid alone: a guest doesn't vote", tl.NotVoted)
 	}
-	if len(tl.NoThanks) != 0 || tl.Blocked {
+	if len(tl.NoThanks) != 0 || tl.Vetoed {
 		t.Errorf("a former member's no thanks counts: %+v", tl.NoThanks)
 	}
 	if tl.Mine == nil || tl.Mine.Stars != 1 {
@@ -52,47 +52,62 @@ func TestTallyCoreMembersOnly(t *testing.T) {
 		t.Errorf("histogram %v", tl.Hist)
 	}
 	// Not voted is never 0 stars: no ballot, no rating.
-	if none := TallyOf(nil, votesMembers(), NoThanksBlock, 1); none.Ratings != 0 || none.Avg != 0 || none.AvgText != "" || none.Mine != nil || none.Voted != 0 || none.Members != 3 {
+	if none := TallyOf(nil, votesMembers(), 1); none.Ratings != 0 || none.Avg != 0 || none.AvgText != "" || none.Mine != nil || none.Voted != 0 || none.Members != 3 {
 		t.Errorf("no votes: %+v", none)
 	}
-	// A core member's no thanks blocks, apart from the stars.
-	b := TallyOf([]ProposalBallot{stars(1, 4), noThanks(2)}, votesMembers(), NoThanksBlock, 0)
-	if !b.Blocked || strings.Join(b.BlockedBy, ",") != "Bob" || b.Ratings != 1 || b.Avg != 4 || b.Voted != 2 {
+	// A core member's no thanks: a veto, apart from the stars.
+	b := TallyOf([]ProposalBallot{stars(1, 4), noThanks(2)}, votesMembers(), 0)
+	if !b.Vetoed || len(b.NoThanks) != 1 || b.NoThanks[0].Name != "Bob" || b.Ratings != 1 || b.Avg != 4 || b.Voted != 2 {
 		t.Errorf("Bob's no thanks: %+v", b)
-	}
-	if c := TallyOf([]ProposalBallot{noThanks(2)}, votesMembers(), NoThanksCount, 0); c.Blocked {
-		t.Error("under the count rule a no thanks doesn't block")
 	}
 }
 
-func TestProposalOutcome(t *testing.T) {
+// TestTallyLiked: "the band likes it" is a suggestion — an average of
+// 2.5 or more, more for than against, no veto.
+func TestTallyLiked(t *testing.T) {
 	m := votesMembers()
 	for _, c := range []struct {
 		name    string
-		rule    string
 		ballots []ProposalBallot
-		want    string
+		want    bool
 	}{
-		{"one core member still to vote", NoThanksBlock, []ProposalBallot{stars(1, 4), stars(2, 4)}, ""},
-		{"a guest isn't waited for", NoThanksBlock, []ProposalBallot{stars(1, 4), stars(2, 3), stars(3, 3)}, "accepted"},
-		{"all for it", NoThanksBlock, []ProposalBallot{stars(1, 3), stars(2, 3), stars(3, 3)}, "accepted"},
-		{"against it", NoThanksBlock, []ProposalBallot{stars(1, 2), stars(2, 2), stars(3, 3)}, "rejected"},
-		{"average 2.5 but more against than for", NoThanksBlock, []ProposalBallot{stars(1, 4), stars(2, 2), stars(3, 2)}, "rejected"},
-		{"average 2.67, more for", NoThanksBlock, []ProposalBallot{stars(1, 3), stars(2, 3), stars(3, 2)}, "accepted"},
-		{"a core no thanks holds it back", NoThanksBlock, []ProposalBallot{stars(1, 4), stars(2, 4), noThanks(3)}, ""},
-		{"a core no thanks vetoes", NoThanksVeto, []ProposalBallot{stars(1, 4), noThanks(3)}, "rejected"},
-		{"a no thanks counts against", NoThanksCount, []ProposalBallot{stars(1, 4), stars(2, 3), noThanks(3)}, "accepted"},
-		{"no thanks against two for", NoThanksCount, []ProposalBallot{stars(1, 4), noThanks(2), noThanks(3)}, "rejected"},
-		{"most core members say no thanks", NoThanksCount, []ProposalBallot{noThanks(1), noThanks(2)}, "rejected"},
-		{"a guest's vote decides nothing", NoThanksVeto, []ProposalBallot{noThanks(4), stars(1, 3)}, ""},
+		{"no votes", nil, false},
+		{"all for it", []ProposalBallot{stars(1, 3), stars(2, 3)}, true},
+		{"one 4 alone", []ProposalBallot{stars(1, 4)}, true},
+		{"against", []ProposalBallot{stars(1, 2), stars(2, 2), stars(3, 3)}, false},
+		{"average 2.5 but more against", []ProposalBallot{stars(1, 4), stars(2, 2), stars(3, 2)}, false},
+		{"average 2.67, more for", []ProposalBallot{stars(1, 3), stars(2, 3), stars(3, 2)}, true},
+		{"loved but vetoed", []ProposalBallot{stars(1, 4), stars(2, 4), noThanks(3)}, false},
+		{"a guest's 4 alone", []ProposalBallot{stars(4, 4)}, false},
 	} {
-		if got := proposalOutcome(c.rule, m, c.ballots); got != c.want {
-			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		if got := TallyOf(c.ballots, m, 0).Liked; got != c.want {
+			t.Errorf("%s: liked %v, want %v", c.name, got, c.want)
 		}
 	}
 }
 
-// TestMigration0127 runs the migration on votes cast as yes/veto: yes is
+// TestTallyBlind: before voting, only how many voted; after, everything;
+// a decided proposal shows everything to everyone.
+func TestTallyBlind(t *testing.T) {
+	ballots := []ProposalBallot{stars(1, 4), noThanks(2)}
+	before := TallyOf(ballots, votesMembers(), 3).BlindFor("open")
+	if !before.Hidden || before.Voted != 2 || before.Members != 3 || before.Ratings != 0 || before.Avg != 0 || before.Vetoed ||
+		len(before.NoThanks) != 0 || len(before.Rated) != 0 || len(before.NotVoted) != 0 || before.Liked {
+		t.Errorf("Cid, before voting: %+v", before)
+	}
+	after := TallyOf(append(ballots, stars(3, 2)), votesMembers(), 3).BlindFor("open")
+	if after.Hidden || after.Ratings != 2 || !after.Vetoed {
+		t.Errorf("Cid, after voting: %+v", after)
+	}
+	if guest := TallyOf(ballots, votesMembers(), 4).BlindFor("open"); !guest.Hidden {
+		t.Error("a guest sees the votes of an open proposal")
+	}
+	if decided := TallyOf(ballots, votesMembers(), 4).BlindFor("accepted"); decided.Hidden || decided.Ratings != 1 {
+		t.Errorf("a decided proposal, for a guest: %+v", decided)
+	}
+}
+
+// TestMigration0127 runs the migration (then 0129) on votes cast as yes/veto: yes is
 // 3 stars, veto no thanks, the old votes kept in the history, a guest's
 // out of the votes standing but in the history.
 func TestMigration0127(t *testing.T) {
@@ -121,9 +136,9 @@ func TestMigration0127(t *testing.T) {
 	defer tx.Rollback(ctx)
 	// Back to before 0127, in a transaction rolled back after.
 	for _, q := range []string{
-		`DROP TABLE listening_party_now`,
+		`DROP TABLE IF EXISTS listening_party_now`,
+		`DROP TABLE band_listens`,
 		`DROP TABLE proposal_vote_log`,
-		`ALTER TABLE bands DROP COLUMN proposal_no_thanks`,
 		`ALTER TABLE proposal_votes DROP CONSTRAINT proposal_votes_stars_or_no_thanks`,
 		`ALTER TABLE proposal_votes DROP COLUMN stars, DROP COLUMN no_thanks, DROP COLUMN legacy_vote`,
 		`ALTER TABLE proposal_votes ADD COLUMN vote proposal_vote_kind NOT NULL`,
@@ -173,8 +188,21 @@ func TestMigration0127(t *testing.T) {
 		t.Errorf("history: %d old votes (%d the guest's), want 3 (1)", logged, guestLogged)
 	}
 	var rule string
-	if err := tx.QueryRow(ctx, `SELECT proposal_no_thanks FROM bands WHERE id = $1`, f.Band).Scan(&rule); err != nil || rule != NoThanksBlock {
+	if err := tx.QueryRow(ctx, `SELECT proposal_no_thanks FROM bands WHERE id = $1`, f.Band).Scan(&rule); err != nil || rule != "block" {
 		t.Errorf("the band's rule: %q %v, want block", rule, err)
+	}
+	// 0129: the votes are information, the rule goes (and the party's
+	// "now playing"); the pools come.
+	raw129, err := migrationsFS.ReadFile("migrations/0129_band_listens.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, string(raw129)); err != nil {
+		t.Fatalf("migration 0129: %v", err)
+	}
+	var cols int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'bands' AND column_name = 'proposal_no_thanks'`).Scan(&cols); err != nil || cols != 0 {
+		t.Errorf("the rule's column after 0129: %d %v", cols, err)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO proposal_votes (proposal_id, person_id, stars, no_thanks) VALUES ($1, $2, 5, false)`, pid, f.Guest); err == nil {
 		t.Error("5 stars taken: the scale is 1 to 4")

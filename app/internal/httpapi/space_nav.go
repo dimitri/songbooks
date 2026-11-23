@@ -55,7 +55,8 @@ type SpaceSection struct {
 	Filters []SpaceSection
 	// ViewsInPage: the page draws its views itself, as chips at the head
 	// of its list (space-views) rather than as a second row of tabs (a
-	// band's Songbook: its songs, those to vote on, those to discover).
+	// band's Songbook: its songs, those to vote on, those to discover,
+	// its influences).
 	ViewsInPage bool
 }
 
@@ -74,7 +75,8 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 			{Key: "catalog", Label: "Songbook", Path: "/catalog", Icon: "icon-catalog", ViewsInPage: true, Filters: []SpaceSection{
 				{Key: "all", Label: "Songs", Path: "/catalog"},
 				{Key: "vote", Label: "To vote", Path: "/catalog/vote"},
-				{Key: "discover", Label: "Listening party", Path: "/catalog/discover"},
+				{Key: "discover", Label: "Discover", Path: "/catalog/discover"},
+				{Key: "influences", Label: "Influences", Path: "/catalog/influences"},
 			}},
 			{Key: "setlists", Label: "Set lists", Path: "/setlists", Icon: "icon-setlists"},
 			{Key: "events", Label: "Calendar", Path: "/events", Icon: "icon-calendar"},
@@ -273,7 +275,8 @@ var spacePages = map[string]string{
 	"band_events":     "events",
 	"band_recordings": "",
 	"band_proposals":  "catalog/vote",
-	"listening_party": "catalog/discover",
+	"band_discover":   "catalog/discover",
+	"band_influences": "catalog/influences",
 	"band_members":    "members",
 	"band_settings":   "settings",
 

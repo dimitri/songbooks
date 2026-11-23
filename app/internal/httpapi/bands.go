@@ -223,17 +223,11 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 	// awaiting, listening-party picks, score edits) and shortcuts to
 	// create more of it, not just a roster page with a sub-nav out to
 	// everything else.
-	openProposals, err := s.store.ListProposals(r.Context(), bandID, store.ProposalFilter{Status: "open"})
+	openProposals, err := s.store.ListProposals(r.Context(), bandID, store.ProposalFilter{Status: "open", Viewer: person.ID})
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// "Listening party" has no event log of its own — it's the SAME
-	// proposal/vote queue, pre-filtered to open 'new_song' proposals
-	// (see handleListeningPartyPage's own doc comment: "reuse the
-	// proposal+vote mechanism rather than building a third parallel
-	// system"). So a proposal's own Kind IS its listening-party-ness;
-	// no separate query, just a per-item label below in the template.
 
 	repertoire, err := s.store.ListBandCatalog(r.Context(), bandID)
 	if err != nil {
@@ -1009,8 +1003,7 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	}
 	ranges := s.melodyRanges(r.Context(), rowIDs)
 	for i := range rows {
-		m, ok := ranges[rows[i].VariantID]
-		rows[i].Voice = rowVoiceOf(s.langOfRequest(r), m, ok, 0, nil)
+		rows[i].Voice = ranges.voice(s.langOfRequest(r), rows[i].VariantID, rows[i].Key, 0, nil)
 	}
 
 	// An "original" act's repertoire reads naturally grouped by the
@@ -1287,14 +1280,9 @@ func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	rule, err := s.store.BandProposalRule(r.Context(), bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	s.render(w, "band_settings", map[string]any{
 		"BandRoles": roles,
 		"Me": person, "Band": band, "IsCore": isCore || person.IsAdmin,
-		"Locale": locale, "ProposalRule": rule,
+		"Locale": locale,
 	})
 }

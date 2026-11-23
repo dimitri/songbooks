@@ -9760,9 +9760,9 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 
 
 /* ---- A band's votes (docs/band-votes.md; band_proposals.html,
-   band_proposal.html, listening_party.html, playlist.html's .Vote,
+   band_proposal.html, band_listens.html, playlist.html's .Vote,
    band-votes.js, proposal-flow.js): the proposals as cards, 1 to 4 stars
-   or No thanks on each, the propose flow's dialog, the listening party. */
+   or No thanks on each, the propose flow's dialog, Discover and Influences. */
 .button-link {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: 2.75rem; padding: 0.5rem 1rem;
   border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg-raised); color: var(--fg);
@@ -9840,7 +9840,17 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .vote-chip { padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--bg-sunken); font-size: 0.75rem; font-weight: 700; color: var(--fg-muted); white-space: nowrap; }
 .vote-chip.is-no { background: var(--danger-bg); color: var(--danger); }
 .vote-chip.is-wait { background: transparent; border: 1px dashed var(--border); }
-.vote-blocked { color: var(--danger); font-weight: 600; }
+.vote-hidden { font-size: 0.85rem; color: var(--fg-muted); font-style: italic; }
+.vote-chip.is-liked { background: var(--ok-bg); color: var(--ok); }
+/* A veto standing: the card flagged, the strongest no in sight. */
+.vote-card.is-vetoed { border-left: 4px solid var(--danger); }
+.vote-group { margin: 0.6rem 0 0; font: 700 0.8rem/1.3 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
+.vote-group .hint { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 0.3rem; }
+.vote-decide { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1.1rem; margin-top: 0.2rem; padding-top: 0.45rem; border-top: 1px dashed var(--border); font-size: 0.88rem; }
+.vote-decide .link-button { min-height: 2.25rem; font-weight: 600; }
+.vote-decide .vote-decide-down { color: var(--danger); }
+.vote-decide .form-status:empty { display: none; }
+.proposal-decide .vote-decide { border-top: 0; padding-top: 0; }
 .vote-guest-note { margin: 0 0 0.8rem; padding: 0.45rem 0.7rem; border-radius: 8px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.85rem; }
 
 /* The vote control: 4 big stars (3 and 4 for, 1 and 2 against), No
@@ -9858,7 +9868,16 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .vote-stars.is-preview .vote-star.is-on { color: color-mix(in srgb, #d99a1e 70%, transparent); }
 .vote-star:nth-child(2) { margin-right: 0.35rem; } /* 1–2 against, 3–4 for */
 .vote-star:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-.vote-nothanks { min-height: 2.75rem; padding: 0.35rem 0.9rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg-muted); font-weight: 600; }
+.vote-nothanks { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.75rem; min-width: 2.75rem; padding: 0.35rem 0.9rem 0.35rem 0.7rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg-muted); font-weight: 600; }
+.vote-nothanks .icon-veto { width: 1.35rem; height: 1.35rem; flex: none; }
+.vote-ctl-gap { width: 0.6rem; height: 1.6rem; border-left: 1px solid var(--border); margin-left: 0.3rem; }
+.veto-mark { display: inline-flex; vertical-align: -0.2em; }
+.veto-mark .icon-veto { width: 1.1em; height: 1.1em; }
+.vote-chip .veto-mark .icon-veto { width: 1.05em; height: 1.05em; }
+.vote-chip.is-no { display: inline-flex; align-items: center; gap: 0.2rem; }
+.vote-sum-gap { width: 0.2rem; }
+.proposal-history .veto-mark { color: var(--danger); }
+.pl-score-mine .icon-veto { width: 0.9rem; height: 0.9rem; color: var(--danger); }
 .vote-nothanks:hover { border-color: var(--danger); color: var(--danger); background: var(--bg); }
 .vote-nothanks.is-on { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
 .vote-ctl.has-vote.is-no .vote-star { opacity: 0.5; }
@@ -9887,6 +9906,13 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   .vote-listen span { display: none; }
   .vote-line .vote-names { font-size: 0.8rem; }
   .vote-star { width: 2.9rem; height: 2.9rem; font-size: 2rem; }
+  /* No thanks as its sign alone (its aria-label says it), so the veto
+     and the four stars hold on one line. */
+  .vote-nothanks { padding: 0; width: 2.9rem; height: 2.9rem; justify-content: center; }
+  .vote-nothanks-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .vote-nothanks .icon-veto { width: 1.55rem; height: 1.55rem; }
+  .vote-ctl-row { flex-wrap: nowrap; gap: 0.4rem; }
+  .vote-ctl-gap { margin-left: 0.1rem; width: 0.3rem; }
   .songbook-head .songbook-actions { width: 100%; }
   .songbook-head .songbook-actions .setlist-action { flex: 1 1 0; justify-content: center; min-height: 2.75rem; }
 }
@@ -9993,7 +10019,6 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
    average and how many voted. */
 .pl-vote { border-top: 1px solid var(--border); padding-top: 0.6rem; }
 .pl-vote .vote-ctl { margin: 0; }
-.pl-party-note { margin: 0; padding: 0.4rem 0.6rem; border-radius: 8px; background: var(--accent-bg); color: var(--accent-ink); font-size: 0.82rem; font-weight: 600; }
 .pl-row-score { flex: none; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0.05rem; font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
 .pl-score-avg { font-weight: 700; color: #b57d10; }
 .pl-score-count { font-size: 0.7rem; }
@@ -10013,26 +10038,24 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   .vote-player .pl-map.vote-panel { display: block; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); }
 }
 
-/* The listening party: the song playing now, to rate on a phone. */
-.party-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem 1.2rem; }
-.party-head h2 { margin: 0 0 0.2rem; }
-.party-head .hint { margin: 0.15rem 0; max-width: 46rem; }
-.party-head-text { flex: 1 1 22rem; }
-.party-host { flex: none; }
-.party-now { display: grid; gap: 0.55rem; margin: 1rem 0; border: 2px solid var(--accent); }
-.party-now.is-idle { border: 1px dashed var(--border); box-shadow: none; }
-.party-now-state { margin: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
-.party-now-state:empty { display: none; }
-.party-now-state.is-playing { color: var(--accent); }
-.party-now-state.is-playing::before { content: "● "; }
-.party-now-song { display: flex; align-items: center; gap: 0.9rem; }
-.party-now-song img { width: 6.5rem; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 8px; flex: none; }
-.party-now-song img[hidden] { display: none; }
-.party-now h2 { margin: 0; font-size: 1.3rem; }
-.party-now .vote-star { width: 3.3rem; height: 3.3rem; font-size: 2.3rem; }
-.party-queue-head { margin: 1.4rem 0 0.6rem; font-size: 1rem; }
-.party-queue-head .hint { font-weight: 400; font-size: 0.85rem; }
-.party-event .next-up-actions { margin-top: 0.4rem; }
+/* Discover and Influences (band_listens.html): the add form, a song's
+   tags and actions. */
+.listen-add { margin: 0 0 1rem; }
+.listen-add[hidden] { display: none; }
+.listen-add h2 { margin: 0; font-size: 1.05rem; }
+.listen-add-found { display: flex; gap: 0.9rem; align-items: flex-start; }
+.listen-add-found[hidden] { display: none; }
+.listen-add-thumb { width: 8rem; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; flex: none; background: var(--bg-sunken); }
+.listen-add-fields { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.listen-add-fields .field { margin: 0; }
+.listen-add-fields input { width: 100%; min-width: 0; }
+.listen-tag { padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
+.listen-actions a { font-weight: 600; }
+@media (max-width: 640px) {
+  .listen-add-found { flex-direction: column; }
+  .listen-add-thumb { width: min(100%, 14rem); }
+  .listen-add-fields { grid-template-columns: 1fr; width: 100%; }
+}
 /* ---- end of a band's votes ---- */
 /* ---- coach-proposals: a songbook row's melody range (row_voice.go),
    a student's proposals to the coach (coach_proposals.go). ---- */
@@ -10081,6 +10104,31 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .propose-dialog .propose-key[hidden] { display: none; }
 .propose-dialog .form-status.is-error { color: var(--danger); }
 
+/* ---- row-range: a songbook row's melody as small staves (row_voice.go,
+   melody/staffsvg.go, row-range.js). ---- */
+.row-voice-staff { display: inline-flex; align-items: center; color: var(--fg); vertical-align: middle; }
+.row-voice-staff:empty { display: none; }
+.row-voice-staff .rr-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.rr-svg .rr-hi { color: var(--accent-ink, var(--accent)); }
+.rr-svg text { font-family: inherit; }
+.rr-bars { display: inline-flex; flex-wrap: wrap; align-items: flex-start; gap: 0.2rem 0.5rem; }
+.rr-bar { display: inline-block; border-radius: 6px; cursor: pointer; padding: 0 0.15rem; }
+.rr-bar:hover { background: var(--bg-sunken); }
+.rr-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row-voice.is-analysed { align-items: center; }
+.row-voice:has(.row-voice-staff:not(:empty)) { align-items: center; vertical-align: middle; }
+@media (max-width: 640px) {
+  /* A phone: the melody on its own line under the title, the two bars
+     side by side, shrunk to share it; the fit after them. */
+  .song-link .row-voice, .gig-title .row-voice, .cbook-song .row-voice { display: flex; flex-wrap: wrap; width: 100%; margin: 0.3rem 0 0.2rem; }
+  .row-voice.is-analysed .row-voice-staff.is-bars { flex: 1 0 100%; min-width: 0; }
+  .rr-bars { flex-wrap: nowrap; width: 100%; }
+  .rr-bar { flex: 0 1 auto; min-width: 0; }
+}
+/* The student's card is narrow: the bars on their own line under the
+   title, the key pill staying beside the title. */
+.cbook-song:has(.row-voice) { flex-wrap: wrap; row-gap: 0; }
+.cbook-song .row-voice { order: 3; flex-basis: 100%; margin: 0 0 0.4rem; }
 /* ---- Band roles (band_roles.html, docs/band-roles.md): the band's
    roles as columns, what they may do as rows, a tick per cell. The
    first column wraps; the role columns stay narrow and centred, the

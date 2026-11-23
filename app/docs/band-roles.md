@@ -64,7 +64,11 @@ for a privilege instead (below).
 | `edit_look` | The band's look (colours, fonts), logo, card picture, language | ✓ | |
 | `delete_band` | Delete the band | ✓ | ✓ |
 
-Proposals: the user's rule is "the tool helps, the band decides; any
+Proposals (docs/band-votes.md): `store.MayVote`, `MayDecideProposal`
+and `MayShareListen` are where the band votes' code asks; each becomes
+`HasBandPrivilege(…, vote / decide_proposals / propose)`, and the
+tallies' `bm.status = 'core'` becomes `has_band_privilege(bp.band_id,
+…, 'vote')`. Until then they keep today's rule. The user's rule is "the tool helps, the band decides; any
 member can add or turn down a proposal" — `propose` and
 `decide_proposals` are every member's by default; a band that wants its
 staff alone to decide makes a "Staff" role with `decide_proposals` and
@@ -108,10 +112,10 @@ that gates it now.
 | Create an event; change one | `POST …/events`, `CanManageEvent` | any member | `manage_events` |
 | Sign the band up for an event, claim a song of its set list as the band | `POST /events/{id}/register` (`band_id`), `POST /events/{id}/songs` (`bandId`) | any member (registering: anyone, unchecked) | `manage_events` |
 | Recordings: folder, sync, song's recording, fixes, name templates | `…/recordings/…` | any member | `manage_recordings` |
-| Propose a song, drafts, Discover/Influences | `POST …/proposals`, drafts, listens (#171) | any member | `propose` — **#171 to adopt** |
-| Vote | `POST …/proposals/{id}/votes` (#171) | core | `vote` — **#171 to adopt** |
-| Accept / turn down a proposal | `POST …/proposals/{id}/accept`, `…/reject` (#171) | any member | `decide_proposals` — **#171 to adopt** |
-| The listening party: host | `PUT …/party` (#171) | any member | (as #171 leaves it; `propose` fits) |
+| Propose a song, drafts | `POST …/proposals`, `…/proposal-drafts` (`CreateProposal`, `CreateProposedSong`) | any member | `propose` — **band votes to adopt** |
+| Add to Discover / Influences | `POST …/listens` (`MayShareListen`) | any member | `propose` — **band votes to adopt** |
+| Vote; be counted in a tally | `POST …/proposals/{id}/votes` (`MayVote`), `seenSQL`, `proposalFrom` | core | `vote` — **band votes to adopt** |
+| Accept / turn down a proposal | `…/accept`, `…/reject` (`MayDecideProposal`) | any member | `decide_proposals` — **band votes to adopt** |
 
 ## The roles editor
 

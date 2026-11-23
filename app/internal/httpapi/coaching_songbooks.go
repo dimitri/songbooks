@@ -221,8 +221,7 @@ func (s *Server) studentBooksData(r *http.Request, community *store.Community, p
 		zone, _ := s.store.StudentVoiceZone(ctx, personID, community.ID)
 		lang := s.langOfRequest(r)
 		for i := range all {
-			m, known := ranges[all[i].VariantID]
-			all[i].Voice = rowVoiceOf(lang, m, known, all[i].Semitones, zone)
+			all[i].Voice = ranges.voice(lang, all[i].VariantID, all[i].Key, all[i].Semitones, zone)
 		}
 	}
 	data["BookID"] = sbID

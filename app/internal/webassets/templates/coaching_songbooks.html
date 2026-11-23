@@ -260,6 +260,7 @@
 {{template "global-tabbar-script"}}
 {{if or .IsCoach .CanPropose}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
 {{if .CanPropose}}<script src="/static/js/propose-song.js?v={{staticVersion}}"></script>{{end}}
+<script src="/static/js/row-range.js?v={{staticVersion}}" defer></script>
 {{if .IsCoach}}<script src="/static/js/add-song.js?v={{staticVersion}}"></script>{{end}}
 <script>
 (() => {

@@ -179,7 +179,7 @@
     if (!view) {
       const api = new alphaTab.AlphaTabApi(canvas, settings(g));
       view = { api, geo: g };
-      api.postRenderFinished.on(() => requestAnimationFrame(paginate));
+      api.postRenderFinished.on(() => requestAnimationFrame(() => { paginate(); goToAskedBar(); }));
     } else if (g.perRow !== view.geo.perRow || g.scale !== view.geo.scale) {
       view.api.settings.display.barsPerRow = g.perRow;
       view.api.settings.display.scale = g.scale;
@@ -271,6 +271,31 @@
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   });
+
+  // ?bar=N (a songbook row's lowest or highest bar, row-range.js): that
+  // played bar shown and marked, the player put there, once.
+  let askedBar = (() => {
+    const b = Number(new URLSearchParams(location.search).get('bar'));
+    return Number.isInteger(b) && b >= 0 && new URLSearchParams(location.search).get('bar') !== null ? b : null;
+  })();
+  function goToAskedBar() {
+    if (askedBar === null || !view) return;
+    const i = view.bars.indexOf(askedBar);
+    const lookup = view.api.renderer && view.api.renderer.boundsLookup;
+    const mb = i >= 0 && lookup ? lookup.findMasterBarByIndex(i) : null;
+    const r = mb && (mb.realBounds || mb.visualBounds);
+    if (!r) return;
+    const bar = askedBar;
+    askedBar = null;
+    cursor.hidden = false;
+    cursor.style.left = `${canvas.offsetLeft + r.x}px`;
+    cursor.style.top = `${canvas.offsetTop + r.y}px`;
+    cursor.style.width = `${r.w}px`;
+    cursor.style.height = `${r.h}px`;
+    const top = canvas.getBoundingClientRect().top + r.y;
+    window.scrollBy({ top: top - Math.max(80, window.innerHeight * 0.3) });
+    if (window.songbooksPlayer && window.songbooksPlayer.seekBar) window.songbooksPlayer.seekBar(bar, false);
+  }
 
   // ---- Following the player --------------------------------------------------
 

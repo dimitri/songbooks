@@ -62,7 +62,7 @@
     </section>
 
     <section class="proposal-vote" aria-label="{{t "The vote"}}">
-      <article class="vote-card proposal-card" data-band="{{.Band.ID}}" data-proposal="{{.Proposal.ID}}" data-status="{{.Proposal.Status}}" data-title="{{.Proposal.TargetTitle}}" data-tally="{{$c.TallyJSON}}">
+      <article class="vote-card proposal-card" id="p{{.Proposal.ID}}" data-band="{{.Band.ID}}" data-proposal="{{.Proposal.ID}}" data-status="{{.Proposal.Status}}" data-title="{{.Proposal.TargetTitle}}" data-tally="{{$c.TallyJSON}}">
         {{if eq .Proposal.Status "open"}}
         {{if .CanVote}}<h2>{{t "Your vote"}}</h2>
         <div data-ctl></div>
@@ -76,16 +76,11 @@
         <div class="vote-sum is-full" data-sum></div>
       </article>
 
-      {{if and .IsCore (eq .Proposal.Status "open")}}
+      {{if and .CanDecide (eq .Proposal.Status "open")}}
       <div class="card proposal-decide">
-        <h3>{{t "Decide now"}}</h3>
-        <p class="hint">{{t "A core member can settle it without waiting for every vote."}}</p>
-        <div class="form-actions">
-          <button type="button" id="accept-btn"{{if $c.Tally.Blocked}} disabled aria-describedby="accept-blocked"{{end}}>{{t "Accept it"}}</button>
-          <button type="button" id="reject-btn" class="danger">{{t "Turn it down"}}</button>
-        </div>
-        {{if $c.Tally.Blocked}}<p class="field-hint" id="accept-blocked">{{t "Held back by a core member’s no thanks: it can go in once they change their vote."}}</p>{{end}}
-        <p class="form-status" id="decide-status" role="status"></p>
+        <h3>{{t "Decide"}}</h3>
+        <p class="hint">{{t "The votes guide the band; any member decides, whatever they say."}}</p>
+        {{template "vote-decide" .Proposal}}
       </div>
       {{end}}
 
@@ -95,8 +90,8 @@
         <ol class="proposal-history-list">
         {{range .History}}
           <li><span class="proposal-history-who">{{.Name}}</span>
-            {{if .LegacyVote}}{{if eq .LegacyVote "yes"}}{{t "voted yes (now 3 stars)"}}{{else}}{{t "vetoed (now no thanks)"}}{{end}}
-            {{else if .NoThanks}}{{t "said no thanks"}}{{else if .Stars}}<span class="stars-inline" aria-label="{{tn .Stars "%d star" "%d stars"}}">{{.Stars}}★</span>{{else}}{{t "took their vote back"}}{{end}}
+            {{if .LegacyVote}}{{if eq .LegacyVote "yes"}}{{t "voted yes (now 3 stars)"}}{{else}}<span class="veto-mark">{{template "icon-veto"}}</span> {{t "vetoed (now no thanks)"}}{{end}}
+            {{else if .NoThanks}}<span class="veto-mark">{{template "icon-veto"}}</span> {{t "said no thanks"}}{{else if .Stars}}<span class="stars-inline" aria-label="{{tn .Stars "%d star" "%d stars"}}">{{.Stars}}★</span>{{else}}{{t "took their vote back"}}{{end}}
             <time class="hint" datetime="{{.CastAt.Format "2006-01-02T15:04:05Z07:00"}}">{{date .CastAt "2 Jan, 15:04"}}</time></li>
         {{end}}
         </ol>
@@ -134,19 +129,6 @@ BandVotes.list();
       resume: (state, from) => { audio.currentTime = from.at || 0; if (from.play) audio.play().catch(() => {}); return true; },
     });
   }
-  async function decide(btn, what, confirmText) {
-    if (confirmText && !confirm(confirmText)) return;
-    const st = document.getElementById('decide-status');
-    Forms.status(st, '');
-    Forms.busy(btn, true);
-    const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/${what}`, {method: 'POST'}).catch(() => null);
-    if (res && res.ok) { location.reload(); return; }
-    const data = res ? await res.json().catch(() => ({})) : {};
-    Forms.busy(btn, false);
-    Forms.status(st, data.message || t('Couldn’t save that. Try again.'), 'error');
-  }
-  document.getElementById('accept-btn')?.addEventListener('click', (e) => decide(e.currentTarget, 'accept'));
-  document.getElementById('reject-btn')?.addEventListener('click', (e) => decide(e.currentTarget, 'reject', t('Turn down “%s” without waiting for the votes?', {{.Proposal.TargetTitle}})));
   if (box) {
     // The control BandVotes.list() made answers the keys.
     const press = (v) => box.querySelector(v.noThanks ? '.vote-nothanks' : `.vote-star[data-stars="${v.stars}"]`)?.click();

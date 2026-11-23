@@ -198,8 +198,7 @@ func (s *Server) handleSongbookPage(w http.ResponseWriter, r *http.Request) {
 			if canKey {
 				row.Keys = keyOptions(s.langOf(w), ownKey, row.Semitones)
 			}
-			m, known := ranges[vid]
-			row.Voice = rowVoiceOf(s.langOf(w), m, known, row.Semitones, zone)
+			row.Voice = ranges.voice(s.langOf(w), vid, ownKey, row.Semitones, zone)
 			sg.Songs = append(sg.Songs, row)
 		}
 		out = append(out, sg)

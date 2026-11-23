@@ -319,15 +319,36 @@ edit moves nothing.
 Wherever a songbook lists its songs — a person's songbook, a band's
 (its songbook page and its repertoire tab), the coach's one songbook, a
 student's songbook (its page and their card on the Songbooks section) —
-each row shows the song's melody, lowest to highest note, from the
-recording the player uses (`song_melody_ranges`, store.SongMelodyRanges),
-at the row's key: "A2–E4" ("la1–mi3"). For a student looking at their
-own songbook (with the coach, or their own *My songbook*), and for the
-coach looking at a student's songbook or filtering theirs by a student
-(the row then shows the melody at that student's key), how it sits in
-their voice: *fits*, *2 high*, *1 low* — semitones out of their
-comfortable zone when the coach noted it, else out of their whole range
-(row_voice.go). Information, no verdict; nothing when the melody isn't
+each row shows the song's melody as a tiny staff, at the row's key (the
+entry's semitones), treble or treble-8vb as the melody sheet writes it
+(its middle under C4):
+
+- **Range only** (the range is known, `song_melody_ranges`, the
+  recording the player uses): one bar, the lowest and the highest note
+  as two whole notes.
+- **Melody analysed** (`song_melody_notes`, the melody sheet's bars):
+  two bars side by side, as sung (rhythm, rests), the one where the
+  melody first reaches its lowest note and the one where it first
+  reaches its highest (played order: a repeat's first pass wins), the
+  note marked, the syllables under it when the lyrics are placed. Notes
+  outside the known range (the pitch tracking an octave off) are left
+  out. A tap (Enter) on a bar opens the song's Melody view at that bar
+  (`?view=melody&bar=N`, the player there). A screen reader reads
+  "Range A2–E4; lowest in bar 12, highest in bar 31".
+- **Drawn** as small SVGs by the server (melody/staffsvg.go), never an
+  alphaTab per row: the range in the page, the two bars fetched as the
+  row comes into view (row-range.js, `GET /api/songs/{id}/row-range?k=`),
+  cached on the server (by song, key and the state of its melody, ten
+  minutes) and in the browser. A melody with no bars yet (its recording
+  not synced) keeps its range.
+
+For a student looking at their own songbook (with the coach, or their
+own *My songbook*), and for the coach looking at a student's songbook or
+filtering theirs by a student (the row then shows that student's key),
+how it sits in their voice beside it: *fits*, *2 high*, *1 low* —
+semitones out of their comfortable zone when the coach noted it, else
+out of their whole range (row_voice.go; for the analysed melody, its
+drawn notes). Information, no verdict; nothing when the melody isn't
 known; no notification.
 
 ## The song the coach and the students share

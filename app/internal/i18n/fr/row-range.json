@@ -1,0 +1,7 @@
+{
+  "the melody’s lowest and highest notes": "les notes la plus grave et la plus aiguë de la mélodie",
+  "Range %s; lowest in bar %d, highest in bar %d": "Étendue %s ; la plus grave mesure %d, la plus aiguë mesure %d",
+  "lowest and highest notes, bar %d": "notes la plus grave et la plus aiguë, mesure %d",
+  "lowest note, bar %d": "note la plus grave, mesure %d",
+  "highest note, bar %d": "note la plus aiguë, mesure %d"
+}

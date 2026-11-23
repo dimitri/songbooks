@@ -186,8 +186,7 @@ func (s *Server) coachBookData(r *http.Request, community *store.Community, repI
 	ranges := s.melodyRanges(ctx, ids)
 	for i := range out {
 		out[i].StudentSong = keyed[i]
-		m, known := ranges[out[i].VariantID]
-		out[i].Voice = rowVoiceOf(lang, m, known, 0, nil)
+		out[i].Voice = ranges.voice(lang, out[i].VariantID, out[i].Key, 0, nil)
 		for j := range out[i].Assigned {
 			a := &out[i].Assigned[j]
 			a.KeyText = chipKey(out[i].Key, a.Semitones)
@@ -195,7 +194,7 @@ func (s *Server) coachBookData(r *http.Request, community *store.Community, repI
 			if a.Kind == "student" {
 				zone = zones[a.PersonID]
 			}
-			a.Voice = rowVoiceOf(lang, m, known, a.Semitones, zone)
+			a.Voice = ranges.voice(lang, out[i].VariantID, out[i].Key, a.Semitones, zone)
 		}
 		sort.SliceStable(out[i].Assigned, func(x, y int) bool {
 			ax, ay := out[i].Assigned[x], out[i].Assigned[y]

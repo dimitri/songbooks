@@ -1,7 +1,9 @@
-# A band's votes
+# A band's votes, Discover and Influences
 
-How a band decides which songs to add: its members propose songs, the
-core members rate them, the band listens to them together. Code:
+How a band decides which songs to add — the tool helps it decide; it
+never decides nor enforces —, and what it listens to: its members
+propose songs, the core members rate them, any member adds one or turns
+it down; Discover and Influences are songs to hear, no vote. Code:
 `internal/store/band_proposals.go` (the rules), `internal/httpapi/band_proposals.go`
 (pages and API), `static/js/band-votes.js` (the vote control, the
 summary, the player's and the party's live parts), `static/js/proposal-flow.js`
@@ -50,38 +52,60 @@ The editor's Import, as the quick add does (`songimport.VocalDraft`):
 
 ## Voting
 
-Each **core member** rates a proposal **1 to 4 stars** — an even scale,
-never right in the middle: 1 and 2 are against it, 3 and 4 for it — or
-says **No thanks**, a refusal shown apart from the stars, never counted
-as a star. Not voted is "not voted", never 0 stars. A vote is changed or
-taken back until the proposal is decided; every vote, change and take-
-back is kept (`proposal_vote_log`, the proposal page's history).
+Each **core member** says **No thanks** — a veto, the strongest no — or
+rates a proposal **1 to 4 stars**, an even scale never right in the
+middle: 1 and 2 are against it, 3 and 4 for it. The vote control puts
+No thanks first, with its sign (a "no entry" circle, `icon-veto`: it
+refuses, it deletes nothing), then a gap, then the four stars; the same
+order wherever votes show (the summaries, the history). Not voted is
+"not voted", never 0 stars. A vote is changed or taken back until the
+proposal is decided; every vote, change and take-back is kept
+(`proposal_vote_log`). Keys: 1–4, N for no thanks.
 
-**Guest members don't vote**: they propose, see the proposals and their
-votes, and listen; the API refuses their vote (403, "Guest members don't
-vote…"). Only a core member accepts or turns down a proposal by hand.
+**Guest members don't vote**: they propose, see the proposals and
+listen; the API refuses their vote (403, "Guest members don't vote…").
 
-Each proposal shows its average (of the stars given), for/against
-(3–4 / 1–2 stars), how many core members voted of how many ("4/6"; no
-quorum), who said no thanks, who hasn't voted. The list sorts by
-**stars** (average, best first; then the most ratings), **newest**, or
-**most no thanks**.
+### No one sees the others' votes before voting
 
-### What decides it
+Until a core member has voted on an open proposal (stars or no thanks),
+they see only how many core members voted, of how many ("3/6 voted") —
+no average, no for/against, no bars, no names, no one's no thanks, no
+history of the others' votes. This is enforced by the server: the
+tallies in the pages, the JSON the player and the party poll, the vote
+answers, the proposal page's history (only one's own past votes), the
+band's overview and the home page. In the list sorted by stars (or by no
+thanks), the proposals one hasn't voted on come **first, apart**, newest
+first ("Not voted by you yet"): their place among the others would tell
+how those were voted. Taking one's vote back hides the others' again. A
+decided proposal shows everything to everyone. A guest sees the votes
+once the proposal is decided.
 
-The votes decide once **every core member has voted**: in with an
-average of **2.5 or more** and more votes for it (3–4 stars) than against
-it (1–2 stars and no thanks); turned down otherwise. More than half of
-the core members saying no thanks turns it down at once.
+### The votes are information
 
-What one core member's **No thanks** does is the band's setting
-(Settings → How the band votes; `bands.proposal_no_thanks`):
+The votes never accept or turn down a proposal by themselves. **Any
+member (core or guest) decides by hand** — "Add to the songbook" (and to the set list
+when that was its target; "Make it the reference" for another
+recording) or "Turn down" — whatever the votes say, a veto included.
+The confirm names who said no thanks ("Isla Garnier said no thanks. Add
+to the songbook anyway?"); for one who hasn't voted, it says the votes
+show once they vote (deciding doesn't reveal them).
 
-- **It holds the song back** (default): it can't go in — by the votes
-  or by hand — while that no thanks stands; turning it down is still
-  possible.
-- **It turns the song down at once**: a veto (the old rule).
-- **It counts as a vote against**.
+What the votes say, once one may see them: the average (of the stars
+given), for/against (3–4 / 1–2 stars), who said no thanks, who hasn't
+voted, how many voted of the core members (no quorum). A proposal with a
+no thanks is **flagged** (a red edge, the veto sign and count first in
+its summary) and sorts after the ones without in the stars order. **"The
+band likes it"** is a suggestion shown when the average is 2.5 or more,
+with more votes for it than against and no veto.
+
+The band setting of what a no thanks did (block, veto, count; migration
+0127) meant something only while the votes decided; it's gone (migration
+0129 drops `bands.proposal_no_thanks`).
+
+Who may vote, decide and share is each in one helper
+(`store.MayVote`: core members; `MayDecideProposal`, `MayShareListen`:
+any member), to move to the band's roles (`HasBandPrivilege`) without
+touching the handlers — a band could then keep deciding to its staff.
 
 ## Listening while voting
 
@@ -93,20 +117,36 @@ stars are under the song playing (keys 1–4, N for no thanks), where its
 vote stands beside it, each row's average and voted count in the queue.
 What plays goes on in the mini player on the next page.
 
-## The listening party
+## Discover and Influences
 
-The event type has a page: the Songbook's **Listening party** view
-(`/bands/{id}/catalog/discover`, linked from a band's listening-party
-event). One member **hosts**: plays the songs on the band's speakers
-with the same player (`?party=1`), which says what plays
-(`listening_party_now`). Every member's phone shows the song playing,
-with the same vote control and summary, following the host every few
-seconds; the queue below, every proposal with its vote.
+Two more views of the Songbook, beside To vote, each a pool of YouTube
+links to listen to (`band_listens`, migration 0129), in the same layout
+and the same player:
 
-## The old votes (migration 0127)
+- **Discover** (« Découvrir »): songs a member shares for the band to
+  hear — no vote, no proposal, just "listen to this" — with who shared it
+  and a note. **Propose for a vote** opens the propose flow on its link;
+  the song then says "Proposed for a vote →".
+- **Influences** (« Influences »): the artists and songs that shape the
+  band's sound (what an original band sounds like), with what to listen
+  for ("the drum feel", "the vocal harmonies") and tags.
+
+Adding: paste a YouTube link — its title and artist are read from the
+video (oEmbed), to fix —, a note, tags for an influence. **Any member**
+adds, a guest too; who added a song removes it. **Play all** plays a
+pool one after another in the playlist player, the video big beside the
+queue on a wide screen.
+
+There's no sync between devices: an earlier "listening party", where a
+host's player drove everyone's phone, was not what the band needed and
+is gone (migration 0129 drops `listening_party_now`). The calendar's
+"Listening party" event type stays an ordinary event.
+
+## The old votes and the migrations (0127, 0129)
 
 The yes/veto votes became: **yes → 3 stars** (for it, the plain yes it
 was; 4 is left for "love it", which a yes never said), **veto → no
 thanks**. The vote as it was cast is kept (`legacy_vote`, and in the
 history). A guest's old vote no longer stands (out of every average and
-count) but stays in the history.
+count) but stays in the history. 0129 drops the no-thanks setting and
+the listening party's table, and adds `band_listens`.
