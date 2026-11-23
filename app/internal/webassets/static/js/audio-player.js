@@ -121,7 +121,7 @@ window.songbooksDecodable = function (buf) {
   // The song's tempo; the Guitar Pro file's when its synthesizer plays
   // (offerSynth below).
   let bpm = transportEl ? parseFloat(transportEl.dataset.bpm) || 0 : 0;
-  const songBpm = bpm;
+  let songBpm = bpm;
   const beatsPerBar = transportEl ? parseInt(transportEl.dataset.beatsPerBar, 10) || 4 : 4;
   const timeNum = transportEl ? parseInt(transportEl.dataset.timeNum, 10) || 4 : 4;
   const timeDen = transportEl ? parseInt(transportEl.dataset.timeDen, 10) || 4 : 4;
@@ -297,6 +297,7 @@ window.songbooksDecodable = function (buf) {
       const res = window.SongbooksAutoAlign.analyze(analysisInput, {
         tempo: bpm, barTicks, onsets: [], barChords: [],
         firstFull: leadIn(),
+        lead: leadBarCount(),
       });
       if (!res || !res.barTimes) return null;
       detectedFull = { cat: activeCategory, times: res.barTimes };
@@ -3212,7 +3213,8 @@ window.songbooksDecodable = function (buf) {
     isPlaying, play, pause,
     seek: (t) => seek(t),
     sections,
-    bpm, beatsPerBar, barLabel,
+    get bpm() { return bpm; },
+    beatsPerBar, barLabel,
     // Each section's start as the chart follows it now, with its origin
     // ("auto" for the detection's).
     syncMarkers: currentSyncMarkers,
@@ -3241,6 +3243,29 @@ window.songbooksDecodable = function (buf) {
     // The panel, at a tool's line (the song bar's Outils, the header's key).
     openLine,
    });
+  // The song's tempo saved (Tap tempo's "Use this tempo", tap-tempo.js;
+  // a Source save, song.js): the chart's bar is that long at once. The
+  // estimate — the in-memory detection, which starts from the tempo — is
+  // run again with it, and the bars the sync doesn't place (before the
+  // first marker, after the last, the lead) take it. Saved markers and
+  // per-bar points are times: they never move.
+  document.addEventListener('songbooks:tempo-saved', (e) => {
+    const v = parseFloat(e.detail && e.detail.tempo);
+    if (!(v > 0) || v === songBpm) return;
+    songBpm = v;
+    if (transportEl) transportEl.dataset.bpm = String(v);
+    if (activeCategory === 'synth') return; // the file's own tempo plays
+    bpm = v;
+    secondsPerBar = (60 / bpm) * beatsPerBar;
+    if (detected) {
+      detectedFull = null;
+      const times = runDetection();
+      detected = times ? times.map((t, i) => ({ barIndex: i, timeSeconds: t })) : null;
+    }
+    resetClicks();
+    rebuildGrid();
+    renderPosition();
+  });
   document.dispatchEvent(new CustomEvent('songbooks:player-ready'));
 
 

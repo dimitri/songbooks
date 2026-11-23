@@ -50,6 +50,13 @@ type Hints struct {
 	// Bar1At: the chart's first bar starts at the beat nearest this
 	// time (seconds), which becomes a downbeat; 0: free.
 	Bar1At float64 `json:"bar1At,omitempty"`
+	// LeadBars: the song's "lead:" bars (song.Song.LeadIn), before its
+	// first section and in none of secs. Without a Bar1At, the lead is
+	// taken to start the recording — on its first downbeat with music —
+	// and the first section to start that many bars later, not where the
+	// chords or the voice would put it (the voice can come in bars into
+	// the first section). Set by songimport, never by the editor.
+	LeadBars int `json:"-"`
 }
 
 // Result is the chart laid on the recording.
@@ -506,6 +513,19 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 	fixFirst := -1
 	if h.Bar1At > 0 {
 		fixFirst = nearestBeat(g.beats[:M], h.Bar1At)
+	} else if h.LeadBars > 0 {
+		// The lead starts the recording: the first section starts on the
+		// downbeat that many bars after its first one with music.
+		if fd := firstMusicDownbeat(r, g, M); fd >= 0 {
+			for j, n := fd+1, 0; j < M; j++ {
+				if g.pos[j] == 1 {
+					if n++; n == h.LeadBars {
+						fixFirst = j
+						break
+					}
+				}
+			}
+		}
 	}
 	place, cost, end := dp(vectors(0), obs, g.pos, g.B, fixFirst)
 	defer func() { res.cost = cost }()
@@ -576,6 +596,11 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 		// Sung: it has lyrics, or the voice sings most of it (a chart
 		// whose words aren't written in yet).
 		sung := s.HasLyrics || voiceShare(r.VoicePhrases, g.beats[sp[si].raw], rawEnd(si)) > 0.5
+		// The first section, placed where it was fixed (Bar1At, the
+		// lead), stays there: the voice may come in bars into it.
+		if prevStart < 0 && fixFirst >= 0 && sp[si].raw == fixFirst {
+			sung = false
+		}
 		st := chooseDownbeat(g, sp[si].raw, sung, r.VoiceOnsets, beatLen, prevStart)
 		if st < 0 {
 			continue // no beat left after the previous section's
@@ -655,13 +680,7 @@ func alignOn(r *Recording, g grid, secs []Section, h Hints) *Result {
 			break
 		}
 	}
-	fd := -1
-	for j := 0; j < M; j++ {
-		if g.pos[j] == 1 && g.beats[j] >= r.AudioStart-0.15 && (g.act == nil || j >= len(g.act) || g.act[j] >= 0.3) {
-			fd = j
-			break
-		}
-	}
+	fd := firstMusicDownbeat(r, g, M)
 	if fd >= 0 {
 		res.FirstDownbeat = round3(g.beats[fd])
 		if first > fd {
@@ -797,6 +816,18 @@ func (s Section) count() int {
 }
 
 func (g grid) isDown(j int) bool { return j >= 0 && j < len(g.pos) && g.pos[j] == 1 }
+
+// firstMusicDownbeat is the recording's bar 1: its first downbeat with
+// music (at or after its audio's start, the beat tracker sure enough of
+// it); -1 when none.
+func firstMusicDownbeat(r *Recording, g grid, M int) int {
+	for j := 0; j < M; j++ {
+		if g.pos[j] == 1 && g.beats[j] >= r.AudioStart-0.15 && (g.act == nil || j >= len(g.act) || g.act[j] >= 0.3) {
+			return j
+		}
+	}
+	return -1
+}
 
 // chooseDownbeat puts a section that the chords start at beat raw on a
 // downbeat: the one at or before raw, or a neighbour, as the voice says

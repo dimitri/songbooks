@@ -75,6 +75,9 @@ func ChartSections(body string, sections []SyncSection) (*song.Song, []chartalig
 func ProposeAutoSync(rec *chartalign.Recording, body string, sections []SyncSection, h chartalign.Hints) *AutoSync {
 	sg, secs := ChartSections(body, sections)
 	beats := chartalign.BeatsOf(orDefault(sg.Get("time"), "4/4"))
+	// The song's lead starts the recording, its first section that many
+	// bars later (chartalign.Hints.LeadBars).
+	h.LeadBars = sg.LeadIn()
 	chartTempo, _ := strconv.ParseFloat(sg.Get("tempo"), 64)
 	res := chartalign.Align(rec, secs, beats, h)
 	auto := 0.0

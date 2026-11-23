@@ -1960,6 +1960,12 @@ const ICONS = {
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
     clearDirty();
+    // A tempo saved here is the player's at once, as Tap tempo's is
+    // (audio-player.js listens): the bars it estimates on the recording
+    // start from it.
+    const tm = /^\s*tempo:\s*([\d.]+)\s*$/m.exec(rawTextarea.value);
+    const playerBpm = parseFloat(document.getElementById('transport')?.dataset.bpm || '0');
+    if (tm && +tm[1] > 0 && +tm[1] !== playerBpm) document.dispatchEvent(new CustomEvent('songbooks:tempo-saved', { detail: { tempo: +tm[1], version: rawVersion, from: 'source' } }));
     return true;
   }
   document.getElementById('save-btn').addEventListener('click', saveRaw);

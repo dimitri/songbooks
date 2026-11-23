@@ -1697,7 +1697,7 @@
     }
     const barChords = [];
     for (const sec of data.sections) sec.chords.forEach((c, i) => { barChords[sec.startBar + i] = c || []; });
-    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: leadIn() };
+    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: leadIn(), lead: data && data.leadIn > 0 ? data.leadIn : 0 };
   }
 
   async function autoAlign() {

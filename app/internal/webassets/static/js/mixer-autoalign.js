@@ -372,7 +372,17 @@
       let best = -1;
       const slide = [];
       for (let d = -0.3; d <= 0.3001; d += 0.075) slide.push(d * period);
-      for (let g = fit.phase; g < duration; g += period) {
+      // A song with a lead ("lead:", song.lead bars before its first
+      // section) starts with it: bar 0 on the beat nearest the music's
+      // start, its first section that many bars on — not wherever the
+      // pattern matches best (a voice coming in bars into the first
+      // section, a riff repeating).
+      if (song.lead > 0) {
+        t0 = fit.phase + Math.round((start - fit.phase) / period) * period;
+        candidates.push({ t0, score: 1 });
+        best = Infinity;
+      }
+      for (let g = fit.phase; g < duration && best < Infinity; g += period) {
         const cand = g - (song.barTicks[firstFull] / TPQ) * period;
         if (cand + ticksToSec(song.barTicks[Math.min(N, 8)], period) > duration) break;
         let total = 0, windows = 0;
