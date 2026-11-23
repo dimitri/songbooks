@@ -131,7 +131,6 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	err := q.QueryRow(ctx, `
 		SELECT s.owner_kind, coalesce(s.owner_person_id, s.owner_band_id, s.owner_community_id),
 		       s.public, coalesce(c.kind = 'global', false), song_closed(s.id), song_visible(s.id, $2),
-		       coalesce(c.kind = 'coaching', false), `+assignedStudentSQL("s.owner_community_id", "s.id", "$2")+`,
 		       coalesce((SELECT is_admin FROM people WHERE id = $2), false),
 		       EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity)),
 		       EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity) AND bm.status = 'core'),
@@ -145,7 +144,6 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		WHERE s.id = $1`, songID, personID, PrivEditRepertoire,
 		PrivManageMembers, PrivManageEvents, PrivManageSubmissions, PrivManageSettings, PrivManageFiles).
 		Scan(&kind, &ownerID, &r.Public, &r.Catalogue, &r.Closed, &r.See,
-			&r.Coaching, &r.AssignedStudent,
 			&admin, &bandMember, &bandCore, &communityMember, &editRepertoire, &staff)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
@@ -156,7 +154,6 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	r.Owner = Owner{Kind: kind, ID: ownerID}
 	if personID <= 0 {
 		r.See = false
-		r.AssignedStudent = false
 		return r, nil
 	}
 	switch {
@@ -172,23 +169,38 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 		r.Member = bandMember
 		r.Edit = bandMember
 		r.Publish = bandCore
-	case kind == "community" && r.Coaching:
-		// A coaching community's songs: the coach (its staff, who edit
-		// its repertoire) and the students each song is given to (their
-		// student songbook holds it); edit_repertoire alone, a student's
-		// role's, doesn't open the others.
-		r.Member = communityMember
-		r.Edit = r.See && (editRepertoire && staff || r.AssignedStudent)
-		r.Publish = staff
 	case kind == "community":
 		r.Member = communityMember
 		r.Edit = editRepertoire && r.See
 		r.Publish = staff
 	}
+	if kind == "community" && !r.Catalogue {
+		if err := coachingSongRights(ctx, q, r, personID, editRepertoire && staff); err != nil {
+			return nil, err
+		}
+	}
 	if r.Closed {
 		r.Publish = false
 	}
 	return r, nil
+}
+
+// coachingSongRights is the rule for a coaching community's song
+// (docs/coaching.md, "The song the coach and the students share"): the
+// coach (its staff, who edit its repertoire) and the students it's given
+// to (their own student songbook holds it) edit it in place;
+// edit_repertoire alone, the built-in member role's, opens none of them.
+// Nothing changes for any other community.
+func coachingSongRights(ctx context.Context, q dbtx, r *SongRights, personID int64, coach bool) error {
+	err := q.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM communities WHERE id = $1 AND kind = 'coaching'),
+		       `+assignedStudentSQL("$1::bigint", "$2::bigint", "$3::bigint"),
+		r.Owner.ID, r.SongID, personID).Scan(&r.Coaching, &r.AssignedStudent)
+	if err != nil || !r.Coaching {
+		return err
+	}
+	r.Edit = r.See && (coach || r.AssignedStudent)
+	return nil
 }
 
 // assignedStudentSQL is "person is a current student of the coaching
