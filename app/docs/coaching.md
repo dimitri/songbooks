@@ -246,6 +246,65 @@ coaching_songbooks.go) shows them from each side:
   the one Add / Create dialog where the page has it (add-song.js), else
   the repertoire's own page and its dialog.
 
+## The song the coach and the students share
+
+The song a student works on with the coach is **the community's song**:
+what the student adds to it (a chord grid to play it on the guitar or
+the piano while singing, a Guitar Pro score, a reference, the lyrics put
+right) the coach sees, and the other way round. Only the key is each
+one's (the student's songbook entry, `semitones`): editing the song
+never moves it.
+
+- **A linked song** (the repertoire links a catalogue song, as Chloé
+  Paul's do): the first edit, by the coach or by a student it's given to,
+  offers *Make the community's version* (from any of the community's
+  songbooks, the student's own included, or from no songbook at all: the
+  song opened from search or home). The version replaces the link in
+  **every** songbook of the community — the repertoire, each student's,
+  each group's, their keys kept — and the community's requests,
+  practice assignments, logs, takes, notes and event programs follow it
+  (store.MakeVersion). Linking the catalogue's song again afterwards
+  gives the version.
+- **The community's own song**: edited in place by the coach (its staff,
+  who edit the repertoire) and by each student whose student songbook
+  holds it (`SongRights.AssignedStudent`). Not another student's song,
+  not the repertoire's others, not once it's taken out of their
+  songbook, not by a former student; "edit repertoire" alone (the
+  built-in member role has it) opens none of them. A student makes no
+  "New version from this" and publishes nothing. The history says who
+  changed what.
+- **What goes with it**: its Guitar Pro file and recordings are the
+  song's, shared with the coach and the students it's given to; a closed
+  (paid) songbook's rules don't change.
+- **A site admin who is a student there** (the app's owner): from their
+  student songbook, the same offer; from elsewhere, the catalogue's song
+  is theirs to edit in place (they're The Big Songbook's staff).
+
+## Adding a song for a student
+
+As simple as finding the video and the lyrics without the app. In the
+coach's songbook, *Add song* (or a YouTube link pasted in its search, or
+Enter on "Title — Artist" there) opens the Add dialog with the link or
+the words looked up (quick_add.go):
+
+- **A link**: the video's title and channel (oEmbed) give the title and
+  the artist ("Artist - Title (Official Video)", or the title on the
+  artist's "- Topic" or VEVO channel).
+- **Found**: the community's own version of it first, else the public
+  song of that video, else of that title and artist (either way round):
+  *Add* links it.
+- **Not found**: *Create* makes it in the repertoire with the video as
+  its reference (typed, the best YouTube match the editor's finder
+  gives) and the singer's lyrics fetched (the editor's Import:
+  Ultimate Guitar's lyrics without chords, iReal Pro's grids).
+- Then **Assign to {student}**, the student the songbook is filtered on
+  picked already, the key a − / + away.
+
+Paste, *Add* or *Create*, *Assign*: two clicks, where it took about
+twelve before (open the dialog, search, create, the editor's Import,
+fetch, save, back, *+ Assign*, pick, save) besides finding the video and
+the lyrics elsewhere.
+
 ## Students' songs, and an event's program
 
 The coach's **Students’ songs** tab (`/communities/{id}/student-songs`) lists every song the students and groups

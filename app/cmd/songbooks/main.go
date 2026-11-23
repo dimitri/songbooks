@@ -27,6 +27,7 @@ import (
 	"app/internal/httpapi"
 	"app/internal/mailer"
 	"app/internal/reftitle"
+	"app/internal/songimport"
 	"app/internal/store"
 )
 
@@ -181,6 +182,15 @@ func main() {
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)
 	httpapi.Covers = covers.NewFinder()
 	httpapi.RefTitles = reftitle.New()
+	// Quick add's lyrics: the singer's chart, as the editor's Import
+	// fetches it (Ultimate Guitar's lyrics, no chords; iReal Pro's grids).
+	httpapi.QuickDraft = func(ctx context.Context, st *store.Store, title, artist string) (string, error) {
+		d, err := songimport.VocalDraft(ctx, st, title, artist)
+		if err != nil {
+			return "", err
+		}
+		return d.Text, nil
+	}
 	// A demo copy (the local stack, staging; never production) gets the
 	// admin page's demo data panel (docs/demo-data.md).
 	httpapi.DemoData = os.Getenv("SONGBOOKS_DEMO_DATA") == "1"

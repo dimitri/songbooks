@@ -9655,3 +9655,22 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   align-items: flex-start; position: relative; padding: 0 0.3rem 0 0; color: var(--fg-muted); opacity: 0.8;
 }
 .structure-lead .structure-seg-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Quick add (add-song.js, quick_add.go): a pasted video or "Title —
+   Artist", found or made in one click, given to a student in another. */
+.addsong-quick { margin: 0.6rem 0 0.2rem; }
+.addsong-quick[hidden] { display: none; }
+.addsong-quick-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); padding: 0.7rem 0.8rem; display: grid; gap: 0.45rem; }
+.addsong-quick-what { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.45rem; font-weight: 600; }
+.addsong-quick-card .hint { margin: 0; font-size: 0.82rem; }
+.addsong-quick-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.addsong-quick-fields input { width: 100%; min-width: 0; }
+.addsong-quick-actions { margin: 0; justify-content: flex-start; }
+.addsong-quick-card .form-status:empty { display: none; }
+.addsong-quick-assign { border-top: 1px solid var(--border); padding-top: 0.55rem; }
+.addsong-quick-assign-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.6rem; }
+.addsong-quick-assign-row select { flex: 1 1 10rem; min-width: 0; }
+@media (max-width: 640px) {
+  .addsong-quick-fields { grid-template-columns: 1fr; }
+  .addsong-quick-assign-row .primary { flex: 1 1 100%; }
+}

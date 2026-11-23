@@ -3,13 +3,17 @@ package store_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
+	"app/internal/httpapi"
+	"app/internal/reftitle"
 	"app/internal/store"
 )
 
@@ -455,5 +459,131 @@ func TestStudentEditRight(t *testing.T) {
 	}
 	if e, _ := edit(f.george, song); !e {
 		t.Error("a plain community's member no longer edits its repertoire")
+	}
+}
+
+// TestQuickAddForAStudent: the coach pastes a video link (or types
+// "Title — Artist") in the Add dialog: the song is found — the
+// catalogue's, or the community's own version once it has one — and
+// linked in one click, or created with its video as its reference and
+// its lyrics fetched; one more click gives it to a student in a key
+// (quick_add.go). As simple as finding the video and the lyrics without
+// the app.
+func TestQuickAddForAStudent(t *testing.T) {
+	st := store.NewTestStore(t)
+	f := newCoachFlow(t, st)
+	ctx := f.ctx
+	if err := st.SetCatalogueReference(ctx, f.catalogue, "https://www.youtube.com/watch?v=plane111111"); err != nil {
+		t.Fatal(err)
+	}
+	videos := map[string][2]string{
+		"plane111111": {"Saltwater Radio - Small Plane (Official Video)", "SaltwaterRadioVEVO"},
+		"other222222": {"Small Plane [Lyrics]", "Saltwater Radio - Topic"},
+		"newsong3333": {"Lantern Walk (Clip officiel)", "Studio Lumen - Topic"},
+	}
+	oembed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := store.YouTubeID(r.URL.Query().Get("url"))
+		x, ok := videos[v]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		fmt.Fprintf(w, `{"title":%q,"author_name":%q}`, x[0], x[1])
+	}))
+	defer oembed.Close()
+	httpapi.RefTitles = &reftitle.Fetcher{Client: oembed.Client(), Providers: map[string]string{
+		"youtube.com": oembed.URL + "/oembed", "youtu.be": oembed.URL + "/oembed"}}
+	httpapi.QuickDraft = func(ctx context.Context, _ *store.Store, title, artist string) (string, error) {
+		return "title: " + title + "\nartist: " + artist + "\n\n[Verse]\nla la la\n\n[Chorus]\noh oh\n", nil
+	}
+	defer func() { httpapi.RefTitles, httpapi.QuickDraft = nil, nil }()
+
+	type lookup struct {
+		Title, Artist, Reference string
+		Match                    *store.SongMatch
+		InSongbook, Lyrics       bool
+	}
+	look := func(c client, q string) lookup {
+		t.Helper()
+		w := c.do("GET", fmt.Sprintf("/api/songbooks/%d/quick-add?q=%s", f.repertoire, url.QueryEscape(q)), nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("quick add %q: %d %s", q, w.Code, w.Body)
+		}
+		var l lookup
+		if err := json.Unmarshal(w.Body.Bytes(), &l); err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+
+	// The catalogue's song, by its video: found, linked (1 click), given
+	// to Oliver in his key (1 click).
+	l := look(f.c, "https://youtu.be/plane111111")
+	if l.Match == nil || l.Match.ID != f.catalogue || !l.Match.ByVideo || l.InSongbook {
+		t.Fatalf("the catalogue's song by its video: %+v", l)
+	}
+	if l.Title != "Small Plane" || l.Artist != "Saltwater Radio" {
+		t.Errorf("the video's title read as %q — %q", l.Title, l.Artist)
+	}
+	id := f.c.variantID(f.c.do("POST", fmt.Sprintf("/api/songbooks/%d/quick-add", f.repertoire), map[string]any{"songId": l.Match.ID}))
+	if _, in := entryKey(t, st, f.repertoire, id); id != f.catalogue || !in {
+		t.Fatalf("linked: %d %v", id, in)
+	}
+	if w := f.giveKey(id, f.oliver, 2); w.Code != http.StatusOK {
+		t.Fatalf("given to Oliver: %d", w.Code)
+	}
+	// Another video of it, on the artist's channel: found by its title
+	// and artist, in the songbook already.
+	if l := look(f.c, "https://www.youtube.com/watch?v=other222222"); l.Match == nil || l.Match.ID != f.catalogue || l.Match.ByVideo || !l.InSongbook {
+		t.Errorf("another video of the song: %+v", l)
+	}
+	// Typed, either way round.
+	for _, q := range []string{"Faded Season — Ivory Coastline", "Ivory Coastline - Faded Season", "the faded season - ivory coastline"} {
+		if l := look(f.c, q); l.Match == nil || l.Match.ID != f.other {
+			t.Errorf("typed %q: %+v", q, l)
+		}
+	}
+
+	// A song nowhere yet: created with its reference and its lyrics, in
+	// the repertoire (1 click), then given to Poppy (1 click).
+	l = look(f.c, "https://www.youtube.com/watch?v=newsong3333")
+	if l.Match != nil || l.Title != "Lantern Walk" || l.Artist != "Studio Lumen" || !l.Lyrics || !strings.Contains(l.Reference, "newsong3333") {
+		t.Fatalf("a new song's lookup: %+v", l)
+	}
+	w := f.c.do("POST", fmt.Sprintf("/api/songbooks/%d/quick-add", f.repertoire), map[string]any{"title": l.Title, "artist": l.Artist, "reference": l.Reference})
+	created := f.c.variantID(w)
+	if !strings.Contains(w.Body.String(), `"lyrics":true`) {
+		t.Errorf("the new song's lyrics: %s", w.Body)
+	}
+	if v, _ := st.GetVariant(ctx, created); v == nil || v.OwnerCommunityID == nil || *v.OwnerCommunityID != f.community || v.Public {
+		t.Fatalf("the new song: %+v", v)
+	}
+	if text, _, _ := st.LoadVariantRaw(created); !strings.Contains(text, "[Chorus]") || !strings.Contains(text, "newsong3333") {
+		t.Errorf("the new song's text: %q", text)
+	}
+	if _, in := entryKey(t, st, f.repertoire, created); !in {
+		t.Error("the new song isn't in the repertoire")
+	}
+	if w := f.giveKey(created, f.poppy, -1); w.Code != http.StatusOK {
+		t.Fatalf("given to Poppy: %d", w.Code)
+	}
+	// Pasted again: the song just made.
+	if l := look(f.c, "https://www.youtube.com/watch?v=newsong3333"); l.Match == nil || l.Match.ID != created || !l.Match.Own || !l.InSongbook {
+		t.Errorf("the new song, pasted again: %+v", l)
+	}
+
+	// Once the community has its version of the catalogue's song, the
+	// video finds that version.
+	version := f.c.variantID(f.c.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", f.community, f.catalogue), map[string]int64{"songbookId": f.repertoire}))
+	if l := look(f.c, "https://youtu.be/plane111111"); l.Match == nil || l.Match.ID != version || !l.Match.Own {
+		t.Errorf("the video, after the community's version: %+v", l)
+	}
+	// Someone who can't change the songbook: refused.
+	outsider, err := st.CreatePerson(ctx, "outsider", "Outsider", "outsider@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := as(t, st, outsider).do("GET", fmt.Sprintf("/api/songbooks/%d/quick-add?q=x+-+y", f.repertoire), nil); w.Code != http.StatusForbidden {
+		t.Errorf("an outsider's quick add: %d", w.Code)
 	}
 }

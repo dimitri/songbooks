@@ -161,6 +161,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/songbooks/{id}/songs", s.requireAuth(s.handleCreateSongInSongbook))
 	mux.HandleFunc("POST /api/catalog/songs", s.requireAuth(s.handleCreateCatalogSong))
 	mux.HandleFunc("POST /api/songbooks/{id}/entries", s.requireAuth(s.handleAddSongbookEntry))
+	// Quick add (quick_add.go): a pasted video or "Title — Artist", found
+	// or created with its reference and lyrics, in one call each.
+	mux.HandleFunc("GET /api/songbooks/{id}/quick-add", s.requireAuth(s.handleGetQuickAdd))
+	mux.HandleFunc("POST /api/songbooks/{id}/quick-add", s.requireAuth(s.handlePostQuickAdd))
 	mux.HandleFunc("DELETE /api/songbooks/{id}/entries/{variantID}", s.requireAuth(s.handleRemoveSongbookEntry))
 	mux.HandleFunc("GET /songbooks/{id}/playlist/metronome", s.requireAuth(s.handleMetronomePlaylist))
 	mux.HandleFunc("GET /songbooks/{id}/playlist", s.requireAuth(s.handlePlaylistPage))

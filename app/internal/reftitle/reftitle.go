@@ -143,12 +143,25 @@ func Host(u *url.URL) string {
 
 // Title is the title of the video or page ref points to.
 func (f *Fetcher) Title(ctx context.Context, ref string) (string, error) {
+	in, err := f.Info(ctx, ref)
+	return in.Title, err
+}
+
+// Info is what ref's page or oEmbed answer says of it: its title, and
+// for a video its channel (oEmbed's author_name; "" for a page).
+type Info struct {
+	Title  string
+	Author string
+}
+
+// Info is the title, and the channel, of the video or page ref points to.
+func (f *Fetcher) Info(ctx context.Context, ref string) (Info, error) {
 	u, err := url.Parse(strings.TrimSpace(ref))
 	if err != nil {
-		return "", err
+		return Info{}, err
 	}
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
-		return "", fmt.Errorf("reftitle: not a web link: %q", ref)
+		return Info{}, fmt.Errorf("reftitle: not a web link: %q", ref)
 	}
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
@@ -159,7 +172,8 @@ func (f *Fetcher) Title(ctx context.Context, ref string) (string, error) {
 	if endpoint, ok := providers[Host(u)]; ok {
 		return f.oembed(ctx, endpoint, u.String())
 	}
-	return f.page(ctx, u.String())
+	t, err := f.page(ctx, u.String())
+	return Info{Title: t}, err
 }
 
 func (f *Fetcher) get(ctx context.Context, u, accept string) (*http.Response, error) {
@@ -180,29 +194,30 @@ func (f *Fetcher) get(ctx context.Context, u, accept string) (*http.Response, er
 	return resp, nil
 }
 
-func (f *Fetcher) oembed(ctx context.Context, endpoint, link string) (string, error) {
+func (f *Fetcher) oembed(ctx context.Context, endpoint, link string) (Info, error) {
 	e, err := url.Parse(endpoint)
 	if err != nil {
-		return "", err
+		return Info{}, err
 	}
 	q := e.Query()
 	q.Set("url", link)
 	e.RawQuery = q.Encode()
 	resp, err := f.get(ctx, e.String(), "application/json")
 	if err != nil {
-		return "", err
+		return Info{}, err
 	}
 	defer resp.Body.Close()
 	var out struct {
-		Title string `json:"title"`
+		Title  string `json:"title"`
+		Author string `json:"author_name"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&out); err != nil {
-		return "", err
+		return Info{}, err
 	}
 	if t := Clean(out.Title); t != "" {
-		return t, nil
+		return Info{Title: t, Author: Clean(out.Author)}, nil
 	}
-	return "", ErrNoTitle
+	return Info{}, ErrNoTitle
 }
 
 var (

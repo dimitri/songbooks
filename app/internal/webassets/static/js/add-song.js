@@ -78,7 +78,7 @@
     q.id = 'addsong-q';
     q.autocomplete = 'off';
     q.enterKeyHint = 'search';
-    q.placeholder = t('Title or artist');
+    q.placeholder = t('Title, artist or a YouTube link');
     search.append(label, q);
     search.addEventListener('submit', (e) => { e.preventDefault(); run(); });
     let timer;
@@ -100,6 +100,11 @@
       scopes.append(b);
     }
     const hint = el('p', 'hint addsong-link-hint');
+    // Quick add (quick_add.go): a pasted link or "Title — Artist", found
+    // or made in one click, then given to a student in another.
+    const quick = el('div', 'addsong-quick');
+    quick.hidden = true;
+    quick.setAttribute('aria-live', 'polite');
     const results = el('ul', 'addsong-results');
     results.setAttribute('aria-live', 'polite');
     const status = el('p', 'form-status');
@@ -151,13 +156,13 @@
       if (create.open) title.focus();
     });
 
-    dlg.append(head, into, search, scopes, hint, results, status, create);
+    dlg.append(head, into, search, quick, scopes, hint, results, status, create);
     // Something added: the page shows it (its list reloaded). Escape
     // closes it too; 'close' doesn't always fire where it's run hidden.
     dlg.addEventListener('close', closed);
     dlg.addEventListener('cancel', closed);
     document.body.append(dlg);
-    Object.assign(state, { q, results, status, hint, into, create, title, artist, ref, goes, who, whoHint, createBtn, createStatus, h });
+    Object.assign(state, { q, quick, results, status, hint, into, create, title, artist, ref, goes, who, whoHint, createBtn, createStatus, h });
   }
 
   function closed() {
@@ -189,6 +194,8 @@
     const term = q.value.trim();
     const seq = (state.seq = (state.seq || 0) + 1);
     status.textContent = '';
+    quickRun(term, seq);
+    if (looksLink(term)) { results.replaceChildren(); return; }
     const params = new URLSearchParams({ q: term });
     if (state.scope) params.set('scope', state.scope);
     if (state.songbookId) params.set('songbook', state.songbookId);
@@ -207,6 +214,180 @@
       return;
     }
     for (const w of works) results.append(workRow(w));
+  }
+
+  // ---- Quick add ---------------------------------------------------
+  const looksLink = (s) => /^(https?:\/\/|www\.|youtu\.?be)/i.test(s);
+  const looksTitleArtist = (s) => /\S\s+(—|–|-|by|par)\s+\S/i.test(s);
+  // A key moved by n semitones, named (as chordsym.KeyIn).
+  const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
+  const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const keyText = (key, n) => {
+    const off = n ? (n > 0 ? `+${n}` : `−${-n}`) : t('original');
+    const m = /^([A-G])([#b]?)(m(?!aj))?/.exec(key || '');
+    if (!m) return off;
+    const pc = (((PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + n) % 12) + 12) % 12;
+    return `${m[3] ? MINOR[pc] + 'm' : MAJOR[pc]} (${off})`;
+  };
+
+  async function quickRun(term, seq) {
+    const box = state.quick;
+    if (!state.songbookId || !(looksLink(term) || looksTitleArtist(term))) {
+      box.hidden = true;
+      box.replaceChildren();
+      return;
+    }
+    box.hidden = false;
+    box.replaceChildren(el('p', 'hint', t('Looking it up…')));
+    let d;
+    try {
+      d = await getJSON(`/api/songbooks/${state.songbookId}/quick-add?q=${encodeURIComponent(term)}`);
+    } catch (e) {
+      if (seq === state.seq) box.replaceChildren(el('p', 'form-status is-error', e.message));
+      return;
+    }
+    if (seq !== state.seq) return;
+    box.replaceChildren(quickCard(d));
+  }
+
+  // The song found (Add), or the new one to make (Create): one click.
+  function quickCard(d) {
+    const card = el('div', 'addsong-quick-card');
+    const status = el('p', 'form-status');
+    status.setAttribute('role', 'status');
+    const actions = el('div', 'form-actions addsong-quick-actions');
+    const m = d.match;
+    if (m) {
+      const what = el('p', 'addsong-quick-what');
+      what.append(el('strong', '', m.title), ' ', el('span', 'addsong-artist', m.artist || ''));
+      const here = state.targets.find((x) => x.id === state.songbookId);
+      what.append(' ', el('span', 'owner-badge' + (m.public ? ' is-public' : ''), m.own ? t('%s’s own', (here && here.ownerName) || '') : t('the shared song')));
+      card.append(what);
+      if (d.inSongbook) {
+        actions.append(el('span', 'addsong-state', t('In the songbook')));
+        card.append(actions, status);
+        if (state.assign) quickAssign(card, m.id, m.title);
+        return card;
+      }
+      const b = el('button', 'primary', state.addLabel || t('Add'));
+      b.type = 'button';
+      b.addEventListener('click', () => quickGo(card, b, status, { songId: m.id }, m.title));
+      actions.append(b);
+      card.append(actions, status);
+      return card;
+    }
+    state.quickLyrics = !!d.lyrics;
+    card.append(el('p', 'addsong-quick-what', t('New song')));
+    const row = el('div', 'addsong-quick-fields');
+    const ti = el('input'); ti.type = 'text'; ti.value = d.title || ''; ti.setAttribute('aria-label', t('Title')); ti.placeholder = t('Title');
+    const ar = el('input'); ar.type = 'text'; ar.value = d.artist || ''; ar.setAttribute('aria-label', t('Artist')); ar.placeholder = t('Artist');
+    row.append(ti, ar);
+    card.append(row);
+    const notes = el('p', 'hint');
+    const say = (video) => {
+      notes.textContent = [video, d.lyrics ? t('Its lyrics are fetched.') : ''].filter(Boolean).join(' ');
+    };
+    say(d.reference ? t('Its video is the reference.') : t('Looking for its video…'));
+    card.append(notes);
+    // Typed: its video found on YouTube, the best candidate the reference
+    // (the editor's own finder); Create doesn't wait for it.
+    if (!d.reference) {
+      fetch(`/api/import/youtube/find?title=${encodeURIComponent(d.title || '')}&artist=${encodeURIComponent(d.artist || '')}`)
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((x) => {
+          const c = x && x.candidates && x.candidates[0];
+          if (c && c.url) { d.reference = c.url; say(t('Its video: %s', c.title)); } else say(t('No video: add its reference later.'));
+        });
+    }
+    const b = el('button', 'primary', t('Create'));
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      if (!ti.value.trim()) { Forms.fieldError(ti, t('Give it a title.')); return; }
+      if (d.lyrics) Forms.status(status, t('Creating it, and fetching its lyrics…'));
+      quickGo(card, b, status, { title: ti.value.trim(), artist: ar.value.trim(), reference: d.reference || '' }, ti.value.trim());
+    });
+    actions.append(b);
+    card.append(actions, status);
+    return card;
+  }
+
+  async function quickGo(card, btn, status, body, title) {
+    Forms.busy(btn, true);
+    const res = await post(`/api/songbooks/${state.songbookId}/quick-add`, body);
+    if (!res || !res.ok) {
+      Forms.busy(btn, false);
+      Forms.status(status, await refusal(res, t('Couldn’t add “%s”. Try again.', title)), 'error');
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    state.added = true;
+    state.seq = (state.seq || 0) + 1; // a search still on its way is out of date
+    state.results.replaceChildren();
+    btn.replaceWith(el('span', 'addsong-state is-added', data.created ? t('Created') : t('Added')));
+    if (data.created && !data.lyrics && state.quickLyrics) Forms.status(status, t('No lyrics found: add them from the editor’s Import.'));
+    else Forms.status(status, '');
+    if (state.assign) { quickAssign(card, data.variantId, title); return; }
+    if (data.created) location.href = `/song/${data.variantId}?songbook=${state.songbookId}`;
+  }
+
+  // Given to a student (or a group) in a key: the coach's book only
+  // (opts.assign), the student it's filtered on picked already.
+  async function quickAssign(card, variant, title) {
+    const { community, who } = state.assign;
+    const box = el('div', 'addsong-quick-assign');
+    card.append(box);
+    let d;
+    try {
+      d = await getJSON(`/api/songs/${variant}/coach-keys?community=${community}`);
+    } catch (e) {
+      box.append(el('p', 'form-status is-error', e.message));
+      return;
+    }
+    const free = (d.targets || []).filter((x) => String(x.communityId) === String(community) && !x.inSongbook);
+    if (!free.length) { box.append(el('p', 'hint', t('Every student and group has it already.'))); return; }
+    const sel = el('select');
+    sel.setAttribute('aria-label', t('Assign it to'));
+    free.forEach((x, i) => {
+      const o = el('option', '', x.name);
+      o.value = i;
+      if (who && who === (x.kind === 'group' ? `g:${x.groupId}` : `s:${x.personId}`)) o.selected = true;
+      sel.append(o);
+    });
+    let semis = 0;
+    const out = el('output', '', keyText(d.key, 0));
+    const down = el('button', '', '−'); down.type = 'button'; down.setAttribute('aria-label', t('down a semitone'));
+    const up = el('button', '', '+'); up.type = 'button'; up.setAttribute('aria-label', t('up a semitone'));
+    const move = (n) => { semis = Math.max(-12, Math.min(12, semis + n)); out.textContent = keyText(d.key, semis); };
+    down.addEventListener('click', () => move(-1));
+    up.addEventListener('click', () => move(1));
+    const keyBox = el('span', 'coach-key');
+    keyBox.append(down, out, up);
+    const go = el('button', 'primary');
+    go.type = 'button';
+    const label = () => { go.textContent = t('Assign to %s', free[Number(sel.value)].name); };
+    sel.addEventListener('change', label);
+    label();
+    const status = el('p', 'form-status');
+    status.setAttribute('role', 'status');
+    go.addEventListener('click', async () => {
+      const x = free[Number(sel.value)];
+      Forms.busy(go, true);
+      const body = { communityId: Number(community), semitones: semis };
+      if (x.kind === 'group') body.groupId = x.groupId; else body.personId = x.personId;
+      const res = await post(`/api/songs/${variant}/coach-keys`, body);
+      if (!res || !res.ok) {
+        Forms.busy(go, false);
+        Forms.status(status, await refusal(res, t('Couldn’t add it. Try again.')), 'error');
+        return;
+      }
+      go.replaceWith(el('span', 'addsong-state is-added', t('Given to %s', x.name)));
+      state.added = true;
+      setTimeout(() => { dlg.close(); closed(); }, 600);
+    });
+    const line = el('div', 'addsong-quick-assign-row');
+    line.append(sel, keyBox, go);
+    box.append(line, status);
   }
 
   function workRow(w) {
@@ -302,8 +483,10 @@
     if (!dlg) build();
     state = Object.assign(state, {
       songbookId: opts.songbookId || 0, onAdded: opts.onAdded, addInSongbook: !!opts.addInSongbook, onCreated: opts.onCreated, addLabel: opts.addLabel,
-      reload: opts.reload, scope: '', added: false, targets: [],
+      reload: opts.reload, scope: '', added: false, targets: [], assign: opts.assign || null,
     });
+    state.quick.hidden = true;
+    state.quick.replaceChildren();
     state.h.textContent = opts.heading || t('Add a song');
     state.q.value = opts.query || '';
     state.results.replaceChildren();

@@ -62,20 +62,42 @@
 
   // ---- Add a song: the one Add / Create dialog where there is one
   // (add-song.js), else the repertoire's own page and its dialog. -------
+  // A pasted video or "Title — Artist" is found or made there, then
+  // given to a student in a key (quick add): the one filtered on first.
   const addBtn = document.getElementById('cbk-add');
-  addBtn?.addEventListener('click', (e) => {
-    if (window.AddSong) return; // add-song.js takes the click (data-add-song)
-    e.preventDefault();
+  const openAdd = (query) => window.AddSong.open({
+    songbookId: Number(addBtn.dataset.addSong), onAdded: () => location.reload(), onCreated: () => location.reload(),
+    assign: { community, who: filter?.value && filter.value !== 'none' ? filter.value : '' }, query: query || '',
+  });
+  const add = (query) => {
+    if (window.AddSong) { openAdd(query); return; }
     const go = () => { location.href = addBtn.dataset.fallback; };
     const s = document.createElement('script');
     s.src = '/static/js/add-song.js';
-    s.onload = () => {
-      if (window.AddSong) window.AddSong.open({ songbookId: Number(addBtn.dataset.addSong), onAdded: () => location.reload(), onCreated: () => location.reload() });
-      else go();
-    };
+    s.onload = () => { if (window.AddSong) openAdd(query); else go(); };
     s.onerror = go;
     document.head.append(s);
+  };
+  addBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // not add-song.js's own (data-add-song): this one gives it to a student
+    add('');
   }, { capture: true });
+  // A YouTube link pasted in the search, or Enter on a search nothing
+  // here matches: straight to the Add dialog, looked up already.
+  if (addBtn) {
+    search?.addEventListener('paste', (e) => {
+      const text = (e.clipboardData?.getData('text') || '').trim();
+      if (!/^(https?:\/\/|www\.|youtu\.?be)/i.test(text)) return;
+      e.preventDefault();
+      add(text);
+    });
+    search?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !search.value.trim() || page.querySelector('.cbk-row:not([hidden])')) return;
+      e.preventDefault();
+      add(search.value.trim());
+    });
+  }
 
   // ---- A chip, "+ Assign": one dialog ------------------------------------
   const dlg = page.querySelector('.cbk-dialog');
