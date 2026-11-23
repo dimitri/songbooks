@@ -26,10 +26,10 @@ import (
 // A band's proposals and their votes (docs/band-votes.md; the rules in
 // internal/store/band_proposals.go): the To vote view of its songbook
 // (the proposals as cards, sorted by stars, a vote on each), a proposal's
-// page, the player of the songs to vote on (the set lists' playlist
-// player, playlist.html, with the stars under it), and the listening
-// party (the event type's page: the band listens together, each member
-// rating on their phone what the host plays).
+// page, and the player of the songs to vote on (the set lists' playlist
+// player, playlist.html, with the stars under it). The band's other
+// pools of songs to listen to, Discover and Influences, are
+// band_listens.go's.
 //
 // Proposing a song goes through the new song-adding flow (quick add,
 // quick_add.go): a YouTube link or "Title — Artist" is looked up — the
@@ -70,7 +70,7 @@ type proposalCard struct {
 	SetlistTitle string
 }
 
-func (s *Server) proposalCards(ctx context.Context, bandID, viewer int64, list []store.BandProposal) ([]proposalCard, string, error) {
+func (s *Server) proposalCards(ctx context.Context, bandID, viewer int64, list []store.BandProposal) ([]proposalCard, error) {
 	ids := make([]int64, len(list))
 	songs := []int64{}
 	for i, p := range list {
@@ -81,15 +81,11 @@ func (s *Server) proposalCards(ctx context.Context, bandID, viewer int64, list [
 	}
 	ballots, err := s.store.ProposalBallots(ctx, ids)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	members, err := s.store.ListBandMembers(ctx, bandID, false)
 	if err != nil {
-		return nil, "", err
-	}
-	rule, err := s.store.BandProposalRule(ctx, bandID)
-	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	covers, _ := s.store.SongCoverImages(ctx, songs)
 	setlists := map[int64]string{}
@@ -100,7 +96,11 @@ func (s *Server) proposalCards(ctx context.Context, bandID, viewer int64, list [
 	}
 	out := make([]proposalCard, len(list))
 	for i, p := range list {
-		c := proposalCard{BandProposal: p, Tally: store.TallyOf(ballots[p.ID], members, rule, viewer)}
+		// Before the viewer votes, only how many voted (BlindFor).
+		c := proposalCard{BandProposal: p, Tally: store.TallyOf(ballots[p.ID], members, viewer).BlindFor(p.Status)}
+		if c.Tally.Hidden {
+			c.Ratings, c.StarSum, c.Positive, c.Negative, c.NoThanks, c.Hidden = 0, 0, 0, 0, 0, true
+		}
 		raw, _ := json.Marshal(c.Tally)
 		c.TallyJSON = string(raw)
 		if p.TargetVariantID != nil {
@@ -112,7 +112,7 @@ func (s *Server) proposalCards(ctx context.Context, bandID, viewer int64, list [
 		c.SetlistTitle = setlists[p.SetlistID]
 		out[i] = c
 	}
-	return out, rule, nil
+	return out, nil
 }
 
 // bandPage loads the band of a page's path, or answers 404/500.
@@ -149,7 +149,7 @@ func (s *Server) handleBandProposalsPage(w http.ResponseWriter, r *http.Request)
 	if sortBy != "newest" && sortBy != "no_thanks" {
 		sortBy = "stars"
 	}
-	filter := store.ProposalFilter{Status: status, Sort: sortBy}
+	filter := store.ProposalFilter{Status: status, Sort: sortBy, Viewer: person.ID}
 	if status == "all" {
 		filter.Status = ""
 	}
@@ -158,7 +158,7 @@ func (s *Server) handleBandProposalsPage(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	cards, rule, err := s.proposalCards(ctx, band.ID, person.ID, list)
+	cards, err := s.proposalCards(ctx, band.ID, person.ID, list)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -179,12 +179,13 @@ func (s *Server) handleBandProposalsPage(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	isCore, _ := s.store.IsCurrentBandCore(ctx, band.ID, person.ID)
+	isCore, _ := s.store.MayVote(ctx, band.ID, person.ID)
+	mayDecide, _ := s.store.MayDecideProposal(ctx, band.ID, person.ID)
 	setlists, _ := s.store.ListSetlistsForBand(ctx, band.ID)
 	s.render(w, "band_proposals", map[string]any{
-		"Me": person, "Band": band, "Cards": cards, "Status": status, "Sort": sortBy, "Rule": rule,
+		"Me": person, "Band": band, "Cards": cards, "Status": status, "Sort": sortBy,
 		"OpenCount": open, "DecidedCount": len(all) - open, "MemberCount": len(members),
-		"IsCore": isCore || person.IsAdmin, "CanVote": isCore, "Setlists": setlists, "MinAverage": store.MinAverageStars,
+		"CanDecide": mayDecide || person.IsAdmin, "CanVote": isCore, "Setlists": setlists,
 	})
 }
 
@@ -213,7 +214,7 @@ func (s *Server) handleBandProposalDetailPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	cards, rule, err := s.proposalCards(ctx, band.ID, person.ID, []store.BandProposal{*proposal})
+	cards, err := s.proposalCards(ctx, band.ID, person.ID, []store.BandProposal{*proposal})
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -223,7 +224,19 @@ func (s *Server) handleBandProposalDetailPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	isCore, _ := s.store.IsCurrentBandCore(ctx, band.ID, person.ID)
+	if cards[0].Tally.Hidden {
+		// The others' votes stay hidden until the viewer votes: only
+		// their own past ones (a vote taken back) show.
+		mine := history[:0]
+		for _, e := range history {
+			if e.PersonID == person.ID {
+				mine = append(mine, e)
+			}
+		}
+		history = mine
+	}
+	isCore, _ := s.store.MayVote(ctx, band.ID, person.ID)
+	mayDecide, _ := s.store.MayDecideProposal(ctx, band.ID, person.ID)
 	audio := ""
 	if proposal.Kind == "new_song" && proposal.TargetVariantID != nil {
 		if t, ok := s.playlistTrackFor(ctx, 0, *proposal.TargetVariantID, ""); ok {
@@ -231,81 +244,9 @@ func (s *Server) handleBandProposalDetailPage(w http.ResponseWriter, r *http.Req
 		}
 	}
 	s.render(w, "band_proposal", map[string]any{
-		"Me": person, "Band": band, "Card": cards[0], "Proposal": proposal, "History": history, "Rule": rule,
-		"IsCore": isCore || person.IsAdmin, "CanVote": isCore, "Audio": audio, "Video": proposal.VideoID(),
+		"Me": person, "Band": band, "Card": cards[0], "Proposal": proposal, "History": history,
+		"CanDecide": mayDecide || person.IsAdmin, "CanVote": isCore, "Audio": audio, "Video": proposal.VideoID(),
 	})
-}
-
-// handleListeningPartyPage is the band's listening party (the event
-// type, the Listening party view of its songbook): the band listens
-// together to the songs proposed, in the order they came, one member
-// (the host) playing them on the band's speakers with the vote's player
-// (?party=1), every other member's phone showing the song playing now,
-// to rate while it plays, and where the votes stand. ?event= is the
-// listening party on the calendar it's for.
-func (s *Server) handleListeningPartyPage(w http.ResponseWriter, r *http.Request) {
-	band, ok := s.bandPage(w, r)
-	if !ok {
-		return
-	}
-	ctx := r.Context()
-	person := personFromContext(r)
-	list, err := s.store.ListProposals(ctx, band.ID, store.ProposalFilter{Status: "open"})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	slices.Reverse(list) // in the order they came
-	cards, rule, err := s.proposalCards(ctx, band.ID, person.ID, list)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	now, err := s.store.GetPartyNow(ctx, band.ID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	var event *store.Event
-	eventID, _ := strconv.ParseInt(r.URL.Query().Get("event"), 10, 64)
-	if eventID == 0 && now != nil {
-		eventID = now.EventID
-	}
-	if eventID != 0 {
-		if ev, err := s.store.GetEvent(ctx, eventID); err == nil && ev.OwnerKind == "band" && ev.OwnerBandID == band.ID {
-			event = ev
-		}
-	}
-	if event == nil {
-		event = s.nextListeningParty(ctx, band.ID)
-	}
-	nowJSON, _ := json.Marshal(now)
-	isCore, _ := s.store.IsCurrentBandCore(ctx, band.ID, person.ID)
-	s.render(w, "listening_party", map[string]any{
-		"Me": person, "Band": band, "Cards": cards, "Rule": rule, "Event": event,
-		"NowJSON": template.JS(nowJSON), "CanVote": isCore,
-	})
-}
-
-// nextListeningParty is the band's listening party on its calendar
-// today or next, nil when there's none.
-func (s *Server) nextListeningParty(ctx context.Context, bandID int64) *store.Event {
-	evs, err := s.store.ListEventsForBand(ctx, bandID)
-	if err != nil {
-		return nil
-	}
-	cut := time.Now().Add(-12 * time.Hour)
-	var best *store.Event
-	for i := range evs {
-		ev := &evs[i]
-		if ev.EventType != "listening_party" || ev.StartsAt.Before(cut) {
-			continue
-		}
-		if best == nil || ev.StartsAt.Before(best.StartsAt) {
-			best = ev
-		}
-	}
-	return best
 }
 
 // proposalTrack is what plays for p in the vote's player: its song's
@@ -346,8 +287,7 @@ func (s *Server) proposalTrack(ctx context.Context, bandID int64, p store.BandPr
 // and songbooks' playlist player (playlist.html), its queue the open
 // proposals one after another (in the order they came; ?start= one of
 // them first), the stars to give under the song playing (keys 1–4, N
-// for no thanks) and where its vote stands beside it. ?party=1 is the
-// listening party's host: what plays is what every member's phone shows.
+// for no thanks) and where its vote stands beside it.
 func (s *Server) handleVoteListen(w http.ResponseWriter, r *http.Request) {
 	band, ok := s.bandPage(w, r)
 	if !ok {
@@ -361,7 +301,7 @@ func (s *Server) handleVoteListen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slices.Reverse(list)
-	cards, rule, err := s.proposalCards(ctx, band.ID, person.ID, list)
+	cards, err := s.proposalCards(ctx, band.ID, person.ID, list)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -397,19 +337,11 @@ func (s *Server) handleVoteListen(w http.ResponseWriter, r *http.Request) {
 	for i := range silent {
 		silent[i].Num = strconv.Itoa(len(tracks) + i + 1)
 	}
-	party := r.URL.Query().Get("party") == "1"
-	eventID, _ := strconv.ParseInt(r.URL.Query().Get("event"), 10, 64)
 	back := fmt.Sprintf("/bands/%d/catalog/vote", band.ID)
-	if party {
-		back = fmt.Sprintf("/bands/%d/catalog/discover", band.ID)
-		if eventID != 0 {
-			back += fmt.Sprintf("?event=%d", eventID)
-		}
-	}
 	tracksJSON, _ := json.Marshal(tracks)
 	talliesJSON, _ := json.Marshal(tallies)
-	isCore, _ := s.store.IsCurrentBandCore(ctx, band.ID, person.ID)
-	vote := map[string]any{"BandID": band.ID, "Party": party, "EventID": eventID, "Rule": rule, "TalliesJSON": template.JS(talliesJSON), "CanVote": isCore}
+	isCore, _ := s.store.MayVote(ctx, band.ID, person.ID)
+	vote := map[string]any{"BandID": band.ID, "TalliesJSON": template.JS(talliesJSON), "CanVote": isCore}
 	s.render(w, "playlist", map[string]any{
 		"Me": person, "Songbook": &store.Songbook{ID: sbID, OwnerKind: "band", OwnerBandID: band.ID, Name: band.Name},
 		"Owner": band.Name, "Back": back, "Tracks": tracks, "Silent": silent, "TracksJSON": template.JS(tracksJSON),
@@ -923,8 +855,8 @@ func (s *Server) proposalOfPath(w http.ResponseWriter, r *http.Request) (*store.
 }
 
 // handleAcceptProposal / handleRejectProposal decide a proposal by hand:
-// a core member of its band (store.decideAndNotify), not while a core
-// member's no thanks holds it back, for accepting.
+// any current member of its band (store.decideAndNotify), whatever the
+// votes.
 func (s *Server) handleAcceptProposal(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.proposalOfPath(w, r)
 	if !ok {
@@ -994,70 +926,6 @@ func (s *Server) handleProposalTally(w http.ResponseWriter, r *http.Request) {
 	s.voteAnswer(w, r, p.ID)
 }
 
-// handleGetParty is what the band's listening party plays now, with the
-// song's vote as the viewer sees it; null when nothing.
-func (s *Server) handleGetParty(w http.ResponseWriter, r *http.Request) {
-	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	now, err := s.store.GetPartyNow(r.Context(), bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	out := map[string]any{"now": now}
-	if now != nil && now.ProposalID != 0 {
-		if p, err := s.store.GetProposal(r.Context(), now.ProposalID); err == nil {
-			if tally, err := s.store.ProposalTallyFor(r.Context(), p, personFromContext(r).ID); err == nil {
-				out["status"], out["tally"] = p.Status, tally
-			}
-		}
-	}
-	writeJSON(w, http.StatusOK, out)
-}
-
-// handlePutParty is the host's player saying what plays now:
-// {proposalId, playing, eventId}.
-func (s *Server) handlePutParty(w http.ResponseWriter, r *http.Request) {
-	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	var req struct {
-		ProposalID int64 `json:"proposalId"`
-		EventID    int64 `json:"eventId"`
-		Playing    bool  `json:"playing"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := s.store.SetPartyNow(r.Context(), bandID, req.ProposalID, req.EventID, personFromContext(r).ID, req.Playing); err != nil {
-		writeProposalErr(w, r, s, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// handleSetProposalRule sets what a no thanks does in the band (its
-// settings): a core member's choice.
-func (s *Server) handleSetProposalRule(w http.ResponseWriter, r *http.Request) {
-	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	person := personFromContext(r)
-	if isCore, err := s.store.IsCurrentBandCore(r.Context(), bandID, person.ID); err != nil || (!isCore && !person.IsAdmin) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "core members only",
-			"message": i18n.T(s.langOfRequest(r), "Only a core member changes how the band votes.")})
-		return
-	}
-	var req struct {
-		Rule string `json:"rule"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := s.store.SetBandProposalRule(r.Context(), bandID, req.Rule); err != nil {
-		writeProposalErr(w, r, s, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"rule": req.Rule})
-}
-
 // writeProposalErr answers a proposal's error, with a message in the
 // page's language for the ones a person can do something about.
 func writeProposalErr(w http.ResponseWriter, r *http.Request, s *Server, err error) {
@@ -1070,8 +938,6 @@ func writeProposalErr(w http.ResponseWriter, r *http.Request, s *Server, err err
 		answer(http.StatusForbidden, i18n.T(lang, "Guest members don’t vote: only the band’s core members rate the songs proposed."))
 	case errors.Is(err, store.ErrNotFound):
 		answer(http.StatusNotFound, i18n.T(lang, "This proposal isn’t there any more. Reload the page."))
-	case errors.Is(err, store.ErrProposalBlocked):
-		answer(http.StatusConflict, i18n.T(lang, "A core member said no thanks: it can’t go in while that stands."))
 	case errors.Is(err, store.ErrAlreadyDecided):
 		answer(http.StatusConflict, i18n.T(lang, "This one has already been decided. Reload to see how."))
 	case errors.Is(err, store.ErrForbidden):
@@ -1087,7 +953,9 @@ func writeProposalErr(w http.ResponseWriter, r *http.Request, s *Server, err err
 // who proposed it and where its vote stands.
 func proposalSubtitle(lang string, p store.BandProposal) string {
 	votes := i18n.T(lang, "no stars yet")
-	if p.Ratings > 0 {
+	if p.Hidden {
+		votes = i18n.T(lang, "vote to see the others’ votes")
+	} else if p.Ratings > 0 {
 		votes = i18n.T(lang, "★ %s · %d for, %d against", p.AvgText(), p.Positive, p.Negative)
 	}
 	out := i18n.T(lang, "Proposed by %s", p.ProposerName) + " · " + votes

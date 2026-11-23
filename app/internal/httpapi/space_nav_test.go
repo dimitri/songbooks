@@ -68,7 +68,8 @@ func TestSpaceSectionOf(t *testing.T) {
 		{"band", nil, "overview"},
 		{"band_catalog", nil, "catalog/all"},
 		{"band_proposals", nil, "catalog/vote"},
-		{"listening_party", nil, "catalog/discover"},
+		{"band_discover", nil, "catalog/discover"},
+		{"band_influences", nil, "catalog/influences"},
 		{"band_recordings", map[string]any{"Tab": "concerts"}, "recordings/concerts"},
 		{"band_recordings", map[string]any{}, "recordings/rehearsals"},
 		{"band_settings", nil, "settings"},
@@ -165,7 +166,7 @@ func TestSpaceFilters(t *testing.T) {
 			on = append(on, f.Key)
 		}
 	}
-	if len(nav.Filters) != 3 || strings.Join(on, ",") != "vote" {
+	if len(nav.Filters) != 4 || strings.Join(on, ",") != "vote" {
 		t.Errorf("Songbook's views: %+v", nav.Filters)
 	}
 	if nav.SectionLabel() != "Songbook" || !nav.Sections[1].Current {
@@ -238,7 +239,8 @@ func TestSongbookViewsInPage(t *testing.T) {
 	for _, want := range []string{
 		`href="/bands/14/catalog" class="space-view active" aria-current="page">Morceaux <span class="space-view-count">43</span>`,
 		`href="/bands/14/catalog/vote" class="space-view is-due">À voter <span class="space-view-count">3</span>`,
-		`href="/bands/14/catalog/discover" class="space-view">`,
+		`href="/bands/14/catalog/discover" class="space-view">Découvrir</a>`,
+		`href="/bands/14/catalog/influences" class="space-view">Influences</a>`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("space-views lacks %q:\n%s", want, html)

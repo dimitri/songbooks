@@ -34,9 +34,8 @@
   </div>
 
   <p class="hint vote-rule">
-    {{t "Each core member rates the songs 1 to 4 stars — 3 and 4 are for it, 1 and 2 against — or says No thanks."}}
-    {{if eq .Rule "veto"}}{{t "It goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against; a core member’s No thanks turns it down at once."}}{{else if eq .Rule "count"}}{{t "It goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against; a No thanks counts against it."}}{{else}}{{t "It goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against; a core member’s No thanks holds it back."}}{{end}}
-    <a href="/bands/{{.Band.ID}}/settings#votes">{{t "How the band votes"}}</a>
+    {{t "Each core member says No thanks — a veto, the strongest no — or rates the songs 1 to 4 stars: 3 and 4 are for it, 1 and 2 against. You see the others’ votes once you’ve voted."}}
+    {{t "The votes guide the band: any member adds a song, or turns it down, by hand."}}
   </p>
   {{if not .CanVote}}<p class="vote-guest-note">{{t "You’re a guest member: you propose songs and listen to them; the core members vote."}}</p>{{end}}
 
@@ -54,8 +53,15 @@
   </div>
 
   <div class="vote-list">
+  {{$group := ""}}
   {{range .Cards}}
-    {{template "vote-card" (dict "C" . "Band" $.Band "CanVote" $.CanVote)}}
+    {{/* Sorted by the votes, the ones the viewer hasn't voted on come
+         first, apart: their place would tell how the others voted. */}}
+    {{if and (eq $.Status "open") (ne $.Sort "newest") $.CanVote}}
+      {{if and .Tally.Hidden (ne $group "hidden")}}{{$group = "hidden"}}<h2 class="vote-group">{{t "Not voted by you yet"}} <span class="hint">{{t "the others’ votes show once you vote"}}</span></h2>
+      {{else if and (not .Tally.Hidden) (ne $group "seen")}}{{$group = "seen"}}<h2 class="vote-group">{{t "Voted"}}</h2>{{end}}
+    {{end}}
+    {{template "vote-card" (dict "C" . "Band" $.Band "CanVote" $.CanVote "CanDecide" $.CanDecide)}}
   {{else}}
     <div class="vote-empty">
       {{if eq .Status "open"}}
@@ -79,7 +85,7 @@
 </html>
 {{end}}
 
-{{/* One proposal as a card (the To vote list, the listening party):
+{{/* One proposal as a card (the To vote list):
      its song, who proposed it and why, where its vote stands and the
      viewer's vote (band-votes.js fills [data-sum] and [data-ctl]).
      Called with (dict "C" proposalCard "Band" band). */}}
@@ -100,8 +106,19 @@
     {{with .Note}}<p class="vote-note">“{{.}}”</p>{{end}}
     <div class="vote-sum" data-sum></div>
     {{if eq .Status "open"}}{{if $.CanVote}}<div data-ctl></div>{{end}}
+    {{if $.CanDecide}}{{template "vote-decide" .}}{{end}}
     {{else}}<p class="vote-decided is-{{.Status}}">{{if eq .Status "accepted"}}{{t "Accepted %s" (date .DecidedAt "2 Jan")}}{{else}}{{t "Turned down %s" (date .DecidedAt "2 Jan")}}{{end}}{{if .DecidedByUsername}} · {{t "by %s" .DecidedByUsername}}{{else}} · {{t "by the votes"}}{{end}}</p>{{end}}
   </div>
   {{if eq .Status "open"}}<a class="vote-listen" href="/bands/{{$.Band.ID}}/catalog/vote/listen?start={{.ID}}" aria-label="{{t "Listen to “%s”" .TargetTitle}}">{{template "icon-play"}}<span>{{t "Listen"}}</span></a>{{end}}
 </article>
 {{end}}{{end}}
+
+{{/* A core member's decision by hand on an open proposal, whatever the
+     votes (band-votes.js decide(): a confirm names the no thanks). */}}
+{{define "vote-decide"}}
+<div class="vote-decide" data-band="{{.BandID}}" data-proposal="{{.ID}}" data-title="{{.TargetTitle}}">
+  <button type="button" class="link-button vote-decide-add" data-decide="accept">{{if eq .Kind "new_reference"}}{{t "Make it the reference"}}{{else if eq .Target "setlist"}}{{t "Add to the songbook and “%s”" .SetlistTitle}}{{else}}{{t "Add to the songbook"}}{{end}}</button>
+  <button type="button" class="link-button vote-decide-down" data-decide="reject">{{t "Turn down"}}</button>
+  <p class="form-status" role="status"></p>
+</div>
+{{end}}

@@ -27,44 +27,61 @@ import (
 // as 0 stars. They change their vote, or take it back, until the
 // proposal is decided.
 //
-// The votes decide it (proposalOutcome) once every core member has voted:
-// it goes in with an average of MinAverageStars or more (the positive
-// side) and more votes for it (3 or 4 stars) than against it (1 or 2
-// stars, or no thanks); it's turned down otherwise. More than half of the
-// core members saying no thanks turns it down at once. What one core
-// member's no thanks does is the band's choice (bands.proposal_no_thanks,
-// its settings): it holds the song back while it stands (block, the
-// default), turns it down at once (veto, the old rule), or only counts
-// (count). Only the core members vote: a guest member proposes, sees the
-// proposals and listens, but doesn't vote (CastVote refuses it,
-// ErrGuestNoVote), and only a core member accepts or turns down a
-// proposal by hand.
+// The tool helps the band decide; it never decides nor enforces: the
+// votes never accept or turn down a proposal by themselves. Any current
+// member (core or guest) decides by hand — adds the song (to the
+// songbook, and its set list when that was the target) or turns it
+// down — whatever the votes, a no thanks standing included. A no thanks
+// is a veto in what it says — the strongest no, shown first, with its
+// sign, the proposal flagged — not a lock. The tally suggests: "the band
+// likes it" once the average is MinAverageStars or more and there are
+// more votes for it (3 or 4 stars) than against (1 or 2 stars, or no
+// thanks), and no one said no thanks. Only the core members vote: a
+// guest member proposes, sees the proposals and listens, but doesn't
+// vote (CastVote refuses it, ErrGuestNoVote).
+//
+// No one sees how the others voted before voting (ProposalTally.BlindFor,
+// ProposalFilter.Viewer): until then only how many core members voted,
+// of how many. Taking one's vote back hides them again; a decided
+// proposal shows everything to everyone; a guest sees the votes once
+// it's decided.
 
 // ErrAlreadyDecided is returned by AcceptProposal/RejectProposal and
 // CastVote when the proposal is no longer 'open'.
 var ErrAlreadyDecided = fmt.Errorf("proposal is already decided")
 
-// ErrProposalBlocked is AcceptProposal's refusal while a core member's
-// no thanks holds the song back (the band's rule is block or veto).
-var ErrProposalBlocked = errors.New("a core member said no thanks: the song can't go in while that stands")
-
 // ErrGuestNoVote is CastVote's refusal of a guest member: only the core
 // members vote (a guest proposes, sees the proposals and listens).
 var ErrGuestNoVote = fmt.Errorf("guest members don't vote: only the band's core members rate its proposals: %w", ErrForbidden)
 
+// Who may do what with a band's proposals and pools: today's rules, each
+// in one place, to switch to the band's roles (HasBandPrivilege) without
+// touching their callers.
+
+// MayVote says whether personID votes on bandID's proposals: its core
+// members.
+func (st *Store) MayVote(ctx context.Context, bandID, personID int64) (bool, error) {
+	return st.IsCurrentBandCore(ctx, bandID, personID)
+}
+
+// MayDecideProposal says whether personID adds or turns down bandID's
+// proposals by hand: any current member.
+func (st *Store) MayDecideProposal(ctx context.Context, bandID, personID int64) (bool, error) {
+	return st.IsCurrentBandMember(ctx, bandID, personID)
+}
+
+// MayShareListen says whether personID adds songs to bandID's Discover
+// and Influences: any current member.
+func (st *Store) MayShareListen(ctx context.Context, bandID, personID int64) (bool, error) {
+	return st.IsCurrentBandMember(ctx, bandID, personID)
+}
+
 // MaxStars is the top of the scale: 1 and 2 are against, 3 and 4 for.
 const MaxStars = 4
 
-// MinAverageStars is the average a proposal needs to go in: the middle
-// of the scale, which no single vote sits on.
+// MinAverageStars is the average from which the band likes a song: the
+// middle of the scale, which no single vote sits on.
 const MinAverageStars = 2.5
-
-// The band's no-thanks rules (bands.proposal_no_thanks).
-const (
-	NoThanksBlock = "block"
-	NoThanksVeto  = "veto"
-	NoThanksCount = "count"
-)
 
 // BandProposal is one row of band_proposals, with its song, its
 // proposer's and decider's names, what its payload says, and its votes'
@@ -96,6 +113,10 @@ type BandProposal struct {
 	Positive int
 	Negative int
 	NoThanks int
+	// Hidden: the viewer hasn't voted on this open proposal (or doesn't
+	// vote), so the votes' totals above are blanked (BlindFor): no one
+	// sees how the others voted before voting.
+	Hidden bool
 
 	// From the payload.
 	Note      string
@@ -283,7 +304,12 @@ func (st *Store) CreateProposedSong(ctx context.Context, personID, bandID int64,
 type ProposalFilter struct {
 	Status string // "open", "accepted", "rejected", or "decided" (either)
 	Kind   string // "new_song", "new_reference"
-	Sort   string // "stars" (average, best first), "no_thanks" (most first), "newest" or ""
+	Sort   string // "stars" (average, best first; vetoed ones after), "no_thanks" (most first), "newest" or ""
+	// Viewer: the person the list is for. An open proposal they haven't
+	// voted on comes with its totals blanked (Hidden), and sorts apart:
+	// first, newest first, before the ones sorted by their votes. 0: an
+	// internal list (counts), nothing blanked.
+	Viewer int64
 }
 
 const proposalCols = `
@@ -292,6 +318,14 @@ const proposalCols = `
 	coalesce(s.title, ''), coalesce(s.artist, ''), coalesce(s.version_name, ''), coalesce(s.reference_url, ''),
 	bp.payload, bp.status::text, bp.created_at, bp.decided_at, bp.decided_by_person_id, coalesce(dp.username, ''),
 	coalesce(v.ratings, 0), coalesce(v.star_sum, 0), coalesce(v.positive, 0), coalesce(v.negative, 0), coalesce(v.no_thanks, 0)`
+
+// seenSQL is whether person (the query's parameter $n) sees a proposal's
+// votes: it's decided, or they're a core member who voted on it.
+func seenSQL(n int) string {
+	return fmt.Sprintf(`(bp.status <> 'open' OR EXISTS (SELECT 1 FROM proposal_votes mv
+		JOIN band_members mb ON mb.band_id = bp.band_id AND mb.person_id = mv.person_id AND upper_inf(mb.validity) AND mb.status = 'core'
+		WHERE mv.proposal_id = bp.id AND mv.person_id = $%d))`, n)
+}
 
 const proposalFrom = `
 	FROM band_proposals bp
@@ -312,8 +346,12 @@ func scanProposal(row pgx.Row) (*BandProposal, error) {
 		&p.Kind, &p.TargetVariantID,
 		&p.TargetTitle, &p.TargetArtist, &p.TargetVersionName, &p.TargetReference,
 		&p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt, &p.DecidedByPersonID, &p.DecidedByUsername,
-		&p.Ratings, &p.StarSum, &p.Positive, &p.Negative, &p.NoThanks); err != nil {
+		&p.Ratings, &p.StarSum, &p.Positive, &p.Negative, &p.NoThanks, &p.Hidden); err != nil {
 		return nil, err
+	}
+	p.Hidden = !p.Hidden // scanned as "seen"
+	if p.Hidden {
+		p.Ratings, p.StarSum, p.Positive, p.Negative, p.NoThanks = 0, 0, 0, 0, 0
 	}
 	var pl ProposalPayload
 	_ = json.Unmarshal(p.Payload, &pl)
@@ -327,8 +365,13 @@ func scanProposal(row pgx.Row) (*BandProposal, error) {
 // ListProposals lists bandID's proposals matching filter, in its order,
 // each with its votes' totals.
 func (st *Store) ListProposals(ctx context.Context, bandID int64, filter ProposalFilter) ([]BandProposal, error) {
-	q := `SELECT ` + proposalCols + proposalFrom + ` WHERE bp.band_id = $1`
 	args := []any{bandID}
+	seen := "true"
+	if filter.Viewer != 0 {
+		args = append(args, filter.Viewer)
+		seen = seenSQL(len(args))
+	}
+	q := `SELECT ` + proposalCols + `, ` + seen + ` AS seen` + proposalFrom + ` WHERE bp.band_id = $1`
 	switch filter.Status {
 	case "":
 	case "decided":
@@ -341,12 +384,19 @@ func (st *Store) ListProposals(ctx context.Context, bandID int64, filter Proposa
 		args = append(args, filter.Kind)
 		q += fmt.Sprintf(" AND bp.kind = $%d::band_proposal_kind", len(args))
 	}
+	// The ones the viewer hasn't voted on first, newest first: their
+	// place among the others would tell how those were voted.
+	first := ""
+	if filter.Viewer != 0 {
+		blind := "NOT " + seen
+		first = blind + ` DESC, CASE WHEN ` + blind + ` THEN bp.created_at END DESC, `
+	}
 	switch filter.Sort {
 	case "stars":
-		q += ` ORDER BY (coalesce(v.ratings, 0) > 0) DESC, v.star_sum::float / nullif(v.ratings, 0) DESC NULLS LAST,
+		q += ` ORDER BY ` + first + `(coalesce(v.no_thanks, 0) > 0), (coalesce(v.ratings, 0) > 0) DESC, v.star_sum::float / nullif(v.ratings, 0) DESC NULLS LAST,
 		              v.ratings DESC, coalesce(v.no_thanks, 0), bp.created_at DESC, bp.id DESC`
 	case "no_thanks":
-		q += " ORDER BY coalesce(v.no_thanks, 0) DESC, bp.created_at DESC, bp.id DESC"
+		q += ` ORDER BY ` + first + `coalesce(v.no_thanks, 0) DESC, bp.created_at DESC, bp.id DESC`
 	default:
 		q += " ORDER BY bp.created_at DESC, bp.id DESC"
 	}
@@ -370,7 +420,7 @@ func (st *Store) ListProposals(ctx context.Context, bandID int64, filter Proposa
 // GetProposal loads one proposal by id, same shape ListProposals rows
 // have.
 func (st *Store) GetProposal(ctx context.Context, proposalID int64) (*BandProposal, error) {
-	p, err := scanProposal(st.db.QueryRow(ctx, `SELECT `+proposalCols+proposalFrom+` WHERE bp.id = $1`, proposalID))
+	p, err := scanProposal(st.db.QueryRow(ctx, `SELECT `+proposalCols+`, true`+proposalFrom+` WHERE bp.id = $1`, proposalID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such proposal %d: %w", proposalID, ErrNotFound)
 	}
@@ -420,6 +470,7 @@ func (st *Store) ProposalBallots(ctx context.Context, proposalIDs []int64) (map[
 
 // ProposalVoteEntry is one line of a proposal's vote history.
 type ProposalVoteEntry struct {
+	PersonID   int64
 	Name       string
 	Stars      int
 	NoThanks   bool
@@ -431,7 +482,7 @@ type ProposalVoteEntry struct {
 // back, newest first.
 func (st *Store) ProposalVoteLog(ctx context.Context, proposalID int64) ([]ProposalVoteEntry, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT coalesce(nullif(p.display_name, ''), p.username), coalesce(l.stars, 0), l.no_thanks,
+		SELECT l.person_id, coalesce(nullif(p.display_name, ''), p.username), coalesce(l.stars, 0), l.no_thanks,
 		       coalesce(l.legacy_vote::text, ''), l.cast_at
 		FROM proposal_vote_log l JOIN people p ON p.id = l.person_id
 		WHERE l.proposal_id = $1
@@ -443,7 +494,7 @@ func (st *Store) ProposalVoteLog(ctx context.Context, proposalID int64) ([]Propo
 	var out []ProposalVoteEntry
 	for rows.Next() {
 		var e ProposalVoteEntry
-		if err := rows.Scan(&e.Name, &e.Stars, &e.NoThanks, &e.LegacyVote, &e.CastAt); err != nil {
+		if err := rows.Scan(&e.PersonID, &e.Name, &e.Stars, &e.NoThanks, &e.LegacyVote, &e.CastAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -462,12 +513,12 @@ type ProposalTally struct {
 	Rated    []ProposalBallot `json:"rated"`
 	NoThanks []ProposalBallot `json:"noThanks"`
 	NotVoted []string         `json:"notVoted"`
-	// Blocked: a core member's no thanks holds it back (rule block or
-	// veto); BlockedBy names them.
-	Blocked   bool     `json:"blocked"`
-	BlockedBy []string `json:"blockedBy,omitempty"`
-	// Waiting: the core members still to vote before the votes decide it.
-	Waiting int `json:"waiting"`
+	// Vetoed: a core member said no thanks — the strongest no, shown
+	// first; it decides nothing by itself.
+	Vetoed bool `json:"vetoed"`
+	// Liked: the votes suggest the band likes it (an average of
+	// MinAverageStars or more, more votes for than against, no veto).
+	Liked bool `json:"liked"`
 	// Voted of Members: how many of the band's current members (core and
 	// guests: a guest's vote counts like anyone's) have voted — stars or
 	// no thanks; information only, no quorum.
@@ -475,6 +526,22 @@ type ProposalTally struct {
 	Members int `json:"members"`
 	// Mine: the viewer's own vote, nil when they haven't voted.
 	Mine *ProposalBallot `json:"mine"`
+	// Hidden: the votes are blanked for the viewer (BlindFor).
+	Hidden bool `json:"hidden,omitempty"`
+}
+
+// BlindFor is t as its viewer may see it: everything once the proposal
+// is decided or once they've voted on it (stars or no thanks); before
+// that only how many core members voted, of how many — no average, no
+// split, no names, no one's no thanks. A guest (who doesn't vote) sees
+// the votes once the proposal is decided. Taking one's vote back hides
+// them again.
+func (t ProposalTally) BlindFor(status string) ProposalTally {
+	if status != "open" || t.Mine != nil {
+		return t
+	}
+	return ProposalTally{Voted: t.Voted, Members: t.Members, Hidden: true,
+		Rated: []ProposalBallot{}, NoThanks: []ProposalBallot{}, NotVoted: []string{}}
 }
 
 func memberName(m BandMember) string {
@@ -485,10 +552,10 @@ func memberName(m BandMember) string {
 }
 
 // TallyOf is where a proposal's vote stands with ballots, among the
-// band's current members, under rule, as viewer sees it. Only the core
+// band's current members, as viewer sees it. Only the core
 // members vote: a ballot from anyone else (a guest, a former member) is
 // left out of everything, and "voted" counts core members only.
-func TallyOf(ballots []ProposalBallot, members []BandMember, rule string, viewer int64) ProposalTally {
+func TallyOf(ballots []ProposalBallot, members []BandMember, viewer int64) ProposalTally {
 	t := ProposalTally{Rated: []ProposalBallot{}, NoThanks: []ProposalBallot{}, NotVoted: []string{}}
 	core := map[int64]bool{}
 	for _, m := range members {
@@ -509,10 +576,7 @@ func TallyOf(ballots []ProposalBallot, members []BandMember, rule string, viewer
 		}
 		if b.NoThanks {
 			t.NoThanks = append(t.NoThanks, b)
-			if rule != NoThanksCount {
-				t.Blocked = true
-				t.BlockedBy = append(t.BlockedBy, b.Name)
-			}
+			t.Vetoed = true
 			continue
 		}
 		if b.Stars >= 1 && b.Stars <= MaxStars {
@@ -543,55 +607,20 @@ func TallyOf(ballots []ProposalBallot, members []BandMember, rule string, viewer
 			t.NotVoted = append(t.NotVoted, memberName(m))
 		}
 	}
-	t.Waiting = t.Members - t.Voted
+	t.Liked = !t.Vetoed && t.Ratings > 0 && t.Avg >= MinAverageStars && t.Positive > t.Negative
 	return t
 }
 
-// proposalOutcome is what the votes decide under the band's rule:
-// "accepted", "rejected", or "" (still open).
-func proposalOutcome(rule string, members []BandMember, ballots []ProposalBallot) string {
-	t := TallyOf(ballots, members, rule, 0)
-	if t.Members == 0 {
-		return ""
-	}
-	if len(t.NoThanks)*2 > t.Members {
-		return "rejected"
-	}
-	if t.Blocked && rule == NoThanksVeto {
-		return "rejected"
-	}
-	if t.Waiting > 0 || t.Blocked {
-		return ""
-	}
-	if t.Avg >= MinAverageStars && t.Positive > t.Negative+len(t.NoThanks) {
-		return "accepted"
-	}
-	return "rejected"
-}
-
-// BandProposalRule is what a no thanks does in bandID (NoThanksBlock,
-// NoThanksVeto or NoThanksCount).
-func (st *Store) BandProposalRule(ctx context.Context, bandID int64) (string, error) {
-	var rule string
-	err := st.db.QueryRow(ctx, `SELECT proposal_no_thanks FROM bands WHERE id = $1`, bandID).Scan(&rule)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
-	}
-	return rule, err
-}
-
-// SetBandProposalRule sets what a no thanks does in bandID.
-func (st *Store) SetBandProposalRule(ctx context.Context, bandID int64, rule string) error {
-	if rule != NoThanksBlock && rule != NoThanksVeto && rule != NoThanksCount {
-		return fmt.Errorf("invalid rule %q: %w", rule, ErrInvalid)
-	}
-	_, err := st.db.Exec(ctx, `UPDATE bands SET proposal_no_thanks = $2 WHERE id = $1`, bandID, rule)
-	return err
-}
-
 // ProposalTallyFor is p's tally as viewer sees it (one proposal: the
-// votes, the members and the rule loaded).
+// votes, the members and the rule loaded), blanked until they vote
+// (BlindFor).
 func (st *Store) ProposalTallyFor(ctx context.Context, p *BandProposal, viewer int64) (ProposalTally, error) {
+	t, err := st.proposalTally(ctx, p, viewer)
+	return t.BlindFor(p.Status), err
+}
+
+// proposalTally is p's whole tally, nothing blanked: the rules' own.
+func (st *Store) proposalTally(ctx context.Context, p *BandProposal, viewer int64) (ProposalTally, error) {
 	ballots, err := st.ProposalBallots(ctx, []int64{p.ID})
 	if err != nil {
 		return ProposalTally{}, err
@@ -600,11 +629,7 @@ func (st *Store) ProposalTallyFor(ctx context.Context, p *BandProposal, viewer i
 	if err != nil {
 		return ProposalTally{}, err
 	}
-	rule, err := st.BandProposalRule(ctx, p.BandID)
-	if err != nil {
-		return ProposalTally{}, err
-	}
-	return TallyOf(ballots[p.ID], members, rule, viewer), nil
+	return TallyOf(ballots[p.ID], members, viewer), nil
 }
 
 // decideProposal locks proposalID, checks it's still 'open', records the
@@ -736,22 +761,23 @@ func (st *Store) appendToBandSetlist(ctx context.Context, bandID, setlistID, son
 	return err
 }
 
-// AcceptProposal accepts proposalID by hand: a core member of its band
-// (a guest proposes and votes, but doesn't decide), unless a core
-// member's no thanks holds it back (ErrProposalBlocked). Its effect is
-// applied, then the proposer notified.
+// AcceptProposal adds proposalID's song by hand: any current member of
+// its band, whatever the votes — a no thanks standing included: the
+// votes are information. Its effect is applied, then the proposer
+// notified.
 func (st *Store) AcceptProposal(ctx context.Context, proposalID, actorPersonID int64) error {
 	return st.decideAndNotify(ctx, proposalID, "accepted", &actorPersonID)
 }
 
-// RejectProposal turns proposalID down by hand (a core member of its
-// band): no effect, the proposer notified.
+// RejectProposal turns proposalID down by hand (any current member of
+// its band): no effect, the proposer notified.
 func (st *Store) RejectProposal(ctx context.Context, proposalID, actorPersonID int64) error {
 	return st.decideAndNotify(ctx, proposalID, "rejected", &actorPersonID)
 }
 
-// decideAndNotify is AcceptProposal/RejectProposal's shared body, also
-// CastVote's for a decision of the votes (decidedBy nil).
+// decideAndNotify is AcceptProposal/RejectProposal's shared body
+// (decidedBy nil: a decision with no one's name on it, which nothing
+// makes since the votes stopped deciding).
 func (st *Store) decideAndNotify(ctx context.Context, proposalID int64, newStatus string, decidedBy *int64) error {
 	p, err := st.GetProposal(ctx, proposalID)
 	if err != nil {
@@ -761,25 +787,15 @@ func (st *Store) decideAndNotify(ctx context.Context, proposalID int64, newStatu
 		return ErrAlreadyDecided
 	}
 
-	// By hand: a core member of the PROPOSAL's own band (not whatever
-	// band the HTTP path carried); accepting waits for a blocking no
-	// thanks to be taken back.
+	// By hand: a current member of the PROPOSAL's own band (not
+	// whatever band the HTTP path carried).
 	if decidedBy != nil {
-		isCore, err := st.IsCurrentBandCore(ctx, p.BandID, *decidedBy)
+		may, err := st.MayDecideProposal(ctx, p.BandID, *decidedBy)
 		if err != nil {
 			return err
 		}
-		if !isCore {
-			return fmt.Errorf("person %d is not a core member of band %d: %w", *decidedBy, p.BandID, ErrForbidden)
-		}
-		if newStatus == "accepted" {
-			tally, err := st.ProposalTallyFor(ctx, p, *decidedBy)
-			if err != nil {
-				return err
-			}
-			if tally.Blocked {
-				return ErrProposalBlocked
-			}
+		if !may {
+			return fmt.Errorf("person %d is not a current member of band %d: %w", *decidedBy, p.BandID, ErrForbidden)
 		}
 	}
 
@@ -827,8 +843,9 @@ func (v Vote) valid() bool {
 
 // CastVote records personID's vote on proposalID — stars, no thanks, or
 // taking it back — in place of their previous one (and in the vote log),
-// while the proposal is open; then lets the votes decide it
-// (proposalOutcome). It returns the proposal's status after the vote.
+// while the proposal is open. The votes decide nothing by themselves: it
+// stays open, for a core member to decide by hand. It returns the
+// proposal's status.
 func (st *Store) CastVote(ctx context.Context, proposalID, personID int64, v Vote) (string, error) {
 	if !v.valid() {
 		return "", fmt.Errorf("a vote is 1 to 4 stars, no thanks, or taken back: %w", ErrInvalid)
@@ -840,11 +857,11 @@ func (st *Store) CastVote(ctx context.Context, proposalID, personID int64, v Vot
 	if p.Status != "open" {
 		return p.Status, ErrAlreadyDecided
 	}
-	isCore, err := st.IsCurrentBandCore(ctx, p.BandID, personID)
+	may, err := st.MayVote(ctx, p.BandID, personID)
 	if err != nil {
 		return "", err
 	}
-	if !isCore {
+	if !may {
 		if isMember, err := st.IsCurrentBandMember(ctx, p.BandID, personID); err == nil && isMember {
 			return "", ErrGuestNoVote
 		}
@@ -879,104 +896,7 @@ func (st *Store) CastVote(ctx context.Context, proposalID, personID int64, v Vot
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
-	return st.settleProposal(ctx, p)
-}
-
-// settleProposal lets the votes decide p, when they do; it returns its
-// status after.
-func (st *Store) settleProposal(ctx context.Context, p *BandProposal) (string, error) {
-	ballots, err := st.ProposalBallots(ctx, []int64{p.ID})
-	if err != nil {
-		return "", err
-	}
-	members, err := st.ListBandMembers(ctx, p.BandID, false)
-	if err != nil {
-		return "", err
-	}
-	rule, err := st.BandProposalRule(ctx, p.BandID)
-	if err != nil {
-		return "", err
-	}
-	outcome := proposalOutcome(rule, members, ballots[p.ID])
-	if outcome == "" {
-		return "open", nil
-	}
-	if err := st.decideAndNotify(ctx, p.ID, outcome, nil); err != nil {
-		if errors.Is(err, ErrAlreadyDecided) {
-			cur, gerr := st.GetProposal(ctx, p.ID)
-			if gerr != nil {
-				return "", gerr
-			}
-			return cur.Status, nil
-		}
-		return "", err
-	}
-	return outcome, nil
-}
-
-// PartyNow is what a band's listening party plays now, as its host said.
-type PartyNow struct {
-	BandID       int64     `json:"-"`
-	ProposalID   int64     `json:"proposalId"`
-	EventID      int64     `json:"eventId,omitempty"`
-	HostPersonID int64     `json:"-"`
-	HostName     string    `json:"host"`
-	Playing      bool      `json:"playing"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-}
-
-// SetPartyNow says bandID's listening party plays proposalID now (0:
-// nothing), hosted by host.
-func (st *Store) SetPartyNow(ctx context.Context, bandID, proposalID, eventID, host int64, playing bool) error {
-	var pid, eid *int64
-	if proposalID != 0 {
-		var band int64
-		if err := st.db.QueryRow(ctx, `SELECT band_id FROM band_proposals WHERE id = $1`, proposalID).Scan(&band); err != nil || band != bandID {
-			return fmt.Errorf("no such proposal %d in band %d: %w", proposalID, bandID, ErrNotFound)
-		}
-		pid = &proposalID
-	}
-	if eventID != 0 {
-		var band *int64
-		if err := st.db.QueryRow(ctx, `SELECT owner_band_id FROM events WHERE id = $1`, eventID).Scan(&band); err != nil || band == nil || *band != bandID {
-			return fmt.Errorf("no such event %d in band %d: %w", eventID, bandID, ErrNotFound)
-		}
-		eid = &eventID
-	}
-	_, err := st.db.Exec(ctx, `
-		INSERT INTO listening_party_now (band_id, proposal_id, event_id, host_person_id, playing, updated_at)
-		VALUES ($1, $2, $3, $4, $5, now())
-		ON CONFLICT (band_id) DO UPDATE SET proposal_id = excluded.proposal_id,
-		  event_id = coalesce(excluded.event_id, listening_party_now.event_id),
-		  host_person_id = excluded.host_person_id, playing = excluded.playing, updated_at = now()`,
-		bandID, pid, eid, host, playing)
-	return err
-}
-
-// GetPartyNow is what bandID's listening party plays now; nil when its
-// host said nothing in the last few hours.
-func (st *Store) GetPartyNow(ctx context.Context, bandID int64) (*PartyNow, error) {
-	var n PartyNow
-	var pid, eid *int64
-	err := st.db.QueryRow(ctx, `
-		SELECT l.band_id, l.proposal_id, l.event_id, coalesce(l.host_person_id, 0),
-		       coalesce(nullif(p.display_name, ''), p.username, ''), l.playing, l.updated_at
-		FROM listening_party_now l LEFT JOIN people p ON p.id = l.host_person_id
-		WHERE l.band_id = $1 AND l.updated_at > now() - interval '6 hours'`, bandID).
-		Scan(&n.BandID, &pid, &eid, &n.HostPersonID, &n.HostName, &n.Playing, &n.UpdatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if pid != nil {
-		n.ProposalID = *pid
-	}
-	if eid != nil {
-		n.EventID = *eid
-	}
-	return &n, nil
+	return p.Status, nil
 }
 
 // SongCoverImages is the album cover found for each of songIDs (its

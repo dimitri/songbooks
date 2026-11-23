@@ -112,12 +112,15 @@
     if (st.sent) location.href = `/bands/${bandId}/catalog/vote?sort=newest#p${st.sent}`;
   }
 
-  function open() {
+  // opts: {q} a link or "Title — Artist" looked up at once; {onSent(id)}
+  // once the proposal is sent (Discover marks its song proposed).
+  function open(opts = {}) {
     if (!dlg) build();
-    st = {};
-    findStep();
+    st = { onSent: opts.onSent };
+    findStep(opts.q);
     dlg.showModal();
     body.querySelector('input').focus();
+    if (opts.q) body.querySelector('form').requestSubmit();
   }
 
   // ---- 1. Find ---------------------------------------------------------
@@ -356,6 +359,7 @@
         }
         if (!res || !res.ok) throw new Error(data.message || t('Couldn’t send the proposal. Try again.'));
         st.sent = data.id;
+        if (st.onSent) await st.onSent(data.id);
         sentStep();
       });
     });
@@ -507,6 +511,7 @@
     h.focus();
   }
 
-  document.querySelectorAll('[data-propose]').forEach((b) => b.addEventListener('click', open));
+  document.querySelectorAll('[data-propose]').forEach((b) => b.addEventListener('click', () => open()));
+  window.ProposeFlow = { open };
   if (location.hash === '#propose') open();
 })();

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"app/internal/httpapi"
 	"app/internal/store"
@@ -106,30 +105,50 @@ func TestStarVotes(t *testing.T) {
 	}
 
 	// Sorted by the average: Bravo (4), Alpha (3), Charlie (no stars, a
-	// no thanks); by the most no thanks: Charlie first.
-	order := func(sortBy string) string {
-		list, err := st.ListProposals(ctx, f.Band, store.ProposalFilter{Status: "open", Sort: sortBy})
+	// veto: after); by the most no thanks: Charlie first. Internal lists
+	// (no viewer) see everything.
+	order := func(sortBy string, viewer int64) string {
+		list, err := st.ListProposals(ctx, f.Band, store.ProposalFilter{Status: "open", Sort: sortBy, Viewer: viewer})
 		if err != nil {
 			t.Fatal(err)
 		}
 		var out []string
 		for _, p := range list {
-			out = append(out, fmt.Sprintf("%s:%s:%d", p.TargetTitle, p.AvgText(), p.NoThanks))
+			h := ""
+			if p.Hidden {
+				h = "?"
+			}
+			out = append(out, fmt.Sprintf("%s%s:%s:%d", h, p.TargetTitle, p.AvgText(), p.NoThanks))
 		}
 		return strings.Join(out, " ")
 	}
-	if got := order("stars"); got != "Bravo:4.0:0 Alpha:3.0:0 Charlie::1" {
+	if got := order("stars", 0); got != "Bravo:4.0:0 Alpha:3.0:0 Charlie::1" {
 		t.Errorf("by stars: %s", got)
 	}
-	if got := order("no_thanks"); !strings.HasPrefix(got, "Charlie::1") {
+	if got := order("no_thanks", 0); !strings.HasPrefix(got, "Charlie::1") {
 		t.Errorf("by no thanks: %s", got)
 	}
-	if got := order("newest"); got != "Charlie::1 Bravo:4.0:0 Alpha:3.0:0" {
+	if got := order("newest", 0); got != "Charlie::1 Bravo:4.0:0 Alpha:3.0:0" {
 		t.Errorf("newest: %s", got)
+	}
+	// Cyd voted on none: everything hidden, newest first, nothing told by
+	// the order. Bea voted on Alpha only: Charlie and Bravo hidden, first.
+	if got := order("stars", f.Cores[2]); got != "?Charlie::0 ?Bravo::0 ?Alpha::0" {
+		t.Errorf("by stars, for someone who voted on none: %s", got)
+	}
+	if got := order("stars", f.Cores[1]); got != "?Charlie::0 ?Bravo::0 Alpha:3.0:0" {
+		t.Errorf("by stars, for Bea: %s", got)
 	}
 	list, _ := st.ListProposals(ctx, f.Band, store.ProposalFilter{Sort: "stars"})
 	if list[1].Positive != 1 || list[1].Negative != 1 {
 		t.Errorf("Alpha's split: %d for, %d against", list[1].Positive, list[1].Negative)
+	}
+
+	// The votes stay open: nothing decided by them.
+	for _, id := range []int64{a, b, c} {
+		if p, _ := st.GetProposal(ctx, id); p.Status != "open" {
+			t.Errorf("proposal %d decided by the votes: %s", id, p.Status)
+		}
 	}
 
 	// A vote changed, then taken back: not voted, never 0 stars.
@@ -138,8 +157,8 @@ func TestStarVotes(t *testing.T) {
 		t.Errorf("changed to 3: average %q, want 3.5", ans.Tally.AvgText)
 	}
 	ans = vote(t, st, f, f.Cores[1], a, map[string]any{"clear": true}, http.StatusOK)
-	if ans.Tally.Ratings != 1 || ans.Tally.Mine != nil || ans.Tally.Voted != 1 || len(ans.Tally.NotVoted) != 2 {
-		t.Errorf("taken back: %+v", ans.Tally)
+	if !ans.Tally.Hidden || ans.Tally.Ratings != 0 || ans.Tally.Mine != nil || ans.Tally.Voted != 1 || ans.Tally.Members != 3 || len(ans.Tally.NotVoted) != 0 {
+		t.Errorf("taken back: the others' votes hidden again, only 1/3 voted: %+v", ans.Tally)
 	}
 	history, err := st.ProposalVoteLog(ctx, a)
 	if err != nil || len(history) != 4 {
@@ -148,12 +167,33 @@ func TestStarVotes(t *testing.T) {
 
 	// The tally answers as the page follows it; the To vote page shows
 	// the cards sorted, the voted count, and no control for a guest.
-	if w := as(t, st, f.Core).do("GET", fmt.Sprintf("/api/bands/%d/proposals/%d/tally", f.Band, b), nil); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"voted":1`) {
-		t.Errorf("tally: %d %s", w.Code, w.Body.String())
+	if w := as(t, st, f.Core).do("GET", fmt.Sprintf("/api/bands/%d/proposals/%d/tally", f.Band, b), nil); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"voted":1`) || strings.Contains(w.Body.String(), `"hidden"`) {
+		t.Errorf("tally, for one who voted: %d %s", w.Code, w.Body.String())
+	}
+	// Before voting: only n/m, in the tally, the page, the player's data,
+	// the proposal's history; a guest too, until it's decided.
+	for _, who := range []int64{f.Cores[2], f.Guest} {
+		w := as(t, st, who).do("GET", fmt.Sprintf("/api/bands/%d/proposals/%d/tally", f.Band, b), nil)
+		body := w.Body.String()
+		if !strings.Contains(body, `"hidden":true`) || !strings.Contains(body, `"voted":1,"members":3`) || strings.Contains(body, "Core") || strings.Contains(body, `"avg":4`) {
+			t.Errorf("tally before voting, for %d: %s", who, body)
+		}
+		for _, path := range []string{"/bands/%d/catalog/vote", "/bands/%d/catalog/vote/listen", "/bands/%d/catalog/discover"} {
+			page := as(t, st, who).page(fmt.Sprintf(path, f.Band))
+			if strings.Contains(page, "&#34;avgText&#34;:&#34;4.0&#34;") || strings.Contains(page, `"avgText":"4.0"`) || strings.Contains(page, `\u0022avgText\u0022:\u00224.0\u0022`) {
+				t.Errorf("%s shows Bravo's average to %d before voting", path, who)
+			}
+		}
+	}
+	if hist := as(t, st, f.Cores[2]).page(fmt.Sprintf("/bands/%d/proposals/%d", f.Band, b)); strings.Contains(hist, "proposal-history-who") {
+		t.Error("the history of the others' votes shows before voting")
+	}
+	if hist := as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/proposals/%d", f.Band, b)); !strings.Contains(hist, "proposal-history-who") {
+		t.Error("the history doesn't show once voted")
 	}
 	page := as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/catalog/vote", f.Band))
 	if !(strings.Index(page, ">Bravo<") < strings.Index(page, ">Alpha<") && strings.Index(page, ">Alpha<") < strings.Index(page, ">Charlie<")) {
-		t.Error("the To vote page isn't sorted by stars")
+		t.Error("the To vote page isn't sorted by stars, the vetoed one last")
 	}
 	if !strings.Contains(page, "data-ctl") {
 		t.Error("no vote control for a core member")
@@ -170,7 +210,10 @@ func TestStarVotes(t *testing.T) {
 	}
 }
 
-func TestNoThanksRules(t *testing.T) {
+// TestVotesAreIndicative: the votes decide nothing — every core member
+// voted, for or against, the proposal stays open — and a core member
+// adds a song, or turns it down, whatever they say, a veto included.
+func TestVotesAreIndicative(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := newVotesBand(t, st)
@@ -182,67 +225,72 @@ func TestNoThanksRules(t *testing.T) {
 		return p.Status
 	}
 
-	// block (the default): every core member voted, a no thanks stands:
-	// still open, and no one accepts it by hand until it's taken back.
-	p := f.propose(t, st, "Held")
-	vote(t, st, f, f.Cores[0], p, map[string]any{"stars": 4}, http.StatusOK)
-	vote(t, st, f, f.Cores[1], p, map[string]any{"stars": 4}, http.StatusOK)
-	if a := vote(t, st, f, f.Cores[2], p, map[string]any{"noThanks": true}, http.StatusOK); a.Status != "open" || !a.Tally.Blocked {
-		t.Errorf("held back: %+v", a)
+	// Every core member loves it: still open, for a core member to add.
+	loved := f.propose(t, st, "Loved")
+	for _, c := range f.Cores {
+		if a := vote(t, st, f, c, loved, map[string]any{"stars": 4}, http.StatusOK); a.Status != "open" {
+			t.Fatalf("decided by the votes: %q", a.Status)
+		}
 	}
-	w := as(t, st, f.Core).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/accept", f.Band, p), nil)
-	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "no thanks") {
-		t.Errorf("accepting it by hand: %d %s, want 409", w.Code, w.Body.String())
-	}
-	// Changing it to 3 stars: every core member voted, for it: in.
-	if a := vote(t, st, f, f.Cores[2], p, map[string]any{"stars": 3}, http.StatusOK); a.Status != "accepted" {
-		t.Errorf("once the no thanks is gone: %q, want accepted", a.Status)
-	}
-	if entries, _ := st.ListBandCatalog(ctx, f.Band); !hasSong(entries, mustTarget(t, st, p)) {
-		t.Error("accepted, but not in the songbook")
-	}
-	vote(t, st, f, f.Cores[0], p, map[string]any{"stars": 1}, http.StatusConflict) // decided: no more votes
-
-	// veto: one core member's no thanks turns it down at once.
-	if w := as(t, st, f.Guest).do("PUT", fmt.Sprintf("/api/bands/%d/proposal-rule", f.Band), map[string]any{"rule": "veto"}); w.Code != http.StatusForbidden {
-		t.Errorf("a guest changes the rule: %d", w.Code)
-	}
-	if w := as(t, st, f.Core).do("PUT", fmt.Sprintf("/api/bands/%d/proposal-rule", f.Band), map[string]any{"rule": "veto"}); w.Code != http.StatusOK {
-		t.Fatalf("setting veto: %d %s", w.Code, w.Body.String())
-	}
-	v := f.propose(t, st, "Vetoed")
-	if a := vote(t, st, f, f.Cores[1], v, map[string]any{"noThanks": true}, http.StatusOK); a.Status != "rejected" {
-		t.Errorf("veto: %q", a.Status)
+	if a := vote(t, st, f, f.Cores[0], loved, map[string]any{"stars": 4}, http.StatusOK); !a.Tally.Liked || a.Tally.Vetoed {
+		t.Errorf("the band likes it, says the tally: %+v", a.Tally)
 	}
 
-	// count: a no thanks only counts against.
-	if err := st.SetBandProposalRule(ctx, f.Band, store.NoThanksCount); err != nil {
-		t.Fatal(err)
+	// Everyone says no thanks: still open.
+	vetoed := f.propose(t, st, "Vetoed")
+	for _, c := range f.Cores {
+		vote(t, st, f, c, vetoed, map[string]any{"noThanks": true}, http.StatusOK)
 	}
-	cnt := f.propose(t, st, "Counted")
-	vote(t, st, f, f.Cores[0], cnt, map[string]any{"stars": 4}, http.StatusOK)
-	vote(t, st, f, f.Cores[1], cnt, map[string]any{"noThanks": true}, http.StatusOK)
-	if a := vote(t, st, f, f.Cores[2], cnt, map[string]any{"stars": 3}, http.StatusOK); a.Status != "accepted" {
-		t.Errorf("count: %q, want accepted (2 for, 1 no thanks, average 3.5)", a.Status)
-	}
-	// More than half of the core members saying no thanks: out, whatever
-	// the rule.
-	maj := f.propose(t, st, "Majority")
-	vote(t, st, f, f.Cores[0], maj, map[string]any{"noThanks": true}, http.StatusOK)
-	if a := vote(t, st, f, f.Cores[1], maj, map[string]any{"noThanks": true}, http.StatusOK); a.Status != "rejected" {
-		t.Errorf("most say no thanks: %q", a.Status)
+	if status(vetoed) != "open" {
+		t.Errorf("turned down by the no thanks: %s", status(vetoed))
 	}
 
-	// By hand: a core member decides, a guest doesn't.
+	// A veto standing doesn't stop a core member adding it.
+	held := f.propose(t, st, "Held")
+	vote(t, st, f, f.Cores[0], held, map[string]any{"stars": 4}, http.StatusOK)
+	if a := vote(t, st, f, f.Cores[1], held, map[string]any{"noThanks": true}, http.StatusOK); !a.Tally.Vetoed || a.Tally.Liked {
+		t.Errorf("a veto: %+v", a.Tally)
+	}
+	w := as(t, st, f.Cores[2]).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/accept", f.Band, held), nil)
+	if w.Code != http.StatusOK || status(held) != "accepted" {
+		t.Errorf("added by hand, a veto standing, by one who didn't vote: %d %s", w.Code, w.Body.String())
+	}
+	if entries, _ := st.ListBandCatalog(ctx, f.Band); !hasSong(entries, mustTarget(t, st, held)) {
+		t.Error("added, but not in the songbook")
+	}
+	vote(t, st, f, f.Cores[2], held, map[string]any{"stars": 1}, http.StatusConflict) // decided: no more votes
+	// Decided: everyone sees everything, a guest too.
+	tw := as(t, st, f.Guest).do("GET", fmt.Sprintf("/api/bands/%d/proposals/%d/tally", f.Band, held), nil)
+	if strings.Contains(tw.Body.String(), `"hidden":true`) || !strings.Contains(tw.Body.String(), `"vetoed":true`) {
+		t.Errorf("a decided proposal, for a guest: %s", tw.Body.String())
+	}
+
+	// Loved, turned down by hand all the same.
+	if w := as(t, st, f.Core).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/reject", f.Band, loved), nil); w.Code != http.StatusOK || status(loved) != "rejected" {
+		t.Errorf("turned down by hand: %d %s", w.Code, status(loved))
+	}
+
+	// Any member decides, a guest too; someone outside the band doesn't.
 	hand := f.propose(t, st, "By hand")
-	if w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/reject", f.Band, hand), nil); w.Code != http.StatusForbidden {
-		t.Errorf("a guest turns it down: %d", w.Code)
+	if w := as(t, st, f.Outsider).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/accept", f.Band, hand), nil); w.Code == http.StatusOK {
+		t.Error("someone outside the band added it")
 	}
-	if w := as(t, st, f.Core).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/reject", f.Band, hand), nil); w.Code != http.StatusOK || status(hand) != "rejected" {
-		t.Errorf("a core member turns it down: %d %s", w.Code, status(hand))
+	if w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/accept", f.Band, hand), nil); w.Code != http.StatusOK || status(hand) != "accepted" {
+		t.Errorf("a guest adds it: %d %s", w.Code, w.Body.String())
 	}
-	if err := st.SetBandProposalRule(ctx, f.Band, "maybe"); err == nil {
-		t.Error("an unknown rule taken")
+	down := f.propose(t, st, "Down")
+	if w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/reject", f.Band, down), nil); w.Code != http.StatusOK || status(down) != "rejected" {
+		t.Errorf("a guest turns it down: %d %s", w.Code, w.Body.String())
+	}
+	if ok, _ := st.MayDecideProposal(ctx, f.Band, f.Guest); !ok {
+		t.Error("MayDecideProposal: a guest")
+	}
+	if ok, _ := st.MayVote(ctx, f.Band, f.Guest); ok {
+		t.Error("MayVote: a guest")
+	}
+	// The setting that made a no thanks decide is gone.
+	if w := as(t, st, f.Core).do("PUT", fmt.Sprintf("/api/bands/%d/proposal-rule", f.Band), map[string]any{"rule": "veto"}); w.Code == http.StatusOK {
+		t.Error("the no-thanks rule still taken")
 	}
 }
 
@@ -366,8 +414,8 @@ func TestProposalThroughNewFlow(t *testing.T) {
 		t.Errorf("label %q", v.VersionName)
 	}
 
-	// Proposed for the set list, voted in by the three core members: in
-	// the songbook and at the end of the set list.
+	// Proposed for the set list, voted for by the three core members,
+	// added by hand: in the songbook and at the end of the set list.
 	w = c.do("POST", fmt.Sprintf("/api/bands/%d/proposals", f.Band), map[string]any{
 		"kind": "new_song", "targetVariantId": d.SongID, "payload": map[string]any{"note": "for the encore", "target": "setlist", "setlistId": f.SetlistID},
 	})
@@ -382,8 +430,11 @@ func TestProposalThroughNewFlow(t *testing.T) {
 	for i, n := range []int{4, 3, 3} {
 		vote(t, st, f, f.Cores[i], created.ID, map[string]any{"stars": n}, http.StatusOK)
 	}
-	if p, _ := st.GetProposal(ctx, created.ID); p.Status != "accepted" {
-		t.Fatalf("status %q, want accepted", p.Status)
+	if p, _ := st.GetProposal(ctx, created.ID); p.Status != "open" {
+		t.Fatalf("status %q after the last vote, want open: the votes decide nothing", p.Status)
+	}
+	if w := as(t, st, f.Core).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/accept", f.Band, created.ID), nil); w.Code != http.StatusOK {
+		t.Fatalf("adding it: %d %s", w.Code, w.Body.String())
 	}
 	if entries, _ := st.ListBandCatalog(ctx, f.Band); !hasSong(entries, d.SongID) {
 		t.Error("accepted, not in the songbook")
@@ -424,55 +475,80 @@ type testResponse struct {
 	body string
 }
 
-// TestListeningParty: the host's player says what plays; every member's
-// phone (the party page) follows it, with the song's vote; the event's
-// page leads to it.
-func TestListeningParty(t *testing.T) {
+// TestBandListens: Discover and Influences — any member shares a song
+// by its YouTube link, the list and the player show it, only who shared
+// it removes it, a shared song proposed for a vote says so; no sync
+// between devices left.
+func TestBandListens(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := newVotesBand(t, st)
-	p := f.propose(t, st, "Tonight")
-	ev, err := st.CreateEvent(ctx, "band", f.Band, "listening_party", "Listening party", "", "", time.Now().Add(time.Hour), nil, "members", f.Core)
-	if err != nil {
-		t.Fatal(err)
+	add := func(who int64, body map[string]any) (int, int64) {
+		w := as(t, st, who).do("POST", fmt.Sprintf("/api/bands/%d/listens", f.Band), body)
+		var out struct{ ID int64 }
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out.ID
 	}
-	if w := as(t, st, f.Cores[1]).do("GET", fmt.Sprintf("/api/bands/%d/party", f.Band), nil); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"now":null`) {
-		t.Errorf("nothing playing: %d %s", w.Code, w.Body.String())
+	// A guest shares to Discover; a core member adds an influence, tagged.
+	code, d := add(f.Guest, map[string]any{"pool": "discover", "url": "https://youtu.be/dQw4w9WgXcQ", "title": "Shared One", "artist": "Somebody", "note": "it's us"})
+	if code != http.StatusOK {
+		t.Fatalf("a guest shares: %d", code)
 	}
-	if w := as(t, st, f.Core).do("PUT", fmt.Sprintf("/api/bands/%d/party", f.Band), map[string]any{"proposalId": p, "eventId": ev, "playing": true}); w.Code != http.StatusNoContent {
-		t.Fatalf("the host: %d %s", w.Code, w.Body.String())
+	code, inf := add(f.Core, map[string]any{"pool": "influence", "url": "https://www.youtube.com/watch?v=abcdefghijk", "title": "Big Influence", "note": "the drum feel", "tags": []string{" Groove", "groove", "#harmonies", ""}})
+	if code != http.StatusOK {
+		t.Fatalf("an influence: %d", code)
 	}
-	vote(t, st, f, f.Cores[1], p, map[string]any{"stars": 3}, http.StatusOK)
-	w := as(t, st, f.Cores[1]).do("GET", fmt.Sprintf("/api/bands/%d/party", f.Band), nil)
-	var got struct {
-		Now struct {
-			ProposalID int64 `json:"proposalId"`
-			EventID    int64 `json:"eventId"`
-			Playing    bool  `json:"playing"`
-			Host       string
-		} `json:"now"`
-		Tally store.ProposalTally `json:"tally"`
+	// Not a YouTube video, an unknown pool, someone outside the band: no.
+	if code, _ := add(f.Core, map[string]any{"pool": "discover", "url": "https://example.com/x"}); code != http.StatusBadRequest {
+		t.Errorf("a link that isn't a video: %d", code)
 	}
-	if json.Unmarshal(w.Body.Bytes(), &got) != nil || got.Now.ProposalID != p || got.Now.EventID != ev || !got.Now.Playing || got.Now.Host != "Core" || got.Tally.Mine == nil || got.Tally.Mine.Stars != 3 {
-		t.Errorf("a member's phone: %s", w.Body.String())
+	if code, _ := add(f.Core, map[string]any{"pool": "elsewhere", "url": "https://youtu.be/dQw4w9WgXcQ"}); code != http.StatusBadRequest {
+		t.Errorf("an unknown pool: %d", code)
 	}
-	// Another band's proposal isn't this party's.
-	other, err := st.CreateBand(ctx, "Elsewhere", f.Core)
-	if err != nil {
-		t.Fatal(err)
+	if code, _ := add(f.Outsider, map[string]any{"pool": "discover", "url": "https://youtu.be/dQw4w9WgXcQ"}); code == http.StatusOK {
+		t.Error("someone outside the band shares")
 	}
-	if w := as(t, st, f.Core).do("PUT", fmt.Sprintf("/api/bands/%d/party", other), map[string]any{"proposalId": p}); w.Code != http.StatusNotFound {
-		t.Errorf("another band's proposal at the party: %d", w.Code)
+	infl, err := st.ListBandListens(ctx, f.Band, store.PoolInfluence)
+	if err != nil || len(infl) != 1 || infl[0].ID != inf || strings.Join(infl[0].Tags, ",") != "groove,harmonies" || infl[0].VideoID != "abcdefghijk" || infl[0].AddedByName != "Core" {
+		t.Errorf("influences: %+v %v", infl, err)
 	}
-	page := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/discover?event=%d", f.Band, ev))
-	if !strings.Contains(page, "Listening party") || strings.Contains(page, "canVote: true") {
-		t.Error("the party page for a guest")
+	// The pages and the player.
+	page := as(t, st, f.Cores[1]).page(fmt.Sprintf("/bands/%d/catalog/discover", f.Band))
+	if !strings.Contains(page, "Shared One") || !strings.Contains(page, "data-listen-propose") || strings.Contains(page, "data-listen-remove") {
+		t.Error("Discover, for a member who didn't share the song")
 	}
-	host := as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/catalog/vote/listen?party=1&event=%d", f.Band, ev))
-	if !strings.Contains(host, `<span class="pl-h1-sub">listening party</span>`) {
-		t.Error("the host's player doesn't say so")
+	if page := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/discover", f.Band)); !strings.Contains(page, "data-listen-remove") {
+		t.Error("who shared it can't remove it")
 	}
-	if !strings.Contains(as(t, st, f.Core).page(fmt.Sprintf("/events/%d", ev)), fmt.Sprintf("/bands/%d/catalog/discover?event=%d", f.Band, ev)) {
-		t.Error("the event's page doesn't lead to the party")
+	if page := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/influences", f.Band)); !strings.Contains(page, "#groove") || strings.Contains(page, "data-listen-propose") {
+		t.Error("Influences")
+	}
+	player := as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/catalog/influences/listen", f.Band))
+	if !strings.Contains(player, "abcdefghijk") || !strings.Contains(player, "Watch on YouTube") {
+		t.Error("the influences' player")
+	}
+	// Only who shared it removes it.
+	if w := as(t, st, f.Core).do("DELETE", fmt.Sprintf("/api/bands/%d/listens/%d", f.Band, d), nil); w.Code != http.StatusForbidden {
+		t.Errorf("someone else removes it: %d", w.Code)
+	}
+	// Proposed for a vote: marked.
+	p := f.propose(t, st, "From Discover")
+	if w := as(t, st, f.Core).do("PUT", fmt.Sprintf("/api/bands/%d/listens/%d/proposal", f.Band, d), map[string]any{"proposalId": p}); w.Code != http.StatusNoContent {
+		t.Errorf("marking it proposed: %d %s", w.Code, w.Body.String())
+	}
+	if page := as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/catalog/discover", f.Band)); !strings.Contains(page, fmt.Sprintf("/bands/%d/proposals/%d", f.Band, p)) {
+		t.Error("Discover doesn't say it was proposed")
+	}
+	if w := as(t, st, f.Guest).do("DELETE", fmt.Sprintf("/api/bands/%d/listens/%d", f.Band, d), nil); w.Code != http.StatusNoContent {
+		t.Errorf("who shared it removes it: %d", w.Code)
+	}
+	if list, _ := st.ListBandListens(ctx, f.Band, store.PoolDiscover); len(list) != 0 {
+		t.Errorf("still there: %+v", list)
+	}
+	// No sync between devices: the party's addresses are gone.
+	for _, m := range []string{"GET", "PUT"} {
+		if w := as(t, st, f.Core).do(m, fmt.Sprintf("/api/bands/%d/party", f.Band), map[string]any{}); w.Code == http.StatusNoContent || strings.Contains(w.Body.String(), `"now"`) {
+			t.Errorf("%s party still answers: %d %s", m, w.Code, w.Body.String())
+		}
 	}
 }

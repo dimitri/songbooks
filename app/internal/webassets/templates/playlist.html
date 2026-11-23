@@ -3,14 +3,14 @@
      phone: the player, then what's next. On a tablet or a computer: the
      player and the queue beside the song playing, its map following the
      recording (the song page itself, ?embed=playlist). */}}
-{{define "playlist"}}
+{{define "playlist"}}{{$lessons := and .VideoFirst (not .Listens)}}
 {{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
 <!doctype html>
 <html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{if .Vote}}{{docTitle (t "Listen and vote") .Owner}}{{else}}{{docTitle (t "playlist") .Owner}}{{end}}</title>
+<title>{{if .Vote}}{{docTitle (t "Listen and vote") .Owner}}{{else if .Listens}}{{docTitle (t .Listens) .Owner}}{{else}}{{docTitle (t "playlist") .Owner}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -20,7 +20,7 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.Back}}">{{template "icon-back"}} {{.Owner}}</a>
-  <h1>{{.Owner}} <span class="pl-h1-sub">{{if .Vote}}{{if .Vote.Party}}{{t "listening party"}}{{else}}{{t "songs to vote on"}}{{end}}{{else}}{{t "playlist"}}{{end}}</span></h1>
+  <h1>{{.Owner}} <span class="pl-h1-sub">{{if .Vote}}{{t "songs to vote on"}}{{else if .Listens}}{{t .Listens}}{{else}}{{t "playlist"}}{{end}}</span></h1>
 </header>
 <main class="pl">
   {{if .Tracks}}
@@ -42,7 +42,6 @@
       <span class="pl-source" id="pl-source"></span>
     </div>
     {{if .Vote}}{{/* The stars for the song playing (band-votes.js player()). */}}
-    {{if .Vote.Party}}<p class="pl-party-note">{{t "You host the listening party: the song playing shows on every member’s phone, to rate."}}</p>{{end}}
     <div class="pl-vote" id="pl-vote"></div>{{end}}
     <div class="pl-sections" id="pl-sections" aria-label="{{t "Sections"}}"></div>
     <div class="pl-scrub">
@@ -63,12 +62,12 @@
         <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">{{t "Reference"}}</a>
       </div>{{end}}
       <button type="button" class="rp-chip" id="pl-restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> {{t "Restart"}}</button>
-      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .Vote}}{{t "Open the proposal"}}{{else if .VideoFirst}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
+      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .Vote}}{{t "Open the proposal"}}{{else if .Listens}}{{t "Watch on YouTube"}}{{else if $lessons}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
     </div>
   </section>
 
   <section class="pl-queue" aria-label="{{t "Playlist"}}">
-    <h2>{{if .VideoFirst}}{{tn (len .Tracks) "%d lesson" "%d lessons"}}{{else}}{{tn (len .Tracks) "%d song" "%d songs"}}{{end}}</h2>
+    <h2>{{if $lessons}}{{tn (len .Tracks) "%d lesson" "%d lessons"}}{{else}}{{tn (len .Tracks) "%d song" "%d songs"}}{{end}}</h2>
     <ol class="pl-list" id="pl-list">
       {{range $i, $t := .Tracks}}
       <li><button type="button" class="pl-row" data-index="{{$i}}">
@@ -83,9 +82,9 @@
     </ol>
     {{if .Silent}}
     <details class="pl-silent">
-      <summary>{{if .VideoFirst}}{{tn (len .Silent) "%d lesson with nothing to play yet" "%d lessons with nothing to play yet"}}{{else}}{{tn (len .Silent) "%d song with nothing to play yet" "%d songs with nothing to play yet"}}{{end}}</summary>
+      <summary>{{if $lessons}}{{tn (len .Silent) "%d lesson with nothing to play yet" "%d lessons with nothing to play yet"}}{{else}}{{tn (len .Silent) "%d song with nothing to play yet" "%d songs with nothing to play yet"}}{{end}}</summary>
       <ul>{{range .Silent}}<li><a href="{{.Href}}">{{.Title}}</a></li>{{end}}</ul>
-      <p class="hint">{{if .VideoFirst}}{{t "Add the lesson’s video from its page."}}{{else}}{{t "Add a recording, or a YouTube link, from the song’s Reference view."}}{{end}}</p>
+      <p class="hint">{{if $lessons}}{{t "Add the lesson’s video from its page."}}{{else}}{{t "Add a recording, or a YouTube link, from the song’s Reference view."}}{{end}}</p>
     </details>
     {{end}}
   </section>
@@ -98,9 +97,9 @@
     <p class="vote-panel-links" id="vote-panel-links"></p>
   </section>
   {{else}}
-  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if .VideoFirst}}{{t "The lesson playing"}}{{else}}{{t "The song playing"}}{{end}}">
+  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if $lessons}}{{t "The lesson playing"}}{{else}}{{t "The song playing"}}{{end}}">
     {{if .VideoFirst}}<div class="pl-stage-video"><div id="pl-stage-frame"></div></div>
-    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#">{{t "Open the lesson"}}</a></p>
+    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#"{{if .Listens}} target="_blank" rel="noopener"{{end}}>{{if .Listens}}{{t "Watch on YouTube"}}{{else}}{{t "Open the lesson"}}{{end}}</a></p>
     {{else}}<iframe id="pl-map-frame" title="{{t "The song playing"}}" loading="lazy"></iframe>{{end}}
   </section>
   {{end}}
@@ -126,6 +125,7 @@
   const frame = $('pl-map-frame');
   // A course's videos play big beside the list on a wide screen.
   const videoFirst = {{.VideoFirst}};
+  const lessons = {{$lessons}}; // a course's (a band's pools play videos too)
   const videoHost = () => (videoFirst && wide.matches ? 'pl-stage-frame' : 'pl-video-frame');
   let index = 0, yt = null, ytHost = '', ytReady = null;
 
@@ -217,7 +217,7 @@
     $('pl-artist').textContent = videoFirst ? t.subtitle : t.artist;
     $('pl-source').textContent = window.t(t.sourceLabel);
     $('pl-source').className = `pl-source kind-${t.source}`;
-    $('pl-cover-key').textContent = videoFirst ? (t.num ? window.t('Lesson %s', t.num) : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+    $('pl-cover-key').textContent = videoFirst ? (lessons && t.num ? window.t('Lesson %s', t.num) : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     $('pl-open').href = t.href;
     // The song's album cover, sharp over a blur of itself; none: the
     // songbook's own cover.
@@ -229,7 +229,7 @@
     const big = videoFirst && wide.matches;
     $('pl-cover').hidden = isVideo() && !big;
     $('pl-video').hidden = !isVideo() || big;
-    if (big) { $('pl-stage-title').textContent = [t.num && window.t('Lesson %s', t.num), t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
+    if (big) { $('pl-stage-title').textContent = [lessons && t.num && window.t('Lesson %s', t.num), t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
     if (wide.matches && frame) frame.src = `/song/${t.id}?songbook={{.Songbook.ID}}&embed=playlist`;
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -332,7 +332,7 @@
 </script>
 {{if .Vote}}
 <script src="/static/js/band-votes.js?v={{staticVersion}}"></script>
-<script>BandVotes.player({bandId: {{.Vote.BandID}}, party: {{.Vote.Party}}, eventId: {{.Vote.EventID}}, canVote: {{.Vote.CanVote}}, tallies: {{.Vote.TalliesJSON}}});</script>
+<script>BandVotes.player({bandId: {{.Vote.BandID}}, canVote: {{.Vote.CanVote}}, tallies: {{.Vote.TalliesJSON}}});</script>
 {{end}}
 {{end}}
 </body>

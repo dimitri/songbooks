@@ -41,20 +41,7 @@
     </form>
   </div>
 
-  {{/* How the band votes on its proposals (docs/band-votes.md): what a
-       core member's no thanks does. A core member's choice. */}}
-  <div class="card card--md" id="votes">
-    <h2>{{t "How the band votes"}}</h2>
-    <p class="hint">{{t "Each core member rates a proposed song 1 to 4 stars, or says No thanks; guest members propose and listen, but don’t vote. A song goes in once every core member has voted, with an average of 2.5 or more and more votes for it than against."}}</p>
-    <form class="form-stack" id="vote-rule-form">
-      <fieldset class="field-group"{{if not .IsCore}} disabled{{end}}>
-        <legend>{{t "When a core member says No thanks"}}</legend>
-        <label class="check check-desc"><input type="radio" name="voteRule" value="block"{{if eq .ProposalRule "block"}} checked{{end}}> <span><strong>{{t "It holds the song back"}}</strong> <small>{{t "Recommended. The song can’t go in while their No thanks stands; it’s up to them to change their mind."}}</small></span></label>
-        <label class="check check-desc"><input type="radio" name="voteRule" value="veto"{{if eq .ProposalRule "veto"}} checked{{end}}> <span><strong>{{t "It turns the song down at once"}}</strong> <small>{{t "A veto: one No thanks is enough."}}</small></span></label>
-        <label class="check check-desc"><input type="radio" name="voteRule" value="count"{{if eq .ProposalRule "count"}} checked{{end}}> <span><strong>{{t "It counts as a vote against"}}</strong> <small>{{t "Only the votes decide."}}</small></span></label>
-      </fieldset>
-      <p class="field-hint">{{t "More than half of the core members saying No thanks always turns a song down."}}</p>
-      {{if .IsCore}}<div class="form-actions"><button type="submit" class="primary" id="vote-rule-save">{{t "Save how we vote"}}</button></div>
+  {{if .IsCore}}<div class="form-actions"><button type="submit" class="primary" id="vote-rule-save">{{t "Save how we vote"}}</button></div>
       {{else}}<p class="hint">{{t "A core member can change this."}}</p>{{end}}
       <p class="form-status" role="status"></p>
     </form>
@@ -154,19 +141,6 @@ document.getElementById('band-settings-form').addEventListener('submit', (e) => 
     const res = await post('music-type', {musicType});
     if (!res || !res.ok) throw new Error(t('Couldn’t save what the band plays. Try again.'));
     location.reload();
-  });
-});
-document.getElementById('vote-rule-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const rule = form.querySelector('input[name="voteRule"]:checked')?.value;
-  Forms.run(form, document.getElementById('vote-rule-save'), async () => {
-    const res = await fetch(`/api/bands/${bandId}/proposal-rule`, {
-      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({rule}),
-    }).catch(() => null);
-    const data = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) throw new Error(data.message || t('Couldn’t save how the band votes. Try again.'));
-    Forms.status(form, t('Saved.'), 'ok');
   });
 });
 const localeSelect = document.getElementById('band-locale');
