@@ -120,8 +120,9 @@ func buildJazzChart(sg *song.Song, sections []viewerSection) *jazzChart {
 // song.LeadMeasures, in no section and so in none of the form's grids) at
 // the start of the chart's first line: narrow cells ahead of bar 1
 // (--lead, jazz.css), the song's played bars 0…K-1. The time signature
-// moves onto the first of them; the first section's mark and opening
-// barline stay on its bar 1, where it starts.
+// and the first section's rehearsal box (in the margin, where every
+// line's is) move onto the first of them; the section's name, opening
+// barline and start stay on its bar 1 — the box jumps there.
 func jzInsertLead(ch *jazzChart, sg *song.Song) {
 	leadMs := sg.LeadMeasures()
 	k := len(leadMs)
@@ -156,8 +157,13 @@ func jzInsertLead(ch *jazzChart, sg *song.Song) {
 	}
 	if f < len(line.Cells) {
 		first := &line.Cells[f]
-		lead[0].TSNum, lead[0].TSDen = first.TSNum, first.TSDen
+		l := &lead[0]
+		l.TSNum, l.TSDen = first.TSNum, first.TSDen
 		first.TSNum, first.TSDen, first.TSMid = "", "", false
+		if first.Mark != "" {
+			l.Mark, l.MarkParts, l.Name, l.JumpTo = first.Mark, first.MarkParts, first.Name, first.JumpTo
+			first.Mark, first.MarkParts = "", nil
+		}
 	}
 	line.Cells = append(append(append([]jzCellView(nil), line.Cells[:f]...), lead...), line.Cells[f:]...)
 	line.Lead = k

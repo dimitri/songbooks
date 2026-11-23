@@ -116,10 +116,11 @@ func TestLeadJazzChart(t *testing.T) {
 		t.Errorf("played bars %d, want 7 (1 lead + 2x2 + 2)", jc.Bars)
 	}
 	first := jc.Lines[0]
-	if first.Lead != 1 || !first.Cells[0].Lead || first.Cells[0].First != 0 || !first.Cells[0].Rest || first.Cells[0].TSNum != "4" {
-		t.Errorf("lead cell: %+v", first.Cells[0])
+	l := first.Cells[0]
+	if first.Lead != 1 || !l.Lead || l.First != 0 || !l.Rest || l.TSNum != "4" || l.Mark == "" || l.JumpTo != 1 {
+		t.Errorf("lead cell: %+v", l)
 	}
-	if c := first.Cells[1]; c.Lead || c.Mark == "" || c.First != 1 {
+	if c := first.Cells[1]; c.Lead || c.Name == "" || c.First != 1 {
 		t.Errorf("the Intro's bar 1: %+v", c)
 	}
 }

@@ -9502,9 +9502,10 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .ct-counters.is-lead .ct-barbeat { color: var(--fg-muted); }
 
 /* The structure strip's lead segment: the song's "lead:" bars, before its
-   first section and in none — a short muted segment, not a button. */
+   first section and in none — a short muted tick with its word (a bar or
+   two would be a sliver at the strip's scale), not a button. */
 .structure-lead {
-  flex: var(--bars, 1) 1 1.6rem; min-width: 1.6rem; display: flex; flex-direction: column;
+  flex: 0 0 auto; min-width: max-content; display: flex; flex-direction: column;
   align-items: flex-start; position: relative; padding: 0 0.3rem 0 0; color: var(--fg-muted); opacity: 0.8;
 }
 .structure-lead .structure-seg-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; }

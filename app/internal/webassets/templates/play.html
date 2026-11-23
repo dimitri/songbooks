@@ -168,7 +168,7 @@
           {{if .Left}}<div class="jz-lineL{{if ne .Left "single"}} wide{{end}}{{if eq .Left "rep-both"}} both{{end}}"{{if eq .Left "rep-start" "rep-both"}} role="img" aria-label="{{t "Repeat start"}}"{{end}}>{{template "jz-barline" .Left}}</div>{{end}}
           {{if .Right}}<div class="jz-lineR{{if ne .Right "single"}} wide{{end}}"{{if eq .Right "rep-end"}} role="img" aria-label="{{t "Repeat close"}}"{{end}}>{{template "jz-barline" .Right}}</div>{{end}}
           {{if .Segno}}<div class="jz-sym jz-segno" role="img" aria-label="{{t "Segno"}}" title="{{t "Segno"}}">&#xE047;</div>{{end}}
-          {{if .Mark}}<button type="button" class="jz-rm{{if gt (len .MarkParts) 1}} many{{end}}"{{if .HasPlayed}} data-jump-bar="{{.JumpTo}}"{{end}} title="{{label .Name}}">{{range $i, $m := .MarkParts}}{{if $i}}/<wbr>{{end}}{{$m}}{{end}}</button><span class="jz-name">{{label .Name}}</span>{{end}}
+          {{if .Mark}}<button type="button" class="jz-rm{{if gt (len .MarkParts) 1}} many{{end}}"{{if .HasPlayed}} data-jump-bar="{{.JumpTo}}"{{end}} title="{{label .Name}}">{{range $i, $m := .MarkParts}}{{if $i}}/<wbr>{{end}}{{$m}}{{end}}</button>{{end}}{{if and .Name (not .Lead)}}<span class="jz-name">{{label .Name}}</span>{{end}}
           {{if .Coda}}<div class="jz-sym jz-coda" role="img" aria-label="{{t "Coda"}}" title="{{t "Coda"}}">&#xE048;</div>{{end}}
           {{if .ToCoda}}<div class="jz-sym jz-tocoda" role="img" aria-label="{{t "To Coda"}}" title="{{t "To Coda"}}">&#xE048;</div>{{end}}
           {{if .TSNum}}<div class="jz-ts{{if .TSMid}} mid{{end}}"><span>{{.TSNum}}</span><span>{{.TSDen}}</span></div>{{end}}
