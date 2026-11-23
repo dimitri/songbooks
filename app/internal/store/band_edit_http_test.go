@@ -181,10 +181,12 @@ func TestEditFromTheBandsSetlist(t *testing.T) {
 			t.Errorf("%s: no offer of the band's version", path)
 		}
 	}
-	// Someone in no band that uses it: their own version, not the
-	// catalogue's song (TestCatalogueSongs).
-	if html := as(t, st, f.Outsider).page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, `data-edit-offer="copy"`) {
-		t.Error("an outsider: no offer of their own version of the catalogue's song")
+	// Someone in no band that uses it: the catalogue's song, open to
+	// everyone's edits (catalogue_edits.go), their own version offered
+	// beside it (TestCatalogueSongs).
+	if html := as(t, st, f.Outsider).page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, `data-can-edit="true"`) ||
+		strings.Contains(html, "data-edit-offer") || !strings.Contains(html, "Make my version instead") {
+		t.Error("an outsider: not the editor on the catalogue's song, with their own version offered")
 	}
 
 	bandSong := c.variantID(c.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, f.CatalogSong), nil))
@@ -465,9 +467,11 @@ func TestSongbookKey(t *testing.T) {
 	}
 }
 
-// TestCatalogueSongs: the catalogue's song is everyone's and no one's to
-// change in place but a site admin's. Edit offers one's own version (an
-// explicit copy), which takes the song's place in one's songbook, its key
+// TestCatalogueSongs: the catalogue's song is everyone's: its staff (the
+// site's admins) change it in place at once, anyone else's edit is
+// weighed against its recording (catalogue_edits.go). The editor also
+// offers one's own version (an explicit copy), which takes the song's
+// place in one's songbook, its key
 // there kept.
 func TestCatalogueSongs(t *testing.T) {
 	st := store.NewTestStore(t)
@@ -481,6 +485,8 @@ func TestCatalogueSongs(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := "title: Le Vent\nartist: Someone\n\n[Verse]\nC\n"
+	// Its staff edit it in place, at once; anyone else's edit is weighed
+	// (catalogue_edits.go): a newcomer's waits for review (202).
 	for _, c := range []struct {
 		who  int64
 		want bool
@@ -488,7 +494,7 @@ func TestCatalogueSongs(t *testing.T) {
 		if ok, err := st.CanEditVariant(ctx, c.who, f.CatalogSong); err != nil || ok != c.want {
 			t.Errorf("person %d: CanEditVariant = %v, %v; want %v", c.who, ok, err, c.want)
 		}
-		want := http.StatusForbidden
+		want := http.StatusAccepted
 		if c.want {
 			want = http.StatusOK
 		}
@@ -510,7 +516,7 @@ func TestCatalogueSongs(t *testing.T) {
 		t.Fatalf("PUT key: %d", w.Code)
 	}
 	html := o.page(fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, mine))
-	if !strings.Contains(html, `data-edit-offer="copy"`) || !strings.Contains(html, "Make my version") {
+	if !strings.Contains(html, `data-action="copy"`) || !strings.Contains(html, "Make my version instead") {
 		t.Error("no offer of one's own version")
 	}
 	ownVersion := o.variantID(o.do("POST", fmt.Sprintf("/api/variants/%d/fork", f.CatalogSong), nil))

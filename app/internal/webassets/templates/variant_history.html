@@ -16,7 +16,8 @@
   <h1>{{t "Revision history"}}</h1>
 </header>
 <main class="index">
-  {{if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}
+  {{if .Catalogue}}<p class="hint">{{t "The Big Songbook’s song: anyone signed in edits it, and nothing is lost. Its staff and trusted editors restore any earlier version; an edit’s author undoes it while it’s the latest."}}</p>
+  {{else if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>{{t "When"}}</th><th>{{t "By"}}</th><th>{{t "What changed"}}</th><th></th></tr></thead>
     <tbody>
@@ -26,6 +27,7 @@
         <td data-label="{{t "When"}}">{{date .CreatedAt "2006-01-02 15:04"}}</td>
         <td data-label="{{t "By"}}">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
         <td data-label="{{t "What changed"}}" class="history-changes">
+          {{with .Summary}}<p class="history-summary">“{{.}}”</p>{{end}}
           {{if $e.Changes}}
           <ul>{{range $e.Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}{{if $e.More}}<li class="hint">{{t "and %d more" $e.More}}</li>{{end}}</ul>
           {{else}}<span class="hint">{{t "nothing"}}</span>{{end}}
@@ -35,7 +37,7 @@
           </details>
           {{end}}
         </td>
-        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >{{t "Restore the version before this"}}</button>{{end}}</td>
+        <td>{{if index $.Revertable .ID}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >{{t "Restore the version before this"}}</button>{{end}}</td>
       </tr>
     {{else}}
       <tr><td colspan="4" class="hint">{{t "No edits recorded yet."}}</td></tr>

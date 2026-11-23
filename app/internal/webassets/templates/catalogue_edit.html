@@ -1,0 +1,137 @@
+{{/* The catalogue: open edits (docs/ownership-model.md, "The catalogue:
+     open edits"; httpapi/catalogue_edits.go). The pieces the song page
+     adds on The Big Songbook's songs, an edit's card (the review queue's
+     and its own page's), and an edit's page. */}}
+
+{{define "icon-flag"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17.5V3.5"/><path d="M5 4h9.5l-2 3.5 2 3.5H5"/></svg>{{end}}
+
+{{/* In the editor, on The Big Songbook's song: whose it is, how an edit
+     goes in, the summary asked at save (catalogue-edit.js sends it), its
+     key locked, and one's own version instead. */}}
+{{define "catalogue-edit-note"}}
+<div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}>
+  <p class="hint">{{if .CatalogueGated}}{{t "The Big Songbook’s song: your edit changes it for everyone. An edit that keeps it following its recording is applied at once; one that changes its structure or makes it follow the recording less well waits for review."}}{{else}}{{t "The Big Songbook’s song: your edit changes it for everyone, at once."}}{{end}}
+    {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
+    {{if .CanEditChart}}<button type="button" class="link-like" id="edit-offer-go" data-action="copy">{{t "Make my version instead"}}</button><span class="form-status" id="edit-offer-status" role="status"></span>{{end}}</p>
+  <label class="catalogue-summary-field">
+    <span>{{t "What did you change?"}} <span class="field-optional">{{t "(optional)"}}</span></span>
+    <input type="text" id="catalogue-edit-summary" maxlength="200" autocomplete="off" placeholder="{{t "e.g. fixed the chorus chords"}}" enterkeyhint="done">
+  </label>
+</div>
+{{end}}
+
+{{/* Above the chart: the viewer's edit of this song waiting for review. */}}
+{{define "catalogue-pending"}}
+<p class="catalogue-pending" id="catalogue-pending">{{template "icon-lock"}} {{t "Your edit of this song waits for review, sent %s: the song stays as it is for everyone until it’s approved." (date .CreatedAt "2 Jan 15:04")}} <a href="/big-songbook/edits/{{.ID}}">{{t "See your edit"}}</a></p>
+{{end}}
+
+{{/* The song page's dialogs on The Big Songbook's songs: Report, and what
+     a save did (applied, waiting for review, another recording's version).
+     catalogue-edit.js runs them. */}}
+{{define "catalogue-dialogs"}}
+{{if .CanReport}}
+<dialog class="edit-offer-dialog" id="catalogue-report-dialog" aria-labelledby="catalogue-report-title">
+  <form method="dialog" id="catalogue-report-form" class="form-stack" data-variant-id="{{.VariantID}}">
+    <h2 id="catalogue-report-title">{{t "Report this song"}}</h2>
+    <p class="hint" id="catalogue-report-hint">{{t "What’s wrong with it? A wrong chart can also be fixed with Edit; this tells The Big Songbook’s reviewers, who look at it."}}</p>
+    <label for="catalogue-report-reason">{{t "Reason"}}</label>
+    <textarea id="catalogue-report-reason" rows="3" maxlength="2000" required aria-describedby="catalogue-report-hint"></textarea>
+    <p class="form-status" id="catalogue-report-status" role="status"></p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" formnovalidate>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="catalogue-report-send">{{t "Report"}}</button>
+    </div>
+  </form>
+</dialog>
+{{end}}
+<dialog class="edit-offer-dialog" id="catalogue-saved-dialog" aria-labelledby="catalogue-saved-title">
+  <form method="dialog">
+    <h2 id="catalogue-saved-title"></h2>
+    <p id="catalogue-saved-text"></p>
+    <ul class="catalogue-saved-why" id="catalogue-saved-why" hidden></ul>
+    <div class="form-actions">
+      <a class="button" id="catalogue-saved-link" hidden></a>
+      <button type="submit" class="primary" value="ok" autofocus>{{t "OK"}}</button>
+    </div>
+  </form>
+</dialog>
+<script src="/static/js/catalogue-edit.js?v={{staticVersion}}" defer></script>
+{{end}}
+
+{{/* One edit: who, when, why it waits, the fit before and after, what it
+     changes; Approve / Reject for a reviewer. Its data: a
+     catalogueEditView; $ the page's. */}}
+{{define "catalogue-edit-card"}}
+<article class="card catalogue-edit" data-edit-id="{{.ID}}">
+  <header class="catalogue-edit-head">
+    <h2><a href="/song/{{.SongID}}">{{.SongTitle}}{{with .SongArtist}} — {{.}}{{end}}</a></h2>
+    <p class="hint">{{if .AuthorName}}{{.AuthorName}}{{else}}&mdash;{{end}} &middot; {{date .CreatedAt "2 Jan 2006, 15:04"}}{{if ne .Status "pending"}} &middot; <span class="catalogue-edit-status is-{{.Status}}">{{if eq .Status "approved"}}{{t "edit|approved"}}{{else if eq .Status "rejected"}}{{t "edit|rejected"}}{{else if eq .Status "applied"}}{{t "edit|applied"}}{{else}}{{t "edit|superseded"}}{{end}}</span>{{end}}</p>
+  </header>
+  {{with .Summary}}<p class="catalogue-edit-summary">“{{.}}”</p>{{end}}
+  {{if .Reasons}}<p class="catalogue-edit-why"><strong>{{t "Waits for review because:"}}</strong> {{range $i, $r := .Reasons}}{{if $i}}; {{end}}{{$r}}{{end}}</p>{{end}}
+  {{if or .FitBefore.Fit .FitAfter.Fit}}
+  <p class="catalogue-edit-fit">{{t "The recording:"}}
+    {{with .FitBefore}}<span class="fit-badge is-{{.Fit}}"{{with .Why}} title="{{.}}"{{end}}>{{.Label}}</span>{{end}} &rarr;
+    {{with .FitAfter}}<span class="fit-badge is-{{.Fit}}"{{with .Why}} title="{{.}}"{{end}}>{{.Label}}</span>{{end}}
+  </p>
+  {{with .FitAfter.Why}}<p class="hint fit-why">{{.}}</p>{{end}}
+  {{end}}
+  {{if .Stale}}<p class="hint catalogue-edit-stale">{{t "The song changed since this edit was made: approving it takes its changes into the song as it is now, where they don’t touch the same place."}}</p>{{end}}
+  {{if .Changes}}<ul class="original-change-list">{{range .Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>{{end}}
+  {{if .Lines}}
+  <details class="history-diff"><summary>{{t "Show the text"}}</summary>
+    <pre>{{range .Lines}}<span class="diff-{{if eq .Op "+"}}add{{else if eq .Op "-"}}del{{else if eq .Op "…"}}skip{{else}}ctx{{end}}">{{if eq .Op "…"}}…{{else}}{{.Op}} {{.Text}}{{end}}</span>{{end}}</pre>
+  </details>
+  {{end}}
+  {{if .DecidedAt}}<p class="hint">{{if eq .Status "approved"}}{{t "Approved by %s on %s." .DecidedByName (date .DecidedAt "2 Jan 2006")}}{{else}}{{t "Turned down by %s on %s." .DecidedByName (date .DecidedAt "2 Jan 2006")}}{{end}}{{with .Note}} {{t "Note:"}} “{{.}}”{{end}}</p>{{end}}
+</article>
+{{end}}
+
+{{/* A reviewer's Approve / Reject on a pending edit. */}}
+{{define "catalogue-edit-decide"}}
+<form class="catalogue-edit-decide form-stack" data-edit-id="{{.Edit.ID}}">
+  <label><span>{{t "Note to its author"}} <span class="field-optional">{{t "(optional)"}}</span></span>
+    <input type="text" name="note" maxlength="500" autocomplete="off">
+  </label>
+  {{if .IsStaff}}<label class="catalogue-ban"><input type="checkbox" name="ban"> {{t "Reject and keep %s from editing The Big Songbook" (or .Edit.AuthorName "them")}}</label>{{end}}
+  <div class="form-actions">
+    <button type="button" class="primary" data-decide="approve">{{t "Approve"}}</button>
+    <button type="button" data-decide="reject">{{t "Reject"}}</button>
+  </div>
+  <p class="form-status" role="status"></p>
+</form>
+{{end}}
+
+{{define "catalogue_edit"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{docTitle (t "An edit of %s" .Edit.SongTitle)}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/song/{{.Edit.SongID}}">{{template "icon-back"}} {{.Edit.SongTitle}}</a>
+  <h1>{{if eq .Edit.Status "pending"}}{{t "An edit waiting for review"}}{{else}}{{t "An edit of The Big Songbook’s song"}}{{end}}</h1>
+</header>
+<main class="index catalogue-review">
+  {{if and .Edit.Mine (eq .Edit.Status "pending")}}<p class="hint">{{t "The song stays as it is for everyone until a reviewer approves your edit. Edit the song again to change it: your new edit takes this one’s place."}}</p>{{end}}
+  {{template "catalogue-edit-card" .Edit}}
+  {{if and .IsReviewer (eq .Edit.Status "pending")}}{{template "catalogue-edit-decide" .}}{{end}}
+  <details class="catalogue-edit-text"{{if .Edit.Mine}} open{{end}}><summary>{{t "The whole text of this edit"}}</summary>
+    <pre>{{.Edit.Body}}</pre>
+  </details>
+  {{if .IsReviewer}}<p><a href="/big-songbook/review">{{t "All the edits waiting for review"}} &rarr;</a></p>{{end}}
+</main>
+<script src="/static/js/catalogue-review.js?v={{staticVersion}}" defer></script>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

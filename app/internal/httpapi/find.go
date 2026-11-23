@@ -394,10 +394,16 @@ func (s *Server) handleBigSongbookPage(w http.ResponseWriter, r *http.Request) {
 		}
 		froms = append(froms, fromView{From: f.From, Label: f.Label, Href: href, Active: f.From == from})
 	}
-	s.render(w, "big_songbook", map[string]any{
+	data := map[string]any{
 		"Me": person, "Works": views, "Songs": songs, "From": from, "Froms": froms, "Q": q,
 		"IsStaff": person.IsAdmin, "Duplicates": dups, "PlayedBy": playedBy,
-	})
+	}
+	// The catalogue's review queue, for its reviewers (catalogue_edits.go).
+	if ok, _ := s.store.MayReviewCatalogue(r.Context(), person.ID); ok {
+		data["IsReviewer"] = true
+		data["QueueCount"], _ = s.store.CatalogueQueueCount(r.Context())
+	}
+	s.render(w, "big_songbook", data)
 }
 
 // handleBigSongbookDuplicatesPage is the duplicates review (§7), for The

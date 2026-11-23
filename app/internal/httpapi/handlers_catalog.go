@@ -258,10 +258,21 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	rights, err := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	canEdit := rights.Edit
+	// Which edits the viewer may revert: any, for who edits the song; on
+	// The Big Songbook's, per catalogueRevertable.
+	revertable := map[int64]bool{}
+	if rights.Catalogue {
+		revertable = s.catalogueRevertable(r.Context(), person.ID, revisions)
+	} else if canEdit {
+		for _, rv := range revisions {
+			revertable[rv.ID] = true
+		}
 	}
 	// The Guitar Pro files the song was imported from, current and earlier
 	// (best effort: a failure just leaves the section out).
@@ -281,6 +292,7 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	}
 	s.render(w, "variant_history", map[string]any{
 		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit, "Merged": merged,
+		"Revertable": revertable, "Catalogue": rights.Catalogue, "CanContribute": rights.Contribute,
 		"GPFile": gpCurrent, "GPVersions": gpVersions,
 		"Edits": s.describeEdits(variantID, revisions),
 	})
@@ -451,10 +463,19 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, "revision has a non-numeric variant entity_id")
 			return
 		}
-		canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+		rights, err := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+		canEdit := rights.Edit
+		// The Big Songbook's song: its staff and trusted editors revert
+		// any edit; its author their own while it is the latest.
+		if rights.Catalogue {
+			if canEdit, err = s.store.MayRevertCatalogue(r.Context(), person.ID, revisionID); err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		}
 		if !canEdit {
 			httpError(w, http.StatusForbidden, "no edit rights on this variant")
@@ -541,7 +562,7 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	person := personFromContext(r)
-	canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	rights, err := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 	actorPersonID := person.ID
 	if errors.Is(err, store.ErrNotFound) {
 		httpError(w, http.StatusNotFound, err.Error())
@@ -551,7 +572,7 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if !canEdit {
+	if !rights.Edit && !rights.Contribute {
 		httpError(w, http.StatusForbidden, "no edit rights on this variant")
 		return
 	}
@@ -568,6 +589,10 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The Big Songbook's song: weighed against its recording first.
+	if s.catalogueSave(w, r, variantID, req.Title, req.Artist, req.ReferenceURL, req.Body, req.ExpectVersion) {
+		return
+	}
 	newVersion, err := s.store.SaveVariantByID(r.Context(), variantID, req.Title, req.Artist, req.ReferenceURL, req.Body, req.ExpectVersion, actorPersonID)
 	if errors.Is(err, store.ErrConflict) {
 		httpError(w, http.StatusConflict, err.Error())

@@ -35,12 +35,15 @@ Chapman" are two songs of the same work.
 - Owner: exactly one of person, band, community. The catalogue's songs,
   ownerless today, are owned by the global community (§6).
 - Editing in place: the person; a band's current members (core and
-  guest); a community's members with the "edit repertoire" right; the
-  global community's staff (site admins). In a **coaching** community,
-  the coach (its staff) and, for each of its songs, the students it's
-  given to (their student songbook holds it): not another student's
-  song, not the repertoire's others ([coaching.md](coaching.md), "The
-  song the coach and the students share").
+  guest); a community's members with the "edit repertoire" right; for
+  the global community's songs (the catalogue), **everyone signed in**,
+  each edit weighed against the song's reference recording and applied
+  at once or held for review, its staff (site admins) at once (§11). In
+  a **coaching** community, the coach (its staff) and, for each of its
+  songs, the students it's given to (their student songbook holds it):
+  not another student's song, not the repertoire's others
+  ([coaching.md](coaching.md), "The song the coach and the students
+  share").
 - **Making public** (a song or a whole songbook): a person for their
   own; a band's **core** members; a community's **staff**.
 - **Everything goes public with the song**: the chart, the reference
@@ -90,6 +93,14 @@ entry, note).
   more), new lyrics. A version is a new song: owned by the songbook's
   owner, private, `forked_from_id` set, and it no longer follows the
   reference recording.
+- **Except fixing the catalogue's song itself** (§11): a wrong chord, a
+  typo, a missing section the recording plays is fixed in place by
+  anyone signed in — the catalogue's song stays the one that follows
+  its recording. Its **key** is never changed in place (it is the
+  recording's): keys stay on the songbook entry, the student, the band.
+- **Another recording** of a catalogue song (a live take, another
+  performer) is another catalogue song: changing the reference of a
+  catalogue song makes a new one for that recording (§11).
 - **A band can have several versions of one song** — a punchy one and a
   psychedelic one — and its songbook shows **one row per version**
   ("Bad Spell — psychedelic", a version name beside the title). A set
@@ -159,7 +170,66 @@ Done by a reviewed command with a dry run first (like `bandsongs`).
    a song (an entry setting, nothing copied).
 5. "Follows the recording" **flags only**: a badge or a warning; songs
    can be public either way; staff use it to tidy The Big Songbook.
+   Since §11 it also weighs the edits of the catalogue's songs: one that
+   makes the fit worse waits for review.
 6. Keys on the entry; any change to the song a version, several per
    band, one row each; the original's changes offered to its versions;
    frozen copies on unpublish/delete; everything public with a song;
    core members / staff publish.
+
+## 11. The catalogue: open edits (2026-11-23)
+
+The catalogue's songs (The Big Songbook's) are everyone's, so anyone
+signed in fixes them — and nothing is lost.
+
+- **Who**: everyone signed in edits a catalogue song's chart in place
+  (Edit opens the editor; "Make my version instead" is beside it). The
+  recordings, the Guitar Pro file, erasing or deleting the song stay
+  its staff's. Someone the staff keep from editing (the review queue's
+  "Reject and keep … from editing") can't, until let again.
+- **Nothing is lost**: every edit is a revision — who, when, and a
+  one-line summary asked at save (optional) — listed in the song's
+  History. One click reverts it: by its author while it is the latest,
+  by a trusted editor or the staff any time. The versions made from the
+  song are told what changed and take it or keep theirs (§5).
+- **The reference recording is the anchor**: each catalogue song
+  follows one recording, its `reference:`. The "follows the recording"
+  check (§3, `songimport.RecordingFit`, cached in `song_recording_fit`)
+  is read before and after the edit:
+  - an edit that keeps or improves the fit is **applied at once** —
+    chord fixes, lyrics typos, a missing section the recording plays;
+  - an edit that makes it worse waits for **review**, and so does one
+    that changes the lead-in (`lead:`), the Guitar Pro sync (`gp_start`,
+    the sections' `gp[...]` lines), the key, the title or the artist,
+    or adds or removes the recording. It is saved as a pending edit:
+    the song stays as it was for everyone; its author sees "waits for
+    review" on the song and opens their text; it becomes current when
+    approved (merged with what changed since, where it doesn't touch
+    the same place);
+  - a song whose recording has no analysis yet: a change of the
+    sections or their bars waits too; other edits apply.
+- **Another recording, another song**: changing a catalogue song's
+  reference (in the Reference view or in Source) doesn't change it: it
+  makes a new catalogue song for that recording — same work,
+  `forked_from_id` set, public, The Big Songbook's — with the edited
+  chart; the original stays as it is. Its artist is that recording's
+  performer: the album version and a couple of live ones, even by other
+  artists, side by side. Title, artist and the reference identify it
+  (§3): the duplicates review (§7) doesn't take two songs following two
+  different recordings for duplicates.
+- **The key is the recording's**: a catalogue song isn't transposed in
+  place (the editor's Transpose is off on it, and a chart transposed as
+  a whole is refused); keys are set per songbook, student or band.
+- **Light moderation**: a review queue (The Big Songbook → Review) for
+  the staff and the **trusted editors** (10 accepted edits or more,
+  computed): each pending edit with what it changes (`songdiff`), the
+  fit before and after, Approve / Reject with a note for its author. A
+  newcomer's first **3** edits wait whatever they change. A **Report**
+  on a catalogue song (a reason) puts it in the queue until a reviewer
+  marks it done. The author is told when their edit is approved or
+  rejected; the reviewers are told when the queue has items — once
+  while it does, not per edit.
+- Migration 0125: `revisions.summary`, `people.catalogue_banned_at`,
+  `catalogue_edits` (every edit by someone not staff: applied, pending,
+  approved, rejected, superseded; accepted ones count towards trust),
+  `catalogue_reports`.

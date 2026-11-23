@@ -201,22 +201,22 @@ func (st *Store) ListGenres(ctx context.Context) ([]string, error) {
 // CatalogVariant is one row of a catalog browse listing: a variant
 // (songs row) plus the work/project context a browse page shows it with.
 type CatalogVariant struct {
-	VariantID       int64
-	WorkID          int64
-	Title           string
-	Artist          string
+	VariantID int64
+	WorkID    int64
+	Title     string
+	Artist    string
 	// Visibility is the song's kind, from its owner (songKindSQL):
 	// "global" (The Big Songbook's, the catalogue), "user", "band",
 	// "community" — a label; SongRightsFor says who may do what.
-	Visibility      string
-	Public          bool
-	VersionName     string // "" for a song's one version (migration 0113)
-	OwnerID         *int64
-	OwnerBandID     *int64
-	OwnerCommunityID   *int64
-	ForkedFromID    *int64
-	Genre           string // from the parent work; "" means unset, not filtered out of an unfiltered listing
-	Album           string // from the parent work; "" means unset (migration 0033)
+	Visibility       string
+	Public           bool
+	VersionName      string // "" for a song's one version (migration 0113)
+	OwnerID          *int64
+	OwnerBandID      *int64
+	OwnerCommunityID *int64
+	ForkedFromID     *int64
+	Genre            string // from the parent work; "" means unset, not filtered out of an unfiltered listing
+	Album            string // from the parent work; "" means unset (migration 0033)
 	// BandName is the band's, for a band's version shown in place of the
 	// catalogue's song (PreferBandVersions); "" otherwise.
 	BandName string
@@ -236,7 +236,6 @@ type CatalogFilter struct {
 // work's album (migration 0033) for pages that group by it (an
 // "original"-type band's repertoire); "by album" isn't offered as a
 // CatalogFilter itself, since most variants have no album set.
-//
 func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter CatalogFilter) ([]CatalogVariant, error) {
 	order := "s.title, s.artist"
 	if filter.Sort == "artist" {
@@ -541,57 +540,94 @@ func (st *Store) CreateCommunityVariant(ctx context.Context, communityID int64, 
 // when the row's current version doesn't match. actorPersonID (0 =
 // unknown) is recorded as the revision's actor.
 func (st *Store) SaveVariantByID(ctx context.Context, variantID int64, title, artist, referenceURL, body, expectVersion string, actorPersonID int64) (string, error) {
+	return st.SaveSongEdit(ctx, SongSave{
+		SongID: variantID, Title: title, Artist: artist, ReferenceURL: referenceURL, Body: body,
+		ExpectVersion: expectVersion, ActorID: actorPersonID,
+	})
+}
+
+// SongSave is one save of a song's chart: its new title, artist,
+// reference and body, at ExpectVersion ("": whatever it is), by ActorID
+// (0: unknown), with the edit's one-line Summary (the revision's).
+type SongSave struct {
+	SongID                            int64
+	Title, Artist, ReferenceURL, Body string
+	ExpectVersion                     string
+	ActorID                           int64
+	Summary                           string
+}
+
+// SaveSongEdit is SaveVariantByID with the edit's summary.
+func (st *Store) SaveSongEdit(ctx context.Context, e SongSave) (string, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback(ctx)
-
-	var curTitle, curArtist, curRef, curBody string
-	var curVersion int
-	err = tx.QueryRow(ctx, `
-		SELECT title, artist, reference_url, body, version FROM songs
-		WHERE id = $1 FOR UPDATE`, variantID).
-		Scan(&curTitle, &curArtist, &curRef, &curBody, &curVersion)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
-	}
+	saved, err := saveSongTx(ctx, tx, e)
 	if err != nil {
 		return "", err
 	}
-	if expectVersion != "" && strconv.Itoa(curVersion) != expectVersion {
-		return "", ErrConflict
-	}
-
-	var actor *int64
-	if actorPersonID != 0 {
-		actor = &actorPersonID
-	}
-	if err := st.RecordRevision(ctx, tx, "variant", strconv.FormatInt(variantID, 10), actor, VariantSnapshot{
-		Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody,
-	}); err != nil {
-		return "", err
-	}
-
-	var newVersion int
-	if err := tx.QueryRow(ctx, `
-		UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1
-		WHERE id = $5
-		RETURNING version`,
-		title, artist, referenceURL, body, variantID).Scan(&newVersion); err != nil {
-		return "", err
-	}
-	// A lead changed: the recordings' bars move with the song's.
-	if _, err := shiftLeadSync(ctx, tx, variantID, curBody, body); err != nil {
-		return "", err
-	}
-
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
 	// Its versions are told when its chart changed (version_sync.go).
-	st.songSaved(ctx, variantID, curBody, body, actorPersonID)
-	return strconv.Itoa(newVersion), nil
+	st.songSaved(ctx, e.SongID, saved.before, e.Body, e.ActorID)
+	return strconv.Itoa(saved.version), nil
+}
+
+// songSaveResult is what saveSongTx did: the song's new version, its
+// body before, the revision kept.
+type songSaveResult struct {
+	version    int
+	before     string
+	revisionID int64
+}
+
+// saveSongTx writes e in tx: the song's state before is kept as a
+// revision (with e's summary), its version moves on, its lead's sync
+// follows. The caller commits, then calls songSaved.
+func saveSongTx(ctx context.Context, tx pgx.Tx, e SongSave) (songSaveResult, error) {
+	var out songSaveResult
+	var curTitle, curArtist, curRef, curBody string
+	var curVersion int
+	err := tx.QueryRow(ctx, `
+		SELECT title, artist, reference_url, body, version FROM songs
+		WHERE id = $1 FOR UPDATE`, e.SongID).
+		Scan(&curTitle, &curArtist, &curRef, &curBody, &curVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out, fmt.Errorf("no such variant %d: %w", e.SongID, ErrNotFound)
+	}
+	if err != nil {
+		return out, err
+	}
+	if e.ExpectVersion != "" && strconv.Itoa(curVersion) != e.ExpectVersion {
+		return out, ErrConflict
+	}
+
+	var actor *int64
+	if e.ActorID != 0 {
+		actor = &e.ActorID
+	}
+	if out.revisionID, err = recordRevision(ctx, tx, "variant", strconv.FormatInt(e.SongID, 10), actor, VariantSnapshot{
+		Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody,
+	}, e.Summary); err != nil {
+		return out, err
+	}
+
+	if err := tx.QueryRow(ctx, `
+		UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1
+		WHERE id = $5
+		RETURNING version`,
+		e.Title, e.Artist, e.ReferenceURL, e.Body, e.SongID).Scan(&out.version); err != nil {
+		return out, err
+	}
+	// A lead changed: the recordings' bars move with the song's.
+	if _, err := shiftLeadSync(ctx, tx, e.SongID, curBody, e.Body); err != nil {
+		return out, err
+	}
+	out.before = curBody
+	return out, nil
 }
 
 // AddToCatalog/RemoveFromCatalog/ListMyCatalog are superseded by
