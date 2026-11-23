@@ -223,6 +223,8 @@ func main() {
 	// Each recording's melody range, from its vocals part, in the
 	// background (docs/coaching.md).
 	go httpapi.RunMelodyRanges(context.Background(), st)
+	// And its notes, for the song page's Melody view (docs/melody-sheet.md).
+	go httpapi.RunMelodyNotes(context.Background(), st)
 	log.Printf("songbooks serving %s on http://%s", redactURL(*dbURL), *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
 }

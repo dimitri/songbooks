@@ -81,13 +81,30 @@ func MelodyRangeOf(x []float32) (MelodyRange, bool) {
 // yinTrack is a pitch per hop, as a fractional MIDI note, 0 where
 // there's no clear pitch (silence, breath, a consonant).
 func yinTrack(x []float32) []float64 {
+	return pitchFrames(x).Pitch
+}
+
+// Frames is the voice tracked hop by hop (yinHop samples at SampleRate):
+// its pitch (a fractional MIDI note, 0 where there's no clear pitch), how
+// clear that pitch is (1 minus YIN's dip: 1 a pure tone, 0 none) and the
+// frame's energy (relative to the loudest frame).
+type Frames struct {
+	Pitch, Clarity, Energy []float64
+}
+
+// FrameSeconds is one frame's length.
+const FrameSeconds = float64(yinHop) / SampleRate
+
+// pitchFrames tracks x with YIN.
+func pitchFrames(x []float32) Frames {
 	minTau := int(math.Floor(SampleRate / yinMaxHz))
 	maxTau := int(math.Ceil(SampleRate / yinMinHz))
 	if len(x) < yinWindow+maxTau {
-		return nil
+		return Frames{}
 	}
 	n := (len(x) - yinWindow - maxTau) / yinHop
 	out := make([]float64, n)
+	clarity := make([]float64, n)
 	d := make([]float64, maxTau+1)
 	// A quiet frame has no pitch: below 1/30 of the loudest frames.
 	var peak float64
@@ -147,6 +164,12 @@ func yinTrack(x []float32) []float64 {
 		}
 		hz := SampleRate / t
 		out[f] = 69 + 12*math.Log2(hz/440)
+		clarity[f] = math.Max(0, 1-d[best])
 	}
-	return out
+	if peak > 0 {
+		for f := range energy {
+			energy[f] /= peak
+		}
+	}
+	return Frames{Pitch: out, Clarity: clarity, Energy: energy}
 }

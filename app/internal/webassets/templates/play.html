@@ -647,6 +647,7 @@
     <button type="button" data-value="map" title="{{t "song map"}}">{{template "icon-mode-map"}} {{t "Map"}}</button>
     {{if .HasLyrics}}<button type="button" data-value="lyrics" title="{{t "lyrics only"}}">{{template "icon-mode-lyrics"}} {{t "Lyrics"}}</button>{{end}}
     {{if .GPFileName}}<button type="button" data-value="score" title="{{t "the Guitar Pro file"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>{{end}}
+    {{if .HasMelody}}<button type="button" data-value="melody" title="{{t "the lead voice’s melody from the recording, the lyrics under it"}}">{{template "icon-mode-melody"}} {{t "Melody"}}</button>{{end}}
     <button type="button" class="view-extra" data-value="drummer" title="{{t "drummer view"}}">{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
     <button type="button" class="view-extra" data-value="mixer" title="{{t "mixer"}}">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
     <button type="button" class="view-extra" data-value="reference" title="{{t "reference"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
@@ -2419,6 +2420,29 @@
       <div class="gp-sheet-wrap"><div class="gp-sheet"><div class="gp-pages" aria-hidden="true"></div><div class="gp-score-canvas"></div></div></div>
     </div>
     {{end}}
+    {{if .HasMelody}}
+    {{/* The Melody view (melody-view.js, melody_sheet.go): the lead
+         voice's notes found in the recording, in the song's bars, the
+         lyrics laid under them; drawn by alphaTab (loaded when it's first
+         shown) on A4 pages like the Score view, following the player. */}}
+    <div class="melody-page" id="melody-page" data-variant-id="{{.VariantID}}" data-alphatab="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"{{if .CanEdit}} data-can-edit="1"{{end}}>
+      <div class="gp-sheet-bar melody-bar">
+        <span class="melody-badge" title="{{t "found in the recording by ear, not written by anyone: check it against the recording"}}">{{t "Estimated"}}</span>
+        <span class="melody-conf"></span>
+        <div class="gp-sheet-tools">
+          {{if .CanEdit}}<button type="button" class="gp-tool melody-fix-toggle" aria-expanded="false" title="{{t "move a line’s lyrics by a note"}}">{{template "icon-edit"}}<span>{{t "Lyrics placement"}}</span></button>{{end}}
+          <a class="gp-tool melody-xml" href="/api/songs/{{.VariantID}}/melody.musicxml" download title="{{t "the melody and its lyrics as MusicXML (MuseScore, Sibelius, Dorico)"}}">{{template "icon-download"}}<span>MusicXML</span></a>
+          <button type="button" class="gp-tool melody-gp" title="{{t "the melody and its lyrics as a Guitar Pro file"}}">{{template "icon-download"}}<span>Guitar Pro</span></button>
+        </div>
+      </div>
+      {{if .CanEdit}}<div class="melody-fix" hidden>
+        <p class="hint">{{t "Each line’s syllables start on the note shown; move them a note earlier or later when they’re off. Saved for everyone."}}</p>
+        <ol class="melody-fix-lines"></ol>
+      </div>{{end}}
+      <p class="melody-wait" hidden></p>
+      <div class="gp-sheet-wrap melody-sheet-wrap"><div class="gp-sheet melody-sheet"><div class="gp-pages" aria-hidden="true"></div><div class="melody-canvas"></div><div class="melody-cursor" hidden></div></div></div>
+    </div>
+    {{end}}
     <div class="mixer-page" id="mixer-page" data-variant-id="{{.VariantID}}" data-can-edit="{{if .CanEdit}}true{{else}}false{{end}}">
       <div class="daw" id="daw">
         <div class="daw-toolbar">
@@ -2577,6 +2601,7 @@
 <script src="/static/js/song-controls.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-notes.js?v={{staticVersion}}"></script>
 <script src="/static/js/tap-tempo.js?v={{staticVersion}}"></script>
+{{if .HasMelody}}<script src="/static/js/melody-view.js?v={{staticVersion}}" defer></script>{{end}}
 <script src="/static/js/mixer-autoalign.js?v={{staticVersion}}" defer></script>
 <script src="/static/js/mixer.js?v={{staticVersion}}" defer></script>
 {{if or .HasAlphaTab .HasAnyScore .CanEdit .GPFileName}}

@@ -1034,7 +1034,7 @@ const ICONS = {
     // for the Mixer: a workbench opened for a task, not a way of reading.
     // Picked, that is: not the view restored at load (a coaching
     // community's Lyrics only must not become the default elsewhere).
-    if (!restoringMode && v !== 'reference' && v !== 'mixer' && v !== 'score' && !document.body.classList.contains('embed-playlist')) {
+    if (!restoringMode && v !== 'reference' && v !== 'mixer' && v !== 'score' && v !== 'melody' && !document.body.classList.contains('embed-playlist')) {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
       // And for this song in this coaching community: the view picked
       // there wins over its default (Lyrics only, below) next time.
@@ -1382,6 +1382,8 @@ const ICONS = {
     function applyTranspose() {
       if (transposeAmount) transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
       const shown = shownOffset();
+      // The Melody view (melody-view.js) writes its notes in this key too.
+      document.dispatchEvent(new CustomEvent('songbooks:transpose', { detail: { offset: shown } }));
       sheet.querySelectorAll('[data-pc]').forEach(el => {
         const pc = parseInt(el.dataset.pc, 10);
         if (pc < 0 || Number.isNaN(pc)) return;
@@ -1431,6 +1433,7 @@ const ICONS = {
     // The practice player's Key moves the chords with the recording
     // (audio-player.js), −/+ or not.
     window.songbooksShiftChords = (d) => { offset += d; applyTranspose(); };
+    window.songbooksChordOffset = () => shownOffset();
     // The Mixer's chord row (mixer.js) names its chords as the page does.
     // Spelled for the key the song is moved to, as the chart is (spellIn).
     window.songbooksChordInView = (name) => {

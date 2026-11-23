@@ -1,0 +1,11 @@
+{
+  "the lead voice’s melody from the recording, the lyrics under it": "la mélodie de la voix principale, tirée de l’enregistrement, les paroles dessous",
+  "Melody": "Mélodie",
+  "found in the recording by ear, not written by anyone: check it against the recording": "trouvée à l’oreille dans l’enregistrement, écrite par personne : vérifiez-la en l’écoutant",
+  "Estimated": "Estimée",
+  "move a line’s lyrics by a note": "décaler les paroles d’une ligne d’une note",
+  "Lyrics placement": "Placement des paroles",
+  "the melody and its lyrics as MusicXML (MuseScore, Sibelius, Dorico)": "la mélodie et ses paroles en MusicXML (MuseScore, Sibelius, Dorico)",
+  "the melody and its lyrics as a Guitar Pro file": "la mélodie et ses paroles en fichier Guitar Pro",
+  "Each line’s syllables start on the note shown; move them a note earlier or later when they’re off. Saved for everyone.": "Les syllabes de chaque ligne commencent sur la note indiquée ; décalez-les d’une note plus tôt ou plus tard si elles tombent mal. Enregistré pour tout le monde."
+}

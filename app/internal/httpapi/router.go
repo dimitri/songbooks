@@ -238,6 +238,10 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis", s.requireVariantRole("editor", s.handlePostAudioAnalysis))
 	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis/queue", s.requireVariantRole("editor", s.handlePostAudioAnalysisQueue))
 	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/analysis/apply", s.requireVariantRole("editor", s.handlePostAudioAnalysisApply))
+	// The lead voice's melody as a score, the lyrics under it (melody_sheet.go).
+	mux.HandleFunc("GET /api/songs/{id}/melody", s.requireVariantRole("viewer", s.handleGetSongMelody))
+	mux.HandleFunc("GET /api/songs/{id}/melody.musicxml", s.requireVariantRole("viewer", s.handleGetSongMelodyMusicXML))
+	mux.HandleFunc("PUT /api/songs/{id}/melody/lyrics-shift", s.requireVariantRole("editor", s.handlePutMelodyLyricShift))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/facts", s.requireVariantRole("viewer", s.handlePutSongGPFileFacts))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/instruments", s.requireVariantRole("editor", s.handlePutSongGPFileInstruments))
