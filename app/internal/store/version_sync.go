@@ -295,6 +295,9 @@ func (st *Store) SyncWithOriginal(ctx context.Context, personID, versionID int64
 		if _, err := tx.Exec(ctx, `UPDATE songs SET body = $2, version = version + 1 WHERE id = $1`, versionID, merged); err != nil {
 			return false, err
 		}
+		if _, err := shiftLeadSync(ctx, tx, versionID, ours, merged); err != nil {
+			return false, err
+		}
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE songs SET base_body = $2, base_version = $3, base_synced_at = now() WHERE id = $1`,

@@ -581,6 +581,10 @@ func (st *Store) SaveVariantByID(ctx context.Context, variantID int64, title, ar
 		title, artist, referenceURL, body, variantID).Scan(&newVersion); err != nil {
 		return "", err
 	}
+	// A lead changed: the recordings' bars move with the song's.
+	if _, err := shiftLeadSync(ctx, tx, variantID, curBody, body); err != nil {
+		return "", err
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return "", err

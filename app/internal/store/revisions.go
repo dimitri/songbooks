@@ -246,6 +246,9 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			snap.Title, snap.Artist, snap.ReferenceURL, snap.Body, id); err != nil {
 			return err
 		}
+		if _, err := shiftLeadSync(ctx, tx, id, curBody, snap.Body); err != nil {
+			return err
+		}
 		after = &struct {
 			id           int64
 			before, body string
