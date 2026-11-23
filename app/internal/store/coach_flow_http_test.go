@@ -285,7 +285,11 @@ func TestStudentWorkflow(t *testing.T) {
 	if w := f.o.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", f.community, f.other), map[string]int64{"songbookId": f.repertoire}); w.Code != http.StatusForbidden {
 		t.Errorf("Oliver makes the community's version of a song he isn't given: %d", w.Code)
 	}
-	if w := f.o.saveRaw(f.catalogue, "title: x\n"); w.Code != http.StatusForbidden {
+	// The catalogue's song itself is open to everyone's edits, weighed
+	// (catalogue_edits.go): his, a newcomer's, waits for review; the
+	// song stays as it is.
+	before := version(t, st, f.catalogue)
+	if w := f.o.saveRaw(f.catalogue, "title: x\n"); w.Code != http.StatusAccepted || version(t, st, f.catalogue) != before {
 		t.Errorf("Oliver edits the catalogue's song in place: %d", w.Code)
 	}
 
