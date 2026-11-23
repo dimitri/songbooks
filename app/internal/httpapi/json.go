@@ -62,10 +62,6 @@ type jsonSection struct {
 	Measures    []jsonMeasure    `json:"measures"`
 	Lyrics      []jsonLyricLine  `json:"lyrics"`
 	Notes       []string         `json:"notes,omitempty"`
-	// Lead/LeadMeasures mirror the "lead:" line (song.Section.Lead,
-	// LeadGrid), so a Chart save keeps it.
-	Lead         int           `json:"lead,omitempty"`
-	LeadMeasures []jsonMeasure `json:"leadMeasures,omitempty"`
 }
 
 // jsonChordRef mirrors song.ChordRef — one "chord: Name Spec" diagram line.
@@ -84,10 +80,17 @@ type jsonSong struct {
 	// so a Chart save doesn't drop them.
 	OtherChords []jsonChordRef `json:"otherChords,omitempty"`
 	Sections    []jsonSection  `json:"sections"`
+	// Lead/LeadMeasures mirror the song's "lead:" line (song.Song.Lead,
+	// LeadGrid), so a Chart save keeps it.
+	Lead         int           `json:"lead,omitempty"`
+	LeadMeasures []jsonMeasure `json:"leadMeasures,omitempty"`
 }
 
 func toJSON(s *song.Song) jsonSong {
-	out := jsonSong{}
+	out := jsonSong{Lead: s.Lead}
+	for _, m := range s.LeadGrid {
+		out.LeadMeasures = append(out.LeadMeasures, jsonMeasure{Tokens: m.Tokens, Meter: m.Meter})
+	}
 	for _, f := range s.Meta {
 		out.Meta = append(out.Meta, jsonMetaField{Key: f.Key, Value: f.Value})
 	}
@@ -103,12 +106,8 @@ func toJSON(s *song.Song) jsonSong {
 			Repeat:      sec.Repeat,
 			Time:        sec.Time,
 			Times:       sec.Times,
-			Lead:        sec.Lead,
 			BarsPerLine: sec.BarsPerLine,
 			Notes:       sec.Notes,
-		}
-		for _, m := range sec.LeadGrid {
-			js.LeadMeasures = append(js.LeadMeasures, jsonMeasure{Tokens: m.Tokens, Meter: m.Meter})
 		}
 		for _, sv := range sec.Scores {
 			js.Scores = append(js.Scores, jsonScoreVoice{Label: sv.Label, Body: sv.Body})
@@ -135,7 +134,13 @@ func toJSON(s *song.Song) jsonSong {
 }
 
 func fromJSON(in jsonSong) *song.Song {
-	out := &song.Song{}
+	out := &song.Song{Lead: min(max(in.Lead, 0), 16)}
+	for _, m := range in.LeadMeasures {
+		out.LeadGrid = append(out.LeadGrid, song.Measure{Tokens: m.Tokens, Meter: m.Meter})
+	}
+	if len(out.LeadGrid) > 0 {
+		out.Lead = len(out.LeadGrid)
+	}
 	for _, f := range in.Meta {
 		out.Meta = append(out.Meta, song.MetaField{Key: f.Key, Value: f.Value})
 	}
@@ -151,15 +156,8 @@ func fromJSON(in jsonSong) *song.Song {
 			Repeat:      js.Repeat,
 			Time:        js.Time,
 			Times:       js.Times,
-			Lead:        js.Lead,
 			BarsPerLine: js.BarsPerLine,
 			Notes:       js.Notes,
-		}
-		for _, m := range js.LeadMeasures {
-			sec.LeadGrid = append(sec.LeadGrid, song.Measure{Tokens: m.Tokens, Meter: m.Meter})
-		}
-		if len(sec.LeadGrid) > 0 {
-			sec.Lead = len(sec.LeadGrid)
 		}
 		for _, sv := range js.Scores {
 			sec.Scores = append(sec.Scores, song.ScoreVoice{Label: sv.Label, Body: sv.Body})

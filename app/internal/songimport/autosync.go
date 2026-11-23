@@ -92,6 +92,14 @@ func ProposeAutoSync(rec *chartalign.Recording, body string, sections []SyncSect
 			}
 		}
 	}
+	// The song's "lead:" bars are the recording's bars before its first
+	// section: not an intro missing from the chart.
+	if lead := sg.LeadIn(); lead > 0 {
+		res.IntroBars = max(0, res.IntroBars-lead)
+		if res.Intro != nil {
+			res.Intro = withoutLead(res.Intro, lead)
+		}
+	}
 	a := &AutoSync{Result: res, Labels: map[int]string{}, ChartTempo: sg.Get("tempo"), ChartTimeSig: sg.Get("time"), Markers: []Marker{}, AutoTempoFactor: auto}
 	count, seen := map[string]int{}, map[string]int{}
 	for _, s := range sections {
@@ -545,4 +553,29 @@ func sectionGrids(body string) []secGrid {
 		out = append(out, secGrid{label, strings.Join(g, " / ")})
 	}
 	return out
+}
+
+// withoutLead is an intro proposal without its first lead bars (the
+// song's "lead:", already in the chart); nil when nothing is left.
+func withoutLead(in *chartalign.IntroProposal, lead int) *chartalign.IntroProposal {
+	if in.Bars <= lead {
+		return nil
+	}
+	secs := song.Parse("[Intro]\ngrid: " + in.Grid).Sections
+	if len(secs) == 0 {
+		return nil
+	}
+	ms := secs[0].Measures
+	var bars []string
+	for _, i := range song.PlayOrder(ms, 0) {
+		b := strings.Join(ms[i].Tokens, " ")
+		if b == "%" && len(bars) > 0 {
+			b = bars[len(bars)-1]
+		}
+		bars = append(bars, b)
+	}
+	if len(bars) <= lead {
+		return nil
+	}
+	return &chartalign.IntroProposal{Bars: in.Bars - lead, Grid: chartalign.Fold(bars[lead:])}
 }

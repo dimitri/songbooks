@@ -78,6 +78,9 @@ func headerChanges(a, b *song.Song) []Change {
 			out = append(out, Change{Where: "Header", What: fmt.Sprintf("%s %s → %s", name, short(va), short(vb))})
 		}
 	}
+	if la, lb := leadText(a), leadText(b); la != lb {
+		out = append(out, Change{Where: "Header", What: fmt.Sprintf("lead-in %s → %s", la, lb)})
+	}
 	return out
 }
 
@@ -182,9 +185,6 @@ func compareSection(where string, a, b *song.Section) []Change {
 	}
 	if a.Times != b.Times {
 		add("played %s → %s", timesText(a.Times), timesText(b.Times))
-	}
-	if la, lb := leadText(a), leadText(b); la != lb {
-		add("lead-in %s → %s", la, lb)
 	}
 	out = append(out, barChanges(where, a.Measures, b.Measures)...)
 	if c := lineChanges(lyricLines(a), lyricLines(b)); c != "" {
@@ -464,15 +464,15 @@ func orNone(s string) string {
 	return s
 }
 
-// leadText is a section's "lead:" line as a diff reads it.
-func leadText(sec *song.Section) string {
+// leadText is the song's "lead:" line as a diff reads it.
+func leadText(s *song.Song) string {
 	switch {
-	case sec.Lead <= 0:
+	case s.Lead <= 0:
 		return "none"
-	case len(sec.LeadGrid) > 0:
-		return sec.LeadLine()
+	case len(s.LeadGrid) > 0:
+		return s.LeadLine()
 	}
-	return plural(sec.Lead, "bar")
+	return plural(s.Lead, "bar")
 }
 
 func timesText(n int) string {

@@ -39,8 +39,6 @@ type rawSection struct {
 	scores  []rawScore
 	gp      []GPRef
 	times   int
-	lead    int
-	leadMs  []Measure
 	bars    []int
 	gridRaw strings.Builder
 	lines   []string
@@ -70,8 +68,6 @@ func Parse(src string) *Song {
 			Repeat:      cur.repeat,
 			Time:        cur.time,
 			Times:       cur.times,
-			Lead:        cur.lead,
-			LeadGrid:    cur.leadMs,
 			BarsPerLine: cur.bars,
 			Lyrics:      make([]LyricLine, 0, len(cur.lines)),
 			Notes:       cur.notes,
@@ -118,6 +114,10 @@ func Parse(src string) *Song {
 
 		if inHead {
 			if line == "" {
+				continue
+			}
+			if strings.HasPrefix(line, "lead:") && validLead(line[5:]) {
+				song.Lead, song.LeadGrid = parseLead(line[5:])
 				continue
 			}
 			if key, rest, ok := splitChordLine(line); ok {
@@ -191,8 +191,11 @@ func Parse(src string) *Song {
 			}
 		case strings.HasPrefix(line, "note:"):
 			cur.notes = append(cur.notes, strings.TrimSpace(line[5:]))
-		case strings.HasPrefix(line, "lead:") && validLead(line[5:]):
-			cur.lead, cur.leadMs = parseLead(line[5:])
+		case strings.HasPrefix(line, "lead:") && len(song.Sections) == 0 && validLead(line[5:]):
+			// The song's lead written inside its first section (the form
+			// "lead:" first had): the song's all the same. On a later
+			// section it's no field at all (a lyric line, as it reads).
+			song.Lead, song.LeadGrid = parseLead(line[5:])
 		case strings.HasPrefix(line, "score:"):
 			// The old single-line "score: <label>" form (a Postgres-
 			// stored-content pointer) — retired in favor of

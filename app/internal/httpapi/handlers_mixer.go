@@ -78,13 +78,28 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 
 	riffs, _ := tab.LoadScores(sg)
 	tracks := wholeSongTracks(sections, riffs, timeNum, timeDen)
+	// The song's "lead:" bars come first, in no section: rests in every
+	// track.
+	if lead := sg.LeadIn(); lead > 0 {
+		for i := range tracks {
+			r := *tracks[i].Riff
+			bars := make([]tab.Bar, 0, lead+len(r.Bars))
+			for k := 0; k < lead; k++ {
+				bars = append(bars, restBar(timeNum, timeDen))
+			}
+			r.Bars = append(bars, r.Bars...)
+			tracks[i].Riff = &r
+		}
+	}
 	pickup := pickupBeats(tracks, timeNum, timeDen)
 	resp := map[string]any{
 		"tempo": tempo, "timeNum": timeNum, "timeDen": timeDen, "key": sg.Get("key"),
 		"totalBars": totalBars, "sections": outSections, "tracks": []mixerTrackJSON{},
 		"pickupBeats": pickup,
-		"leadIn":      songLeadIn(sections),
 		"notation":    s.notationPrefsFor(r),
+		// The bars before bar 1: the song's "lead:" (mixer.js numbers
+		// from after them).
+		"leadIn": sg.LeadIn(),
 	}
 	if gp.Meta != nil {
 		resp["hasGPFile"] = true
@@ -254,16 +269,8 @@ func performedChordsAs(sections []viewerSection, i int, name func(string) string
 		}
 	}
 	written := writtenChordsAs(src, name)
-	// The grid's "lead:" bars are played once, by the section writing
-	// them, ahead of the rest (song.WithLeads).
-	var lead [][]mixerChordJSON
-	if src.LeadBars > 0 && src.LeadBars <= len(written) {
-		if src == sec {
-			lead = written[:src.LeadBars]
-		}
-	}
 	var expanded [][]mixerChordJSON
-	for k := src.LeadBars; k < len(src.Measures); k++ {
+	for k := 0; k < len(src.Measures); k++ {
 		if src.Measures[k].Open {
 			end := k
 			for end < len(src.Measures) && !src.Measures[end].Close {
@@ -284,12 +291,11 @@ func performedChordsAs(sections []viewerSection, i int, name func(string) string
 		expanded = append(expanded, written[k])
 	}
 	out := make([][]mixerChordJSON, sec.BarCount)
-	n := copy(out, lead)
 	if len(expanded) == 0 {
 		return out
 	}
-	for b := n; b < len(out); b++ {
-		out[b] = expanded[(b-n)%len(expanded)]
+	for b := range out {
+		out[b] = expanded[b%len(expanded)]
 	}
 	return out
 }
@@ -350,20 +356,15 @@ func wholeSongTracks(sections []viewerSection, riffs map[int][]tab.NamedRiff, nu
 					r = find(j, k)
 				}
 			}
-			// A section's "lead:" bars come before its score: rests.
-			lead := min(sections[i].LeadBars, n)
-			for p := 0; p < lead; p++ {
-				bars = append(bars, restBar(num, den))
-			}
 			var sb []tab.Bar
 			if r != nil {
 				sb = r.Bars
 			}
-			if len(sb) > n-lead {
-				sb = sb[:n-lead]
+			if len(sb) > n {
+				sb = sb[:n]
 			}
 			bars = append(bars, sb...)
-			for p := lead + len(sb); p < n; p++ {
+			for p := len(sb); p < n; p++ {
 				bars = append(bars, restBar(num, den))
 			}
 		}
@@ -371,17 +372,6 @@ func wholeSongTracks(sections []viewerSection, riffs map[int][]tab.NamedRiff, nu
 		out = append(out, tab.NamedRiff{Name: k.name, Riff: &tab.Riff{Tuning: f.Tuning, MinimumFret: f.MinimumFret, Drums: k.drums, Bars: bars}})
 	}
 	return out
-}
-
-// songLeadIn is how many bars the song plays before its bar 1: its
-// opening section's "lead:" bars (viewerSection.LeadIn).
-func songLeadIn(sections []viewerSection) int {
-	for _, sec := range sections {
-		if len(sec.Measures) > 0 {
-			return sec.LeadIn()
-		}
-	}
-	return 0
 }
 
 // labelUnescaper mirrors the "label" template func (webassets.unescapeTypst):

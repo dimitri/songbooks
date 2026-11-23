@@ -3244,6 +3244,9 @@ const ICONS = {
   // Diagrams entered for other keys ("chord[A]:" lines): carried through
   // the same way, or a Chart save would lose them.
   let structOtherChords = [];
+  // The song's "lead:" line ({lead, leadMeasures}): carried through the
+  // same way, so the preview draws it and a Chart save keeps it.
+  let structLead = {};
 
   // ---- Undo/redo — a bounded-depth snapshot stack over structMeta/
   // structSections, the same in-memory state Save/Discard already work
@@ -4536,7 +4539,7 @@ const ICONS = {
     try {
       const res = await fetch('/api/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ song: { meta: structMeta, chords: structChords, sections: sectionsForPreview } }),
+        body: JSON.stringify({ song: { meta: structMeta, chords: structChords, sections: sectionsForPreview, ...structLead } }),
       });
       html = await res.text();
     } catch (e) {
@@ -5307,7 +5310,7 @@ const ICONS = {
     const sectionsForSave = structSections.map(sec => ({ ...sec, measures: joinVoltaGroups(sec), endings: undefined }));
     const res = await fetch(`/api/songs/${pageVariantId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, otherChords: structOtherChords, sections: sectionsForSave } }),
+      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, otherChords: structOtherChords, sections: sectionsForSave, ...structLead } }),
     });
     if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Reload the page, then make your changes again.'); return; }
     if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return; }
@@ -5336,6 +5339,7 @@ const ICONS = {
     // for exactly this "editing a song that's never been touched" case —
     // reported directly as "can't edit the title," caught here instead.
     structVersion = data.version; structMeta = data.song.meta || []; structChords = data.song.chords || []; structOtherChords = data.song.otherChords || [];
+    structLead = { lead: data.song.lead, leadMeasures: data.song.leadMeasures };
     // Split each section's flat measures into {common, endings} once, up
     // front — see splitVoltaGroups. Every editing function from here on
     // (renderMatrix, the Alternatives panel) only ever deals with that

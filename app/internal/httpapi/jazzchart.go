@@ -16,6 +16,7 @@ import (
 
 	"app/internal/chordsym"
 	"app/internal/song"
+	"app/internal/tab"
 )
 
 // SMuFL code points, drawn with the Petaluma music font.
@@ -80,8 +81,8 @@ type jzCellView struct {
 	Simile int  // 1: "%", 2: "%%" drawn in one bar
 	Pair2  bool // the two-bar repeat sign, straddling this bar's left barline
 	Rest   bool // a whole-bar rest
-	// Lead: a bar of the section's "lead:" line (song.WithLeads), played
-	// before its first bar and not counted; LeadTag on the first of them.
+	// Lead: one of the song's "lead:" bars (song.LeadMeasures), played
+	// before bar 1 and in no section; LeadTag on the first of them.
 	Lead, LeadTag bool
 }
 
@@ -111,17 +112,19 @@ func buildJazzChart(sg *song.Song, sections []viewerSection) *jazzChart {
 		return nil
 	}
 	ch := layoutJazzChart(jf.sg, sections, jf.measures, jf.res, jf.globalOf)
-	jzInsertLead(ch, jf)
+	jzInsertLead(ch, jf.sg)
 	return ch
 }
 
-// jzInsertLead draws the song's lead-in (its opening section's "lead:"
-// bars, song.WithLeads), which the form leaves out, at the start of the
-// chart's first line: narrow cells ahead of bar 1 (--lead, jazz.css),
-// played as the song's first bars, the section's mark, time signature
-// and opening barline moved onto the first of them.
-func jzInsertLead(ch *jazzChart, jf *jazzForm) {
-	k := len(jf.lead)
+// jzInsertLead draws the song's lead-in (its "lead:" bars,
+// song.LeadMeasures, in no section and so in none of the form's grids) at
+// the start of the chart's first line: narrow cells ahead of bar 1
+// (--lead, jazz.css), the song's played bars 0…K-1. The time signature
+// moves onto the first of them; the first section's mark and opening
+// barline stay on its bar 1, where it starts.
+func jzInsertLead(ch *jazzChart, sg *song.Song) {
+	leadMs := sg.LeadMeasures()
+	k := len(leadMs)
 	if ch == nil || k == 0 {
 		return
 	}
@@ -133,34 +136,28 @@ func jzInsertLead(ch *jazzChart, jf *jazzForm) {
 	for f < len(line.Cells) && line.Cells[f].Pad {
 		f++
 	}
-	globalTime := orDefault(jf.sg.Get("time"), "4/4")
-	ms := map[int][]song.Measure{jf.leadOf: jf.lead}
+	// The lead's meter is the first grid's (its row's).
+	sec := max(0, tab.FirstGridSection(sg))
+	globalTime := orDefault(sg.Get("time"), "4/4")
+	ms := map[int][]song.Measure{sec: leadMs}
 	cells := make([]jzCell, k)
 	for i := range cells {
-		cells[i] = newCell(jf.leadOf, i)
+		cells[i] = newCell(sec, i)
 	}
 	lead := make([]jzCellView, k)
 	for i := range lead {
 		v := jzCellView{Lead: true, LeadTag: i == 0, HasPlayed: true, First: i, Played: strconv.Itoa(i), Left: "single"}
-		jzFillContent(&v, cells[i], ms, cells, i, i > 0, jf.lead[i], jf.sg, globalTime)
+		if len(sg.Sections) > 0 {
+			jzFillContent(&v, cells[i], ms, cells, i, i > 0, leadMs[i], sg, globalTime)
+		} else if isSilentBar(leadMs[i].Tokens) || leadMs[i].Tokens[0] == "R" {
+			v.Rest = true
+		}
 		lead[i] = v
 	}
 	if f < len(line.Cells) {
 		first := &line.Cells[f]
-		l := &lead[0]
-		l.Mark, l.MarkParts, l.Name, l.JumpTo = first.Mark, first.MarkParts, first.Name, 0
-		l.TSNum, l.TSDen = first.TSNum, first.TSDen
-		first.Mark, first.MarkParts, first.Name = "", nil, ""
+		lead[0].TSNum, lead[0].TSDen = first.TSNum, first.TSDen
 		first.TSNum, first.TSDen, first.TSMid = "", "", false
-		switch first.Left {
-		case "sec-start", "":
-			l.Left = orDefault(first.Left, "sec-start")
-			first.Left = "single"
-		default: // a repeat opens on bar 1: its sign is the section's start
-			l.Left = "single"
-		}
-	} else {
-		lead[0].Left = "sec-start"
 	}
 	line.Cells = append(append(append([]jzCellView(nil), line.Cells[:f]...), lead...), line.Cells[f:]...)
 	line.Lead = k
@@ -173,10 +170,6 @@ type jazzForm struct {
 	measures map[int][]song.Measure
 	res      jzFormResult
 	globalOf []int // the form's played bars -> the song's played bar numbers
-	// lead is the song's lead-in (its opening section, leadOf, opens with
-	// these "lead:" bars), left out of the form: jzInsertLead draws it.
-	lead   []song.Measure
-	leadOf int
 }
 
 func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
@@ -184,20 +177,9 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 	globalTime := orDefault(sg.Get("time"), "4/4")
 	globalBeats := timeSigBeats(globalTime)
 	measures := map[int][]song.Measure{}
-	// The song's lead-in isn't part of its form (a section playing the
-	// Intro's grid again doesn't play it): the grids are read without it,
-	// the played bars numbered after it, and jzInsertLead draws it.
-	opening := sg.OpeningSection()
-	var leadIn []song.Measure
 	for i, sec := range sg.Sections {
-		ms := sec.Measures
-		if i == opening {
-			if k := song.LeadBars(ms); k > 0 {
-				leadIn, ms = ms[:k], ms[k:]
-			}
-		}
-		if len(ms) > 0 {
-			measures[i] = ms
+		if len(sec.Measures) > 0 {
+			measures[i] = sec.Measures
 		}
 	}
 	keys := map[[2]int]string{}
@@ -236,28 +218,12 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 			continue
 		}
 		exp := jzExpand(measures[g])
-		// The grid's "lead:" bars (song.WithLeads) are played once, by the
-		// section that writes them: not again on each pass, nor by another
-		// section playing the same grid.
-		lead := song.LeadBars(measures[g])
-		var leadExp []int
-		if lead > 0 && len(exp) >= lead {
-			if g == vs.Index {
-				leadExp = exp[:lead]
-			}
-			exp = exp[lead:]
-		}
-		if len(exp) == 0 && len(leadExp) == 0 {
+		if len(exp) == 0 {
 			continue
 		}
-		count, start := vs.BarCount, vs.StartBar
-		if vs.Index == opening {
-			count -= len(leadIn)
-			start += len(leadIn)
-		}
-		reps := 1
-		if len(exp) > 0 {
-			reps = max(1, (count-len(leadExp))/len(exp))
+		reps := vs.BarCount / len(exp)
+		if reps < 1 {
+			reps = 1
 		}
 		norm := jzNormLabel(vs.Label)
 		// One printed section per grid, whatever the sections playing it
@@ -268,17 +234,12 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 			cl = len(classes)
 			classes[ck] = cl
 		}
-		occs = append(occs, jzOcc{sec: i, label: vs.Label, norm: norm, grid: canon[g], reps: reps, class: cl, bars: len(leadExp) + reps*len(exp)})
+		occs = append(occs, jzOcc{sec: i, label: vs.Label, norm: norm, grid: canon[g], reps: reps, class: cl, bars: reps * len(exp)})
 		k := 0
-		for _, b := range leadExp {
-			expected = append(expected, [2]int{g, b})
-			globalOf = append(globalOf, start+k)
-			k++
-		}
 		for r := 0; r < reps; r++ {
 			for _, b := range exp {
 				expected = append(expected, [2]int{g, b})
-				globalOf = append(globalOf, start+k)
+				globalOf = append(globalOf, vs.StartBar+k)
 				k++
 			}
 		}
@@ -287,7 +248,7 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 		return nil
 	}
 	res := buildJazzForm(measures, occs, expected, key)
-	return &jazzForm{sg: sg, measures: measures, res: res, globalOf: globalOf, lead: leadIn, leadOf: opening}
+	return &jazzForm{sg: sg, measures: measures, res: res, globalOf: globalOf}
 }
 
 // jzSameGrid: two grids with the same bars and the same repeat signs.
@@ -575,7 +536,7 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 			i := s.cell
 			c := cells[i]
 			m := measures[c.sec][c.bar]
-			v := jzCellView{Lead: m.Lead, LeadTag: m.Lead && (c.bar == 0 || !measures[c.sec][c.bar-1].Lead)}
+			v := jzCellView{}
 			if ps := played[i]; len(ps) > 0 {
 				strs := make([]string, len(ps))
 				for k, p := range ps {
@@ -727,9 +688,6 @@ func jzResolved(ms []song.Measure) []string {
 	return out
 }
 
-// jzSilent: a bar naming no chord ("?", ".", N.C.).
-func jzSilent(tokens []string) bool { return isSilentBar(tokens) }
-
 // jzFillContent places a bar's chords on its beat cells.
 func jzFillContent(v *jzCellView, c jzCell, measures map[int][]song.Measure, cells []jzCell, i int, prevOnLine bool, m song.Measure, sg *song.Song, globalTime string) {
 	tokens := m.Tokens
@@ -767,8 +725,8 @@ func jzFillContent(v *jzCellView, c jzCell, measures map[int][]song.Measure, cel
 			return
 		}
 	}
-	if m.Lead && jzSilent(tokens) {
-		// A chordless lead bar ("lead: 1"): a whole-bar rest.
+	if m.Lead && isSilentBar(tokens) {
+		// A chordless lead bar ("lead: | ? |"): a whole-bar rest.
 		v.Rest = true
 		return
 	}

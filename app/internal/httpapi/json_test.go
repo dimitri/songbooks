@@ -19,7 +19,7 @@ func TestJSONKeepsChordDiagrams(t *testing.T) {
 }
 
 func TestJSONKeepsLead(t *testing.T) {
-	for _, src := range []string{"[Intro]\nlead: 2\ngrid: | G |\n", "[Intro]\nlead: | D7 | G |\ngrid: | G |\n"} {
+	for _, src := range []string{"lead: 2\n\n[Intro]\ngrid: | G |\n", "lead: | D7 | G |\n\n[Intro]\ngrid: | G |\n"} {
 		sg := song.Parse(src)
 		back := fromJSON(toJSON(sg))
 		if song.Write(back) != song.Write(sg) {

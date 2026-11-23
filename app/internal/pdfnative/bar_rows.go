@@ -34,7 +34,7 @@ type barRowOpts struct {
 	PerRow int  `json:"perRow"`
 	Pickup bool `json:"pickup"`
 	// Leads is how many pickups the section opens with: the song's
-	// "lead:" bars (song.WithLeads), which "bars:" doesn't count — they
+	// "lead:" bars (song.LeadMeasures), which "bars:" doesn't count — they
 	// ride on the first row on top of it. Overrides Pickup when > 0.
 	Leads    int  `json:"leads,omitempty"`
 	Explicit bool `json:"explicit"`
@@ -195,7 +195,7 @@ func sectionBarRows(barsPerLine []int, n int, pickup bool) []barRow {
 
 // sectionBarRowsN is sectionBarRows for a section opening with the song's
 // pickup bar (pickup, one of its "bars:") or with its "lead:" bars (leads
-// of them, song.WithLeads), which "bars:" doesn't count: they ride on the
+// of them, song.LeadMeasures), which "bars:" doesn't count: they ride on the
 // first row on top of it.
 func sectionBarRowsN(barsPerLine []int, n int, pickup bool, leads int) []barRow {
 	o := barRowOpts{PerRow: phraseBars, Pickup: pickup || leads == 1}

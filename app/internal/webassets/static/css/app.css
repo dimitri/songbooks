@@ -9483,11 +9483,11 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .rec-public-toggle { flex: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; color: var(--fg-muted); }
 .rec-public { color: var(--accent-ink, var(--accent)); }
 
-/* A "lead:" bar (song.WithLeads): played before the section's first bar
-   and not counted. Lighter than the bars it leads into, a small "lead"
-   tag under it; on the song's opening section it is also a pickup
-   (.bar-pickup above), several of them sharing the first row's left
-   edge (--pickups). */
+/* A "lead:" bar (song.LeadMeasures): the song's bars before bar 1, in no
+   section, drawn on its first grid's first row. Lighter than the bars it
+   leads into, a small "lead" tag under it; a pickup too (.bar-pickup
+   above), several of them sharing the first row's left edge
+   (--pickups). */
 .bar.bar-lead > .bar-body { opacity: 0.55; }
 .bar.bar-lead { position: relative; }
 .bar.bar-lead .lead-tag {
@@ -9500,3 +9500,11 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 /* Set list click track: a song's "lead:" bars count in before its bar 1
    (0.1, 0.2, …), in the muted colour of a count-in. */
 .ct-counters.is-lead .ct-barbeat { color: var(--fg-muted); }
+
+/* The structure strip's lead segment: the song's "lead:" bars, before its
+   first section and in none — a short muted segment, not a button. */
+.structure-lead {
+  flex: var(--bars, 1) 1 1.6rem; min-width: 1.6rem; display: flex; flex-direction: column;
+  align-items: flex-start; position: relative; padding: 0 0.3rem 0 0; color: var(--fg-muted); opacity: 0.8;
+}
+.structure-lead .structure-seg-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; }

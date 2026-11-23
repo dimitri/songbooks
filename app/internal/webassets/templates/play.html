@@ -54,8 +54,8 @@
        .bar (already position:relative), not a preceding sibling, so it
        anchors to exactly the bar it annotates via plain CSS, no JS
        positioning needed, and adds no width/height to the row's flow. */}}
-  {{/* A "lead:" bar (song.WithLeads): played before the section's first
-       bar, not counted — tagged so it doesn't read as bar 1. */}}
+  {{/* A "lead:" bar (song.LeadMeasures): the song's bars before bar 1, in
+       no section — tagged so it doesn't read as the section's bar 1. */}}
   {{if .Lead}}<span class="lead-tag" title="{{t "lead-in: played before bar 1, not counted"}}">{{t "lead"}}</span>{{end}}
   {{if .MapAnnotate}}<span class="map-sec-badge">{{if .MapMark}}<span class="rehearsal-mark">{{.MapMark}}</span>{{end}}{{label .MapLabel}}</span>{{end}}
   {{if .Open}}<span class="repeat-dots" title="{{t "repeat starts"}}"></span>{{end}}
@@ -307,7 +307,7 @@
          bounded by real repeat barlines, already shows the "twice"; the
          chip's job is just the one number a musician actually asks for
          ("how many bars is this"). */}}
-    <span class="chip-bars">{{.CountedBars}}{{with .LeadIn}} <small title="{{t "lead-in: played before bar 1, not counted"}}">+{{.}}</small>{{end}}</span>
+    <span class="chip-bars">{{.BarCount}}</span>
     {{end}}
   </div>
   {{if .GPOnly}}
@@ -1608,13 +1608,17 @@
       <div class="structure-line"></div>
       <div class="structure-fill" id="structure-fill"></div>
       <div class="structure-row">
+        {{/* The song's "lead:" bars, before its first section and in
+             none: a small segment of their own (not a section button —
+             nothing to cycle). */}}
+        {{with .LeadIn}}<span class="structure-lead" style="--bars: {{.}}" title="{{tn . "%d lead bar, before bar 1" "%d lead bars, before bar 1"}}"><span class="structure-seg-tick"></span><span class="structure-seg-label">{{t "lead"}}</span></span>{{end}}
         {{range .Sections}}
         <button class="structure-seg{{if or .Repeat .IsReference}} is-reference{{end}}" type="button"
           data-section-index="{{.Index}}" style="--bars: {{if .BarCount}}{{.BarCount}}{{else}}1{{end}}"
-          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{tn .CountedBars "%d bar" "%d bars"}}{{with .LeadIn}} ({{tn . "+ %d lead bar" "+ %d lead bars"}}){{end}}{{end}}">
+          title="{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}} — {{tn .BarCount "%d bar" "%d bars"}}{{end}}">
           {{if .ChordSummary}}<span class="structure-seg-chords" title="{{.ChordSummary}}">{{.ChordSummary}}</span>{{end}}
           <span class="structure-seg-tick"></span>
-          <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.CountedBars}}</span>{{end}}</span>
+          <span class="structure-seg-label">{{label .Label}}{{if .LabelNumber}} {{.LabelNumber}}{{end}}{{if .BarCount}}<span class="structure-seg-bars">{{.BarCount}}</span>{{end}}</span>
         </button>
         {{end}}
       </div>
