@@ -2795,6 +2795,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	// A lesson opened from anywhere is opened in its course (lessonview.go).
+	r = s.withCourseContext(r, variantID)
 	sg, _, err := s.store.LoadVariant(variantID)
 	if err != nil {
 		http.NotFound(w, r)
@@ -3080,7 +3082,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			// In a course, back is to the song's lesson.
-			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() {
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() && s.mayOpenSongbook(r, sb.ID) {
 				if l, err := s.store.LessonOfSong(r.Context(), songbookID, variantID); err == nil && l != nil {
 					// Back is to the lesson's own page (?view=lesson: it
 					// would bring the song back), and the lesson comes
@@ -3191,13 +3193,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	// A lesson, or a song all in its Guitar Pro file: the lesson view
 	// (lessonview.go), its video first.
-	var course *songLesson
-	if data["GPFileName"] != nil {
-		if l, err := s.store.CourseLessonOfSong(r.Context(), variantID); err == nil && l != nil {
-			course = &songLesson{Title: l.Title, VideoID: s.lessonVideo(*l)}
-		}
-	}
-	lessonViewData(data, sg, course)
+	lessonViewData(data, sg, s.songLessonFor(r, variantID, data))
 	// The key's chip in the dock names the key: "Ton −1 · C#m".
 	data["SongKeyName"] = songKeyName(sg)
 	// "Je joue": the reader's parts here, a level each (player_parts.go).

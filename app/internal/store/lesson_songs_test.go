@@ -8,7 +8,7 @@ import (
 // A song is a course's lesson when it's placed in one of a course's
 // lessons; not in a plain songbook, not left out of every lesson, not
 // once the songbook is a songbook again.
-func TestCourseLessonOfSong(t *testing.T) {
+func TestCourseLessonsOfSong(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	me, err := st.CreatePerson(ctx, "teacher", "Teacher", "teacher@example.com")
@@ -31,11 +31,11 @@ func TestCourseLessonOfSong(t *testing.T) {
 	}
 	lessonSong, loose := song("Le bend d'un ton"), song("Pas dans un cours")
 	is := func(v int64) bool {
-		l, err := st.CourseLessonOfSong(ctx, v)
+		refs, err := st.CourseLessonsOfSong(ctx, v)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return l != nil
+		return len(refs) > 0
 	}
 	if is(lessonSong) {
 		t.Fatalf("a plain songbook's song is a lesson")
@@ -51,7 +51,7 @@ func TestCourseLessonOfSong(t *testing.T) {
 	if err := st.SetSongLesson(ctx, sb, lessonSong, &l); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := st.CourseLessonOfSong(ctx, lessonSong); err != nil || got == nil || got.ID != l || got.Title != "Le bend d'un ton" {
+	if got, err := st.CourseLessonsOfSong(ctx, lessonSong); err != nil || len(got) != 1 || got[0] != (CourseLessonRef{SongbookID: sb, LessonID: l}) {
 		t.Errorf("a course's lesson's song: %+v, %v", got, err)
 	}
 	if is(loose) {
