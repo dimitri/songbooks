@@ -674,6 +674,8 @@
         {{if .CanNewVersion}}<button type="button" role="menuitem" id="new-version-open" data-new-version-open aria-haspopup="dialog" title="{{t "another arrangement of this song, beside it"}}">{{template "icon-duplicate"}} {{t "New arrangement from this…"}}</button>{{end}}
         {{if .CanPublish}}<button type="button" role="menuitem" id="song-publish-toggle" data-song-publish="{{.SongPublic}}" title="{{if .SongPublic}}{{t "only its owner’s members see it then"}}{{else}}{{t "everyone signed in sees it then, and can link it or make their own arrangement"}}{{end}}">{{if .SongPublic}}{{template "icon-lock"}}{{else}}{{template "icon-community"}}{{end}} {{if .SongPublic}}{{t "Make private"}}{{else}}{{t "Make public"}}{{end}}</button>{{end}}
         {{if .CanDelete}}<button type="button" role="menuitem" data-song-delete title="{{t "says first who links it: they keep a frozen copy"}}">{{template "icon-trash"}} {{t "Delete this song…"}}</button>{{end}}
+        {{/* A student's song, proposed to their coach (propose-song.js, coach_proposals.go). */}}
+        {{range .ProposeTo}}{{if not .InBook}}<button type="button" role="menuitem" data-propose-community="{{.CommunityID}}" data-coach="{{.CoachFirst}}" data-variant="{{$.VariantID}}" data-title="{{$.Title}}" data-key="{{$.Key}}"{{if .Waiting}} data-waiting="1"{{end}} aria-haspopup="dialog" title="{{if .Waiting}}{{t "proposed to %s: waiting for an answer" .CoachName}}{{else}}{{t "ask %s to work on it with you" .CoachName}}{{end}}">{{template "icon-plus"}} {{t "Propose to %s…" .CoachFirst}}</button>{{end}}{{end}}
         {{if .CanReport}}<button type="button" role="menuitem" data-catalogue-report aria-haspopup="dialog" title="{{t "tell The Big Songbook’s reviewers what’s wrong with it"}}">{{template "icon-flag"}} {{t "Report…"}}</button>{{end}}
       </div>
     </div>
@@ -1591,6 +1593,7 @@
     {{if .CanNewVersion}}<button type="button" class="stack-sheet-row" data-new-version-open aria-haspopup="dialog">{{template "icon-duplicate"}} {{t "New arrangement from this…"}}</button>{{end}}
     {{if .CanPublish}}<button type="button" class="stack-sheet-row" data-song-publish="{{.SongPublic}}">{{if .SongPublic}}{{template "icon-lock"}} {{t "Make private"}}{{else}}{{template "icon-community"}} {{t "Make public"}}{{end}}</button>{{end}}
     {{if .CanDelete}}<button type="button" class="stack-sheet-row" data-song-delete>{{template "icon-trash"}} {{t "Delete this song…"}}</button>{{end}}
+    {{range .ProposeTo}}{{if not .InBook}}<button type="button" class="stack-sheet-row" data-propose-community="{{.CommunityID}}" data-coach="{{.CoachFirst}}" data-variant="{{$.VariantID}}" data-title="{{$.Title}}" data-key="{{$.Key}}"{{if .Waiting}} data-waiting="1"{{end}} aria-haspopup="dialog">{{template "icon-plus"}} {{t "Propose to %s…" .CoachFirst}}</button>{{end}}{{end}}
     {{if .CanReport}}<button type="button" class="stack-sheet-row" data-catalogue-report aria-haspopup="dialog">{{template "icon-flag"}} {{t "Report…"}}</button>{{end}}
   </div>
 
@@ -2604,6 +2607,7 @@
 <script src="/static/js/pitch-check.js?v={{staticVersion}}"></script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{if .SingPanel}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
+{{if .ProposeTo}}{{if not .SingPanel}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}<script src="/static/js/propose-song.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/tuner.js?v={{staticVersion}}"></script>
 <script src="/static/js/keep-awake.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-controls.js?v={{staticVersion}}"></script>

@@ -8,6 +8,7 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -94,6 +95,115 @@ type melodyLine struct {
 	Shift   int     `json:"shift"`
 	// Bar: the score's bar its first note is in (-1: not placed).
 	Bar int `json:"bar"`
+	// ChartBar: the bar its first chord is played in, by the chart (-1:
+	// no chord placed); AnchorBar: the bar of the note that chord's
+	// syllable is on; Anchored: placed by its chords (else between its
+	// neighbours).
+	ChartBar  int  `json:"chartBar"`
+	AnchorBar int  `json:"anchorBar"`
+	Anchored  bool `json:"anchored"`
+}
+
+// melodyLines is the song's lyric lines, each with its chord markers
+// placed on its section's played bars (in the recording's time, through
+// g) and its expected start; lines without a chord placed get theirs
+// between their section's anchored lines (by syllables), the section's
+// start and end bounding them.
+func melodyLines(body string, sg *song.Song, secs []viewerSection, g melody.Grid, notes []melody.Span, opt melody.PlaceOptions) ([]melody.Line, []melodyLine, melody.Lang) {
+	// The notes sung between two places of the recording (an eighth's
+	// half early: a pushed syllable goes with its beat).
+	onsets := func(ta, tb float64) int {
+		ta -= opt.Eighth(ta) / 2
+		tb -= opt.Eighth(tb) / 2
+		i := sort.Search(len(notes), func(k int) bool { return notes[k].Start >= ta })
+		j := sort.Search(len(notes), func(k int) bool { return notes[k].Start >= tb })
+		return max(0, j-i)
+	}
+	labels := sectionLabels(secs)
+	text := ""
+	for _, sec := range secs {
+		for _, l := range sec.Lyrics {
+			for _, seg := range l.Segments {
+				text += seg.Text
+			}
+			text += "\n"
+		}
+	}
+	lang := melody.GuessLang(text)
+	_, csecs := songimport.ChartSections(body, SyncSections(sg))
+	barsOf := map[int][][]string{}
+	for _, cs := range csecs {
+		bars := make([][]string, len(cs.Bars))
+		for k, b := range cs.Bars {
+			bars[k] = b.Beats
+		}
+		barsOf[cs.Index] = bars
+	}
+	var lines []melody.Line
+	var shown []melodyLine
+	for _, sec := range secs {
+		var secLines []melody.Line
+		var marks [][]melody.ChordMark
+		var syls []int
+		for li, l := range sec.Lyrics {
+			segs := make([]melody.Segment, len(l.Segments))
+			for k, seg := range l.Segments {
+				segs[k] = melody.Segment{Text: seg.Text}
+				if seg.HasChord {
+					segs[k].Chord = seg.Chord
+				}
+			}
+			ms, t := melody.MarksOf(segs, lang)
+			if t == "" {
+				continue
+			}
+			key := fmt.Sprintf("%d:%d", sec.Index, li)
+			sy := melody.SplitLine(t, lang)
+			secLines = append(secLines, melody.Line{Key: key, Section: sec.Index, Text: t, Syls: sy, Start: math.NaN()})
+			marks = append(marks, ms)
+			syls = append(syls, len(sy))
+			shown = append(shown, melodyLine{Key: key, Section: sec.Index, Line: li, Label: labels[sec.Index], Text: t, Bar: -1, ChartBar: -1, AnchorBar: -1})
+		}
+		if len(secLines) == 0 {
+			continue
+		}
+		first := len(shown) - len(secLines)
+		starts := make([]float64, len(secLines))
+		if bars := barsOf[sec.Index]; len(bars) > 0 && sec.BarCount > 0 {
+			sung := func(a, b float64) int {
+				return onsets(g.TimeAt(float64(sec.StartBar)+a), g.TimeAt(float64(sec.StartBar)+b))
+			}
+			for i, as := range melody.AnchorLines(bars, marks, syls, sung) {
+				for _, a := range as {
+					secLines[i].Anchors = append(secLines[i].Anchors, melody.Anchor{Syl: a.Syl, Time: g.TimeAt(float64(sec.StartBar) + a.Bar)})
+				}
+				starts[i] = math.NaN()
+				if len(as) > 0 {
+					shown[first+i].ChartBar = sec.StartBar + int(math.Floor(as[0].Bar))
+					// Its start: the first chord's beat, less a beat for each
+					// syllable sung before it (a pickup's eighths, roughly).
+					a := secLines[i].Anchors[0]
+					starts[i] = a.Time - float64(a.Syl)*(g.TimeAt(float64(sec.StartBar)+as[0].Bar+0.125)-a.Time)
+				}
+			}
+		} else {
+			for i := range starts {
+				starts[i] = math.NaN()
+			}
+		}
+		from, to := math.NaN(), math.NaN()
+		if sec.BarCount > 0 {
+			from, to = g.TimeAt(float64(sec.StartBar)), g.TimeAt(float64(sec.StartBar+sec.BarCount))
+		}
+		if !math.IsNaN(from) {
+			starts = melody.Interpolate(starts, syls, from, to)
+		}
+		for i := range secLines {
+			secLines[i].Start = starts[i]
+		}
+		lines = append(lines, secLines...)
+	}
+	return lines, shown, lang
 }
 
 type melodyResponse struct {
@@ -178,46 +288,29 @@ func (s *Server) melodyScore(ctx context.Context, variantID int64, transpose int
 	}
 	sheet := melody.Quantize(m.Notes, g, meterOf, melody.Options{FirstBar: 0, LastBar: max(0, min(last, g.Bars())-1)})
 
-	// The lyrics, line by line, each with its section's span.
-	text := ""
+	// The lyrics, line by line, each held to the bars the chart gives it:
+	// its chord markers on its section's played bars (melody/anchors.go).
 	labels := sectionLabels(secs)
-	var lines []melody.Line
-	var shown []melodyLine
-	for _, sec := range secs {
-		for li, l := range sec.Lyrics {
-			var b strings.Builder
-			for _, seg := range l.Segments {
-				b.WriteString(seg.Text)
-			}
-			t := strings.Join(strings.Fields(b.String()), " ")
-			if t == "" {
-				continue
-			}
-			text += t + "\n"
-			from, to := math.NaN(), math.NaN()
-			if sec.BarCount > 0 {
-				from, to = g.TimeAt(float64(max(0, sec.StartBar-1))), g.TimeAt(float64(sec.StartBar+sec.BarCount+1))
-			}
-			key := fmt.Sprintf("%d:%d", sec.Index, li)
-			lines = append(lines, melody.Line{Key: key, Section: sec.Index, Text: t, From: from, To: to})
-			shown = append(shown, melodyLine{Key: key, Section: sec.Index, Line: li, Label: labels[sec.Index], Text: t, Bar: -1})
-		}
-	}
-	lang := melody.GuessLang(text)
-	resp.Lang = string(lang)
-	for i := range lines {
-		lines[i].Syls = melody.SplitLine(lines[i].Text, lang)
-	}
 	spans := make([]melody.Span, len(sheet.Notes))
 	for i, p := range sheet.Notes {
 		spans[i] = melody.Span{Start: m.Notes[p.Src].Start, End: m.Notes[p.Src].End}
 	}
-	var phrases []melody.Phrase
-	if an.Analysis != nil && len(an.Analysis.VoicePhrases) > 0 {
-		phrases = melody.PhrasesFromSpans(spans, an.Analysis.VoicePhrases)
-	} else {
-		phrases = melody.PhrasesFromNotes(spans, 0.35)
+	barAt := func(t float64) (float64, melody.Meter) {
+		b := g.BarAt(t)
+		k := max(0, min(g.Bars()-1, int(math.Floor(b))))
+		return g[k+1] - g[k], meterOf(k)
 	}
+	opt := melody.PlaceOptions{
+		Bar: func(t float64) float64 { d, _ := barAt(t); return d },
+		Eighth: func(t float64) float64 {
+			d, m := barAt(t)
+			return d / math.Max(1, float64(m.Ticks())/2)
+		},
+		// A sync nobody saved: the chart's places, held to more tightly.
+		Strict: estimated,
+	}
+	lines, shown, lang := melodyLines(body, sg, secs, g, spans, opt)
+	resp.Lang = string(lang)
 	shifts := map[string]int{}
 	if list, err := s.store.ListMelodyLyricShifts(ctx, variantID); err == nil {
 		byKey := map[string]string{}
@@ -234,13 +327,16 @@ func (s *Server) melodyScore(ctx context.Context, variantID int64, transpose int
 	var lyr []melody.NoteLyric
 	low := map[int]bool{}
 	if len(lines) > 0 {
-		var fits []melody.LineFit
-		fits, lyr = melody.AlignLines(lines, phrases, spans, shifts)
+		fits, l := melody.PlaceLines(lines, spans, opt, shifts)
+		lyr = l
 		var sum float64
 		for i, f := range fits {
-			shown[i].Matched, shown[i].Conf, shown[i].Shift = f.Matched, math.Round(f.Conf*100)/100, f.Shift
+			shown[i].Matched, shown[i].Conf, shown[i].Shift, shown[i].Anchored = f.Matched, f.Conf, f.Shift, f.Anchored
 			if f.Matched {
 				shown[i].Bar = sheet.Notes[f.First].Bar
+			}
+			if f.AnchorNote >= 0 {
+				shown[i].AnchorBar = sheet.Notes[f.AnchorNote].Bar
 			}
 			if !f.Matched || f.Conf < melody.LowLineConf {
 				low[i] = true

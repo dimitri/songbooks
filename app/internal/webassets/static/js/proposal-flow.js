@@ -34,7 +34,7 @@
   // A labelled field: {wrap, input}.
   function field(label, input, opts = {}) {
     const wrap = el('div', 'field' + (opts.cls ? ' ' + opts.cls : ''));
-    input.id = input.id || `propose-f${++uid}`;
+    input.id = input.id || `bandprop-f${++uid}`;
     const lab = el('label', '', label);
     lab.htmlFor = input.id;
     if (opts.optional) lab.append(' ', el('span', 'field-optional', t('(optional)')));
@@ -72,23 +72,23 @@
   let dlg, body, stepsEl, st = {};
 
   function build() {
-    dlg = el('dialog', 'addsong-dialog propose-dialog');
-    dlg.setAttribute('aria-labelledby', 'propose-title');
+    dlg = el('dialog', 'addsong-dialog bandprop-dialog');
+    dlg.setAttribute('aria-labelledby', 'bandprop-title');
     const head = el('div', 'addsong-head');
     const h = el('h2', '', t('Propose a song'));
-    h.id = 'propose-title';
+    h.id = 'bandprop-title';
     const close = el('button', 'icon-btn addsong-close', '×');
     close.type = 'button';
     close.setAttribute('aria-label', t('Close'));
     close.addEventListener('click', () => leave());
     head.append(h, close);
-    stepsEl = el('ol', 'propose-steps');
+    stepsEl = el('ol', 'bandprop-steps');
     [t('Find'), t('Check'), t('Send')].forEach((label, i) => {
       const li = el('li');
-      li.append(el('span', 'propose-step-num', String(i + 1)), el('span', 'propose-step-label', label));
+      li.append(el('span', 'bandprop-step-num', String(i + 1)), el('span', 'bandprop-step-label', label));
       stepsEl.append(li);
     });
-    body = el('div', 'propose-body');
+    body = el('div', 'bandprop-body');
     dlg.append(head, stepsEl, body);
     dlg.addEventListener('cancel', (e) => { e.preventDefault(); leave(); });
     document.body.append(dlg);
@@ -123,7 +123,7 @@
   // ---- 1. Find ---------------------------------------------------------
   function findStep(q) {
     step(1);
-    const form = el('form', 'form-stack propose-find');
+    const form = el('form', 'form-stack bandprop-find');
     form.noValidate = true;
     const qi = input('search', q || '', { autocomplete: 'off', enterkeyhint: 'search', spellcheck: 'false', required: '' });
     const f = field(t('YouTube link, or title — artist'), qi, {
@@ -133,7 +133,7 @@
     const go = el('button', 'primary', t('Look it up'));
     go.type = 'submit';
     actions.append(go);
-    const result = el('div', 'propose-result');
+    const result = el('div', 'bandprop-result');
     result.setAttribute('aria-live', 'polite');
     form.append(f.wrap, actions, result);
     body.append(form);
@@ -173,7 +173,7 @@
 
   function videoRow(videoId, title) {
     if (!videoId) return null;
-    const a = el('a', 'propose-video');
+    const a = el('a', 'bandprop-video');
     a.href = `https://www.youtube.com/watch?v=${videoId}`;
     a.target = '_blank';
     a.rel = 'noopener';
@@ -188,7 +188,7 @@
 
   // What the lookup found, and the one thing to do with it.
   function found(d) {
-    const card = el('div', 'addsong-quick-card propose-card');
+    const card = el('div', 'addsong-quick-card bandprop-card');
     const actions = el('div', 'form-actions addsong-quick-actions');
     const status = el('p', 'form-status');
     status.setAttribute('role', 'status');
@@ -238,7 +238,7 @@
     const ar = field(t('Artist'), input('text', d.artist || '', { autocomplete: 'off' }), { optional: true });
     row.append(ti.wrap, ar.wrap);
     card.append(row);
-    const vbox = el('div', 'propose-video-box');
+    const vbox = el('div', 'bandprop-video-box');
     const say = (text) => { vbox.replaceChildren(); const v = videoRow(d.videoId, text); if (v) vbox.append(v); else vbox.append(el('p', 'hint', text)); };
     if (d.reference) say('');
     else {
@@ -275,7 +275,7 @@
   // ---- 2. Check --------------------------------------------------------
   function checkStep() {
     step(2);
-    const form = el('form', 'form-stack propose-check');
+    const form = el('form', 'form-stack bandprop-check');
     form.noValidate = true;
     const status = el('p', 'form-status');
     status.setAttribute('role', 'status');
@@ -285,7 +285,7 @@
       form.append(draftForm.el);
     } else {
       const card = el('div', 'addsong-quick-card');
-      card.append(el('p', 'propose-kind', st.kind === 'new_reference' ? t('Another recording of') : t('A song for the songbook')),
+      card.append(el('p', 'bandprop-kind', st.kind === 'new_reference' ? t('Another recording of') : t('A song for the songbook')),
         songLine(st.title, st.artist));
       const v = videoRow(st.videoId);
       if (v) card.append(v);
@@ -298,7 +298,7 @@
       form.append(card);
     }
 
-    const fs = el('fieldset', 'field-group propose-what');
+    const fs = el('fieldset', 'field-group bandprop-what');
     fs.append(el('legend', '', t('Your proposal')));
     const note = input('textarea', '', { rows: '2', maxlength: '500', class: 'prose' });
     const nf = field(t('Why this song?'), note, { optional: true, hint: t('A word for the band: what you like in it, where it would fit.') });
@@ -306,10 +306,10 @@
     fs.append(nf.wrap);
     let targetSel = null;
     if (st.kind === 'new_song' && setlists.length) {
-      const where = el('div', 'field-group propose-where');
+      const where = el('div', 'field-group bandprop-where');
       where.setAttribute('role', 'radiogroup');
-      const lab = el('p', 'propose-where-label', t('Where should it go?'));
-      lab.id = 'propose-where-label';
+      const lab = el('p', 'bandprop-where-label', t('Where should it go?'));
+      lab.id = 'bandprop-where-label';
       where.setAttribute('aria-labelledby', lab.id);
       const r1 = input('radio', 'repertoire', { name: 'propose-target', checked: '' });
       const r2 = input('radio', 'setlist', { name: 'propose-target' });
@@ -363,19 +363,19 @@
 
   // The new song's header and sections, to fix in place.
   function draftFields(d) {
-    const box = el('div', 'propose-draft');
+    const box = el('div', 'bandprop-draft');
     const src = d.source || {};
-    const facts = el('div', 'propose-source');
+    const facts = el('div', 'bandprop-source');
     const lyr = el('p', '', src.lyrics ? t('Lyrics found: %s.', 'Ultimate Guitar') : t('No lyrics found: add them later from the song’s editor (Import).'));
-    lyr.prepend(el('span', 'propose-source-dot ' + (src.lyrics ? 'is-ok' : 'is-warn'), src.lyrics ? '✓' : '!'), ' ');
+    lyr.prepend(el('span', 'bandprop-source-dot ' + (src.lyrics ? 'is-ok' : 'is-warn'), src.lyrics ? '✓' : '!'), ' ');
     const grids = d.sections.length
       ? t('Chord grids in %d of %d sections: %s.', src.grids || 0, d.sections.length, src.ireal ? t('iReal Pro where its chart matches, Ultimate Guitar elsewhere') : 'Ultimate Guitar')
       : t('No sections found.');
     const gp = el('p', '', grids);
-    gp.prepend(el('span', 'propose-source-dot ' + (src.grids ? 'is-ok' : 'is-warn'), src.grids ? '✓' : '!'), ' ');
+    gp.prepend(el('span', 'bandprop-source-dot ' + (src.grids ? 'is-ok' : 'is-warn'), src.grids ? '✓' : '!'), ' ');
     facts.append(lyr, gp);
     if (src.notes && src.notes.length) {
-      const det = el('details', 'propose-notes');
+      const det = el('details', 'bandprop-notes');
       det.append(el('summary', '', t('What the import says')));
       const ul = el('ul');
       src.notes.forEach((n) => ul.append(el('li', '', n)));
@@ -383,14 +383,14 @@
       facts.append(det);
     }
     const v = videoRow(d.videoId);
-    const top = el('div', 'propose-draft-top');
+    const top = el('div', 'bandprop-draft-top');
     if (v) top.append(v);
     top.append(facts);
     box.append(top);
 
-    const song = el('fieldset', 'field-group propose-song');
+    const song = el('fieldset', 'field-group bandprop-song');
     song.append(el('legend', '', t('The song')));
-    const grid2 = el('div', 'propose-song-fields');
+    const grid2 = el('div', 'bandprop-song-fields');
     const ti = field(t('Title'), input('text', d.title, { autocomplete: 'off', required: '', maxlength: '200' }));
     const ar = field(t('Artist'), input('text', d.artist, { autocomplete: 'off', maxlength: '200' }), { optional: true });
     const vn = field(t('Label'), input('text', d.versionName || '', { autocomplete: 'off', maxlength: '80' }), { optional: true, hint: t('Tells this recording from others: Live, Acoustic, 2011…') });
@@ -402,21 +402,21 @@
     song.append(grid2);
     box.append(song);
 
-    const secs = el('fieldset', 'field-group propose-sections-box');
+    const secs = el('fieldset', 'field-group bandprop-sections-box');
     secs.append(el('legend', '', t('Sections and chord grids')));
     const hint = el('p', 'field-hint', t('Fix what the import got wrong: a section’s name, its bars (| Am | F | C | G |), their order. The lyrics stay with their section.'));
-    hint.id = 'propose-sections-hint';
-    const list = el('ol', 'propose-sections');
+    hint.id = 'bandprop-sections-hint';
+    const list = el('ol', 'bandprop-sections');
     list.setAttribute('aria-describedby', hint.id);
     const rows = d.sections.map((s, i) => ({ from: i, label: s.label, grid: s.grid, lines: s.lines, repeat: s.repeat }));
-    const add = el('button', 'link-button propose-add-section', '+ ' + t('Add a section'));
+    const add = el('button', 'link-button bandprop-add-section', '+ ' + t('Add a section'));
     add.type = 'button';
     add.addEventListener('click', () => { rows.push({ from: -1, label: '', grid: '', lines: 0 }); draw(rows.length - 1, 'label'); });
     secs.append(hint, list, add);
     box.append(secs);
 
     function iconBtn(label, text, fn, disabled) {
-      const b = el('button', 'icon-btn propose-sec-btn', text);
+      const b = el('button', 'icon-btn bandprop-sec-btn', text);
       b.type = 'button';
       b.setAttribute('aria-label', label);
       b.title = label;
@@ -427,20 +427,20 @@
     function draw(focusIndex, focusWhat) {
       list.replaceChildren();
       rows.forEach((r, i) => {
-        const li = el('li', 'propose-section');
-        const n = el('span', 'propose-sec-num', String(i + 1));
+        const li = el('li', 'bandprop-section');
+        const n = el('span', 'bandprop-sec-num', String(i + 1));
         const label = input('text', r.label, { autocomplete: 'off', maxlength: '60', 'aria-label': t('Section %d: name', i + 1) });
-        label.className = 'propose-sec-label';
+        label.className = 'bandprop-sec-label';
         label.placeholder = t('Verse');
         label.dataset.index = i;
         label.addEventListener('input', () => { r.label = label.value; Forms.fieldError(label, ''); });
         const g = input('text', r.grid, { autocomplete: 'off', spellcheck: 'false', autocapitalize: 'none', 'aria-label': t('Section %d: chord grid', i + 1) });
-        g.className = 'propose-sec-grid';
+        g.className = 'bandprop-sec-grid';
         g.placeholder = r.repeat ? t('(as before)') : '| Am | F | C | G |';
         g.dataset.index = i;
         g.addEventListener('input', () => { r.grid = g.value; Forms.fieldError(g, ''); });
-        const meta = el('span', 'propose-sec-meta', r.lines ? tn(r.lines, '%d line of lyrics', '%d lines of lyrics') : r.from < 0 ? t('new') : t('no lyrics'));
-        const tools = el('span', 'propose-sec-tools');
+        const meta = el('span', 'bandprop-sec-meta', r.lines ? tn(r.lines, '%d line of lyrics', '%d lines of lyrics') : r.from < 0 ? t('new') : t('no lyrics'));
+        const tools = el('span', 'bandprop-sec-tools');
         tools.append(
           iconBtn(t('Move section %d up', i + 1), '↑', () => { [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; draw(i - 1, 'up'); }, i === 0),
           iconBtn(t('Move section %d down', i + 1), '↓', () => { [rows[i + 1], rows[i]] = [rows[i], rows[i + 1]]; draw(i + 1, 'down'); }, i === rows.length - 1),
@@ -461,7 +461,7 @@
       if (!ti.input.value.trim()) { Forms.fieldError(ti.input, t('Give the song its title.')); ti.input.focus(); return null; }
       if (!tempo.input.checkValidity()) { Forms.fieldError(tempo.input, t('A tempo is a number of beats per minute, 20 to 400.')); tempo.input.focus(); return null; }
       for (const [i, r] of rows.entries()) {
-        if (!r.label.trim()) { const lab = list.querySelector(`.propose-sec-label[data-index="${i}"]`); Forms.fieldError(lab, t('Name the section (Verse, Chorus…).')); lab.focus(); return null; }
+        if (!r.label.trim()) { const lab = list.querySelector(`.bandprop-sec-label[data-index="${i}"]`); Forms.fieldError(lab, t('Name the section (Verse, Chorus…).')); lab.focus(); return null; }
       }
       const { res, data } = await send('PUT', `/api/bands/${bandId}/proposal-drafts/${d.songId}`, {
         version: d.version, title: ti.input.value.trim(), artist: ar.input.value.trim(), versionName: vn.input.value.trim(),
@@ -477,7 +477,7 @@
       const byField = { title: ti.input, artist: ar.input, versionName: vn.input, tempo: tempo.input };
       let target = byField[data.field];
       if (!target && (data.field === 'label' || data.field === 'grid')) {
-        target = list.querySelector(`.propose-sec-${data.field}[data-index="${data.index}"]`);
+        target = list.querySelector(`.bandprop-sec-${data.field}[data-index="${data.index}"]`);
       }
       if (target) { Forms.fieldError(target, msg); target.focus(); return null; }
       throw new Error(msg);
@@ -489,8 +489,8 @@
   function sentStep() {
     step(3);
     [...stepsEl.children].forEach((li) => li.classList.add('is-done'));
-    const done = el('div', 'propose-sent');
-    done.append(el('p', 'propose-sent-mark', '✓'));
+    const done = el('div', 'bandprop-sent');
+    done.append(el('p', 'bandprop-sent-mark', '✓'));
     const h = el('h3', '', t('“%s” is up for a vote', st.title));
     h.tabIndex = -1;
     done.append(h, el('p', 'hint', (cfg.canVote ? t('Every core member rates it 1 to 4 stars, or says no thanks. You can rate it too.') : t('Every core member rates it 1 to 4 stars, or says no thanks.'))));

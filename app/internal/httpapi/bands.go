@@ -965,6 +965,16 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 			rows[i].Tempo = sg.Get("tempo")
 		}
 	}
+	// The melody's range on each row (row_voice.go).
+	rowIDs := make([]int64, len(rows))
+	for i := range rows {
+		rowIDs[i] = rows[i].VariantID
+	}
+	ranges := s.melodyRanges(r.Context(), rowIDs)
+	for i := range rows {
+		m, ok := ranges[rows[i].VariantID]
+		rows[i].Voice = rowVoiceOf(s.langOfRequest(r), m, ok, 0, nil)
+	}
 
 	// An "original" act's repertoire reads naturally grouped by the
 	// record a song is from; a covers band (or a band that hasn't said
@@ -1016,6 +1026,8 @@ func bandCatalogExport(ctx context.Context, s *Server, bandID int64) spaceExport
 type bandCatalogRow struct {
 	store.BandCatalogEntry
 	Key, Tempo string
+	// Voice: the song's melody range (row_voice.go).
+	Voice rowVoice
 }
 
 // albumGroup is one album's songs on a band's Repertoire tab (or the

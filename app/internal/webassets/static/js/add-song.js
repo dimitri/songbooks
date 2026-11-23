@@ -328,6 +328,9 @@
     if (data.created && !data.lyrics && state.quickLyrics) Forms.status(status, t('No lyrics found: add them from the editor’s Import.'));
     else Forms.status(status, '');
     if (state.assign) { quickAssign(card, data.variantId, title); return; }
+    // Found or made for a caller who carries on with it (a proposal to
+    // the coach, propose-song.js): theirs to say what's next.
+    if (state.onQuick) { state.onQuick(data.variantId, title, !!data.created); return; }
     if (data.created) location.href = `/song/${data.variantId}?songbook=${state.songbookId}`;
   }
 
@@ -484,6 +487,7 @@
     state = Object.assign(state, {
       songbookId: opts.songbookId || 0, onAdded: opts.onAdded, addInSongbook: !!opts.addInSongbook, onCreated: opts.onCreated, addLabel: opts.addLabel,
       reload: opts.reload, scope: '', added: false, targets: [], assign: opts.assign || null,
+      onQuick: opts.onQuick || null,
     });
     state.quick.hidden = true;
     state.quick.replaceChildren();

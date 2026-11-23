@@ -1,0 +1,21 @@
+{
+  "Song": "Morceau",
+  "Find or create another song…": "Trouver ou créer un autre morceau…",
+  "A note (optional)": "Un mot (facultatif)",
+  "Why this song, what you’d like to work on in it…": "Pourquoi ce morceau, ce que vous aimeriez y travailler…",
+  "I’d like it in a key of mine": "Je le voudrais dans une autre tonalité",
+  "Proposed already: sending it again updates your note and key.": "Déjà proposé : l’envoyer de nouveau met à jour votre mot et la tonalité.",
+  "Couldn’t load your songs.": "Impossible de charger vos morceaux.",
+  "Pick a song of your songbook": "Choisissez un morceau de votre songbook",
+  "Your songbook has no songs yet": "Votre songbook n’a pas encore de morceau",
+  "in your songbook with %s": "dans votre songbook avec %s",
+  "can’t be proposed": "ne peut pas être proposé",
+  "Add to my songbook": "Ajouter à mon songbook",
+  "Pick a song.": "Choisissez un morceau.",
+  "Couldn’t send it. Try again.": "Impossible de l’envoyer. Réessayez.",
+  "Sent. %s answers here and in your notifications.": "Envoyé. %s répond ici et dans vos notifications.",
+  "Sent": "Envoyé",
+  "Propose a song to %s": "Proposer un morceau à %s",
+  "%s listens to it, then adds it to your songbook with them, in a key, or tells you why not. It stays in your own songbook either way.": "%s l’écoute, puis l’ajoute à votre songbook commun, dans une tonalité, ou vous dit pourquoi pas. Il reste dans votre propre songbook dans tous les cas.",
+  "Send to %s": "Envoyer à %s"
+}

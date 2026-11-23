@@ -246,6 +246,90 @@ coaching_songbooks.go) shows them from each side:
   the one Add / Create dialog where the page has it (add-song.js), else
   the repertoire's own page and its dialog.
 
+## A student proposes a song
+
+A student's own songbook (*My songbook*, as anyone's) holds the songs
+they find or make (the Add / Create dialog, its quick add). One of them
+they'd like to work on with the coach, they **propose** it
+(coach_proposals.go, propose-song.js, migration 0128): from the song's
+page (⋯, or the phone's *Song* sheet: *Propose to Inès…*) or from the
+Songbooks section (*Your proposals to Inès* → *Propose a song…*: a song
+of their own songbook to pick, or one found or made there and then),
+with a note and, if they like, the key they'd sing it in (− / +, their
+range with the song's melody over it).
+
+- **What may be proposed**: their own song (private or public), any
+  public song, a song of the community's; never a band's or another
+  community's private song, nor a closed songbook's
+  (`store.ProposalCheck`). Proposing puts it in their songbook if it
+  isn't there; they keep it whatever the answer.
+- **Where it waits**: with the *Ask for it* requests, one *Requests (n)*
+  list on the coach's songbook, each row saying which it is (*asked from
+  your repertoire* / *proposed by the student*), a proposal with the
+  note, the key wished (the picker starts there) and what taking it
+  does. Each of the staff is told (`song_proposal`). Proposing again
+  while it waits updates the note and the key.
+- **The coach opens and plays it** while it waits, even the student's
+  private song (`SongRights.ViaProposal`: see, play, nothing else — no
+  link, no arrangement, no edit), and sees the student's range over its
+  melody.
+- **Taken** (*Take it*, in the key picked): the song enters the
+  repertoire and the student's songbook with the coach, in that key, in
+  one transaction (`store.AcceptSongProposal`):
+  - a **public** song is **linked**: the community's own arrangement of
+    it when it has one already, else the song itself (a first edit then
+    offers the community's arrangement, as for any linked song);
+  - the student's **private** song becomes **the community's
+    arrangement made from it**: a copy owned by the community, private,
+    forked from theirs, its media copied (its recording is split and its
+    melody found again in the background), which the coach and the
+    student edit in place as any song of theirs. The student's own song
+    stays theirs, untouched. Proposed again later, the same arrangement
+    is used, nothing new made;
+  - the student is told (`song_proposal_accepted`, the song in their
+    songbook one tap away).
+- **Declined** (*Not now*, then a word for the student, optional):
+  nothing moves; the student is told, with the note
+  (`song_proposal_declined`), and their list says *Not this time* and
+  the note. They may propose it again.
+
+## A key stays where it was when the song's moves
+
+A key kept in a songbook is semitones from the song's own key
+(`songbook_entries.semitones`, `event_program.semitones`). When a save
+moves the song's own key — its `key:` header changed in the same mode
+(G → A), or, without one, the chart transposed in place (every chord
+moved by the same interval) — each kept key is moved back by as much,
+in the save's transaction, so it sounds where it did (song.KeyShift,
+store keepEntryKeys): a student's F (−2) on a song moved from G to A
+becomes −4. It's every save: the editor, a revert, an original's
+changes taken by its arrangement, a catalogue edit applied (a catalogue
+song's chart isn't transposed in place, but its header may be put
+right). Which keys: every key someone chose — an entry not in the
+song's own key, in any songbook (a student's, a group's, a person's, a
+band's), every entry of a student's or a group's songbook (the coach
+gave it in that key, even "original"), every event program's song. An
+entry of any other songbook in the song's own key follows the song (the
+repertoire, the owner's songbook). A key wraps by an octave when it
+would leave ±12. A relabel to the relative key ("Am" → "C") or a chord
+edit moves nothing.
+
+## The song's melody on songbook rows
+
+Wherever a songbook lists its songs — a person's songbook, a band's
+(its songbook page and its repertoire tab), the coach's one songbook, a
+student's songbook (its page and their card on the Songbooks section) —
+each row shows the song's melody, lowest to highest note, from the
+recording the player uses (`song_melody_ranges`, store.SongMelodyRanges),
+at the row's key: "A2–E4" ("la1–mi3"). For a student looking at their
+own songbook (with the coach, or their own *My songbook*), and for the
+coach looking at a student's songbook or filtering theirs by a student
+(the row then shows the melody at that student's key), how it sits in
+their voice: *fits*, *2 high*, *1 low* — semitones out of their
+comfortable zone when the coach noted it, else out of their whole range
+(row_voice.go). Information, no verdict; nothing when the melody isn't
+known; no notification.
+
 ## The song the coach and the students share
 
 The song a student works on with the coach is **the community's song**:

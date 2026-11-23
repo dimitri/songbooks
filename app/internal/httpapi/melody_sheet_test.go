@@ -176,3 +176,75 @@ func TestMelodySheet(t *testing.T) {
 		t.Fatalf("too little singing: %q", d.State)
 	}
 }
+
+// TestMelodyLyricsOnTheChart: lines held to the bars their chords are
+// played in (a song with a lead bar, 97 bpm, chords over the words): the
+// second line, sung with a pickup right after the first line's held
+// note and melisma, still starts on its own bar — the "line 2 drifts a
+// bar" report.
+func TestMelodyLyricsOnTheChart(t *testing.T) {
+	st, h := newTestServer(t)
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	owner, err := st.CreatePerson(ctx, "chartowner", "Cha Owner", "cha@example.com")
+	must(err)
+	song, err := st.CreateVariant(ctx, store.OwnerPerson, owner, "Night", "", owner)
+	must(err)
+	body := "title: Night\nkey: G\ntempo: 97\ntime: 4/4\nlead: | G |\n\n[Verse]\ngrid: | G | G | Em | Em | C | D | G | G |\nWhen the [G]night has come and the land is [Em]dark\nand the [C]moon is the [D]only light we'll [G]see\n"
+	_, err = st.SaveVariantByID(ctx, song, "Night", "", "", body, "", owner)
+	must(err)
+	audio, err := st.SetSongAudio(ctx, song, store.AudioYouTube, []byte("mp3"), "audio/mpeg", "sha1", "", owner)
+	must(err)
+	must(st.QueueStemJob(ctx, audio))
+	job, err := st.ClaimStemJob(ctx, "test")
+	must(err)
+	_, err = st.SaveStems(ctx, *job, "audio/mpeg", map[string][]byte{"vocals": []byte("v")})
+	must(err)
+	// The verse from 5 s (played bar 1, after the lead's bar 0).
+	bar := 4 * 60 / 97.0
+	e := bar / 8
+	T := func(b int) float64 { return 5 + float64(b-1)*bar }
+	var notes []audioanalysis.SungNote
+	sing := func(ts ...float64) {
+		for i, t0 := range ts {
+			end := t0 + e*0.9
+			if i+1 < len(ts) {
+				end = ts[i+1] - 0.03
+			}
+			notes = append(notes, audioanalysis.SungNote{Start: t0, End: end, Pitch: 67, Conf: 0.9})
+		}
+	}
+	// When the | night has come and the land is | dark (held) melisma, and the | moon is the | on-ly light we'll | see
+	sing(T(1)-2*e, T(1)-e, T(1), T(1)+2*e, T(1)+4*e, T(1)+6*e, T(2), T(2)+2*e, T(2)+4*e, T(3), T(4), T(5)-2*e, T(5)-e, T(5), T(5)+2*e, T(5)+4*e, T(6), T(6)+2*e, T(6)+4*e, T(6)+6*e, T(7))
+	notes[len(notes)-1].End = T(8) - 0.1
+	_, err = findMelodyNotes(ctx, st, func(context.Context, []byte) (audioanalysis.MelodyNotes, bool, error) {
+		return audioanalysis.MelodyNotes{Notes: notes}, true, nil
+	})
+	must(err)
+	must(st.ReplaceAudioMarkers(ctx, audio, []store.AudioMarker{{SectionIndex: 0, TimeSeconds: 5}}, owner))
+	tok, err := st.CreateSession(ctx, owner)
+	must(err)
+	r := httptest.NewRequest("GET", fmt.Sprintf("/api/songs/%d/melody", song), nil)
+	r.AddCookie(&http.Cookie{Name: sessionCookie, Value: tok})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	var d melodyResponse
+	must(json.Unmarshal(w.Body.Bytes(), &d))
+	if d.State != "ready" || len(d.Lines) != 2 {
+		t.Fatalf("melody: %d %s", w.Code, w.Body.String())
+	}
+	for i, want := range []int{1, 5} {
+		l := d.Lines[i]
+		if !l.Anchored || l.ChartBar != want || l.AnchorBar != want || l.Conf < 0.8 {
+			t.Errorf("line %d: %+v, want its chord on bar %d", i, l, want)
+		}
+	}
+	if !strings.Contains(d.AlphaTex, `\lyrics ("When the night has come and the land is dark _ and the moon is the on- ly light we'll see")`) {
+		t.Errorf("lyrics:\n%s", d.AlphaTex)
+	}
+}

@@ -49,7 +49,7 @@ func round3(x float64) float64 { return math.Round(x*1000) / 1000 }
 
 // MelodyNotesAnalyzer names this method, kept with each result: a new
 // one finds every recording's notes again.
-const MelodyNotesAnalyzer = "notes:1"
+const MelodyNotesAnalyzer = "notes:2"
 
 const (
 	// LowConf: a note less sure than this is marked.
@@ -89,7 +89,7 @@ func AnalyzeMelodyNotes(ctx context.Context, vocals []byte) (MelodyNotes, bool, 
 
 // MelodyNotesOf finds the notes of samples at SampleRate.
 func MelodyNotesOf(x []float32) (MelodyNotes, bool) {
-	notes := SegmentNotes(pitchFrames(x))
+	notes := dropOutliers(SegmentNotes(pitchFrames(x)))
 	var m MelodyNotes
 	m.Notes = notes
 	for _, n := range notes {
@@ -323,4 +323,27 @@ func median(v []float64) float64 {
 		return s[len(s)/2]
 	}
 	return (s[len(s)/2-1] + s[len(s)/2]) / 2
+}
+
+// outlier: a note this far (semitones) from the voice's median is no
+// note of the tune (a breath's pitch, a tracking error two octaves off).
+const outlier = 16
+
+// dropOutliers leaves out the notes far from the voice's median.
+func dropOutliers(ns []SungNote) []SungNote {
+	if len(ns) < minNotes {
+		return ns
+	}
+	ps := make([]float64, len(ns))
+	for i, n := range ns {
+		ps[i] = n.Pitch
+	}
+	med := median(ps)
+	out := ns[:0:0]
+	for _, n := range ns {
+		if math.Abs(n.Pitch-med) <= outlier {
+			out = append(out, n)
+		}
+	}
+	return out
 }

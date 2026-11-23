@@ -54,6 +54,7 @@
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
+        {{template "row-voice" .Voice}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
@@ -77,6 +78,7 @@
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
+        {{template "row-voice" .Voice}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>

@@ -54,6 +54,7 @@
           <a class="song-link" href="/song/{{.VariantID}}?songbook={{$.Songbook.ID}}">
             <span class="song-title">{{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</span>
             <span class="song-meta">{{if .Tempo}}{{t "%s bpm" .Tempo}}{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
+            {{template "row-voice" .Voice}}
             {{template "song-badges" (index $.Badges .VariantID)}}
             {{with index $.BandVersions .VariantID}}<span class="band-version-tag" title="{{t "%s has its own arrangement of this song" .BandName}}">{{t "band has its own arrangement"}}</span>{{end}}
           </a>

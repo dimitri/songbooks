@@ -197,6 +197,9 @@
     if (data.lines && data.lines.length) bits.push(tr('lyrics placed: %s', Math.round((data.confidence || 0) * 100) + '%'));
     if (data.syncSource === 'analysis') bits.push(tr('bars estimated from the recording, not synced'));
     else if (data.syncEstimated) bits.push(tr('sync estimated'));
+    // The lyrics are held to the bars the sync gives: an estimate places
+    // them only as well as it places the bars.
+    if (data.syncSource === 'analysis' || data.syncEstimated) bits.push(tr('placement depends on the sync — save the sync for better results'));
     conf.textContent = bits.join(' · ');
     const xml = $('.melody-xml');
     if (xml) xml.href = `/api/songs/${variantId}/melody.musicxml${offset ? `?transpose=${offset}` : ''}`;

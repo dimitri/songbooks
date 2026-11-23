@@ -3020,6 +3020,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	refHead := songRefHeadFor(sg.Get("reference"), hasBand, canEditChart)
 	// The Big Songbook's song: open edits (catalogue_edits.go).
 	s.addCatalogueEditing(r, person, variantID, data)
+	// A student's song, proposed to their coach (coach_proposals.go).
+	s.addProposeTargets(r, person, variantID, data)
 	// Its title, when fetched for this link; else fetched in the
 	// background for the next time (reference_title.go).
 	if ref := strings.TrimSpace(sg.Get("reference")); ref != "" {
