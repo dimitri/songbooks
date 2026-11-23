@@ -371,15 +371,18 @@ window.songbooksDecodable = function (buf) {
         grid.push(t);
         if (t > duration) break;
       }
-      // The song's "lead:" bars, in no section, take the recording's time
-      // before its first section (its marker is at bar 1): at the chart's
-      // pace, back from there. A lead longer than the time there is is
-      // squeezed into it, from the recording's start — not started before
-      // the recording; with no time at all (bar 1 at 0:00) it stays before
-      // it, counted in like a pickup.
+      // The song's "lead:" bars, in no section: exactly N bars ending
+      // where its first section starts, at that section's measured pace
+      // (else the chart's tempo), whatever the sync placed there — a
+      // detection or an extrapolation can run them back over a whole
+      // pre-roll. Squeezed into the time there is when it's shorter, kept
+      // before the recording (counted in) when the first section starts
+      // at 0:00 (lead-time.js). The time before them is no bar at all.
       const lead = leadBarCount();
-      if (lead > 0 && grid.length > lead && grid[0] < 0 && grid[lead] > 0) {
-        for (let b = 0; b < lead; b++) grid[b] = (grid[lead] * b) / lead;
+      const LT = window.SongbooksLeadTime;
+      if (lead > 0 && LT) {
+        const first = sections().find((s) => s.barCount > 0);
+        grid = LT.placeLead(grid, lead, LT.firstPace(grid, lead, first ? first.barCount : 1) || secondsPerBar);
       }
     }
     refreshTimeline();
@@ -711,7 +714,9 @@ window.songbooksDecodable = function (buf) {
     const beats = beatsIn(b);
     const beat = Math.min(beats - 1, Math.floor((pos - b) * beats));
     // Before the first bar (a count, a silence): waiting at its start, not a dash.
-    lcdPos.textContent = b < 0 ? `${barLabel(0)}.1` : `${barLabel(b)}.${beat + 1}`;
+    // Before a lead (the song's "lead:" bars), the recording's time is no
+    // bar at all: a dash, not a count.
+    lcdPos.textContent = b < 0 ? (leadBarCount() > 0 ? '—' : `${barLabel(0)}.1`) : `${barLabel(b)}.${beat + 1}`;
     const sec = sectionAt(b);
     lcdSection.textContent = sec ? sec.label : '';
     syncDockSections();
@@ -792,10 +797,12 @@ window.songbooksDecodable = function (buf) {
     clicker.sound = prefs.clickSound;
     clicker._click(when, beatInBar === 0 && !soft, soft, prefs.clickVolume / 70);
   }
-  // Every beat (and compound-metre eighth) with a recording time in [a, b).
+  // Every beat (and compound-metre eighth) with a recording time in [a, b),
+  // from bar 0 on: the recording's time before the chart's first bar (its
+  // lead's, or its first section's) is no bar, so it gets no click.
   function beatsBetween(a, b) {
     const out = [];
-    const first = Math.floor(barAtTime(a));
+    const first = Math.max(0, Math.floor(barAtTime(a)));
     for (let bar = first; bar < first + 64; bar++) {
       const t0 = timeAtBar(bar), t1 = timeAtBar(bar + 1);
       if (t0 >= b) break;
