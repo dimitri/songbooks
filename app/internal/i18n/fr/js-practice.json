@@ -56,7 +56,7 @@
   "Clean guitar": "Guitare électrique claire",
   "Click": "Clic",
   "Could not decode the recording for its waveform (playback still works).": "Impossible de décoder l’enregistrement pour sa forme d’onde (la lecture fonctionne quand même).",
-  "Could not load the mixer: %s": "Impossible de charger la table de mixage : %s",
+  "Could not load the mixer: %s": "Impossible de charger le mixer : %s",
   "Could not load the recording: %s": "Impossible de charger l’enregistrement : %s",
   "Could not undo: %s": "Impossible d’annuler : %s",
   "Couldn't get the audio from that video. Check the link opens on YouTube, then try again.": "Impossible de récupérer l’audio de cette vidéo. Vérifiez que le lien s’ouvre sur YouTube, puis réessayez.",

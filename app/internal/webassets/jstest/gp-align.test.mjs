@@ -113,3 +113,24 @@ test('key names, as the server writes them; a file left in C says nothing', () =
   assert.equal(A.keyName({ sig: 0, minor: false }), '');
   assert.equal(A.keyName(null), '');
 });
+
+// The dock playing a recording (its bars the chart's) and the Score view's
+// cursor and the MIDI on the file's played bars: one place to the other.
+test('the chart’s bars and the file’s, both ways', () => {
+  // gp_start 3: the chart's bar 0 is the file's played bar 2.
+  const map = A.chartBarsForFile([3, 4, 5], [1, 2, 3, 4, 5]);
+  assert.deepEqual(map, [-1, -1, 0, 1, 2]);
+  const inv = A.fileBarsForChart(map, 3);
+  assert.deepEqual(inv, [2, 3, 4]);
+  assert.equal(A.toFile(inv, 1.5), 3.5);
+  assert.equal(A.toChart(map, 3.5), 1.5);
+  assert.equal(A.toChart(map, 0.5), null); // the file's lead-in: no chart bar
+  assert.equal(A.toFile(inv, 3), null); // past the chart
+  // A repeat the chart writes out: each chart bar its own pass.
+  const rep = A.chartBarsForFile([1, 2, 1, 2], [1, 2, 1, 2]);
+  assert.deepEqual(A.fileBarsForChart(rep, 4), [0, 1, 2, 3]);
+  // A "lead:" the file doesn't play (gpOrder 0): no file bar for it.
+  const lead = A.chartBarsForFile([0, 1, 2], [1, 2]);
+  assert.deepEqual(A.fileBarsForChart(lead, 3), [-1, 0, 1]);
+  assert.equal(A.toFile(A.fileBarsForChart(lead, 3), 0.5), null);
+});

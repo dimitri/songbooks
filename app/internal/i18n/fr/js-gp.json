@@ -63,7 +63,7 @@
   "The file’s “%s” starts %d bars earlier": "« %s » commence %d mesures plus tôt dans le fichier",
   "The file’s “%s” starts %d bar later": "« %s » commence %d mesure plus tard dans le fichier",
   "The file’s “%s” starts %d bars later": "« %s » commence %d mesures plus tard dans le fichier",
-  "The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): it can’t follow the score.": "L’enregistrement n’est pas encore aligné sur les mesures du morceau (Mixage, Aligner l’enregistrement) : il ne peut pas suivre la partition.",
+  "The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): it can’t follow the score.": "L’enregistrement n’est pas encore aligné sur les mesures du morceau (Mixer, Aligner l’enregistrement) : il ne peut pas suivre la partition.",
   "The song has no bars yet to check against: %d difference in its header.": "Le morceau n’a pas encore de mesures à comparer : %d différence dans son en-tête.",
   "The song has no bars yet to check against: %d differences in its header.": "Le morceau n’a pas encore de mesures à comparer : %d différences dans son en-tête.",
   "The song has no bars yet to check against; its header agrees with the file.": "Le morceau n’a pas encore de mesures à comparer ; son en-tête s’accorde avec le fichier.",

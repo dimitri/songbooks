@@ -83,3 +83,61 @@ func TestStemJobs(t *testing.T) {
 		t.Fatalf("queued again: %+v", s)
 	}
 }
+
+// A Guitar Pro file's backing track isn't split: not queued when added,
+// skipped by the worker when queued before (migration 0123), its parts
+// made before kept but not served, and no "split again".
+func TestNoStemsForGPRecordings(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	me, err := st.CreatePerson(ctx, "player", "Player", "player@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := st.CreateVariant(ctx, OwnerPerson, me, "Lesson", "", me)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(ctx, `DELETE FROM song_audio_stem_jobs`); err != nil {
+		t.Fatal(err)
+	}
+	id, err := st.SetSongAudio(ctx, v, AudioGP, []byte("backing"), "audio/mpeg", "sha-gp", "", me)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var queued int
+	if err := st.db.QueryRow(ctx, `SELECT count(*) FROM song_audio_stem_jobs WHERE song_audio_id = $1`, id).Scan(&queued); err != nil || queued != 0 {
+		t.Fatalf("queued when added: %d, %v", queued, err)
+	}
+	// Queued before the migration, split before it too.
+	if _, err := st.db.Exec(ctx, `INSERT INTO song_audio_stem_jobs (song_audio_id, source_sha256) VALUES ($1, 'sha-gp')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if job, err := st.ClaimStemJob(ctx, "htdemucs"); err != nil || job != nil {
+		t.Fatalf("claimed a backing track: %+v, %v", job, err)
+	}
+	if _, err := st.db.Exec(ctx, `INSERT INTO song_audio_stems (song_audio_id, stem, source_sha256, content_type, byte_size, data) VALUES ($1, 'vocals', 'sha-gp', 'audio/mpeg', 1, 'v')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if s, err := st.GetStemStatus(ctx, id); err != nil || s.Status != "" || len(s.Stems) != 0 {
+		t.Fatalf("status: %+v, %v", s, err)
+	}
+	if _, _, _, err := st.GetStemData(ctx, id, "vocals"); err != ErrNotFound {
+		t.Fatalf("its vocals served: %v", err)
+	}
+	var kept int
+	if err := st.db.QueryRow(ctx, `SELECT count(*) FROM song_audio_stems WHERE song_audio_id = $1`, id).Scan(&kept); err != nil || kept != 1 {
+		t.Fatalf("parts kept: %d, %v", kept, err)
+	}
+	if err := st.QueueStemJob(ctx, id); err != ErrNotSplit {
+		t.Fatalf("split again: %v", err)
+	}
+	// Another recording of the song is split as before.
+	yt, err := st.SetSongAudio(ctx, v, AudioYouTube, []byte("yt"), "audio/mpeg", "sha-yt", "", me)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job, err := st.ClaimStemJob(ctx, "htdemucs"); err != nil || job == nil || job.SongAudioID != yt {
+		t.Fatalf("claim the YouTube recording: %+v, %v", job, err)
+	}
+}

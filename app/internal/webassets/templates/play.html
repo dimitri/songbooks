@@ -697,17 +697,18 @@
 </div>
 {{end}}
 {{if .LessonView}}
-{{/* A lesson (lessonview.go): three views, not the chart's — its video
-     first (with the course around it and the score under it), the score
-     alone, the mixer. The chart's switcher (#mode-segmented) stays, hidden,
-     as the views' engine: Score and Mixer are its buttons, the Video view
-     is its Score with the video above it (lesson-view.js). On a wide
-     screen these take its place (beside the song's actions); on a phone
-     they stay here, at the top of the song. */}}
+{{/* A lesson (lessonview.go, lesson-view.js). Its views are the right-hand
+     pane's: the score, or the mixer (full width); the chart's switcher
+     (#mode-segmented) stays, hidden, as their engine. The video is always
+     there, beside the score (on a phone, a screen of its own: "Leçon",
+     then "Pratique"). One player, the dock, plays the video ("Watch the
+     lesson") or the recording ("Play along"): the switch below, moved
+     into the dock. On a wide screen the tabs take the chart switcher's
+     place (beside the song's actions); on a phone they stay here, on the
+     practice screen. */}}
 <span id="lesson-tabs-home" hidden></span>
-<div class="view-tabs lesson-tabs" id="lesson-tabs" role="group" aria-label="{{t "View"}}" data-tab="{{if .LessonVideoID}}video{{else}}score{{end}}">
-  {{if .LessonVideoID}}<button type="button" data-lesson-tab="video" class="active" aria-pressed="true" title="{{t "the lesson’s video, the score under it"}}">{{template "icon-video"}} {{t "Video"}}</button>{{end}}
-  <button type="button" data-lesson-tab="score"{{if not .LessonVideoID}} class="active" aria-pressed="true"{{else}} aria-pressed="false"{{end}} title="{{t "the score alone"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>
+<div class="view-tabs lesson-tabs" id="lesson-tabs" role="group" aria-label="{{t "View"}}" data-tab="score" data-screen="{{if .LessonVideoID}}lesson{{else}}practice{{end}}">
+  <button type="button" data-lesson-tab="score" class="active" aria-pressed="true" title="{{t "the score"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>
   <button type="button" data-lesson-tab="mixer" aria-pressed="false" title="{{t "mixer"}}">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
 </div>
 <script>
@@ -715,8 +716,33 @@
   (() => {
     const tabs = document.getElementById('lesson-tabs'), seg = document.getElementById('mode-segmented');
     if (seg && matchMedia('(min-width: 901px)').matches && seg.parentElement !== tabs.parentElement) seg.before(tabs);
+    // A phone opens on the lesson's screen (its video), unless the link
+    // says the practice one, or there's no video.
+    const view = new URLSearchParams(location.search).get('view');
+    document.documentElement.dataset.lessonScreen = view === 'practice' || view === 'lesson' ? view : tabs.dataset.screen;
   })();
 </script>
+{{if .LessonVideoID}}
+{{/* The one player's switch, and its controls while it plays the video
+     (the YouTube player, through its IFrame API: lesson-view.js). */}}
+<div class="lesson-mode" id="lesson-mode" role="group" aria-label="{{t "What the player plays"}}" hidden>
+  <button type="button" data-mode="watch" aria-pressed="false" title="{{t "the player plays the lesson’s video"}}">{{template "icon-video"}}<span>{{t "Watch the lesson"}}</span></button>
+  <button type="button" data-mode="play" aria-pressed="false" title="{{t "the player plays the recording, the score following"}}">{{template "icon-mode-score"}}<span>{{t "Play along"}}</span></button>
+</div>
+<div class="lesson-watch" id="lesson-watch" hidden>
+  <div class="lw-buttons">
+    <button type="button" class="icon-btn lw-start" title="{{t "go to start (Home)"}}">{{template "icon-to-start"}}</button>
+    <button type="button" class="icon-btn lw-back" title="{{t "5 seconds back"}}">{{template "icon-prev-bar"}}</button>
+    <button type="button" class="icon-btn audio-play-btn lw-play" title="{{t "play/pause (Space or K)"}}">{{template "icon-play"}}</button>
+    <button type="button" class="icon-btn lw-fwd" title="{{t "5 seconds on"}}">{{template "icon-next-bar"}}</button>
+  </div>
+  <div class="lw-ruler" title="{{t "click to go there"}}"><i class="lw-loop" hidden></i><i class="lw-played"></i><i class="lw-head"></i></div>
+  <span class="lw-time">0:00 / 0:00</span>
+  <button type="button" class="audio-toggle audio-chip lw-loop-btn" aria-pressed="false" title="{{t "loop: a first tap marks where it starts, a second where it ends, a third stops it"}}">{{template "icon-cycle"}}<span>{{t "Cycle"}}</span></button>
+  <label class="audio-chip lw-speed" title="{{t "Playback speed"}}">{{template "icon-speed"}}<select aria-label="{{t "Playback speed"}}"><option value="0.5">50 %</option><option value="0.75">75 %</option><option value="1" selected>100 %</option><option value="1.25">125 %</option></select></label>
+</div>
+{{end}}
+<script src="/static/js/lesson-switch.js?v={{staticVersion}}" defer></script>
 <script src="/static/js/lesson-view.js?v={{staticVersion}}" defer></script>
 {{end}}
 </div>
@@ -1552,12 +1578,18 @@
 
   <div class="content-main">
     {{if .LessonView}}
-    {{/* The lesson view's stage (lesson-view.js): the lesson's video, big,
-         the course's card beside it on a wide screen, under it on a phone.
-         The video loads when played (its thumbnail until then); played,
-         it docks in a corner once scrolled past or on the Score and Mixer
-         views, still playing, until its close button closes it. */}}
-    <div class="lesson-stage" id="lesson-stage" data-tab="{{if .LessonVideoID}}video{{else}}score{{end}}">
+    {{/* The lesson view's stage (lesson-view.js): the lesson's video, the
+         course's card under it — beside the score on a wide screen (about
+         40 / 60), above it on a narrower one; on a phone, the lesson's
+         screen ("Leçon": the video, the card, Practise), the score on the
+         practice screen ("Pratique", ← Leçon to come back). The video
+         loads when played (its thumbnail until then); on the Mixer, or
+         scrolled past, it docks in a corner while it plays, until its
+         close button closes it. */}}
+    <div class="lesson-practice-head" id="lesson-practice-head">
+      <button type="button" class="lesson-back" data-screen="lesson">{{template "icon-back"}}<span>{{t "screen|Lesson"}}</span></button>
+    </div>
+    <div class="lesson-stage" id="lesson-stage" data-tab="score"{{if .LessonVideoID}} data-has-video="1"{{end}}>
     {{with .LessonVideoID}}
     <figure class="lesson-stage-video" id="lesson-stage-video" data-video="{{.}}">
       <div class="lesson-stage-frame">
@@ -1665,7 +1697,10 @@
     })();
     </script>
     {{end}}
-    {{if .LessonView}}</div>{{/* .lesson-stage */}}{{end}}
+    {{if .LessonView}}
+    <button type="button" class="lesson-practise primary" data-screen="practice">{{template "icon-mode-score"}}<span>{{t "Practise"}}</span></button>
+    </div>{{/* .lesson-stage */}}
+    {{end}}
     {{/* Single-line song structure overview — a thin progress line with
          one tick + label per section, weighted by its own bar count.
          Lives INSIDE the main pane (not the full page width) so it lines
@@ -2349,24 +2384,24 @@
           {{if .CanEdit}}<a class="gp-tool gp-edit-link" href="/song/{{.VariantID}}/gp-edit" title="{{t "edit the notes on the web"}}">{{template "icon-edit"}}<span>{{t "Edit"}}</span></a>{{end}}
           <a class="gp-tool" href="/song/{{.VariantID}}/gp-file" download title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}">{{template "icon-download"}}<span>Guitar Pro</span></a>
         </div>
-        {{if not .GPOnly}}
-        {{/* A file next to the chart (or inside it) plays here only: the
-             dock plays the file's sound, the song's recording follows it.
-             Two levels, the full Mixer a tap away (gp-view.js "The
-             simplified mixer"). */}}
-        <div class="gp-mix" role="group" aria-label="{{t "Mix"}}">
+        {{/* The dock's simplified mixer (gp-view.js "The dock's mixer"):
+             moved into the player at load, in every view of a song with a
+             file. Recording and MIDI, a switch and a level each: the
+             recording plays when there is one, the file's MIDI sound
+             along with it when switched on (off by default), alone when
+             there's none. The full Mixer a tap away. */}}
+        <div class="gp-mix" role="group" aria-label="{{t "Mix"}}" hidden>
           <span class="gp-mix-ch" data-ch="rec">
-            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" disabled title="{{t "mute or unmute the recording"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Recording"}}</span></button>
-            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" disabled aria-label="{{t "Recording volume"}}">
+            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" title="{{t "mute or unmute the recording"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Recording"}}</span></button>
+            <input type="range" class="gp-mix-vol" min="0" max="100" value="100" aria-label="{{t "Recording volume"}}">
           </span>
-          <span class="gp-mix-ch" data-ch="score">
-            <button type="button" class="gp-tool gp-mix-on" aria-pressed="true" title="{{t "mute or unmute the score"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">{{t "Score"}}</span></button>
-            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" aria-label="{{t "Score volume"}}">
+          <span class="gp-mix-ch" data-ch="midi">
+            <button type="button" class="gp-tool gp-mix-on" aria-pressed="false" title="{{t "the file’s MIDI sound: on or off"}}"><span class="gp-mix-icon on">{{template "icon-speaker"}}</span><span class="gp-mix-icon off">{{template "icon-speaker-mute"}}</span><span class="gp-mix-name">MIDI</span></button>
+            <input type="range" class="gp-mix-vol" min="0" max="100" value="80" aria-label="{{t "MIDI volume"}}">
           </span>
           <button type="button" class="gp-tool gp-mix-full" aria-label="{{t "Full mixer"}}" title="{{t "every track and the recording, each with its own level"}}">{{template "icon-mode-mixer"}}<span class="gp-mix-full-label">{{t "Full mixer"}}</span></button>
           <span class="gp-mix-why" hidden></span>
         </div>
-        {{end}}
       </div>
       <div class="gp-sheet-wrap"><div class="gp-sheet"><div class="gp-pages" aria-hidden="true"></div><div class="gp-score-canvas"></div></div></div>
     </div>

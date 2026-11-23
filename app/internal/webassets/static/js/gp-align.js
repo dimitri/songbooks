@@ -119,6 +119,27 @@
     });
   }
 
+  // The other way: for each of the chart's n bars, the played bar of the
+  // file it is (its first, when the file plays it twice), or -1.
+  function fileBarsForChart(map, n) {
+    const out = new Array(Math.max(0, n || 0)).fill(-1);
+    (map || []).forEach((b, p) => { if (b >= 0 && b < out.length && out[b] < 0) out[b] = p; });
+    return out;
+  }
+  // A place in the chart (a fractional bar, 2.5 = halfway through its
+  // third) as a place in the file's played bars, and back; null where one
+  // has no bar for the other.
+  function toFile(inv, x) {
+    const b = Math.floor(x);
+    const p = inv && b >= 0 && b < inv.length ? inv[b] : -1;
+    return p >= 0 ? p + (x - b) : null;
+  }
+  function toChart(map, y) {
+    const p = Math.floor(y);
+    const b = map && p >= 0 && p < map.length ? map[p] : -1;
+    return b >= 0 ? b + (y - p) : null;
+  }
+
   // Seconds into the recording where each chart bar starts (n + 1 entries)
   // from what's known: [{bar, t}] (bar sync points, or the sections' start
   // markers). Between two known bars they keep their nominal proportions;
@@ -169,5 +190,5 @@
     return { bar: b, t, ratio: synthBarSec > 0 ? synthBarSec / dur : 1 };
   }
 
-  return { clampStart, startFor, keyName, fixes, remaining, layout, chartBarsForFile, barTimes, knownBars, follow };
+  return { clampStart, startFor, keyName, fixes, remaining, layout, chartBarsForFile, fileBarsForChart, toFile, toChart, barTimes, knownBars, follow };
 });

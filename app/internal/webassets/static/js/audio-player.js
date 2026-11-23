@@ -2793,9 +2793,10 @@ window.songbooksDecodable = function (buf) {
 
   // ---- Category toggle / load -------------------------------------------
   let synthLevel = 1; // the Score view's "Score" level (songbooksPlayer.setLevel)
+  let recLevel = 1; // the recording's, in the dock's Recording / MIDI mixer (gp-view.js)
   function selectCategory(cat, remember) {
     activeCategory = cat;
-    audio.volume = cat === 'synth' ? synthLevel : 1;
+    audio.volume = cat === 'synth' ? synthLevel : recLevel;
     if (remember) { try { localStorage.setItem(prefKey, cat); } catch (e) {} }
     categoryToggle?.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.category === cat));
     pause();
@@ -2992,6 +2993,10 @@ window.songbooksDecodable = function (buf) {
     },
     source: () => activeCategory,
     setLevel(v) { synthLevel = Math.max(0, Math.min(1, v)); if (activeCategory === 'synth') audio.volume = synthLevel; },
+    // The recording's level (the dock's Recording / MIDI mixer), and when
+    // bar b starts in what plays (seconds; null without bars).
+    setRecordingLevel(v) { recLevel = Math.max(0, Math.min(1, v)); if (activeCategory && activeCategory !== 'synth') audio.volume = recLevel; },
+    timeAtBar: (b) => timeAtBar(b),
     // The file's sound rendered again (another instrument, gp-view.js):
     // the same bars, new bytes; playing on from where it was.
     replaceSynth(bytes) {

@@ -206,6 +206,10 @@ func (s *Server) handlePostSongAudioStems(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.store.QueueStemJob(r.Context(), meta.ID); err != nil {
+		if errors.Is(err, store.ErrNotSplit) {
+			httpError(w, http.StatusConflict, err.Error())
+			return
+		}
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
