@@ -727,6 +727,11 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 
 	mux.Handle("GET /static/", cacheForever(http.StripPrefix("/static/", http.FileServerFS(webassets.StaticFS()))))
 
+	// The soundfont a score plays with, cut down to its presets
+	// (soundfont.go, docs/soundfont.md). Public: it's the bank's sound,
+	// nothing of anyone's.
+	mux.HandleFunc("GET /soundfonts/subset/{file}", s.handleSoundFontSubset)
+
 	// PWA: served from the root, not /static/, so the service worker's
 	// default scope covers the whole app (see handlers_pwa.go). Left
 	// unauthenticated — needed for the login page itself to install/render.

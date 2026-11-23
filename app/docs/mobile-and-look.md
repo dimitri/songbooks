@@ -63,13 +63,14 @@ Status: first round **built** in PR #8, the phone plan of §1 in the
   in larger type and tap-sized; the chord list is dropped.
 - [x] *View* holds how the song is drawn: the views, the **Part**
   (Chords / each instrument — it had no phone entry at all before), the
-  tab/staff choice, and Stage mode. *Song* holds what you do with it:
-  Edit, Notes, Reference, exports, versions, history.
-- [x] **Stage mode** (`stage.js`), from the View sheet or the desktop
-  sidebar: larger type, no sidebar/bars/player/pickers, the screen kept
-  awake (Wake Lock), a swipe or the pedal keys for the next or previous
-  song, their names at the bottom, a close button and Escape. It stays on
-  from song to song in that tab.
+  tab/staff choice. *Song* holds what you do with it: Edit, Notes, the
+  tuner, tap tempo, Reference, exports, versions, history (the desktop's
+  ⋯ menu has the same).
+- [x] ~~Stage mode~~ (`stage.js`): removed. The pedal keys still go to
+  the next or previous song (song.js "Keyboard & handheld-pedal
+  navigation"); the larger type, the page without its bars, the screen
+  kept awake, the swipe and the page turned a section at a time went
+  with it.
 
 ### Editing on a phone
 

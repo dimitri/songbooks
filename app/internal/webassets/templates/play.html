@@ -481,9 +481,8 @@
 {{/* The list's previous or next song in the header (Dir "prev" or
      "next"): "Previous"/"Next" and its title. In a list, at its first or
      last song, the card is there, greyed. Both links keep
-     .setlist-nav-card and .topbar-nav-info strong: the pedal keys, the
-     arrow keys, stage mode's swipe and its foot (stage.js, song.js,
-     audio-player.js) read them. */}}
+     .setlist-nav-card and .topbar-nav-info strong: the pedal keys and the
+     arrow keys (song.js, audio-player.js) read them. */}}
 {{if .Song}}
 <a class="topbar-{{.Dir}} setlist-nav-card {{.Dir}}" href="/song/{{.Song.VariantID}}{{.Query}}" title="{{if eq .Dir "prev"}}{{t "previous: %s" .Song.Title}}{{else}}{{t "next: %s" .Song.Title}}{{end}}">
   {{if eq .Dir "prev"}}{{template "icon-back"}}{{end}}
@@ -653,17 +652,15 @@
     <button type="button" class="view-extra" data-value="reference" title="{{t "reference"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
   </div>
   <div class="song-actions" role="toolbar" aria-label="{{t "This song"}}">
-    <a class="song-action" id="song-tune" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}" title="{{t "tune to this song"}}">{{template "icon-tuner"}}<span>{{t "Tune"}}</span></a>
     <button type="button" id="edit-toggle" class="song-action" title="{{t "edit"}}"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}}<span>{{t "Edit"}}</span></button>
     {{if .VariantID}}<button type="button" id="notes-toggle" class="song-action" title="{{t "notes: personal or shared, per section"}}">{{template "icon-notes"}}<span>{{t "Notes"}}</span></button>{{end}}
-    <button type="button" class="song-action stage-mode-toggle" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}}<span>{{t "Stage mode"}}</span></button>
-    {{/* The notification dot (menu-proposal.md §3.9): a coach's comment
-         shouldn't go unseen while practising. On a phone, where the
-         toolbar's actions are the song bar's, it stays at the top right. */}}
-    {{if .Me}}<span class="song-toolbar-slot" id="song-toolbar-notifications">{{template "nav-notifications-dot" .Nav.Unread}}</span>{{end}}
     <div class="song-more">
       <button type="button" class="song-action song-more-btn" id="song-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="song-more-menu" title="{{t "more about this song"}}">{{template "icon-more"}}<span class="sr-only">{{t "More"}}</span></button>
       <div class="song-more-menu" id="song-more-menu" role="menu" aria-labelledby="song-more-btn" hidden>
+        {{/* The tuner and tap tempo: dialogs over the song (song-controls.js),
+             the music paused for the tuner. */}}
+        <a role="menuitem" id="song-tune" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}" title="{{t "tune to this song"}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
+        <button type="button" role="menuitem" data-tap-tempo-open aria-haspopup="dialog" title="{{t "tap the beat to find the tempo"}}">{{template "icon-tap"}} {{t "Tap tempo"}}</button>
         {{if .WorkID}}<a role="menuitem" href="/works/{{.WorkID}}" title="{{t "all versions of this song"}}">{{template "icon-mode-map"}} {{t "Versions"}}</a>{{end}}
         {{if .VariantID}}<a role="menuitem" href="/variants/{{.VariantID}}/history" title="{{t "revision history"}}">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
         <button type="button" role="menuitem" id="reference-toggle" title="{{t "the reference video and recordings"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
@@ -699,9 +696,32 @@
   {{end}}
 </div>
 {{end}}
+{{if .LessonView}}
+{{/* A lesson (lessonview.go): three views, not the chart's — its video
+     first (with the course around it and the score under it), the score
+     alone, the mixer. The chart's switcher (#mode-segmented) stays, hidden,
+     as the views' engine: Score and Mixer are its buttons, the Video view
+     is its Score with the video above it (lesson-view.js). On a wide
+     screen these take its place (beside the song's actions); on a phone
+     they stay here, at the top of the song. */}}
+<span id="lesson-tabs-home" hidden></span>
+<div class="view-tabs lesson-tabs" id="lesson-tabs" role="group" aria-label="{{t "View"}}" data-tab="{{if .LessonVideoID}}video{{else}}score{{end}}">
+  {{if .LessonVideoID}}<button type="button" data-lesson-tab="video" class="active" aria-pressed="true" title="{{t "the lesson’s video, the score under it"}}">{{template "icon-video"}} {{t "Video"}}</button>{{end}}
+  <button type="button" data-lesson-tab="score"{{if not .LessonVideoID}} class="active" aria-pressed="true"{{else}} aria-pressed="false"{{end}} title="{{t "the score alone"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>
+  <button type="button" data-lesson-tab="mixer" aria-pressed="false" title="{{t "mixer"}}">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
+</div>
+<script>
+  // Where the chart's switcher sits on a wide screen, before the first paint.
+  (() => {
+    const tabs = document.getElementById('lesson-tabs'), seg = document.getElementById('mode-segmented');
+    if (seg && matchMedia('(min-width: 901px)').matches && seg.parentElement !== tabs.parentElement) seg.before(tabs);
+  })();
+</script>
+<script src="/static/js/lesson-view.js?v={{staticVersion}}" defer></script>
+{{end}}
 </div>
 
-{{/* "Accorder" (the toolbar, and the phone's Outils sheet): the tuner in
+{{/* "Accordeur" (the ⋯ menu, and the phone's Morceau sheet): the tuner in
      place, the song's own tunings first (tuner.html "tuner-card",
      tuner.js), instead of the /tuner page — leaving the song stopped the
      music and lost the player's place. A popover under the toolbar on a
@@ -713,6 +733,29 @@
     <form method="dialog"><button type="submit" class="icon-btn" aria-label="{{t "Close"}}" title="{{t "close"}}">{{template "icon-close"}}</button></form>
   </div>
   {{template "tuner-card" .}}
+</dialog>
+
+{{/* "Taper le tempo" (the ⋯ menu, and the phone's Morceau sheet): tap the
+     beat, the tempo is the average of the last taps, compared with the
+     song's (tap-tempo.js). Whoever can edit the song saves it to its
+     "tempo:" header (PUT /api/songs/{id}/meta, a revision like any edit);
+     for anyone else it's for their information. Placed like the tuner. */}}
+<dialog class="tuner-dialog tap-dialog" id="tap-tempo-dialog" aria-labelledby="tap-tempo-title" data-variant-id="{{.VariantID}}" data-song-tempo="{{.SongTempo}}">
+  <div class="tuner-dialog-head">
+    <h2 id="tap-tempo-title">{{t "Tap tempo"}} <small>{{.Title}}</small></h2>
+    <form method="dialog"><button type="submit" class="icon-btn" aria-label="{{t "Close"}}" title="{{t "close"}}">{{template "icon-close"}}</button></form>
+  </div>
+  <div class="tap-panel">
+    <button type="button" class="tap-pad" id="tap-tempo-pad" aria-describedby="tap-tempo-help">{{template "icon-tap"}}<span>{{t "Tap"}}</span></button>
+    <p class="tap-readout" aria-live="polite"><output id="tap-tempo-bpm" for="tap-tempo-pad">–</output> <span>bpm</span></p>
+    <p class="tap-compare" id="tap-tempo-compare"></p>
+    <p class="hint tap-help" id="tap-tempo-help">{{t "Tap on the beat: the button, Space or T. Two seconds without a tap and it starts over."}}</p>
+    {{if .CanEdit}}<div class="tap-actions">
+      <button type="button" class="primary" id="tap-tempo-use" disabled>{{t "Use this tempo"}}</button>
+      <span class="hint form-status" id="tap-tempo-status" role="status"></span>
+    </div>
+    {{else}}<p class="hint tap-help">{{t "For your information: the song's tempo is changed by whoever can edit it."}}</p>{{end}}
+  </div>
 </dialog>
 
 {{/* "Exporter en PDF…" (the ⋯ menu, and the phone's Morceau sheet): the
@@ -1434,28 +1477,30 @@
   {{/* The song bar on a phone (app/reports/menu-proposal.md §3.5): five
        slots under the player card, in place of the app's tab bar —
        ‹ back to where the song was opened from (named), Vue (how it's
-       drawn), Outils (the tuner, the metronome, the drums: in place, never
-       a page away from the music), Morceau (what can be done to it), and
-       the list's next song, or Mode scène where there's none. The global
+       drawn), Outils (the metronome, the drums, the mixer: in place, never
+       a page away from the music), Morceau (what can be done to it, the
+       tuner and tap tempo too), and the list's next song, greyed where
+       there's none. The global
        menu isn't here: a song is a focused view, left with ‹. Each sheet is
        a dialog (song-controls.js). Hidden on a wide screen, where the
        song's header and toolbar have the same (.song-topzone). */}}
   <nav class="song-context-bar" aria-label="{{t "This song"}}">
     <a class="song-bar-back" href="{{.Back.Href}}" title="{{.Back.Title}}" aria-label="{{.Back.Title}}">{{template "icon-back"}}<span>{{.Back.Short}}</span></a>
     <button type="button" id="view-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="view-stack">{{template "icon-view"}}<span>{{t "View"}}</span></button>
-    <button type="button" id="tools-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="tools-stack">{{template "icon-tuner"}}<span>{{t "Tools"}}</span></button>
+    <button type="button" id="tools-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="tools-stack">{{template "icon-metronome"}}<span>{{t "Tools"}}</span></button>
     <button type="button" id="song-stack-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="song-stack">{{template "icon-song-actions"}}<span>{{t "Song"}}</span></button>
     {{/* The list's next song (a set list, a songbook, a program): the
-         desktop's "Suivant ›", the same link. Without one, Mode scène. */}}
+         desktop's "Suivant ›", the same link. Without one, the slot stays,
+         greyed, so the bar keeps its five even columns. */}}
     {{if .Next}}
     <a class="song-bar-next" href="/song/{{.Next.VariantID}}{{$.NavQuery}}" title="{{t "next: %s" .Next.Title}}" aria-label="{{t "next: %s" .Next.Title}}">{{template "icon-forward"}}<span>{{t "Next"}}</span></a>
     {{else}}
-    <button type="button" class="stage-mode-toggle" title="{{t "larger type, no menus, the screen kept awake"}}">{{template "icon-presentation"}}<span>{{t "Stage"}}</span></button>
+    <span class="context-bar-disabled" aria-hidden="true">{{template "icon-forward"}}<span>{{t "Next"}}</span></span>
     {{end}}
   </nav>
   <div class="stack-backdrop" id="view-stack-backdrop" data-stack="view-stack"></div>
   {{/* Vue: how the song is drawn, for this reader — the view, which
-       instrument's part, tab or staff, and stage mode. */}}
+       instrument's part, tab or staff. */}}
   <div class="stack-sheet" id="view-stack" role="dialog" aria-modal="true" aria-label="{{t "View"}}" tabindex="-1">
     <button type="button" class="stack-sheet-row" data-forward="normal">{{template "icon-mode-normal"}} {{t "Song"}}</button>
     <button type="button" class="stack-sheet-row" data-forward="jazz">{{template "icon-mode-jazz"}} {{t "Jazz chart"}}</button>
@@ -1470,27 +1515,30 @@
     </div>
     {{end}}
     <div class="stack-sheet-notation" id="view-stack-notation"></div>
-    <button type="button" class="stack-sheet-row stage-mode-toggle" id="stage-mode-row">{{template "icon-presentation"}} {{t "Stage mode"}}</button>
   </div>
 
   {{/* Outils: what you practise with, here, without leaving the song (and
-       the music playing): the tuner, the metronome — the player's click,
-       its panel at Sound —, the drum part and the mixer, which are the
-       player's too. */}}
+       the music playing): the metronome — the player's click, its panel
+       at Sound —, the drum part and the mixer, which are the player's
+       too, and the tuner (also in the Morceau sheet, as in the ⋯ menu on a
+       wide screen, with tap tempo). */}}
   <div class="stack-backdrop" id="tools-stack-backdrop" data-stack="tools-stack"></div>
   <div class="stack-sheet" id="tools-stack" role="dialog" aria-modal="true" aria-label="{{t "Tools"}}" tabindex="-1">
-    <a class="stack-sheet-row" id="tools-tuner-row" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
     <button type="button" class="stack-sheet-row" data-player-line="audio-line-click">{{template "icon-metronome"}} {{t "Metronome"}} <small class="stack-sheet-hint">{{t "the player’s click"}}</small></button>
     <button type="button" class="stack-sheet-row tools-drummer-row" data-forward="drummer" hidden>{{template "icon-mode-drummer"}} {{t "Drummer"}}</button>
     <button type="button" class="stack-sheet-row tools-mixer-row" data-forward="mixer">{{template "icon-mode-mixer"}} {{t "Mixer"}}</button>
+    <a class="stack-sheet-row" id="tools-tuner-row" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
   </div>
 
-  {{/* Morceau: what can be done to the song — edit it, its notes, its
-       reference recording, export it, its versions and history. */}}
+  {{/* Morceau: what can be done to the song — edit it, its notes, tune
+       to it, tap its tempo, its reference recording, export it, its
+       versions and history. */}}
   <div class="stack-backdrop" id="song-stack-backdrop" data-stack="song-stack"></div>
   <div class="stack-sheet" id="song-stack" role="dialog" aria-modal="true" aria-label="{{t "Song"}}" tabindex="-1">
     <button type="button" class="stack-sheet-row" data-forward="edit"{{if not (or .CanEdit .CanCopy)}} hidden{{end}}>{{template "icon-edit"}} {{t "Edit"}}</button>
     {{if .VariantID}}<button type="button" class="stack-sheet-row" id="notes-stack-row">{{template "icon-notes"}} {{t "Notes"}}</button>{{end}}
+    <a class="stack-sheet-row" id="song-tuner-row" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
+    <button type="button" class="stack-sheet-row" data-tap-tempo-open aria-haspopup="dialog">{{template "icon-tap"}} {{t "Tap tempo"}}</button>
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} {{t "Reference"}}</button>
     <button type="button" class="stack-sheet-row" data-pdf-dialog aria-haspopup="dialog">{{template "icon-download"}} {{t "Export as PDF…"}}</button>
     {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
@@ -1503,6 +1551,26 @@
   </div>
 
   <div class="content-main">
+    {{if .LessonView}}
+    {{/* The lesson view's stage (lesson-view.js): the lesson's video, big,
+         the course's card beside it on a wide screen, under it on a phone.
+         The video loads when played (its thumbnail until then); played,
+         it docks in a corner once scrolled past or on the Score and Mixer
+         views, still playing, until its close button closes it. */}}
+    <div class="lesson-stage" id="lesson-stage" data-tab="{{if .LessonVideoID}}video{{else}}score{{end}}">
+    {{with .LessonVideoID}}
+    <figure class="lesson-stage-video" id="lesson-stage-video" data-video="{{.}}">
+      <div class="lesson-stage-frame">
+        <button type="button" class="lesson-stage-play" aria-label="{{t "Play the video: %s" $.LessonVideoTitle}}">
+          <img src="https://i.ytimg.com/vi/{{.}}/hqdefault.jpg" alt="" loading="lazy" decoding="async">
+          <span class="lesson-stage-play-icon" aria-hidden="true"><svg viewBox="0 0 68 48"><path d="M66.5 7.7a8.5 8.5 0 0 0-6-6C55.2.3 34 .3 34 .3s-21.2 0-26.5 1.4a8.5 8.5 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.5 8.5 0 0 0 6 6C12.8 47.7 34 47.7 34 47.7s21.2 0 26.5-1.4a8.5 8.5 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3z"/><path d="M27 34l18-10-18-10z" fill="#fff"/></svg></span>
+          <span class="lesson-stage-video-title">{{$.LessonVideoTitle}}</span>
+        </button>
+        <button type="button" class="lesson-stage-close icon-btn" aria-label="{{t "Close the video"}}" title="{{t "Close the video"}}">{{template "icon-close"}}</button>
+      </div>
+    </figure>
+    {{end}}
+    {{end}}
     {{with .LessonPanel}}
     {{/* The lesson this song is in, in a course (lessonPanel): the song's
          page is where it's practised — its score, playback and audio —
@@ -1518,7 +1586,7 @@
           <span class="lesson-panel-name">{{.Lesson.Title}}</span>
         </a>
         <div class="lesson-panel-actions">
-          {{if .VideoID}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>{{t "Video"}}</span></button>{{end}}
+          {{if and .VideoID (not $.LessonView)}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-video">{{template "icon-play"}}<span>{{t "Video"}}</span></button>{{end}}
           {{if .Files}}<button type="button" class="lesson-panel-btn" aria-expanded="false" aria-controls="lesson-panel-files">{{template "icon-download"}}<span>{{t "Files"}} <small>{{len .Files}}</small></span></button>{{end}}
           <button type="button" id="lesson-panel-done" class="lesson-panel-btn lesson-panel-done" aria-pressed="{{if .Done}}true{{else}}false{{end}}"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg><span>{{if .Done}}{{t "Done"}}{{else}}{{t "Mark as done"}}{{end}}</span></button>
         </div>
@@ -1529,7 +1597,7 @@
       </div>
       {{/* The video stays in view while the score scrolls: docked in a
            corner once its place is out of sight (the script below). */}}
-      {{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="{{t "Close the video"}}">{{template "icon-close"}}</button></div></div>{{end}}
+      {{if not $.LessonView}}{{with .VideoID}}<div class="lesson-panel-video" id="lesson-panel-video" data-video="{{.}}" hidden><div class="lesson-video"><button type="button" class="lesson-video-close icon-btn" aria-label="{{t "Close the video"}}">{{template "icon-close"}}</button></div></div>{{end}}{{end}}
       {{with .Files}}<ul class="lesson-panel-files" id="lesson-panel-files" hidden>{{range .}}<li><a href="{{.Href}}" download><span class="dl-ext">{{if eq .Kind "gp"}}GP{{else}}{{or .Ext (t "FILE")}}{{end}}</span><span class="lesson-panel-file">{{.Filename}}</span><small>{{fileSize .ByteSize}}</small></a></li>{{end}}</ul>{{end}}
       {{/* The lessons before and after: which way, then which, each on its
            own line so a long name stays readable. Done makes "next" the
@@ -1597,6 +1665,7 @@
     })();
     </script>
     {{end}}
+    {{if .LessonView}}</div>{{/* .lesson-stage */}}{{end}}
     {{/* Single-line song structure overview — a thin progress line with
          one tick + label per section, weighted by its own bar count.
          Lives INSIDE the main pane (not the full page width) so it lines
@@ -2134,10 +2203,7 @@
     {{/* Lyrics only: "Follow the music", the karaoke line and the page
          scrolling with the recording, on or off for this song (song.js
          "Follow the music"). Off when the sync is wrong: the singer
-         scrolls, the recording still plays. Shown in Lyrics only.
-         In stage mode it is "Follow the sections" instead, in every view
-         that turns a section at a time (song.js "Stage mode"), and its
-         own setting. */}}
+         scrolls, the recording still plays. Shown in Lyrics only. */}}
     <div class="follow-bar" id="follow-bar" hidden>
       <label class="follow-switch">
         <input type="checkbox" id="follow-toggle" role="switch" checked aria-describedby="follow-hint">
@@ -2453,12 +2519,10 @@
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
 {{if .SingPanel}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
 <script src="/static/js/tuner.js?v={{staticVersion}}"></script>
+<script src="/static/js/keep-awake.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-controls.js?v={{staticVersion}}"></script>
-{{/* Stage mode on every song, not only those with a score (it used to
-     load with alphaTab, below, so a reader of a plain chart had a Mode
-     scène button that did nothing). */}}
-<script src="/static/js/stage.js?v={{staticVersion}}"></script>
 <script src="/static/js/song-notes.js?v={{staticVersion}}"></script>
+<script src="/static/js/tap-tempo.js?v={{staticVersion}}"></script>
 <script src="/static/js/mixer-autoalign.js?v={{staticVersion}}" defer></script>
 <script src="/static/js/mixer.js?v={{staticVersion}}" defer></script>
 {{if or .HasAlphaTab .HasAnyScore .CanEdit .GPFileName}}
@@ -2474,8 +2538,13 @@
 <script src="/static/js/alphatab-tab.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-export.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-levels.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-chords.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-align.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
+{{/* The soundfont a score plays with: its own subset of the server's
+     bank (soundfontID), docs/soundfont.md. */}}
+<script src="/static/js/gp-soundfont.js?v={{staticVersion}}" data-soundfont="{{soundfontID}}"></script>
 <script src="/static/js/gp-instruments.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-view.js?v={{staticVersion}}"></script>
 {{if and .CanEdit .GPFileName}}<script src="/static/js/gp-bar-picker.js?v={{staticVersion}}"></script>{{end}}

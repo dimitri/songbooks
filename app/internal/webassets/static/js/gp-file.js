@@ -15,12 +15,28 @@
     return alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
   }
 
+  // parseLevels parses the file with each track at its level in it
+  // (gp-levels.js: Guitar Pro 8 keeps it where alphaTab doesn't read it,
+  // and the track would otherwise play, and be saved, silent).
+  async function parseLevels(bytes) {
+    const score = parse(bytes);
+    if (window.GPLevels) GPLevels.apply(score, await GPLevels.read(bytes));
+    return score;
+  }
+
   // save writes score as a new version of the song's file, in Guitar Pro 7
   // format (Guitar Pro 7 and 8 open it), with its facts read back from the
   // written bytes, and keeps "gp_source:" naming it. Earlier versions stay
   // on the song's History page. name is the file's current name.
+  // alphaTab writes each track's channel strip from the model's levels and
+  // drops its automations: those of the file saved over are put back
+  // (gp-levels.js), so Guitar Pro plays it as it did.
   async function save(variantId, score, name) {
-    const bytes = new alphaTab.exporter.Gp7Exporter().export(score, new alphaTab.Settings());
+    let bytes = new alphaTab.exporter.Gp7Exporter().export(score, new alphaTab.Settings());
+    if (window.GPLevels) {
+      const before = await loadBytes(variantId).catch(() => null);
+      if (before) bytes = await GPLevels.keep(bytes, before);
+    }
     const facts = GPFacts.extract(parse(bytes));
     const newName = (name || 'song.gp').replace(/\.(gp[345x]?)$/i, '') + '.gp';
     const form = new FormData();
@@ -66,5 +82,5 @@
     return imp.readScore();
   }
 
-  window.GPFile = { loadBytes, parse, save, blank };
+  window.GPFile = { loadBytes, parse, parseLevels, save, blank };
 })();

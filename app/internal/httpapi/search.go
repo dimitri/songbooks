@@ -30,7 +30,6 @@ type searchItem struct {
 	Title    string   `json:"title"`
 	Subtitle string   `json:"subtitle,omitempty"`
 	URL      string   `json:"url,omitempty"`
-	Action   string   `json:"action,omitempty"` // a command done on the page itself: "stage"
 	Keys     []string `json:"keys,omitempty"`   // a command's shortcut, key by key
 	Here     bool     `json:"here,omitempty"`   // in the space the person is in
 	// Badge: a song's "whose · who sees it" ("Mercy · private").
@@ -178,8 +177,6 @@ func (s *Server) paletteCommands(ctx context.Context, lang string, person *store
 	}
 	cmds = append(cmds,
 		searchItem{Title: i18n.T(lang, "New set list"), URL: "/new/setlist", Keys: []string{"n", "s"}},
-		// Done on the song page itself; search.js offers it only there.
-		searchItem{Title: i18n.T(lang, "Stage mode"), Action: "stage", Keys: []string{"Shift+s"}},
 	)
 	fq := store.FoldName(strings.TrimSpace(q))
 	out := []searchItem{}

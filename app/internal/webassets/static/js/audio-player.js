@@ -920,6 +920,10 @@ window.songbooksDecodable = function (buf) {
     audio.currentTime = Math.max(0, Math.min(duration - 0.05, t));
     resetClicks();
     renderPosition();
+    // Where it is now, at once, for what follows it (the score's cursor,
+    // gp-view.js), stopped too, and at the start (⏮), where
+    // songbooksReferencePosition says nothing.
+    document.dispatchEvent(new CustomEvent('songbooks:player-seek', { detail: { bar: barAtTime(audio.currentTime), time: audio.currentTime } }));
     if (wasCounting && keepPlaying) play();
   }
   function seekToBar(b) {
@@ -2623,7 +2627,7 @@ window.songbooksDecodable = function (buf) {
       m: () => toggleClick(),
       i: toggleCountIn,
       s: togglePitch,
-      f: () => (document.body.classList.contains('stage') ? false : setSheet(!sheetOpen())),
+      f: () => setSheet(!sheetOpen()),
     },
     help: [
       [t('Play / pause'), ' ', 'k'],

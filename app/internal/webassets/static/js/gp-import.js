@@ -394,7 +394,8 @@
     s.player.enablePlayer = true;
     s.player.enableCursor = true;
     s.player.enableUserInteraction = true;
-    s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+    // The file's own subset of the soundfont (gp-soundfont.js).
+    const soundFontURL = window.GPSoundFont ? GPSoundFont.player(s, sc) : (s.player.soundFont = '/static/js/vendor/alphatab/soundfont/sonivox.sf2');
     s.player.scrollElement = prev.querySelector('.gpprev-body');
     if (alphaTab.PlayerMode) s.player.playerMode = alphaTab.PlayerMode.EnabledSynthesizer;
     for (const n of ['ScoreCopyright']) if (alphaTab.NotationElement[n] !== undefined) s.notation.elements.set(alphaTab.NotationElement[n], false);
@@ -404,6 +405,7 @@
       if (!holder.clientWidth && tries > 0) { requestAnimationFrame(() => draw(tries - 1)); return; }
       const api = new alphaTab.AlphaTabApi(holder, s);
       prevApi = api;
+      if (window.GPSoundFont) GPSoundFont.attach(api, soundFontURL);
       api.renderScore(sc, [...shown].sort((a, b) => a - b));
       api.playerReady.on(() => { play.disabled = false; });
       api.playerStateChanged.on((e) => {
@@ -435,7 +437,10 @@
       chips.appendChild(b);
     });
     player.hidden = false;
-    draw(60);
+    // Each track at its level in the file (gp-levels.js), before alphaTab
+    // makes its sound: a Guitar Pro 8 file would otherwise play silent.
+    const levels = window.GPLevels ? GPLevels.read(bytes).then((l) => { GPLevels.apply(sc, l); }) : Promise.resolve();
+    levels.catch(() => {}).finally(() => draw(60));
   }
 
   document.getElementById('gpimport-search-form').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });

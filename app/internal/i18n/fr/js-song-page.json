@@ -9,8 +9,6 @@
   "Sign in again to add notes.": "Reconnectez-vous pour ajouter des notes.",
   "Couldn't save that note. Your text is still here; try again.": "Impossible d’enregistrer la note. Votre texte est toujours là ; réessayez.",
   "Note added.": "Note ajoutée.",
-  "Leave stage mode": "Quitter le mode scène",
-  "previous and next song": "morceau précédent et suivant",
   "no chord grid in this section yet — jump unavailable": "pas encore de grille d’accords dans cette partie — saut indisponible",
   "move up": "monter",
   "move down": "descendre",
@@ -44,9 +42,5 @@
   "Off: no line lit, you scroll yourself. The recording still plays.": "Désactivé : aucune ligne allumée, vous faites défiler vous-même. L’enregistrement continue.",
   "Back to the current line": "Revenir à la ligne en cours",
   "Back to where the music is": "Revenir où en est la musique",
-  "Follow the music": "Suivre la musique",
-  "Follow the sections": "Suivre les sections",
-  "The page turns a section at a time, as the recording reaches each one.": "La page tourne une section à la fois, quand l’enregistrement y arrive.",
-  "Off: you turn the page — pedal, arrow keys or a tap. The recording still plays.": "Désactivé : c’est vous qui tournez la page — pédale, flèches ou toucher. L’enregistrement continue.",
-  "Back to the current section": "Revenir à la section en cours"
+  "Follow the music": "Suivre la musique"
 }

@@ -1023,6 +1023,12 @@
       let score;
       if (data.gpScoreJson) {
         score = alphaTab.model.JsonConverter.jsonToScore(data.gpScoreJson, settings);
+        // The chords over the file's bars (gp-chords.js): its own, else
+        // the chart's (the file is unrolled into the chart's bars here).
+        if (laneChords(score, tr.index)) {
+          settings.notation.elements.set(alphaTab.NotationElement.EffectChordNames, true);
+          GPChords.style(settings, alphaTab, 13);
+        }
       } else {
         const imp = new alphaTab.importer.AlphaTexImporter();
         imp.initFromString(data.alphaTex, settings);
@@ -1036,7 +1042,12 @@
           if (window.GPInstruments) GPInstruments.setProgram(st, p); else st.playbackInfo.program = p;
         });
       }
-      if (isPlayer) applyInstruments(score);
+      let soundFontURL = null;
+      if (isPlayer) {
+        applyInstruments(score);
+        // The score's own subset of the soundfont (gp-soundfont.js).
+        if (window.GPSoundFont) soundFontURL = GPSoundFont.player(settings, score);
+      }
       setStaffNotation(score, tr);
       applyBarWidths(score, target);
       tr.renderedPx = target;
@@ -1054,6 +1065,7 @@
       api.postRenderFinished.on(() => fitNotation(tr));
       if (isPlayer) {
         playerApi = api;
+        if (soundFontURL) GPSoundFont.attach(api, soundFontURL);
         api.playerReady.on(() => { synthReady = true; applyMix(); if (resumeAfterMidi) { resumeAfterMidi = false; play(); } if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
         api.playerStateChanged.on((e) => { synthPlaying = e.state === 1; });
         api.playerFinished.on(() => { if (!hasAudio()) pause(); });
@@ -1062,10 +1074,30 @@
     }
   }
 
+  // A Guitar Pro file's lane shows the chords over its bars: the file's own
+  // chord symbols, else the chart's, bar p of the lane being the chart's
+  // bar p. True when it has any to show (drums never do).
+  function laneChords(score, index) {
+    const tr = score.tracks[index];
+    if (!window.GPChords || !tr || tr.staves[0].isPercussion) return false;
+    if (GPChords.hasOwn(score)) return true;
+    const byBar = GPChords.byChartBar(data.sections);
+    const chords = new Map();
+    byBar.forEach((c, b) => { if (c) chords.set(b, c); });
+    return GPChords.put(score, index, chords, (name) => {
+      const c = new alphaTab.model.Chord();
+      c.name = name;
+      c.showDiagram = false;
+      c.showFingering = false;
+      return c;
+    }) > 0;
+  }
+
   // ---- Instruments (gp-instruments.js) ------------------------------------
   // The score plays each file track with the instrument chosen for the
   // song (by its editors, or by this person); a new choice reloads the
-  // synthesizer's MIDI, playing on from where it was.
+  // synthesizer's MIDI (and its soundfont, when the new instrument isn't
+  // in it: gp-soundfont.js), playing on from where it was.
   let resumeAfterMidi = false;
   function applyInstruments(score) {
     if (!window.GPInstruments) return false;
@@ -1076,12 +1108,15 @@
     });
     return changed;
   }
-  document.addEventListener('songbooks:gp-instrument', (e) => {
+  document.addEventListener('songbooks:gp-instrument', async (e) => {
     if (e.detail.variantId !== String(variantId) || !playerApi || !playerApi.score) return;
     if (!applyInstruments(playerApi.score)) return;
     // With no recording the synthesizer is the clock: it stops to reload.
     if (playing && !hasAudio()) { pause(); resumeAfterMidi = true; }
     synthReady = false;
+    if (window.GPSoundFont) {
+      try { await GPSoundFont.update(playerApi, playerApi.score); } catch (err) { /* the one it has */ }
+    }
     playerApi.loadMidiForScore();
   });
 
@@ -2051,7 +2086,11 @@
     if (typeof alphaTab === 'undefined' || !data.gpOrder) return;
     const res = await fetch(`/song/${variantId}/gp-file`);
     if (!res.ok) throw new Error(t('could not load the Guitar Pro file'));
-    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()), new alphaTab.Settings());
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
+    // Each track at its level in the file (gp-levels.js: Guitar Pro 8's
+    // own, which alphaTab reads as silence).
+    if (window.GPLevels) GPLevels.apply(file, await GPLevels.read(bytes));
     if (window.GPInstruments) GPInstruments.knowFile(variantId, file);
     data.tracks.forEach((t, i) => { if (file.tracks[i]) t.fileTrack = i; });
     const obj = JSON.parse(alphaTab.model.JsonConverter.scoreToJson(file));

@@ -4,7 +4,7 @@
 // songbooks, set lists, groups, events and a coach's students — the
 // current space's first — and commands, each with its shortcut. The
 // shortcuts work without opening it: g then a letter goes somewhere, n
-// then a letter makes something, ⇧S is stage mode on a song.
+// then a letter makes something.
 //
 // Loaded in every page's <head> (pwa-head), so its keys are seen before
 // the player's: "g m" mustn't also switch the click on. It does nothing
@@ -21,7 +21,6 @@
     if (!m) return '';
     return (m[1] === 'band' ? 'band' : 'community') + ':' + m[2];
   }
-  function stageToggle() { return document.querySelector('.stage-mode-toggle'); }
 
   // ---- Shortcuts -----------------------------------------------------------
   var GO = { h: '/home', l: '/catalog', a: '/calendar', n: '/notifications', b: '/metronome', t: '/tuner' };
@@ -47,12 +46,6 @@
     if (typing(e.target) || (dialog && dialog.open)) return;
     // A dialog or the song's editor has the keys.
     if (document.querySelector('dialog[open], #edit-drawer:not([hidden])')) return;
-    if (e.shiftKey && k === 's' && stageToggle()) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      stageToggle().click();
-      return;
-    }
     if (e.shiftKey) { pending = null; return; }
     var now = Date.now();
     if (pending && now - pendingAt < 1500) {
@@ -175,7 +168,7 @@
     list.textContent = '';
     items = [];
     var groups = (data.groups || []).slice();
-    var cmds = (data.commands || []).filter(function (c) { return c.action !== 'stage' || stageToggle(); });
+    var cmds = data.commands || [];
     // With nothing typed, the commands lead; with a query, the finds do.
     var cmdGroup = cmds.length ? { kind: 'command', label: data.commandsLabel || tr('Commands'), items: cmds } : null;
     if (cmdGroup) { if (q) groups.push(cmdGroup); else groups.unshift(cmdGroup); }
@@ -233,7 +226,6 @@
     setActive((active + d + items.length) % items.length);
   }
   function go(it) {
-    if (it.action === 'stage') { close(); if (stageToggle()) stageToggle().click(); return; }
     if (!it.url) return;
     var url = it.url;
     if (/^\/new\//.test(url)) url = withSpace(url);

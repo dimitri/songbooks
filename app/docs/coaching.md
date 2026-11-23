@@ -229,13 +229,22 @@ coaching_songbooks.go) shows them from each side:
   student may ask again). Added, the student is told
   (`song_request_added`); either way the other staff's notifications of
   it are marked read.
-- **The coach**: *Requests (n)* first; then a card per student and per
-  group, the soonest lesson (a group's session) first: its song count,
-  the student's range, the last song worked on, the takes since the last
-  lesson (to check), *Open songbook* (the student's page, the group's
-  page); a search when there are more than six. Beside them the
-  repertoire's card: its songs, each *Add to…* a student or a group in a
-  key (the song page's own coach-keys endpoint).
+- **The coach** (coaching_book.html, coaching_book.go, coach-book.js):
+  one songbook, full width, like a band's. *Requests (n)* first, when
+  there are some; then the students and groups as a strip, one line
+  each (name, songs, next lesson or session, requests waiting), the
+  soonest lesson first, each to their page. Then the songs as rows: the
+  repertoire's, then any a student or a group has from elsewhere ("not
+  in the repertoire"); title, artist, the song's badges, its key, and a
+  chip per student or group who has it, in their key ("Zoé · Gm −2"). A
+  chip opens its key (− / +, their range with the song's melody over
+  it) to save, or takes the song out of their songbook; *+ Assign*
+  gives it to another student or group, in a key (the song page's
+  coach-keys endpoint, the community's songbook songs). A search over
+  titles and artists, a filter by student ("Zoé's songs", "Not
+  assigned", remembered in the address as `?who=s:56`), and *Add song*:
+  the one Add / Create dialog where the page has it (add-song.js), else
+  the repertoire's own page and its dialog.
 
 ## Students' songs, and an event's program
 

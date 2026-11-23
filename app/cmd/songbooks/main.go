@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	// The image has no zoneinfo: TZ (the deploy files set Europe/Paris)
@@ -40,6 +41,9 @@ func main() {
 	smtpURL := flag.String("smtp-url", "", "real SMTP endpoint for outbound mail — NOT YET IMPLEMENTED; if set, this is logged and the server falls back to the console/outbox mailer. Swapping in a real mailer.Mailer implementation here is the contained follow-up change this flag is a placeholder for.")
 	devAutoLoginUser := flag.String("dev-auto-login", envOr("SONGBOOKS_DEV_AUTO_LOGIN", ""), "DEV/TESTING ONLY, DEFAULT OFF: if set to a username, every single HTTP request is automatically authenticated as that person — /login is skipped entirely, no cookie, no session. This completely disables authentication for anyone who can reach the server. NEVER set this (as a flag or as the SONGBOOKS_DEV_AUTO_LOGIN env var) on a production or otherwise publicly-reachable deployment. Leave it unset (the default) everywhere except your own local dev loop.")
 	webauthnRPID := flag.String("webauthn-rp-id", envOr("SONGBOOKS_WEBAUTHN_RP_ID", ""), "passkey (WebAuthn) Relying Party ID — the bare hostname passkeys are bound to (e.g. songbooks.tapoueh.org). MUST be set explicitly in production: a passkey only ever works against the exact RPID it was registered under, and defaulting this is a dev-only convenience (see below). Left unset (the default), the RPID/origin are instead derived per-request from that request's own Host header — fine for bouncing between localhost:8080 and a LAN IP while developing, but wrong for a real deployment, which should pin one fixed hostname here instead of trusting whatever Host a request arrived with.")
+	soundfontPath := flag.String("soundfont", envOr("SONGBOOKS_SOUNDFONT", ""), "the SoundFont 2 bank scores play with, served cut down to each score's presets at /soundfonts/subset/ (docs/soundfont.md); default: GeneralUser GS where the image puts it (/usr/local/share/songbooks) or deploy/fetch-soundfont.sh does (the cache directory). None, scores play with alphaTab's Sonivox")
+	cacheDir := flag.String("cache-dir", envOr("SONGBOOKS_CACHE_DIR", defaultCacheDir()), "a directory for files the app makes and can make again (the soundfont subsets)")
+	soundfontCacheMB := flag.Int64("soundfont-cache-mb", 256, "the most the soundfont subsets may take in the cache directory, in MB (the least recently used go first)")
 	adminFileDir := flag.String("admin-file-dir", envOr("SONGBOOKS_ADMIN_FILE_DIR", ""), "DEFAULT OFF: a directory to serve flat (no subdirectories) at GET /admin/files/{name}, admin-auth-gated — a small staging area for getting a large local file (a bulk-import source, say) onto this app's own origin, so a browser session already signed in here can fetch it directly instead of hitting mixed-content/CORS blocks against a separate host. Leave unset outside of a deliberate one-off bulk-import operation.")
 	flag.Parse()
 
@@ -181,6 +185,15 @@ func main() {
 	// admin page's demo data panel (docs/demo-data.md).
 	httpapi.DemoData = os.Getenv("SONGBOOKS_DEMO_DATA") == "1"
 	httpapi.DemoDBURL = *dbURL
+	// The soundfont scores play with (docs/soundfont.md): GeneralUser GS
+	// where the image or deploy/fetch-soundfont.sh put it.
+	if *soundfontPath == "" {
+		*soundfontPath = "/usr/local/share/songbooks/GeneralUser-GS.sf2"
+		if local := filepath.Join(*cacheDir, "GeneralUser-GS.sf2"); fileExists(local) {
+			*soundfontPath = local
+		}
+	}
+	httpapi.UseSoundFont(*soundfontPath, filepath.Join(*cacheDir, "soundfont-subsets"), *soundfontCacheMB<<20)
 	// Live lessons (docs/live-lessons.md): Galène's address and the key
 	// its lessons group checks our join tokens with (galene/setup.sh
 	// writes it in deploy/.env); no key, no online lessons to join.
@@ -202,6 +215,20 @@ func main() {
 	go httpapi.RunMelodyRanges(context.Background(), st)
 	log.Printf("songbooks serving %s on http://%s", redactURL(*dbURL), *addr)
 	log.Fatal(http.ListenAndServe(*addr, handler))
+}
+
+// defaultCacheDir is the user's cache directory's songbooks folder, or
+// the system's temporary one's.
+func defaultCacheDir() string {
+	if d, err := os.UserCacheDir(); err == nil {
+		return filepath.Join(d, "songbooks")
+	}
+	return filepath.Join(os.TempDir(), "songbooks-cache")
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.Mode().IsRegular()
 }
 
 func envOr(key, fallback string) string {

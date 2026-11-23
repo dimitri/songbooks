@@ -7,10 +7,9 @@
        person; kept fresh by the script below);
      - phone and tablet: "notif-bell", the bell in the top bar's
        notifications slot next to the avatar, with the count, and the
-       Accueil tab's dot (global-tabbar, from the entry's Dot);
-     - the song page: "nav-notifications-dot", a bell with a dot in its
-       toolbar's slot, so a coach's comment isn't invisible while you
-       practise.
+       Accueil tab's dot (global-tabbar, from the entry's Dot). The song
+       page has none of its own: a focused view, its bar in place of the
+       tab bar.
 
      Badges count unread notifications only. Every badge and dot carries
      data-unread-count or data-unread-dot, and nav-notifications-script
@@ -24,9 +23,6 @@
 
 {{/* The top bar's bell; called with the number unread. */}}
 {{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span id="notif-badge" class="notif-badge" data-unread-count{{if not .}} hidden{{end}}>{{if .}}{{.}}{{end}}</span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span></a>{{end}}
-
-{{/* The song toolbar's bell with a dot; called with the number unread. */}}
-{{define "nav-notifications-dot"}}<a href="/notifications" class="nav-notifications-dot" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span class="nav-unread-dot" data-unread-dot{{if not .}} hidden{{end}}></span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span></a>{{end}}
 
 {{define "notif-bell-script"}}{{template "nav-notifications-script"}}{{end}}
 {{define "nav-notifications-script"}}<script>(function () {

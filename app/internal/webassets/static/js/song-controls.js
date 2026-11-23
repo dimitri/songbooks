@@ -4,7 +4,7 @@
 // files), the PDF dialog, and on a phone the song bar's three sheets (Vue,
 // Outils, Morceau) and its ‹. The view switcher (#mode-segmented) and the
 // actions keep their ids and are wired where they always were (song.js,
-// song-notes.js, stage.js, audio-player.js): a sheet's row forwards a
+// song-notes.js, audio-player.js, tap-tempo.js): a sheet's row forwards a
 // click to the control it stands for.
 (function () {
   const modeEl = document.getElementById('mode-segmented');
@@ -166,8 +166,8 @@
     dialog.addEventListener('close', () => { if (opener && opener.offsetParent !== null) opener.focus(); });
   }
 
-  // ---- "Accorder": the tuner in place ----------------------------------------
-  // The toolbar's button and the Outils sheet's row open it here, the
+  // ---- "Accordeur": the tuner in place ---------------------------------------
+  // The ⋯ menu's item and the Morceau sheet's row open it here, the
   // song's tunings first (tuner.js); the music pauses (the microphone
   // would hear it), and closing it stops the microphone. Without this
   // script the links go to /tuner.
@@ -178,7 +178,7 @@
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       const sheet = a.closest('.stack-sheet');
-      opener = sheet ? document.getElementById(sheet.id + '-btn') : a;
+      opener = a.closest('[role="menu"]') ? document.getElementById('song-more-btn') : sheet ? document.getElementById(sheet.id + '-btn') : a;
       document.dispatchEvent(new CustomEvent('songbooks:pause-reference'));
       const clock = window.songbooksFollowClock;
       if (clock && clock.state().running) clock.toggle(false);

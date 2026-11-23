@@ -30,11 +30,18 @@
     }
     return bytesPromise;
   }
+  // Each track's level as Guitar Pro plays it (gp-levels.js): a Guitar
+  // Pro 8 file keeps it where alphaTab doesn't read it, and its score then
+  // sounds silent (no waveform in the player, nothing to hear) — and would
+  // be saved silent.
+  let levelsPromise = null;
+  const fileLevels = () => (levelsPromise ||= fileBytes().then((b) => (window.GPLevels ? GPLevels.read(b) : [])));
   // Guitar Pro files often mark chords "show diagram" with no fingering
   // at all (only the name was wanted): drawn, those are empty boxes. raw
   // leaves the model as the file has it, for editing and saving.
   async function loadScore(raw) {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(await fileBytes(), new alphaTab.Settings());
+    if (window.GPLevels) GPLevels.apply(score, await fileLevels());
     if (raw) return score;
     for (const t of score.tracks) {
       for (const st of t.staves) {
@@ -178,7 +185,10 @@
   // score.
 
   const page = document.getElementById('gp-score-page');
-  const SOUNDFONT = '/static/js/vendor/alphatab/soundfont/sonivox.sf2';
+  // The soundfont: the score's own subset of GeneralUser GS, as its
+  // instruments are chosen (gp-soundfont.js); Sonivox without it.
+  const soundFont = (score) => (window.GPSoundFont ? GPSoundFont.bytesFor(score)
+    : fetch('/static/js/vendor/alphatab/soundfont/sonivox.sf2').then((r) => { if (!r.ok) throw new Error('soundfont'); return r.arrayBuffer(); }).then((b) => new Uint8Array(b)));
   const ink = (hex) => new alphaTab.model.Color(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
   // { api, score, shown: Set, geo, played: [MasterBarTickLookup], barMs: [], quiet, lastMs, playing, cycleKey }
   let full = null;
@@ -361,9 +371,8 @@
   }
   // The file through the synthesizer, as a WAV; progress(percent) as it goes.
   async function renderWav(progress) {
-    const sf = await fetch(SOUNDFONT).then((r) => { if (!r.ok) throw new Error('soundfont'); return r.arrayBuffer(); });
     const opts = new alphaTab.synth.AudioExportOptions();
-    opts.soundFonts = [new Uint8Array(sf)];
+    opts.soundFonts = [await soundFont(full.score)];
     opts.sampleRate = 44100;
     opts.useSyncPoints = false;
     opts.metronomeVolume = 0;
@@ -547,6 +556,27 @@
     const floor = (d && d.height ? Math.min(window.innerHeight, d.top) : window.innerHeight) - 12;
     if (top < 56 || bottom > floor) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
   }
+  // The player moved (a click, a key, ⏮): the cursor goes there at once,
+  // stopped too — at the start the player's place reads as none, and the
+  // cursor stayed where it was (⏮ looked dead). Back at the start, the
+  // score's first line comes back into sight when scrolled past.
+  document.addEventListener('songbooks:player-seek', (e) => {
+    if (!full || sheet.dataset.renderMode !== 'score' || !full.barMs.length) return;
+    const out = full.api.player && full.api.player.output;
+    const bar = e.detail ? e.detail.bar : null;
+    if (!out || bar === null || bar === undefined) return;
+    const P = window.songbooksPlayer;
+    const ms = msAtBar(Math.max(0, bar)) / ((P && P.speed()) || 1);
+    full.lastMs = ms;
+    quietly(() => out.updatePosition(ms));
+    if (bar > 0.01) return;
+    const sys = full.api.renderer.boundsLookup && full.api.renderer.boundsLookup.staffSystems && full.api.renderer.boundsLookup.staffSystems[0];
+    const surface = page.querySelector('.gp-score-canvas .at-surface');
+    const b = sys && (sys.realBounds || sys.visualBounds);
+    if (!b || !surface) return;
+    const top = surface.getBoundingClientRect().top + b.y;
+    if (top < 56) window.scrollBy({ top: top - Math.max(64, window.innerHeight * 0.2), behavior: 'smooth' });
+  });
   function startFollowing() {
     if (!full || full.following) return;
     full.following = true;
@@ -565,6 +595,8 @@
     let score;
     try { score = await loadScore(); } catch (e) { failed(canvas, e.message); return; }
     if (full) return;
+    // The chords over the bars: the file's, else the chart's (gp-chords.js).
+    const chordsFor = chartChords(score);
     // The file's own recording, for the simplified mixer when the song has
     // none (timed by its sync points, read before they go).
     const own = mixMode() && score.backingTrack && score.backingTrack.rawAudioFile
@@ -582,6 +614,7 @@
     r.mainGlyphColor = r.secondaryGlyphColor = r.scoreInfoColor = r.barSeparatorColor = ink('#241e18');
     s.display.scale = g.scale;
     s.display.barsPerRow = g.perRow;
+    if (window.GPChords) GPChords.style(s, alphaTab);
     s.display.padding = [0, 0, 0, 0];
     s.player.enablePlayer = true;
     s.player.playerMode = alphaTab.PlayerMode.EnabledExternalMedia;
@@ -674,8 +707,43 @@
     });
     if (mixMode()) full.mix = setUpMix(own);
     setUpInstruments();
+    full.chords = await chordsFor;
     renderFull(true);
     startFollowing();
+  }
+
+  // ---- The chords over the bars ---------------------------------------------
+  // The file's own chord symbols when it has any (alphaTab draws them);
+  // else the chart's, each on the bar of the file it plays (gp-chords.js),
+  // over the first track shown that isn't drums. Only drawn: the file
+  // itself is never changed by them (they're not in loadScore(true)).
+  let mixerPromise = null;
+  function mixerData() {
+    if (!mixerPromise) {
+      mixerPromise = fetch(`/api/songs/${variantId}/mixer`, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    }
+    return mixerPromise;
+  }
+  async function chartChords(score) {
+    if (!window.GPChords || !window.GPAlign || GPChords.hasOwn(score)) return null;
+    const mx = await mixerData();
+    if (!mx.gpOrder) return null;
+    const played = GPFacts.played(score.masterBars);
+    const chords = GPChords.forWrittenBars(GPAlign.chartBarsForFile(mx.gpOrder, played), played, GPChords.byChartBar(mx.sections));
+    return chords.size ? chords : null;
+  }
+  function makeChord(name) {
+    const c = new alphaTab.model.Chord();
+    c.name = name;
+    c.showDiagram = false;
+    c.showFingering = false;
+    return c;
+  }
+  function placeChords(tracks) {
+    if (!full || !full.chords) return;
+    const top = tracks.find((i) => !full.score.tracks[i].staves[0].isPercussion);
+    GPChords.put(full.score, top ?? -1, full.chords, makeChord);
   }
 
   // ---- The simplified mixer ---------------------------------------------------
@@ -758,7 +826,7 @@
     (async () => {
       try {
         const [mx, au] = await Promise.all([
-          fetch(`/api/songs/${variantId}/mixer`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : {})),
+          mixerData(),
           fetch(`/api/songs/${variantId}/audio`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : { categories: [] })),
         ]);
         const cats = {};
@@ -837,6 +905,7 @@
     if (!full) return;
     const pick = page.querySelector('.gp-notation');
     const tracks = [...full.shown].sort((a, b) => a - b);
+    placeChords(tracks);
     for (const i of tracks) {
       const tr = full.score.tracks[i];
       applyNotation(tr, pick && pick.value ? (kindOf(tr) === 'drums' ? 'staff' : pick.value) : notationFor(tr, ''));

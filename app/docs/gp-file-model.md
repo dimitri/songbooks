@@ -198,14 +198,15 @@ with the facts and stores the differences.
   music — A4 pages, four bars a line where they fit — with a track
   picker and tab/staff. It plays in the song's player, the dock, like
   every other view: the song's recording (the file's backing track is
-  one, `gp`), else the file through alphaTab's synthesizer, rendered
+  one, `gp`), else the file through alphaTab's synthesizer (with
+  GeneralUser GS, cut down to the file's instruments: soundfont.md), rendered
   once in the browser (`exportAudio`) and handed to the dock as its
   sound, waveform and all. alphaTab's player follows the dock
   (`PlayerMode.EnabledExternalMedia`): the cursor, a click on a note,
   bars dragged across as the dock's loop. The song view stays one tap
   away when the text has anything to show.
 - **Score**, a new view, is there for any song with a file.
-- Stage mode, the Drummer view and set lists work for both kinds.
+- The Drummer view and set lists work for both kinds.
 - **Mixer:** a song with a file plays the file itself (every track, every
   effect, its own backing track) instead of alphaTeX rebuilt from voices.
   A song without one keeps playing its LilyPond voices. A file next to the

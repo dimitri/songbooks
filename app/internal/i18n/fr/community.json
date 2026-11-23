@@ -877,5 +877,11 @@
   "bright timbre": "timbre clair",
   "warm timbre": "timbre chaud",
   "dark timbre": "timbre sombre",
-  "leaning %s": "plutôt %s"
+  "leaning %s": "plutôt %s",
+  "All songs": "Tous les morceaux",
+  "Not assigned": "Donnés à personne",
+  "Search the songs": "Chercher dans les morceaux",
+  "Search the songs…": "Chercher dans les morceaux…",
+  "Whose songs": "Les morceaux de qui",
+  "not in the repertoire": "pas dans le répertoire"
 }

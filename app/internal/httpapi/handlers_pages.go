@@ -2947,6 +2947,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
+	// Tap tempo (play.html #tap-tempo-dialog) compares with the song's own
+	// tempo, not with .Tempo's 120 for a song that has none.
+	data["SongTempo"] = sg.Get("tempo")
 	// The reference in the header (song_ref_head.go): without a link, a
 	// band recording is the song's reference.
 	hasBand := false
@@ -3174,6 +3177,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			data["SingPanel"] = true
 		}
 	}
+	// A lesson, or a song all in its Guitar Pro file: the lesson view
+	// (lessonview.go), its video first.
+	lessonViewData(data, sg)
 	// The key's chip in the dock names the key: "Ton −1 · C#m".
 	data["SongKeyName"] = songKeyName(sg)
 	// "Je joue": the reader's parts here, a level each (player_parts.go).
