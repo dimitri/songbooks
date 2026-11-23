@@ -58,5 +58,9 @@
   "zoom in (+)": "zoomer (+)",
   "zoom out (−)": "dézoomer (−)",
   "±1 beat": "±1 temps",
-  "±10 ms": "±10 ms"
+  "±10 ms": "±10 ms",
+  "From the very start of the recording (Home)": "Depuis le tout début de l’enregistrement (Début)",
+  "From the start": "Depuis le début",
+  "The recording: click or tap anywhere to move the playhead there, drag the playhead to scrub, ← → to step it, Home for the very start; drag a section’s marker by its name or its grip to move its start (Alt: without snapping); pinch or Ctrl + wheel to zoom, drag or wheel to scroll.": "L’enregistrement : cliquez ou touchez n’importe où pour y placer la tête de lecture, faites glisser la tête de lecture pour parcourir, ← → pour l’avancer, Début pour le tout début ; faites glisser le repère d’une partie par son nom ou sa poignée pour déplacer son début (Alt : sans aimanter) ; pincez ou Ctrl + molette pour zoomer, glissez ou molette pour défiler.",
+  "Click: the playhead there. Drag the playhead: scrub. ← →: step it (Shift: 5 s), Home: the very start. Drag a marker by its name or its grip to move its start (Alt: without snapping). Pinch or Ctrl + wheel: zoom. Drag or wheel: scroll.": "Clic : la tête de lecture ici. Glisser la tête de lecture : parcourir. ← → : l’avancer (Maj : 5 s), Début : le tout début. Glisser un repère par son nom ou sa poignée pour déplacer son début (Alt : sans aimanter). Pincer ou Ctrl + molette : zoomer. Glisser ou molette : défiler."
 }

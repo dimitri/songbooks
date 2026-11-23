@@ -965,9 +965,11 @@ window.songbooksDecodable = function (buf) {
   setInterval(tick, 15);
 
   playBtn?.addEventListener('click', () => (isPlaying() ? pause() : play()));
+  // ⏮: the very start of the recording (0:00) — before the lead, any
+  // pre-roll included — or, while looping, the loop's start.
   $('audio-start-btn')?.addEventListener('click', () => {
     const cyc = cycleRange();
-    seek(cyc ? cyc.t0 : (hasBars() ? Math.max(0, grid[0]) : 0));
+    seek(cyc ? cyc.t0 : 0);
   });
   function stepBar(dir) {
     if (!hasBars()) { seek(audio.currentTime + dir * 5); return; }

@@ -818,15 +818,48 @@ func (s Section) count() int {
 func (g grid) isDown(j int) bool { return j >= 0 && j < len(g.pos) && g.pos[j] == 1 }
 
 // firstMusicDownbeat is the recording's bar 1: its first downbeat with
-// music (at or after its audio's start, the beat tracker sure enough of
-// it); -1 when none.
+// music — at or after its audio's start, the beat tracker sure enough of
+// it, and the first of a regular run: the beats from it on, two bars'
+// worth, as sure and evenly spaced (within 15% of the song's usual beat).
+// Silence, talk or a room before the music can get beats from a tracker,
+// but not sure ones, evenly, for two bars. When no downbeat starts such a
+// run (a rubato song), the first sure one; -1 when none.
 func firstMusicDownbeat(r *Recording, g grid, M int) int {
+	sure := func(j int) bool { return g.act == nil || j >= len(g.act) || g.act[j] >= 0.3 }
+	var ibis []float64
+	for j := 1; j < M && j < len(g.beats); j++ {
+		ibis = append(ibis, g.beats[j]-g.beats[j-1])
+	}
+	beat := 0.0
+	if len(ibis) > 0 {
+		sorted := append([]float64(nil), ibis...)
+		sort.Float64s(sorted)
+		beat = sorted[len(sorted)/2]
+	}
+	run := 2 * max(1, g.B)
+	regular := func(j int) bool {
+		if beat <= 0 || j+run >= len(g.beats) {
+			return false
+		}
+		for k := j; k < j+run; k++ {
+			if !sure(k) || math.Abs(g.beats[k+1]-g.beats[k]-beat) > 0.15*beat {
+				return false
+			}
+		}
+		return true
+	}
+	first := -1
 	for j := 0; j < M; j++ {
-		if g.pos[j] == 1 && g.beats[j] >= r.AudioStart-0.15 && (g.act == nil || j >= len(g.act) || g.act[j] >= 0.3) {
-			return j
+		if g.pos[j] == 1 && g.beats[j] >= r.AudioStart-0.15 && sure(j) {
+			if first < 0 {
+				first = j
+			}
+			if regular(j) {
+				return j
+			}
 		}
 	}
-	return -1
+	return first
 }
 
 // chooseDownbeat puts a section that the chords start at beat raw on a

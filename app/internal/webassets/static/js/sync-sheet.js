@@ -1237,6 +1237,8 @@
   tapBtn.addEventListener('click', (e) => { if (e.detail === 0) tap(); }); // Enter / Space on it
   playBtn.addEventListener('click', () => (P.isPlaying() ? P.pause() : play()));
   $('sync-back').addEventListener('click', () => P.seek(Math.max(0, P.audio.currentTime - 5)));
+  // The very start of the recording, whatever the section or the lead.
+  $('sync-start')?.addEventListener('click', () => P.seek(0));
   clickBtn.addEventListener('click', () => { P.toggleClick(); tick(); });
   $('sync-speed').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { P.setSpeed(+b.dataset.v); tick(); } });
   undoBtn.addEventListener('click', undo);
@@ -1297,6 +1299,14 @@
     else if (k === ' ' || k === 'Spacebar') { if (ownsKeys(e.target)) handled = false; else (P.isPlaying() ? P.pause() : play()); }
     else if (k === 'Enter') { if (ownsKeys(e.target) || e.target === tapBtn) handled = false; else tap(); }
     else if (k === 't' || k === 'T') tap();
+    // The playhead: Home, the very start; ← → on the waveform step it.
+    // Elsewhere ← → nudge the section picked (as before).
+    else if (k === 'Home') P.seek(0);
+    else if (k === 'End') P.seek(Math.max(0, P.duration() - 5));
+    else if ((k === 'ArrowLeft' || k === 'ArrowRight') && e.target && e.target.id === 'sync-wave-canvas') {
+      const step = (e.shiftKey ? 5 : 1) * (k === 'ArrowLeft' ? -1 : 1);
+      P.seek(Math.max(0, Math.min(P.duration(), P.audio.currentTime + step)));
+    }
     else if (k === 'ArrowLeft') nudge(cursor, e.shiftKey ? -barLen(Math.max(0, cursor - 1)) : -0.1);
     else if (k === 'ArrowRight') nudge(cursor, e.shiftKey ? barLen(cursor) : 0.1);
     else if (k === 'ArrowUp') select(cursor - 1);
