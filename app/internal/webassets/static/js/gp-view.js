@@ -618,7 +618,9 @@
     const old = full.geo;
     full.geo = ng;
     applyGeometry(ng);
-    if (ng.perRow !== old.perRow || ng.scale !== old.scale || ng.phone !== old.phone || (shown && !full.drawn)) {
+    // Drawn once already, or being drawn (made in sight): only a new size
+    // draws again; made out of sight, alphaTab skipped it: now.
+    if (ng.perRow !== old.perRow || ng.scale !== old.scale || ng.phone !== old.phone || (shown && full.hiddenAtStart && !full.drawn)) {
       const api = full.api;
       api.settings.display.barsPerRow = ng.perRow;
       api.settings.display.scale = ng.scale;
@@ -669,7 +671,7 @@
     // room for it again at the score's size.
     hide(s, g.phone ? SCORE_INFO : ['ScoreCopyright']);
     const api = new alphaTab.AlphaTabApi(canvas, s);
-    full = { api, score, shown: new Set([0]), geo: g, played: [], barMs: [], quiet: false, lastMs: -1, playing: false, cycleKey: null };
+    full = { api, score, shown: new Set([0]), geo: g, played: [], barMs: [], quiet: false, lastMs: -1, playing: false, cycleKey: null, hiddenAtStart: !canvas.getClientRects().length };
     // The page scrolls, not alphaTab: only while it plays, and only when
     // the line being played leaves the room between the top of the screen
     // and the dock; it then comes up to a fifth of the way down.

@@ -1,15 +1,18 @@
 package httpapi
 
 import (
+	"net/http"
+	"strconv"
 	"strings"
 
 	"app/internal/song"
+	"app/internal/store"
 )
 
 // The lesson view (docs/lesson-page-review.md). A song is a lesson when it
 // has its Guitar Pro file and either is one of a course's lessons (a
 // songbook of kind "course", placed in one of its lessons:
-// store.CourseLessonOfSong, whichever way it's opened), or is all in its
+// store.CourseLessonsOfSong, whichever way it's opened), or is all in its
 // file ("content: gp"), or has a chart only read from that file
 // (importedFromGP). That one property (LessonView) makes its page a
 // lesson's: the video beside the score, Score and Mixer, the one player
@@ -18,6 +21,18 @@ import (
 // key: no Key in the player, the Mixer or the header, no Transpose in the
 // editor — its chart is the file's, for its editors too — and no
 // student's or songbook's key).
+//
+// A lesson opened from anywhere (a search, the library, home's "recently",
+// the history, a notification, a shared /song/N link) is opened in its
+// course, exactly as from its songbook (withCourseContext): its card
+// (progress, files, done, the lessons either side), the way back to it,
+// the previous and next lessons, its video. Only a course the viewer may
+// open (store.CanAccessSongbook, or a site admin): someone else sees the
+// lesson's page, not its course's card, its other lessons' titles or its
+// video. A song in two courses' lessons: the first the viewer may open,
+// the lowest id first. A song opened from somewhere in particular (a set
+// list, a songbook — a student's, a band's —, an event, a band, a
+// community, a playlist beside it) keeps that place.
 //
 // The video is the lesson's own (the course's lesson, else the song's
 // reference); with none, there's no switch, the player plays along. A
@@ -47,7 +62,9 @@ func lessonViewData(data map[string]any, sg *song.Song, course *songLesson) {
 		if course.VideoID != "" {
 			video = course.VideoID
 		}
-		title = course.Title
+		if course.Title != "" {
+			title = course.Title
+		}
 	}
 	if panel != nil {
 		if panel.VideoID != "" {
@@ -88,4 +105,78 @@ func importedFromGP(sg *song.Song) bool {
 		any = true
 	}
 	return any
+}
+
+// songLessonFor is the song's course lesson for its page: a lesson (its
+// file, in a course's lesson) whose course the viewer may open gives its
+// title and video; one whose course they may not is still a lesson,
+// without them; nil for a song in no course's lesson.
+func (s *Server) songLessonFor(r *http.Request, variantID int64, data map[string]any) *songLesson {
+	if data["GPFileName"] == nil {
+		return nil
+	}
+	refs, err := s.store.CourseLessonsOfSong(r.Context(), variantID)
+	if err != nil || len(refs) == 0 {
+		return nil
+	}
+	out := &songLesson{}
+	if c := s.openableCourse(r, refs); c != nil {
+		if l, err := s.store.GetLesson(r.Context(), c.LessonID); err == nil {
+			out.Title, out.VideoID = l.Title, s.lessonVideo(*l)
+		}
+	}
+	return out
+}
+
+// openableCourse is the first of a song's course lessons whose course the
+// viewer may open, nil for none.
+func (s *Server) openableCourse(r *http.Request, refs []store.CourseLessonRef) *store.CourseLessonRef {
+	for i := range refs {
+		if s.mayOpenSongbook(r, refs[i].SongbookID) {
+			return &refs[i]
+		}
+	}
+	return nil
+}
+
+// mayOpenSongbook: the viewer may open the songbook (its owner's member,
+// with its grant when it's gated; a public one), or is a site admin.
+func (s *Server) mayOpenSongbook(r *http.Request, songbookID int64) bool {
+	p := personFromContext(r)
+	if p == nil {
+		return false
+	}
+	if p.IsAdmin {
+		return true
+	}
+	ok, err := s.store.CanAccessSongbook(r.Context(), p.ID, songbookID)
+	return err == nil && ok
+}
+
+// songContextParams are the places a song can be opened from, in its
+// address: with any of them, the song keeps it.
+var songContextParams = []string{"setlist", "songbook", "event", "band", "community", "embed"}
+
+// withCourseContext opens a lesson opened from no particular place in its
+// course, as ?songbook=<course> would: the first of its course lessons
+// the viewer may open. r as it is otherwise.
+func (s *Server) withCourseContext(r *http.Request, variantID int64) *http.Request {
+	q := r.URL.Query()
+	for _, k := range songContextParams {
+		if q.Get(k) != "" {
+			return r
+		}
+	}
+	refs, err := s.store.CourseLessonsOfSong(r.Context(), variantID)
+	if err != nil || len(refs) == 0 {
+		return r
+	}
+	c := s.openableCourse(r, refs)
+	if c == nil {
+		return r
+	}
+	q.Set("songbook", strconv.FormatInt(c.SongbookID, 10))
+	r2 := r.Clone(r.Context())
+	r2.URL.RawQuery = q.Encode()
+	return r2
 }
