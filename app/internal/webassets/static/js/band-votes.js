@@ -1,20 +1,20 @@
 // band-votes.js — a band's votes on its proposals (docs/band-votes.md;
 // internal/store/band_proposals.go has the rules).
 //
-// Each member rates a proposed song 1 to 4 stars — an even scale, never
-// right in the middle: 1 and 2 are against it, 3 and 4 for it — or says
-// "No thanks", a refusal shown apart from the stars, or hasn't voted
-// (never 0 stars). The same vote control and the same summary (the
-// average, for/against, how many voted of the band's members, who said
-// no thanks, who hasn't voted) show on the To vote list, a proposal's
-// page, the vote's player (playlist.html, keys 1–4 and N) and the
-// listening party, where each member's phone follows what the host plays.
+// Each core member says "No thanks" — a veto, the strongest no: first,
+// apart from the stars, with its sign (icon-veto) — or rates a proposed
+// song 1 to 4 stars — an even scale, never right in the middle: 1 and 2
+// are against it, 3 and 4 for it —, or hasn't voted (never 0 stars). The
+// votes are information: any member decides by hand (decide()). The same
+// vote control and the same summary (the average, for/against, how many
+// core members voted, who said no thanks, who hasn't voted — the server
+// sends only the count until one has voted) show on the To vote list, a
+// proposal's page and the vote's player (playlist.html, keys 1–4 and N).
 //
 // BandVotes.control(el, opts) — the vote control in el.
 // BandVotes.summary(el, tally, opts) — where the vote stands, in el.
 // BandVotes.list() — the To vote list's cards (data-proposal, data-tally).
 // BandVotes.player(opts) — the vote's player (playlist.html, .Vote).
-// BandVotes.party(opts) — the listening party's page.
 //
 // The plain logic (keys, meanings, the meter) is tested by
 // internal/webassets/jstest/band-votes.test.mjs.
@@ -55,6 +55,10 @@
     return e;
   };
   const STAR = '★';
+  // A no thanks is a veto: a "no entry" sign (icons.html's icon-veto),
+  // never a bin — it refuses the song, it deletes nothing.
+  const VETO = '<svg class="icon icon-veto" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="6.9"/><path d="M5.2 14.8 14.8 5.2"/></svg>';
+  const vetoIcon = () => { const s = el('span', 'veto-mark'); s.innerHTML = VETO; return s; };
 
   async function send(bandId, proposalId, v) {
     const res = await fetch(`/api/bands/${bandId}/proposals/${proposalId}/votes`, {
@@ -89,7 +93,25 @@
     box.replaceChildren();
     if (!tally) return;
     const head = el('div', 'vote-sum-head');
+    const voted = el('span', 'vote-count');
+    voted.append(el('strong', '', votedText(tally)), ' ', el('span', 'vote-count-word', tr('voted')));
+    voted.title = tr('%d of the band’s %d core members voted', tally.voted || 0, tally.members || 0);
+    voted.setAttribute('aria-label', voted.title);
+    if (tally.hidden) {
+      // Not voted yet (or a guest, before it's decided): the server sent
+      // only how many voted.
+      head.append(el('span', 'vote-hidden', opts.canVote === false ? tr('The votes show once it’s decided.') : tr('Vote to see how the others voted.')), voted);
+      box.append(head);
+      return;
+    }
+    // The no thanks first (a veto), apart; then the stars.
+    if (tally.noThanks && tally.noThanks.length) {
+      const no = el('span', 'vote-chip is-no');
+      no.append(vetoIcon(), ' ', trn(tally.noThanks.length, '%d no thanks', '%d no thanks'));
+      head.append(no, el('span', 'vote-sum-gap'));
+    }
     head.append(meter(tally.avg, tally.avgText));
+    if (tally.liked) head.append(el('span', 'vote-chip is-liked', tr('The band likes it')));
     if (tally.ratings) {
       head.append(el('strong', 'vote-avg', tally.avgText));
       const split = el('span', 'vote-split');
@@ -98,10 +120,6 @@
     } else {
       head.append(el('span', 'vote-none', tr('No stars yet')));
     }
-    const voted = el('span', 'vote-count');
-    voted.append(el('strong', '', votedText(tally)), ' ', el('span', 'vote-count-word', tr('voted')));
-    voted.title = tr('%d of the band’s %d core members voted', tally.voted || 0, tally.members || 0);
-    voted.setAttribute('aria-label', voted.title);
     head.append(voted);
     box.append(head);
 
@@ -124,8 +142,9 @@
     const lines = el('div', 'vote-sum-lines');
     if (tally.noThanks && tally.noThanks.length) {
       const p = el('p', 'vote-line vote-line-no');
-      p.append(el('span', 'vote-chip is-no', trn(tally.noThanks.length, '%d no thanks', '%d no thanks')),
-        ' ', el('span', 'vote-names', tally.noThanks.map((b) => b.name).join(', ')));
+      const chip = el('span', 'vote-chip is-no');
+      chip.append(vetoIcon(), ' ', tr('No thanks'));
+      p.append(chip, ' ', el('span', 'vote-names', tally.noThanks.map((b) => b.name).join(', ')));
       lines.append(p);
     }
     if (opts.full && tally.rated && tally.rated.length) {
@@ -139,9 +158,6 @@
         const p = el('p', 'vote-line vote-line-wait');
         p.append(el('span', 'vote-chip is-wait', tr('Not voted')), ' ', el('span', 'vote-names', tally.notVoted.join(', ')));
         lines.append(p);
-      }
-      if (tally.blocked) {
-        lines.append(el('p', 'vote-line vote-blocked', tr('Held back: no thanks from %s', tally.blockedBy.join(', '))));
       }
     }
     if (lines.children.length) box.append(lines);
@@ -173,10 +189,16 @@
       stars.append(b);
     }
     stars.addEventListener('pointerleave', () => preview(0));
-    const no = el('button', 'vote-nothanks', tr('No thanks'));
+    // No thanks first — a veto —, then a gap, then the stars. Its word
+    // shows beside its sign, but on a narrow phone (CSS), where the
+    // button's aria-label still says it.
+    const no = el('button', 'vote-nothanks');
     no.type = 'button';
+    no.setAttribute('aria-label', tr('No thanks'));
+    no.title = tr('No thanks: a veto');
+    no.append(vetoIcon(), el('span', 'vote-nothanks-label', tr('No thanks')));
     no.addEventListener('click', () => cast(mine && mine.noThanks ? { clear: true } : { noThanks: true }));
-    row.append(stars, no);
+    row.append(no, el('span', 'vote-ctl-gap'), stars);
     const foot = el('div', 'vote-ctl-foot');
     const said = el('span', 'vote-said');
     const clear = el('button', 'link-button vote-clear', tr('Take back my vote'));
@@ -213,9 +235,7 @@
         const answer = await send(opts.bandId, opts.proposalId, v);
         mine = answer.tally && answer.tally.mine ? { stars: answer.tally.mine.stars || 0, noThanks: !!answer.tally.mine.noThanks } : null;
         draw();
-        if (answer.status === 'accepted') Forms.status(status, tr('That was the vote it needed: it’s in the songbook.'), 'ok');
-        else if (answer.status === 'rejected') Forms.status(status, tr('The votes turned it down.'), 'ok');
-        else Forms.status(status, v.clear ? tr('Vote taken back.') : tr('Saved.'), 'ok');
+        Forms.status(status, v.clear ? tr('Vote taken back: the others’ votes are hidden again.') : tr('Saved.'), 'ok');
         if (opts.onVoted) opts.onVoted(answer);
       } catch (e) {
         mine = before;
@@ -251,12 +271,17 @@
       const sum = card.querySelector('[data-sum]');
       const status = card.dataset.status;
       const full = sum.classList.contains('is-full');
-      summary(sum, tally, { status, full });
+      const flag = (ty) => card.classList.toggle('is-vetoed', !!(ty && ty.vetoed));
+      card._tally = tally;
+      flag(tally);
+      summary(sum, tally, { status, full, canVote: !!card.querySelector('[data-ctl]') || status !== 'open' });
       const ctlBox = card.querySelector('[data-ctl]'); // a core member's only
       if (ctlBox && status === 'open') {
         control(ctlBox, {
-          bandId, proposalId, title: card.dataset.title, mine: tally && tally.mine,
+          bandId, proposalId, title: card.dataset.title, mine: tally && tally.mine, rule: card.dataset.rule,
           onVoted: (a) => {
+            card._tally = a.tally;
+            flag(a.tally);
             summary(sum, a.tally, { status: a.status, full });
             if (a.status !== 'open') {
               card.dataset.status = a.status;
@@ -266,6 +291,34 @@
         });
       }
     }
+    decide();
+  }
+
+  // A core member's decision by hand, whatever the votes: a confirm says
+  // who said no thanks (when the decider sees the votes), then it's done.
+  function decide() {
+    document.querySelectorAll('.vote-decide [data-decide]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const box = btn.closest('.vote-decide');
+        const card = document.querySelector(`.vote-card[data-proposal="${box.dataset.proposal}"]`);
+        const ty = card && card._tally;
+        const title = box.dataset.title || tr('this song');
+        let ask;
+        if (btn.dataset.decide === 'reject') ask = tr('Turn down “%s”?', title);
+        else if (ty && ty.hidden) ask = tr('You haven’t voted: the others’ votes show once you vote. %s anyway?', btn.textContent.trim());
+        else if (ty && ty.noThanks && ty.noThanks.length) ask = tr('%s said no thanks. %s anyway?', ty.noThanks.map((b) => b.name).join(', '), btn.textContent.trim());
+        else ask = tr('%s: “%s”?', btn.textContent.trim(), title);
+        if (!confirm(ask)) return;
+        const st = box.querySelector('.form-status');
+        Forms.status(st, '');
+        Forms.busy(btn, true);
+        const res = await fetch(`/api/bands/${box.dataset.band}/proposals/${box.dataset.proposal}/${btn.dataset.decide}`, { method: 'POST' }).catch(() => null);
+        if (res && res.ok) { location.reload(); return; }
+        const data = res ? await res.json().catch(() => ({})) : {};
+        Forms.busy(btn, false);
+        Forms.status(st, data.message || tr('Couldn’t save that. Try again.'), 'error');
+      });
+    });
   }
 
   // ---- the vote's player (playlist.html, .Vote) ----------------------
@@ -282,9 +335,12 @@
         const ty = tallies[s.dataset.score];
         s.replaceChildren();
         if (!ty) return;
-        const mine = ty.mine ? (ty.mine.noThanks ? tr('no thanks') : STAR.repeat(ty.mine.stars)) : '';
         s.append(el('span', 'pl-score-avg', ty.ratings ? `${STAR} ${ty.avgText}` : `${STAR} –`), el('span', 'pl-score-count', votedText(ty)));
-        if (mine) s.append(el('span', 'pl-score-mine', mine));
+        if (ty.mine) {
+          const m = el('span', 'pl-score-mine');
+          if (ty.mine.noThanks) { m.append(vetoIcon()); m.setAttribute('aria-label', tr('You said no thanks')); } else m.textContent = STAR.repeat(ty.mine.stars);
+          s.append(m);
+        }
         s.title = ty.mine ? tr('You voted') : tr('Not voted yet');
       });
     }
@@ -295,14 +351,14 @@
       const ty = tallies[id];
       if (opts.canVote) {
         ctl = control(bar, {
-          bandId: opts.bandId, proposalId: track.proposal, title: track.title, mine: ty && ty.mine,
-          onVoted: (a) => { tallies[id] = a.tally; summary(panel, a.tally, { status: a.status, full: true }); scores(); },
+          bandId: opts.bandId, proposalId: track.proposal, title: track.title, mine: ty && ty.mine, rule: opts.rule,
+          onVoted: (a) => { tallies[id] = a.tally; summary(panel, a.tally, { status: a.status, full: true, canVote: opts.canVote }); scores(); },
         });
         bar.append(el('p', 'vote-keys hint', tr('Keys: 1 to 4 stars, N for no thanks')));
       } else {
         bar.replaceChildren(el('p', 'vote-guest-note', tr('You’re a guest member: you listen along; the core members vote.')));
       }
-      if (panel) summary(panel, ty, { status: 'open', full: true });
+      if (panel) summary(panel, ty, { status: 'open', full: true, canVote: opts.canVote });
       if (panelNote) { panelNote.textContent = track.note || ''; panelNote.hidden = !track.note; }
       if (panelLinks) {
         panelLinks.replaceChildren();
@@ -315,31 +371,15 @@
           panelLinks.append(w);
         }
       }
-      if (opts.party) host();
-    }
-    // The listening party's host: what plays is on every member's phone.
-    let lastSent = '';
-    function host() {
-      const pl = root.SongbooksPlaylist;
-      if (!pl || !current) return;
-      const state = `${current.proposal}:${pl.playing() ? 1 : 0}`;
-      if (state === lastSent) return;
-      lastSent = state;
-      fetch(`/api/bands/${opts.bandId}/party`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposalId: current.proposal, eventId: opts.eventId || 0, playing: pl.playing() }),
-      }).catch(() => {});
     }
     document.addEventListener('playlist:track', (e) => show(e.detail.track));
-    if (opts.party) setInterval(() => { lastSent = lastSent.replace(/:.*/, ':?'); host(); }, 15000);
-    if (opts.party) setInterval(host, 1000);
     // Others' votes come in: the one playing's, every few seconds.
     setInterval(async () => {
       if (!current || document.hidden) return;
       const a = await tallyOf(opts.bandId, current.proposal);
       if (!a) return;
       tallies[String(current.proposal)] = a.tally;
-      if (panel) summary(panel, a.tally, { status: a.status, full: true });
+      if (panel) summary(panel, a.tally, { status: a.status, full: true, canVote: opts.canVote });
       scores();
     }, 6000);
     keys(() => ctl);
@@ -347,75 +387,5 @@
     if (root.SongbooksPlaylist) show(root.SongbooksPlaylist.track());
   }
 
-  // ---- the listening party ---------------------------------------------
-
-  function party(opts) {
-    const box = document.getElementById('party-now');
-    const title = document.getElementById('party-now-title');
-    const sub = document.getElementById('party-now-sub');
-    const thumb = document.getElementById('party-now-thumb');
-    const sum = document.getElementById('party-now-sum');
-    const ctlBox = document.getElementById('party-now-ctl');
-    const note = document.getElementById('party-now-note');
-    const state = document.getElementById('party-now-state');
-    const cards = {};
-    document.querySelectorAll('.vote-card[data-proposal]').forEach((c) => { cards[c.dataset.proposal] = c; });
-    let ctl = null, shown = 0, synced = false;
-    function render(answer) {
-      const now = answer && answer.now;
-      const card = now && now.proposalId ? cards[String(now.proposalId)] : null;
-      box.classList.toggle('is-idle', !card);
-      if (!card) {
-        shown = 0;
-        ctl = null;
-        title.textContent = tr('Nothing playing yet');
-        sub.textContent = tr('When the host plays a song, it shows here, to rate while it plays.');
-        state.textContent = '';
-        thumb.hidden = true;
-        sum.replaceChildren(); ctlBox.replaceChildren(); note.hidden = true;
-        return;
-      }
-      state.textContent = now.playing ? tr('Playing now · %s hosts', now.host) : tr('Paused · %s hosts', now.host);
-      state.classList.toggle('is-playing', !!now.playing);
-      if (shown !== now.proposalId) {
-        shown = now.proposalId;
-        synced = !!answer.tally;
-        title.textContent = card.dataset.title;
-        sub.textContent = card.dataset.sub || '';
-        const img = card.querySelector('.vote-thumb img');
-        thumb.hidden = !img;
-        if (img) thumb.src = img.src;
-        note.textContent = card.dataset.note || '';
-        note.hidden = !card.dataset.note;
-        if (opts.canVote) {
-          ctl = control(ctlBox, {
-            bandId: opts.bandId, proposalId: now.proposalId, title: card.dataset.title, mine: answer.tally && answer.tally.mine,
-            onVoted: (a) => { summary(sum, a.tally, { status: a.status, full: true }); refreshCard(card, a); },
-          });
-          ctlBox.append(el('p', 'vote-keys hint', tr('Keys: 1 to 4 stars, N for no thanks')));
-        }
-        Array.from(Object.values(cards)).forEach((c) => c.classList.toggle('is-now', c === card));
-      }
-      if (answer.tally) {
-        if (!synced && ctl) { ctl.set(answer.tally.mine); synced = true; }
-        summary(sum, answer.tally, { status: answer.status, full: true });
-        refreshCard(card, answer);
-      }
-    }
-    function refreshCard(card, a) {
-      const s = card.querySelector('[data-sum]');
-      if (s && a.tally) summary(s, a.tally, { status: a.status });
-    }
-    async function poll() {
-      if (document.hidden) return;
-      const res = await fetch(`/api/bands/${opts.bandId}/party`).catch(() => null);
-      if (res && res.ok) render(await res.json().catch(() => null));
-    }
-    render(opts.now ? { now: opts.now } : null);
-    poll();
-    setInterval(poll, 3000);
-    keys(() => ctl);
-  }
-
-  root.BandVotes = { control, summary, list, player, party, keys, ...logic };
+  root.BandVotes = { control, summary, list, decide, player, keys, ...logic };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -431,16 +431,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 
 	// Band proposals + voting (phase 7): propose a new song (an existing
 	// catalog variant, for the band's repertoire) or a new reference URL
-	// for an existing band variant; any current member may vote
-	// yes/veto or manually accept/reject. See
-	// internal/store/band_proposals.go for the veto/threshold/
-	// notification judgment calls. The listening-party page is a focused
-	// UI over this same data (open 'new_song' proposals), not a separate
-	// system.
+	// for an existing band variant; core members vote (stars or no
+	// thanks), any current member accepts or turns down by hand. See
+	// internal/store/band_proposals.go.
 	// The band's Repertoire holds the songs to vote on and to discover
 	// (menu PR 5a); their old addresses lead there.
 	mux.HandleFunc("GET /bands/{id}/catalog/vote", s.requireBandMember(s.handleBandProposalsPage))
-	mux.HandleFunc("GET /bands/{id}/catalog/discover", s.requireBandMember(s.handleListeningPartyPage))
+	mux.HandleFunc("GET /bands/{id}/catalog/discover", s.requireBandMember(s.handleBandListensPage("discover")))
 	mux.HandleFunc("GET /bands/{id}/proposals", s.movedInBand("/catalog/vote"))
 	mux.HandleFunc("GET /bands/{id}/listening-party", s.movedInBand("/catalog/discover"))
 	mux.HandleFunc("POST /api/bands/{id}/proposals", s.requireBandMember(s.handleCreateProposal))
@@ -449,7 +446,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/reject", s.requireBandMember(s.handleRejectProposal))
 	mux.HandleFunc("POST /api/bands/{id}/proposals/{proposalID}/votes", s.requireBandMember(s.handleCastVote))
 	// Votes with stars, proposing through the new song-adding flow, the
-	// vote's player and the listening party (docs/band-votes.md).
+	// vote's player; the band's pools to listen to, Discover and
+	// Influences (docs/band-votes.md).
 	mux.HandleFunc("GET /bands/{id}/catalog/vote/listen", s.requireBandMember(s.handleVoteListen))
 	mux.HandleFunc("GET /api/bands/{id}/proposals/{proposalID}/tally", s.requireBandMember(s.handleProposalTally))
 	mux.HandleFunc("GET /api/bands/{id}/proposal-lookup", s.requireBandMember(s.handleProposalLookup))
@@ -457,9 +455,13 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/bands/{id}/proposal-drafts/{songID}", s.requireBandMember(s.handleGetProposalDraft))
 	mux.HandleFunc("PUT /api/bands/{id}/proposal-drafts/{songID}", s.requireBandMember(s.handlePutProposalDraft))
 	mux.HandleFunc("DELETE /api/bands/{id}/proposal-drafts/{songID}", s.requireBandMember(s.handleDeleteProposalDraft))
-	mux.HandleFunc("GET /api/bands/{id}/party", s.requireBandMember(s.handleGetParty))
-	mux.HandleFunc("PUT /api/bands/{id}/party", s.requireBandMember(s.handlePutParty))
-	mux.HandleFunc("PUT /api/bands/{id}/proposal-rule", s.requireBandMember(s.handleSetProposalRule))
+	mux.HandleFunc("GET /bands/{id}/catalog/influences", s.requireBandMember(s.handleBandListensPage("influences")))
+	mux.HandleFunc("GET /bands/{id}/catalog/discover/listen", s.requireBandMember(s.handleBandListensPlay("discover")))
+	mux.HandleFunc("GET /bands/{id}/catalog/influences/listen", s.requireBandMember(s.handleBandListensPlay("influences")))
+	mux.HandleFunc("GET /api/bands/{id}/listen-lookup", s.requireBandMember(s.handleListenLookup))
+	mux.HandleFunc("POST /api/bands/{id}/listens", s.requireBandMember(s.handleAddListen))
+	mux.HandleFunc("DELETE /api/bands/{id}/listens/{listenID}", s.requireBandMember(s.handleDeleteListen))
+	mux.HandleFunc("PUT /api/bands/{id}/listens/{listenID}/proposal", s.requireBandMember(s.handleListenProposed))
 
 	// Community mode: a close structural cousin of bands (same history-
 	// preserving membership shape, same catalog pointer mechanism), but

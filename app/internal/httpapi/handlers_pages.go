@@ -658,7 +658,7 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 			digest = i18n.T(lang, "you haven't visited yet")
 		}
 
-		proposals, err := s.store.ListProposals(ctx, b.ID, store.ProposalFilter{Status: "open"})
+		proposals, err := s.store.ListProposals(ctx, b.ID, store.ProposalFilter{Status: "open", Viewer: personID})
 		if err != nil {
 			return nil, nil, err
 		}
