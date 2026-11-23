@@ -142,12 +142,16 @@ func groupDuplicates(songs []DuplicateSong) []DuplicateGroup {
 	var out []DuplicateGroup
 	bySet := map[string]int{}
 	for _, k := range identities {
-		ss := byIdentity[k]
-		if len(ss) < 2 {
-			continue
+		for _, ss := range sameRecording(byIdentity[k]) {
+			if len(ss) < 2 {
+				continue
+			}
+			if _, seen := bySet[ids(ss)]; seen {
+				continue
+			}
+			bySet[ids(ss)] = len(out)
+			out = append(out, DuplicateGroup{Reasons: []string{"title"}, Title: ss[0].Title + " — " + ss[0].Artist, Songs: ss})
 		}
-		bySet[ids(ss)] = len(out)
-		out = append(out, DuplicateGroup{Reasons: []string{"title"}, Title: ss[0].Title + " — " + ss[0].Artist, Songs: ss})
 	}
 	for _, v := range videos {
 		ss := byVideo[v]
@@ -170,12 +174,46 @@ func groupDuplicates(songs []DuplicateSong) []DuplicateGroup {
 	return out
 }
 
+// sameRecording splits songs of the same title and artist by their
+// reference video: two songs following two different recordings (the
+// album version and a live one, the catalogue's "another recording"
+// version: docs/ownership-model.md, "The catalogue: open edits") aren't
+// duplicates. Each video's songs go with the songs that have none; songs
+// none of which has a video stay one group.
+func sameRecording(ss []DuplicateSong) [][]DuplicateSong {
+	var none []DuplicateSong
+	byVideo := map[string][]DuplicateSong{}
+	var videos []string
+	for _, s := range ss {
+		if s.VideoID == "" {
+			none = append(none, s)
+			continue
+		}
+		if byVideo[s.VideoID] == nil {
+			videos = append(videos, s.VideoID)
+		}
+		byVideo[s.VideoID] = append(byVideo[s.VideoID], s)
+	}
+	if len(videos) <= 1 {
+		return [][]DuplicateSong{ss}
+	}
+	var out [][]DuplicateSong
+	for _, v := range videos {
+		g := append(append([]DuplicateSong{}, none...), byVideo[v]...)
+		sort.Slice(g, func(i, j int) bool { return g[i].ID < g[j].ID })
+		out = append(out, g)
+	}
+	return out
+}
+
 // DuplicateReasons says why keep and drop are duplicates ("title",
-// "video"), nil when they aren't.
+// "video"), nil when they aren't. The same title and artist following
+// two different recordings isn't a duplicate.
 func duplicateReasons(a, b DuplicateSong) []string {
 	var r []string
 	if songIdentity(a.Title, a.Artist) == songIdentity(b.Title, b.Artist) &&
-		normIdentityPart(a.VersionName) == normIdentityPart(b.VersionName) {
+		normIdentityPart(a.VersionName) == normIdentityPart(b.VersionName) &&
+		(a.VideoID == "" || b.VideoID == "" || a.VideoID == b.VideoID) {
 		r = append(r, "title")
 	}
 	if a.VideoID != "" && a.VideoID == b.VideoID {

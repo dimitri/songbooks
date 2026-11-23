@@ -64,6 +64,11 @@ type SongRights struct {
 	See     bool // open it, play it, export it, download its files
 	Edit    bool // change it in place
 	Publish bool // make it public or private
+	// Contribute: change the catalogue's song's chart in place, its edit
+	// applied at once or held for review (catalogue_edits.go): anyone
+	// signed in whom its staff haven't kept from it. Edit (its staff)
+	// implies it.
+	Contribute bool
 }
 
 // CanLinkFrom reports whether a songbook of owner o may hold the song as a
@@ -181,6 +186,14 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 	}
 	if r.Closed {
 		r.Publish = false
+	}
+	// The catalogue: open edits (catalogue_edits.go).
+	if r.Catalogue {
+		var banned bool
+		if err := q.QueryRow(ctx, `SELECT catalogue_banned_at IS NOT NULL FROM people WHERE id = $1`, personID).Scan(&banned); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		r.Contribute = r.Edit || (r.See && !banned)
 	}
 	return r, nil
 }

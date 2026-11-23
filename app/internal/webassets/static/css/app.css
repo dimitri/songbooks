@@ -9675,6 +9675,44 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   .addsong-quick-assign-row .primary { flex: 1 1 100%; }
 }
 
+/* The catalogue: open edits (catalogue_edit.html, catalogue_review.html):
+   the editor's note and summary on The Big Songbook's song, the viewer's
+   edit waiting for review, the review queue's cards. */
+.catalogue-edit-note { margin: 0.2rem 0 0.5rem; display: grid; gap: 0.35rem; }
+.catalogue-edit-note .hint { margin: 0; }
+.catalogue-edit-note .link-like { padding: 0; margin-left: 0.2rem; }
+.catalogue-summary-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; font-size: 0.88rem; }
+.catalogue-summary-field input { flex: 1 1 14rem; min-width: 0; }
+.catalogue-pending { margin: 0 0 0.8rem; padding: 0.5rem 0.75rem; border-radius: 8px; background: var(--warn-bg); color: var(--fg); font-size: 0.9rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+.catalogue-pending .icon { width: 1rem; height: 1rem; flex: none; }
+.catalogue-pending a { color: var(--accent-ink); font-weight: 600; }
+.catalogue-saved-why { margin: 0 0 0.6rem; padding-left: 1.2rem; font-size: 0.9rem; }
+.catalogue-review > h2 { margin: 1.4rem 0 0.6rem; font-size: 1.1rem; }
+.catalogue-review-item { margin-bottom: 1.2rem; }
+.catalogue-edit { padding: 0.8rem 1rem; display: grid; gap: 0.35rem; }
+.catalogue-edit-head h2 { margin: 0; font-size: 1.05rem; }
+.catalogue-edit-head h2 a { color: var(--fg); }
+.catalogue-edit-head .hint { margin: 0.1rem 0 0; }
+.catalogue-edit p { margin: 0; }
+.catalogue-edit-summary { font-style: italic; }
+.catalogue-edit-why { font-size: 0.9rem; }
+.catalogue-edit-fit { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; font-size: 0.88rem; }
+.catalogue-edit-status { font-weight: 600; }
+.catalogue-edit-status.is-approved, .catalogue-edit-status.is-applied { color: var(--ok); }
+.catalogue-edit-status.is-rejected { color: var(--danger); }
+.catalogue-edit-stale { color: var(--warn); }
+.catalogue-edit-decide { margin-top: 0.5rem; }
+.catalogue-edit-decide label { display: grid; gap: 0.2rem; font-size: 0.88rem; }
+.catalogue-edit-decide .catalogue-ban { display: flex; align-items: center; gap: 0.4rem; }
+.catalogue-review-links { margin: 0.3rem 0 0; font-size: 0.88rem; }
+.catalogue-reports, .catalogue-banned { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.catalogue-report { padding: 0.7rem 0.9rem; }
+.catalogue-report p { margin: 0.15rem 0; }
+.catalogue-report-reason { white-space: pre-wrap; }
+.catalogue-edit-text pre { margin: 0.4rem 0 0; padding: 0.6rem; max-height: 30rem; overflow: auto; font-size: 0.8rem; background: var(--bg-sunken); border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+.catalogue-edit-text summary { cursor: pointer; }
+.history-summary { margin: 0 0 0.2rem; font-style: italic; }
+
 /* ---- The Melody view (melody-view.js, docs/melody-sheet.md): the lead
    voice's notes found in the recording, the lyrics under them, on the
    Score view's A4 paper (.gp-sheet, .gp-page); the bar being played

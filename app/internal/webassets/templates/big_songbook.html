@@ -21,10 +21,11 @@
 </header>
 <main class="index big-songbook">
   <p class="catalog-intro">{{t "Every public song, the versions of one song together: the catalogue’s, and the ones bands and communities made public. Everyone signed in plays them, adds them to a songbook, makes their own version."}}</p>
-  {{if .IsStaff}}
+  {{if or .IsStaff .IsReviewer}}
   <p class="big-staff">
-    {{if .Duplicates}}<a class="chip-link" href="/big-songbook/duplicates">{{tn .Duplicates "%d duplicate to review" "%d duplicates to review"}} &rarr;</a>
-    {{else}}<span class="hint">{{t "No duplicates to review."}}</span>{{end}}
+    {{if .IsStaff}}{{if .Duplicates}}<a class="chip-link" href="/big-songbook/duplicates">{{tn .Duplicates "%d duplicate to review" "%d duplicates to review"}} &rarr;</a>
+    {{else}}<span class="hint">{{t "No duplicates to review."}}</span>{{end}}{{end}}
+    {{if .IsReviewer}}<a class="chip-link" href="/big-songbook/review">{{if .QueueCount}}{{tn .QueueCount "%d edit or report to review" "%d edits or reports to review"}}{{else}}{{t "Edits and reports: none waiting"}}{{end}} &rarr;</a>{{end}}
   </p>
   {{end}}
 

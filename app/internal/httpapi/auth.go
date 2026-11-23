@@ -101,7 +101,14 @@ func (s *Server) requireVariantRole(minRole string, next http.HandlerFunc) http.
 		}
 		p := personFromContext(r)
 		var allowed bool
-		if minRole == "editor" || minRole == "owner" {
+		if minRole == "chart" {
+			// The song's chart: who edits it in place, or anyone who
+			// edits The Big Songbook's songs (catalogueSave weighs it).
+			var rights *store.SongRights
+			if rights, err = s.store.SongRightsFor(r.Context(), p.ID, id); err == nil {
+				allowed = rights.Edit || rights.Contribute
+			}
+		} else if minRole == "editor" || minRole == "owner" {
 			allowed, err = s.store.CanEditVariant(r.Context(), p.ID, id)
 		} else {
 			allowed, err = s.store.CanViewVariant(r.Context(), p.ID, id)

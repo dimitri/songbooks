@@ -197,8 +197,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/import/merge", s.requireAuth(s.handleImportMerge))
 
 	mux.HandleFunc("GET /api/songs/{id}", s.requireVariantRole("viewer", s.handleGetSong))
-	mux.HandleFunc("PUT /api/songs/{id}", s.requireVariantRole("editor", s.handlePutSong))
-	mux.HandleFunc("PUT /api/songs/{id}/meta", s.requireVariantRole("editor", s.handlePutMeta))
+	mux.HandleFunc("PUT /api/songs/{id}", s.requireVariantRole("chart", s.handlePutSong))
+	mux.HandleFunc("PUT /api/songs/{id}/meta", s.requireVariantRole("chart", s.handlePutMeta))
 	mux.HandleFunc("PUT /api/variants/{id}/genre", s.requireAuth(s.handlePutVariantGenre))
 	mux.HandleFunc("GET /api/songs/{id}/raw", s.requireVariantRole("viewer", s.handleGetRaw))
 	mux.HandleFunc("GET /api/songs/{id}/structure", s.requireVariantRole("viewer", s.handleGetSongStructure))
@@ -206,7 +206,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/songs/{id}/mixer", s.requireVariantRole("viewer", s.handleGetSongMixer))
 	mux.HandleFunc("GET /api/songs/{id}/mixer/prefs", s.requireVariantRole("viewer", s.handleGetMixerPrefs))
 	mux.HandleFunc("PUT /api/songs/{id}/mixer/prefs", s.requireVariantRole("viewer", s.handlePutMixerPrefs))
-	mux.HandleFunc("PUT /api/songs/{id}/raw", s.requireVariantRole("editor", s.handlePutRaw))
+	mux.HandleFunc("PUT /api/songs/{id}/raw", s.requireVariantRole("chart", s.handlePutRaw))
 	mux.HandleFunc("DELETE /api/songs/{id}", s.requireVariantRole("editor", s.handleDeleteSong))
 	mux.HandleFunc("PUT /api/songs/{id}/redo", s.requireVariantRole("editor", s.handleRedoSong))
 
@@ -333,6 +333,16 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /big-songbook/duplicates", s.requireAdmin(s.handleBigSongbookDuplicatesPage))
 	mux.HandleFunc("POST /api/big-songbook/merge", s.requireAdmin(s.handleMergeSongsAPI))
 	mux.HandleFunc("GET /variants/{id}/history", s.requireAuth(s.handleVariantHistoryPage))
+	// The catalogue: open edits (catalogue_edits.go): the review queue,
+	// one edit's page, approve / reject, reports, keeping someone from
+	// editing it.
+	mux.HandleFunc("GET /big-songbook/review", s.requireAuth(s.handleCatalogueReviewPage))
+	mux.HandleFunc("GET /big-songbook/edits/{id}", s.requireAuth(s.handleCatalogueEditPage))
+	mux.HandleFunc("POST /api/big-songbook/edits/{id}/approve", s.requireAuth(s.handleDecideCatalogueEdit(true)))
+	mux.HandleFunc("POST /api/big-songbook/edits/{id}/reject", s.requireAuth(s.handleDecideCatalogueEdit(false)))
+	mux.HandleFunc("POST /api/big-songbook/songs/{id}/report", s.requireAuth(s.handleReportCatalogueSong))
+	mux.HandleFunc("POST /api/big-songbook/reports/{id}/handled", s.requireAuth(s.handleHandleCatalogueReport))
+	mux.HandleFunc("POST /api/big-songbook/people/{id}/ban", s.requireAuth(s.handleCatalogueBan))
 
 	mux.HandleFunc("POST /api/variants/{id}/fork", s.requireAuth(s.handleForkVariant))
 	mux.HandleFunc("POST /api/variants/{id}/versions", s.requireAuth(s.handleNewVersion))

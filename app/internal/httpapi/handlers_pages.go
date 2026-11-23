@@ -2902,6 +2902,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// catalogue's): "New version from this", named, beside it. CanPublish:
 	// make it public or private.
 	var canEdit, canCopy, canNewVersion, canPublish, canDelete bool
+	// canEditChart: the editor opens on this song's chart — who edits it,
+	// or anyone signed in on The Big Songbook's (catalogue_edits.go: the
+	// edit is weighed against its recording; the recordings, the Guitar
+	// Pro file and deleting stay CanEdit's).
+	var canEditChart bool
 	var bandOffer *store.BandHold
 	var communityOffer *songCommunityOffer
 	var editOwner *store.VariantOwner
@@ -2911,6 +2916,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		rights, _ := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 		if rights != nil {
 			canEdit = rights.Edit
+			canEditChart = rights.Edit || rights.Contribute
 			canPublish = rights.Publish
 			// In a coaching community, New version from this is the
 			// coach's: a student edits the song they're given, in place.
@@ -2929,7 +2935,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if bandOffer != nil || communityOffer != nil {
-			canEdit, canCopy = false, true
+			canEdit, canEditChart, canCopy = false, false, true
 		} else if !canEdit && rights != nil {
 			canCopy = rights.CanVersionFor(store.PersonOwner(person.ID))
 			if canCopy {
@@ -2942,7 +2948,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 		// A band's song made from another (its version of a song it linked, a fork into the
 		// band): where it came from, when the viewer can open that.
-		if variant != nil && variant.Visibility == "band" && variant.ForkedFromID != nil {
+		// A catalogue song made for another recording of one (catalogue_edits.go): that one.
+		if variant != nil && (variant.Visibility == "band" || variant.Visibility == "global") && variant.ForkedFromID != nil {
 			if ok, _ := s.store.CanViewVariant(r.Context(), person.ID, *variant.ForkedFromID); ok {
 				if orig, err := s.store.GetVariant(r.Context(), *variant.ForkedFromID); err == nil {
 					basedOn = &songBasedOn{VariantID: orig.VariantID, Title: orig.Title, Artist: orig.Artist}
@@ -2966,7 +2973,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Me":        person,
-		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
+		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanEditChart": canEditChart, "CanCopy": canCopy, "Genre": genre,
 		"BandOffer": bandOffer, "CommunityOffer": communityOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
 		"CanNewVersion": canNewVersion, "CanPublish": canPublish, "SongPublic": variant != nil && variant.Public, "VersionName": variantVersionName(variant),
 		"CanDelete": canDelete,
@@ -3010,7 +3017,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	refHead := songRefHeadFor(sg.Get("reference"), hasBand, canEdit)
+	refHead := songRefHeadFor(sg.Get("reference"), hasBand, canEditChart)
+	// The Big Songbook's song: open edits (catalogue_edits.go).
+	s.addCatalogueEditing(r, person, variantID, data)
 	// Its title, when fetched for this link; else fetched in the
 	// background for the next time (reference_title.go).
 	if ref := strings.TrimSpace(sg.Get("reference")); ref != "" {

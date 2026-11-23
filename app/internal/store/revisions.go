@@ -29,15 +29,23 @@ import (
 // filesystem import run) — revisions.actor_person_id is nullable for
 // exactly that case.
 func (st *Store) RecordRevision(ctx context.Context, tx pgx.Tx, entityType, entityID string, actorPersonID *int64, snapshot any) error {
+	_, err := recordRevision(ctx, tx, entityType, entityID, actorPersonID, snapshot, "")
+	return err
+}
+
+// recordRevision is RecordRevision with the edit's one-line summary
+// (migration 0125; "" for none), returning the revision's id.
+func recordRevision(ctx context.Context, tx pgx.Tx, entityType, entityID string, actorPersonID *int64, snapshot any, summary string) (int64, error) {
 	data, err := json.Marshal(snapshot)
 	if err != nil {
-		return fmt.Errorf("marshaling %s %s snapshot: %w", entityType, entityID, err)
+		return 0, fmt.Errorf("marshaling %s %s snapshot: %w", entityType, entityID, err)
 	}
-	_, err = tx.Exec(ctx, `
-		INSERT INTO revisions (entity_type, entity_id, actor_person_id, snapshot)
-		VALUES ($1, $2, $3, $4)`,
-		entityType, entityID, actorPersonID, data)
-	return err
+	var id int64
+	err = tx.QueryRow(ctx, `
+		INSERT INTO revisions (entity_type, entity_id, actor_person_id, snapshot, summary)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		entityType, entityID, actorPersonID, data, summary).Scan(&id)
+	return id, err
 }
 
 // VariantSnapshot is the editable-fields shape recorded for entity_type
@@ -58,6 +66,7 @@ type Revision struct {
 	EntityID     string
 	ActorID      *int64
 	ActorName    string // "" if ActorID is nil or the person no longer exists
+	Summary      string // the edit's one-line summary, "" for none
 	Snapshot     json.RawMessage
 	CreatedAt    time.Time
 	LinesChanged int // vs. the entity's state at the time ListRevisions was called
@@ -78,7 +87,7 @@ func (st *Store) ListRevisions(ctx context.Context, entityType, entityID string)
 	}
 
 	rows, err := st.db.Query(ctx, `
-		SELECT r.id, r.entity_type, r.entity_id, r.actor_person_id, coalesce(p.display_name, ''), r.snapshot, r.created_at
+		SELECT r.id, r.entity_type, r.entity_id, r.actor_person_id, coalesce(p.display_name, ''), r.summary, r.snapshot, r.created_at
 		FROM revisions r
 		LEFT JOIN people p ON p.id = r.actor_person_id
 		WHERE r.entity_type = $1 AND r.entity_id = $2
@@ -91,7 +100,7 @@ func (st *Store) ListRevisions(ctx context.Context, entityType, entityID string)
 	var out []Revision
 	for rows.Next() {
 		var rv Revision
-		if err := rows.Scan(&rv.ID, &rv.EntityType, &rv.EntityID, &rv.ActorID, &rv.ActorName, &rv.Snapshot, &rv.CreatedAt); err != nil {
+		if err := rows.Scan(&rv.ID, &rv.EntityType, &rv.EntityID, &rv.ActorID, &rv.ActorName, &rv.Summary, &rv.Snapshot, &rv.CreatedAt); err != nil {
 			return nil, err
 		}
 		if entityType == "variant" {
