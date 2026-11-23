@@ -3111,6 +3111,13 @@ body:has(#sheet[data-render-mode="mixer"]) #audio-player { display: none !import
 .bar.current .chord-label { color: var(--current-fg); }
 .bar.current .simile-mark, .bar.current .simile-count { color: var(--current-fg); }
 .bar.current { background: color-mix(in srgb, #f2c400 22%, transparent); border-radius: 3px; }
+/* Dark mode: the playing bar's tint is see-through over the dark page,
+   so --current-fg (dark ink for a solid --current-bg) would vanish from
+   its chord and marks; a light yellow reads there. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body:not([data-theme="light"]) .bar.current { --current-fg: #f2d65c; }
+}
+:root[data-theme="dark"] .bar.current, body[data-theme="dark"] .bar.current { --current-fg: #f2d65c; }
 /* The beat line sweeping the playing bar (song.js sets --playhead, 0..1).
    Drawn as a background so it can't collide with the barline glyphs'
    own ::before/::after. */
