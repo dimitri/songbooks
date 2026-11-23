@@ -940,7 +940,9 @@
         score = GPFile.blank({ title: d.title, artist: d.artist, tempo: +d.tempo, num: +d.num, den: +d.den, bars: +d.bars, parts: (d.parts || 'guitar').split(',') });
         st.dirty = true;
       } else {
-        score = GPFile.parse(await GPFile.loadBytes(variantId));
+        // Each track at its level in the file (gp-levels.js): played, and
+        // saved, as Guitar Pro plays it, not silent.
+        score = await GPFile.parseLevels(await GPFile.loadBytes(variantId));
       }
     } catch (e) {
       setStatus(e.message, true);

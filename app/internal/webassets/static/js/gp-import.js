@@ -435,7 +435,10 @@
       chips.appendChild(b);
     });
     player.hidden = false;
-    draw(60);
+    // Each track at its level in the file (gp-levels.js), before alphaTab
+    // makes its sound: a Guitar Pro 8 file would otherwise play silent.
+    const levels = window.GPLevels ? GPLevels.read(bytes).then((l) => { GPLevels.apply(sc, l); }) : Promise.resolve();
+    levels.catch(() => {}).finally(() => draw(60));
   }
 
   document.getElementById('gpimport-search-form').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
