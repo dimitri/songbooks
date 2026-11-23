@@ -375,8 +375,10 @@ const ICONS = {
     bars = [...sheet.querySelectorAll('.bar, .jz-bar[data-global-bar]')];
     barsByPlayed = new Map();
     for (const b of bars) {
-      // A Jazz chart bar is read on every pass through a repeat or a
-      // D.S. (data-played lists them all); every other bar, once.
+      // A drawn bar is read on every pass through a repeat (or a D.S.,
+      // in the Jazz chart), an ending on the pass that takes it, a Map
+      // recall cell on each of its section's bars: data-played lists
+      // them (playedbars.go). A bar without one is read at its own.
       const list = b.dataset.played ? b.dataset.played.split(' ') : [b.dataset.globalBar];
       for (const v of list) {
         const n = parseInt(v, 10);
@@ -621,8 +623,9 @@ const ICONS = {
       if (barEl && following && !tabFollowed && barEl.offsetParent) keepInView(barEl);
     }
     // Smooth (Guitar Pro style) line only for bars engraved at even
-    // beat spacing: the pickup cell is a compact rest glyph.
-    currentBarEl?.classList.toggle('playhead', started && !currentBarEl.classList.contains('bar-pickup'));
+    // beat spacing: the pickup cell is a compact rest glyph, a Map
+    // recall cell a whole section's rest.
+    currentBarEl?.classList.toggle('playhead', started && !currentBarEl.classList.contains('bar-pickup') && !currentBarEl.classList.contains('bar-recall'));
     // Section lookup no longer rides on barEl existing — a compact/
     // reference section has no .bar of its own (just a chip + multi-rest
     // bar), so deriving "current section" from "current bar's closest

@@ -31,7 +31,7 @@
      that floor (reflowStaffLines(), song.js, only ever narrows rows
      down TO it) — each one just collided with its neighbor instead
      of the row ever being flagged as needing to wrap further. */}}
-<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Lead}} bar-lead{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Lead}} bar-lead{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}"{{with .PlayedAttr}} data-played="{{.}}"{{end}} style="--slots: {{len .Beats}}">
   {{/* The bar's "score:" riff, if this bar has one. When its whole
        display row is fully covered (.TabOnly), the riff REPLACES the
        normal staff/slash content below — real tab notation, not an
@@ -232,7 +232,7 @@
          way a chord label does (chip-bars, bottom:100%); "= Intro" rides
          along on the section badge itself rather than as a second line of
          text below the bar, which no real engraved multi-rest carries. */}}
-    <span class="bar bar-recall">
+    <span class="bar bar-recall" data-global-bar="{{.RecallStart}}" data-played="{{.RecallPlayed}}">
       {{if .SectionStart}}<span class="map-sec-badge">{{if .Mark}}<span class="rehearsal-mark">{{.Mark}}</span>{{end}}{{label .Label}}{{if .RecallOf}} <span class="recall-of">= {{.RecallOf}}</span>{{end}}</span>{{end}}
       <span class="bar-body">
         <span class="chip-bars">{{.RecallBars}}</span>
@@ -355,7 +355,7 @@
          disconnected from the real tab notation above it. */}}
     <div class="tab-only-chords-fallback" style="--cap: {{.Capacity}}">
       {{range .Measures}}
-      <span class="bar{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}" style="--slots: {{len .Beats}}">
+      <span class="bar{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}"{{with .PlayedAttr}} data-played="{{.}}"{{end}} style="--slots: {{len .Beats}}">
         <span class="bar-body bar-body-tab-only">
           <span class="tab-only-chords">
             {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span></span>{{end}}</span>{{end}}

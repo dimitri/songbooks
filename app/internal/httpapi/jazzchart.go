@@ -241,13 +241,11 @@ func jazzFormFor(sg *song.Song, sections []viewerSection) *jazzForm {
 			classes[ck] = cl
 		}
 		occs = append(occs, jzOcc{sec: i, label: vs.Label, norm: norm, grid: canon[g], reps: reps, class: cl, bars: reps * len(exp)})
-		k := 0
-		for r := 0; r < reps; r++ {
-			for _, b := range exp {
-				expected = append(expected, [2]int{g, b})
-				globalOf = append(globalOf, vs.StartBar+k)
-				k++
-			}
+		// Its played bars, each read from its grid's written bar
+		// (playOrder, as the Song view's rows read them too).
+		for k, w := range playOrder(measures[g], reps*len(exp)) {
+			expected = append(expected, [2]int{g, w})
+			globalOf = append(globalOf, vs.StartBar+k)
 		}
 	}
 	if len(occs) == 0 {

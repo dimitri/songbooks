@@ -3074,7 +3074,7 @@ window.songbooksDecodable = function (buf) {
     if (el && el.offsetParent) return playedBarOf(el);
     return window.songbooksTabBarAt ? window.songbooksTabBarAt(e.clientX, e.clientY) : null;
   }
-  // A Jazz chart bar is read on every pass through a repeat or a D.S.
+  // A drawn bar is read on every pass through a repeat or a D.S.
   // (data-played): a click means the pass nearest where the music is.
   function playedBarOf(el) {
     if (!el.dataset.played) return Number(el.dataset.globalBar);
