@@ -1023,6 +1023,12 @@
       let score;
       if (data.gpScoreJson) {
         score = alphaTab.model.JsonConverter.jsonToScore(data.gpScoreJson, settings);
+        // The chords over the file's bars (gp-chords.js): its own, else
+        // the chart's (the file is unrolled into the chart's bars here).
+        if (laneChords(score, tr.index)) {
+          settings.notation.elements.set(alphaTab.NotationElement.EffectChordNames, true);
+          GPChords.style(settings, alphaTab, 13);
+        }
       } else {
         const imp = new alphaTab.importer.AlphaTexImporter();
         imp.initFromString(data.alphaTex, settings);
@@ -1066,6 +1072,25 @@
       }
       api.renderScore(score, [tr.index]);
     }
+  }
+
+  // A Guitar Pro file's lane shows the chords over its bars: the file's own
+  // chord symbols, else the chart's, bar p of the lane being the chart's
+  // bar p. True when it has any to show (drums never do).
+  function laneChords(score, index) {
+    const tr = score.tracks[index];
+    if (!window.GPChords || !tr || tr.staves[0].isPercussion) return false;
+    if (GPChords.hasOwn(score)) return true;
+    const byBar = GPChords.byChartBar(data.sections);
+    const chords = new Map();
+    byBar.forEach((c, b) => { if (c) chords.set(b, c); });
+    return GPChords.put(score, index, chords, (name) => {
+      const c = new alphaTab.model.Chord();
+      c.name = name;
+      c.showDiagram = false;
+      c.showFingering = false;
+      return c;
+    }) > 0;
   }
 
   // ---- Instruments (gp-instruments.js) ------------------------------------

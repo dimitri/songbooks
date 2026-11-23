@@ -82,3 +82,35 @@ test('a file that isn’t a Guitar Pro 7/8 zip: no levels', async () => {
   assert.deepEqual(await L.read(new Uint8Array([0x46, 0x49, 0x43, 0x48, 0, 1, 2, 3])), []);
   assert.deepEqual(await L.read(zip({ 'other.txt': 'x' }, false)), []);
 });
+
+test('crc32', () => {
+  assert.equal(L.crc32(new TextEncoder().encode('hello')), 0x3610a686);
+});
+
+// Saving: alphaTab writes the strip's levels from the model and drops the
+// automations; keep() puts the original file's back, by track name when
+// the tracks changed, and the file still reads (alphaTab, and here).
+test('saving keeps the tracks’ automations', async () => {
+  const alphaTab = require('../static/js/vendor/alphatab/alphaTab.min.js');
+  const imp = new alphaTab.importer.AlphaTexImporter();
+  imp.initFromString('\\title "T"\n\\track "Guitare"\n.\n:4 0.6 2.5 2.4 0.3 | :1 0.6 |', new alphaTab.Settings());
+  const score = imp.readScore();
+  const original = zip({ 'VERSION': '7.0', 'Content/score.gpif': gpif }, true);
+  L.apply(score, await L.read(original).then((l) => [l[0]]));
+  assert.equal(score.tracks[0].playbackInfo.volume, 12);
+  const written = new alphaTab.exporter.Gp7Exporter().export(score, new alphaTab.Settings());
+  // As alphaTab writes it: the level in the strip, no automation.
+  assert.deepEqual(await L.read(written), [{ volume: null, balance: null }]);
+  const kept = await L.keep(written, original);
+  assert.deepEqual(await L.read(kept), [{ volume: 0.795, balance: 0.5 }]);
+  const xml = new TextDecoder().decode(await L.unzip(kept, 'Content/score.gpif'));
+  assert.match(xml, /<Parameters>[^<]* 0\.75 0\.5 0\.5 0\.5<\/Parameters><Automations>/);
+  assert.equal((xml.match(/DSPParam_12/g) || []).length, 2); // bar 1 and bar 9, as in the original
+  // Every other entry as alphaTab wrote it, the zip still sound.
+  assert.deepEqual(L.entries(kept).map((e) => e.name), L.entries(written).map((e) => e.name));
+  for (const e of L.entries(kept)) if (e.method === 0) assert.equal(L.crc32(e.data), e.crc);
+  const again = alphaTab.importer.ScoreLoader.loadScoreFromBytes(kept, new alphaTab.Settings());
+  assert.equal(again.tracks[0].name, 'Guitare');
+  // Nothing to keep: the bytes as written.
+  assert.equal(await L.keep(written, zip({ 'Content/score.gpif': '<GPIF><Tracks><Track id="0"><Name>Guitare</Name></Track></Tracks></GPIF>' }, false)), written);
+});

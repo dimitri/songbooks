@@ -595,6 +595,8 @@
     let score;
     try { score = await loadScore(); } catch (e) { failed(canvas, e.message); return; }
     if (full) return;
+    // The chords over the bars: the file's, else the chart's (gp-chords.js).
+    const chordsFor = chartChords(score);
     // The file's own recording, for the simplified mixer when the song has
     // none (timed by its sync points, read before they go).
     const own = mixMode() && score.backingTrack && score.backingTrack.rawAudioFile
@@ -612,6 +614,7 @@
     r.mainGlyphColor = r.secondaryGlyphColor = r.scoreInfoColor = r.barSeparatorColor = ink('#241e18');
     s.display.scale = g.scale;
     s.display.barsPerRow = g.perRow;
+    if (window.GPChords) GPChords.style(s, alphaTab);
     s.display.padding = [0, 0, 0, 0];
     s.player.enablePlayer = true;
     s.player.playerMode = alphaTab.PlayerMode.EnabledExternalMedia;
@@ -704,8 +707,43 @@
     });
     if (mixMode()) full.mix = setUpMix(own);
     setUpInstruments();
+    full.chords = await chordsFor;
     renderFull(true);
     startFollowing();
+  }
+
+  // ---- The chords over the bars ---------------------------------------------
+  // The file's own chord symbols when it has any (alphaTab draws them);
+  // else the chart's, each on the bar of the file it plays (gp-chords.js),
+  // over the first track shown that isn't drums. Only drawn: the file
+  // itself is never changed by them (they're not in loadScore(true)).
+  let mixerPromise = null;
+  function mixerData() {
+    if (!mixerPromise) {
+      mixerPromise = fetch(`/api/songs/${variantId}/mixer`, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    }
+    return mixerPromise;
+  }
+  async function chartChords(score) {
+    if (!window.GPChords || !window.GPAlign || GPChords.hasOwn(score)) return null;
+    const mx = await mixerData();
+    if (!mx.gpOrder) return null;
+    const played = GPFacts.played(score.masterBars);
+    const chords = GPChords.forWrittenBars(GPAlign.chartBarsForFile(mx.gpOrder, played), played, GPChords.byChartBar(mx.sections));
+    return chords.size ? chords : null;
+  }
+  function makeChord(name) {
+    const c = new alphaTab.model.Chord();
+    c.name = name;
+    c.showDiagram = false;
+    c.showFingering = false;
+    return c;
+  }
+  function placeChords(tracks) {
+    if (!full || !full.chords) return;
+    const top = tracks.find((i) => !full.score.tracks[i].staves[0].isPercussion);
+    GPChords.put(full.score, top ?? -1, full.chords, makeChord);
   }
 
   // ---- The simplified mixer ---------------------------------------------------
@@ -788,7 +826,7 @@
     (async () => {
       try {
         const [mx, au] = await Promise.all([
-          fetch(`/api/songs/${variantId}/mixer`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : {})),
+          mixerData(),
           fetch(`/api/songs/${variantId}/audio`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : { categories: [] })),
         ]);
         const cats = {};
@@ -867,6 +905,7 @@
     if (!full) return;
     const pick = page.querySelector('.gp-notation');
     const tracks = [...full.shown].sort((a, b) => a - b);
+    placeChords(tracks);
     for (const i of tracks) {
       const tr = full.score.tracks[i];
       applyNotation(tr, pick && pick.value ? (kindOf(tr) === 'drums' ? 'staff' : pick.value) : notationFor(tr, ''));
