@@ -10,14 +10,28 @@ import (
 	"app/internal/store"
 )
 
-// TestLessonViewData: a song all in its Guitar Pro file, or a course's
-// lesson with one, gets the lesson view; its video is the lesson's, else
-// the song's reference; a chart next to its file, outside a course, and a
-// song without a file don't.
+// TestLessonViewData: a song all in its Guitar Pro file, or whose chart
+// was only read from it (gp_source, every section's bars from the file, no
+// lyrics), gets the lesson view, in a course or not; its video is the
+// lesson's, else the song's reference. A chart of its own (written by
+// hand, sung, a section added by hand) and a song without a file don't.
 func TestLessonViewData(t *testing.T) {
-	gpOnly := song.Parse("title: Shuffle\ncontent: gp\nreference: https://youtu.be/abcdefghijk\n\n[Song]\ngp[#1]: 1-12\n")
-	chart := song.Parse("title: Shuffle\nreference: https://youtu.be/abcdefghijk\n\n[Song]\ngrid: | A7 | D7 | A7 | E7 |\n")
-	lesson := &lessonPanelData{Lesson: store.Lesson{Title: "Cours 5"}, VideoID: "lessonvideo"}
+	const ref = "reference: https://youtu.be/abcdefghijk\n"
+	gpOnly := song.Parse("title: Shuffle\ncontent: gp\n" + ref + "\n[Song]\ngp[#1]: 1-12\n")
+	imported := song.Parse("title: Shuffle\ngp_source: Shuffle.gp\n" + ref + "\n[Intro]\ngp[#1]: 1-4\ngrid: | A7 | D7 | A7 | E7 |\n\n[Solo]\ngp[#1]: 5-8\ngrid: | A7 | D7 | A7 | E7 |\n\n[Intro]\n")
+	sung := song.Parse("title: Shuffle\ngp_source: Shuffle.gp\n\n[Verse]\ngp[#1]: 1-4\ngrid: | A7 | D7 | A7 | E7 |\nla la la, la la\n")
+	added := song.Parse("title: Shuffle\ngp_source: Shuffle.gp\n\n[Intro]\ngp[#1]: 1-4\ngrid: | A7 | D7 | A7 | E7 |\n\n[Coda]\ngrid: | A7 | E7 |\n")
+	chart := song.Parse("title: Shuffle\n" + ref + "\n[Song]\ngrid: | A7 | D7 | A7 | E7 |\n")
+	lesson := func(video string) *lessonPanelData {
+		return &lessonPanelData{Lesson: store.Lesson{Title: "Cours 5"}, VideoID: video}
+	}
+	file := func(panel *lessonPanelData) map[string]any {
+		d := map[string]any{"GPFileName": "a.gp"}
+		if panel != nil {
+			d["LessonPanel"] = panel
+		}
+		return d
+	}
 	cases := []struct {
 		name      string
 		sg        *song.Song
@@ -25,12 +39,15 @@ func TestLessonViewData(t *testing.T) {
 		view      bool
 		video, by string
 	}{
-		{"content: gp", gpOnly, map[string]any{"GPFileName": "a.gp"}, true, "abcdefghijk", "Shuffle"},
+		{"content: gp", gpOnly, file(nil), true, "abcdefghijk", "Shuffle"},
 		{"content: gp, no file", gpOnly, map[string]any{}, false, "", ""},
-		{"chart and file", chart, map[string]any{"GPFileName": "a.gp"}, false, "", ""},
-		{"a lesson", chart, map[string]any{"GPFileName": "a.gp", "LessonPanel": lesson}, true, "lessonvideo", "Cours 5"},
-		{"a lesson without a video", chart, map[string]any{"GPFileName": "a.gp", "LessonPanel": &lessonPanelData{Lesson: store.Lesson{Title: "Cours 6"}}}, true, "abcdefghijk", "Cours 6"},
-		{"a lesson without a file", chart, map[string]any{"LessonPanel": lesson}, false, "", ""},
+		{"imported from its file", imported, file(nil), true, "abcdefghijk", "Shuffle"},
+		{"imported, a lesson", imported, file(lesson("lessonvideo")), true, "lessonvideo", "Cours 5"},
+		{"imported, a lesson without a video", imported, file(lesson("")), true, "abcdefghijk", "Cours 5"},
+		{"imported, sung", sung, file(nil), false, "", ""},
+		{"imported, a section added by hand", added, file(nil), false, "", ""},
+		{"a chart by hand, in a course", chart, file(lesson("lessonvideo")), false, "", ""},
+		{"a chart by hand", chart, file(nil), false, "", ""},
 	}
 	for _, c := range cases {
 		lessonViewData(c.data, c.sg)
