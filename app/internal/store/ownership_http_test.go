@@ -17,7 +17,7 @@ import (
 // TestMakeTheBandsVersionFromItsSongbook: a member opens the catalogue's
 // song from the band's songbook: Edit offers "Make Other Lies's version",
 // which takes the link's place there (its key kept); on the band's
-// version, Edit edits it and "New version from this" makes a named one
+// version, Edit edits it and "New arrangement from this" makes a named one
 // beside it.
 func TestMakeTheBandsVersionFromItsSongbook(t *testing.T) {
 	st := store.NewTestStore(t)
@@ -32,7 +32,7 @@ func TestMakeTheBandsVersionFromItsSongbook(t *testing.T) {
 	}
 	g := as(t, st, f.Guest)
 	html := g.page(fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, book))
-	if !strings.Contains(html, `data-edit-offer="band"`) || !strings.Contains(html, "Make Other Lies’s version") || !strings.Contains(html, fmt.Sprintf(`data-songbook-id="%d"`, book)) {
+	if !strings.Contains(html, `data-edit-offer="band"`) || !strings.Contains(html, "Make Other Lies’s arrangement") || !strings.Contains(html, fmt.Sprintf(`data-songbook-id="%d"`, book)) {
 		t.Fatal("no \"Make Other Lies's version\" offer from the band's songbook")
 	}
 	if strings.Contains(html, "new-version-open") || strings.Contains(html, "song-publish-toggle") {
@@ -96,7 +96,7 @@ func TestMakeTheCommunitysVersion(t *testing.T) {
 		t.Fatalf("linking the catalogue's song: %d %s", w.Code, w.Body.String())
 	}
 	path := fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, book)
-	if html := c.page(path); !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "Make the community’s version") {
+	if html := c.page(path); !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "Make the community’s arrangement") {
 		t.Fatal("no \"Make the community's version\" offer")
 	}
 	if html := as(t, st, f.Outsider).page(path); strings.Contains(html, `data-edit-offer="community"`) {

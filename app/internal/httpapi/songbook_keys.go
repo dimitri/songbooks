@@ -137,7 +137,7 @@ func (s *Server) handlePutSongbookKey(w http.ResponseWriter, r *http.Request) {
 // songbook's key (play.html), and the editor's note: whose version it is,
 // the key, and the link back to the song's own key.
 type songbookKeyLine struct {
-	Whose, WhoseLower string // "Mercy’s version"; "the catalogue’s version" mid-sentence
+	Whose, WhoseLower string // "Mercy’s song"; "the catalogue’s song" mid-sentence
 	Mine              bool   // the key of the person's own songbook
 	Songbook          string // the songbook's name, when not theirs
 	Label             string // "A (−2)", or "−2" for a song with no key
@@ -163,14 +163,14 @@ func (s *Server) newSongbookKeyLine(r *http.Request, lang string, variant *store
 }
 
 // whoseVersion names whose song a song is, at the start of a line and
-// mid-sentence: "Mercy’s version", "The catalogue’s version" / "the
-// catalogue’s version", "Your version" / "your version".
+// mid-sentence: "Mercy’s song", "The catalogue’s song" / "the
+// catalogue’s song", "Your song" / "your song".
 func (s *Server) whoseVersion(r *http.Request, lang string, variant *store.CatalogVariant, personID int64) (string, string) {
 	if variant == nil {
 		return "", ""
 	}
 	if variant.Visibility == "user" && variant.OwnerID != nil && *variant.OwnerID == personID {
-		return i18n.T(lang, "Your version"), i18n.T(lang, "your version")
+		return i18n.T(lang, "Your song"), i18n.T(lang, "your song")
 	}
 	o, err := s.store.VariantOwnerOf(r.Context(), variant.VariantID)
 	if err != nil {
@@ -178,9 +178,9 @@ func (s *Server) whoseVersion(r *http.Request, lang string, variant *store.Catal
 	}
 	switch {
 	case o.Kind == "global":
-		return i18n.T(lang, "The catalogue’s version"), i18n.T(lang, "the catalogue’s version")
+		return i18n.T(lang, "The catalogue’s song"), i18n.T(lang, "the catalogue’s song")
 	case o.Name != "":
-		return i18n.T(lang, "%s’s version", o.Name), i18n.T(lang, "sentence|%s’s version", o.Name)
+		return i18n.T(lang, "%s’s song", o.Name), i18n.T(lang, "sentence|%s’s song", o.Name)
 	}
 	return "", ""
 }

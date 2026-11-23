@@ -78,7 +78,7 @@
   function details(hit) {
     const bits = [];
     if (hit.artist) bits.push(hit.artist);
-    if (hit.band) bits.push(t('sentence|%s’s version', hit.band)); // a band of yours has its own
+    if (hit.band) bits.push(t('sentence|%s’s arrangement', hit.band)); // a band of yours has its own
     if (hit.key) bits.push(t('Key %s', hit.key));
     if (hit.visibility === 'user') bits.push(t('Only you can see it'));
     else if (hit.madeBy) bits.push(t('Shared by %s', hit.madeBy));

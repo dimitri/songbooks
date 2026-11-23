@@ -1194,7 +1194,7 @@ func (s *Server) writeLinkErr(w http.ResponseWriter, r *http.Request, err error)
 		case refused.CatalogueSongID != 0:
 			out["catalogVariantId"] = refused.CatalogueSongID
 			out["message"] = i18n.T(lang, "This is %s’s private song: only its own songbooks hold it.", refused.OwnerName)
-			out["question"] = i18n.T(lang, "This is %s’s private song. Add the catalogue’s version instead?", refused.OwnerName)
+			out["question"] = i18n.T(lang, "This is %s’s private song. Add the catalogue’s song instead?", refused.OwnerName)
 		default:
 			out["message"] = i18n.T(lang, "This is %s’s private song: only its own songbooks hold it.", refused.OwnerName)
 		}

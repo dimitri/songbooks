@@ -78,7 +78,7 @@
       </a>
       {{if gt (len .Songs) 1}}
       <details class="find-versions">
-        <summary>{{tn (len .Songs) "%d version" "%d versions"}}</summary>
+        <summary>{{tn (len .Songs) "%d recording or arrangement" "%d recordings and arrangements"}}</summary>
         <ul>
         {{range .Songs}}
           <li>
@@ -91,7 +91,7 @@
       </details>
       {{end}}
       <div class="catalog-card-actions">
-        <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+        <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
         {{if index $.PlayedBy $first.ID}}<a href="/song/{{$first.ID}}/recordings">{{t "Listen"}}</a>{{end}}
         {{if not $first.Closed}}<button type="button" data-add-to="{{$first.ID}}" data-title="{{$first.Title}} — {{$first.Artist}}" data-badge="{{index $.Owners $first.ID}}">{{t "Add to…"}}</button>{{end}}
       </div>

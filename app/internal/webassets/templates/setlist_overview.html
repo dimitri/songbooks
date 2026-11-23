@@ -78,7 +78,7 @@
             <span>{{$row.Title}}{{with $row.VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</span>{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
           </a>
           {{if and $.CanEdit $row.Versions}}
-          <select class="setlist-version" data-item="{{$row.ItemID}}" aria-label="{{t "Version of %s for this set list" $row.Title}}" title="{{t "Which version this set list plays"}}">
+          <select class="setlist-version" data-item="{{$row.ItemID}}" aria-label="{{t "Arrangement of %s for this set list" $row.Title}}" title="{{t "Which arrangement this set list plays"}}">
             {{range $row.Versions}}<option value="{{.VariantID}}"{{if .Current}} selected{{end}}>{{.Label}}</option>{{end}}
           </select>
           {{end}}
@@ -301,7 +301,7 @@
       const text = document.createElement('div');
       const ti = document.createElement('div'); ti.className = 'attention-title'; ti.textContent = song.title;
       text.appendChild(ti);
-      if (song.artist || song.band) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = [song.artist, song.band ? t('sentence|%s’s version', song.band) : ''].filter(Boolean).join(' · '); text.appendChild(a); }
+      if (song.artist || song.band) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = [song.artist, song.band ? t('sentence|%s’s arrangement', song.band) : ''].filter(Boolean).join(' · '); text.appendChild(a); }
       const btn = document.createElement('button');
       btn.type = 'button'; btn.textContent = t('Add');
       btn.setAttribute('aria-label', t('Add %s', song.title));
@@ -390,7 +390,7 @@
       sel.disabled = false;
       Forms.status(versionStatus, put && put.status === 409
         ? t('The set list changed meanwhile. Reload the page and pick again.')
-        : t('Couldn’t change the version. Try again.'), 'error');
+        : t('Couldn’t change the arrangement. Try again.'), 'error');
     });
   });
 

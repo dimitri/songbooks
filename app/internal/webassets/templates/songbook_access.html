@@ -28,7 +28,7 @@
 
   <div class="card">
     <h3>{{t "Open or closed"}}</h3>
-    <p class="hint" id="closed-hint">{{t "Open, the community’s songs in it can be linked from other songbooks, and made into someone’s own version. Closed, for a songbook sold outside the app: its songs stay in it — never public, never linked, copied or made into a version anywhere else; a student can still keep their own key. Either way, who can open it is set below."}}</p>
+    <p class="hint" id="closed-hint">{{t "Open, the community’s songs in it can be linked from other songbooks, and made into someone’s own arrangement. Closed, for a songbook sold outside the app: its songs stay in it — never public, never linked, copied or made into an arrangement anywhere else; a student can still keep their own key. Either way, who can open it is set below."}}</p>
     <label class="check"><input type="radio" name="closed" value="false" aria-describedby="closed-hint" {{if not .Songbook.Closed}}checked{{end}}> {{t "songbook|Open"}}</label>
     <label class="check"><input type="radio" name="closed" value="true" aria-describedby="closed-hint" {{if .Songbook.Closed}}checked{{end}}> {{t "songbook|Closed"}}</label>
     <p id="closed-result" class="form-status" role="status"></p>

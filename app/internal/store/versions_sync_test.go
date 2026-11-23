@@ -98,7 +98,7 @@ func TestOriginalChangeOfferedToVersion(t *testing.T) {
 	saveCatalogue(t, st, f.CatalogSong, strings.Replace(v2, "tempo: 96", "tempo: 100", 1))
 	for _, p := range []int64{f.Core, f.Guest} {
 		n := unread(t, st, p)
-		if len(n) != 1 || n[0].Link != store.VersionChangedLink(version) || n[0].Body != "The shared version of Le Vent (live) changed" {
+		if len(n) != 1 || n[0].Link != store.VersionChangedLink(version) || n[0].Body != "The song your arrangement of Le Vent (live) comes from changed" {
 			t.Errorf("person %d told: %+v", p, n)
 		}
 	}
@@ -240,7 +240,7 @@ func TestFrozenCopies(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &uses); err != nil || w.Code != http.StatusOK {
 		t.Fatalf("uses: %d %s", w.Code, w.Body.String())
 	}
-	want := "Make “Night Drive” private? 2 songbooks link to it, 1 set list lists it and 1 person has their own version. Their songbooks keep a frozen copy"
+	want := "Make “Night Drive” private? 2 songbooks link to it, 1 set list lists it and 1 person has their own arrangement. Their songbooks keep a frozen copy"
 	if uses.Songbooks != 2 || uses.Setlists != 1 || uses.Versions != 1 || !strings.HasPrefix(uses.Message, want) {
 		t.Errorf("uses: %+v", uses)
 	}
@@ -294,7 +294,7 @@ func TestFrozenCopies(t *testing.T) {
 	link(gin)
 	ginVersion := as(t, st, fan).variantID(as(t, st, fan).do("POST", fmt.Sprintf("/api/variants/%d/fork", gin), nil))
 	w = core.do("GET", fmt.Sprintf("/api/variants/%d/uses?for=delete", gin), nil)
-	if !strings.Contains(w.Body.String(), "Delete “Gin Lane”? This can’t be undone. 1 songbook links to it and 1 person has their own version.") {
+	if !strings.Contains(w.Body.String(), "Delete “Gin Lane”? This can’t be undone. 1 songbook links to it and 1 person has their own arrangement.") {
 		t.Errorf("uses for delete: %s", w.Body.String())
 	}
 	if w := as(t, st, f.Outsider).do("DELETE", fmt.Sprintf("/api/songs/%d", gin), nil); w.Code != http.StatusForbidden {

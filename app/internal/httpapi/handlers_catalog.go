@@ -195,7 +195,7 @@ func (s *Server) handleSongbooksIndexPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleWorkVersionsPage is a work's "all versions of this song" page:
+// handleWorkVersionsPage is a work's "this song’s recordings and arrangements" page:
 // every variant the viewer may see (every global one, plus their own
 // private ones), with a free-text annotation box/list underneath.
 func (s *Server) handleWorkVersionsPage(w http.ResponseWriter, r *http.Request) {
@@ -298,7 +298,7 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleForkVariant is "Make my version" (docs/ownership-model.md §5):
+// handleForkVariant is "Make my arrangement" (docs/ownership-model.md §5):
 // the person's own version of a song they see (never a closed songbook's),
 // in its place in their songbooks ({"songbookId"}, else every one of
 // theirs linking it; their default songbook when none does).
@@ -321,7 +321,7 @@ func (s *Server) handleForkVariant(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleNewVersion is POST /api/variants/{id}/versions {name, songbookId}:
-// "New version from this" (docs/ownership-model.md §5) — another version
+// "New arrangement from this" (docs/ownership-model.md §5) — another version
 // of a song the caller edits, owned by the same owner, named ("Bad Spell —
 // psychedelic"), as a new row beside it in {songbookId} (else in each of
 // the owner's songbooks holding it). Answers its id.

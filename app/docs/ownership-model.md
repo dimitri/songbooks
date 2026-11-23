@@ -13,24 +13,42 @@ world (§8) would build on it.
 
 ## 1. The model in one paragraph
 
+**Words** (2026-11-23). Three things used to be called "versions"; they
+are kept apart now, in the app's words and in this document:
+
+- **Versions** are a song's states over time: each edit, a fix of a
+  chord or a typo, is a new version of the same song, kept in its
+  **history** (revisions) and revertable. Nothing else is a version.
+- **Recordings** (a catalogue song's **reference**) are different
+  performances of the same work — the album take and a live one, the
+  original and a cover (*Hurt* by Nine Inch Nails, *Hurt* by Johnny
+  Cash). Each is its own catalogue song, followed by its chart, grouped
+  under the work, and named by its title, artist and **reference label**.
+- **Arrangements** (FR « arrangement ») are a band's, a person's or a
+  community's own copy of a song, changed their way: "Make Mercy's
+  arrangement", "Make my arrangement", "New arrangement from this…",
+  its name the arrangement's name. The database keeps its column names
+  (`forked_from_id`, `version_name`).
+
 A song has **one owner** — a person, a band or a community — and is
 either **private** (the owner's members) or **public** (everyone signed
 in). A song is always created **in a songbook** of its owner. A songbook
 holds its owner's own songs and **links** to songs its owner can see; a
 link plays the linked song as it is — with the songbook's own **key** —
-until someone makes **their own version**, which is a new song. Everyone
-belongs to one **global community**, whose songbook is computed: every
-public song. The public songbook holds **well-known versions**: a song
-is identified by its title and its artist (the performer of that
-version), so "Stand By Me — Ben E. King" and "Stand By Me — Tracy
-Chapman" are two songs of the same work.
+until someone makes **their own arrangement**, which is a new song.
+Everyone belongs to one **global community**, whose songbook is
+computed: every public song. The public songbook holds **well-known
+recordings**: a song is identified by its title, its artist (the
+performer of that recording) and its reference label, so "Stand By Me
+— Ben E. King" and "Stand By Me — Tracy Chapman" are two songs of the
+same work.
 
 ## 2. Who owns it, who sees it
 
 | | Owner's members | Everyone signed in |
 |---|---|---|
 | **private** (default) | see, play; edit per role | — |
-| **public** | see, play; edit per role | see, play, link, make their own version |
+| **public** | see, play; edit per role | see, play, link, make their own arrangement |
 
 - Owner: exactly one of person, band, community. The catalogue's songs,
   ownerless today, are owned by the global community (§6).
@@ -50,19 +68,26 @@ Chapman" are two songs of the same work.
   link, recordings, stems, the Guitar Pro file.
 - A **closed** songbook (paid, e.g. Florent's methods, sold outside the
   app): its songs are private, can't be made public, and can't be
-  linked, copied or made into a version anywhere else — not even in a
+  linked, copied or made into an arrangement anywhere else — not even in a
   student's own songbook. Opening them takes the grant, as today.
 
-## 3. Identity: title and artist; the work groups versions
+## 3. Identity: title, artist and reference label; the work groups them
 
-- A song is identified by **title + artist**, the artist being the
-  performer of that version ("Wonderwall — Oasis", "Wonderwall — Ryan
-  Adams"). In the public songbook that pair is unique: a second
-  "Wonderwall — Oasis" is a duplicate (§7).
+- A song is identified by **title + artist** (+ its **reference
+  label**), the artist being the performer of that recording
+  ("Wonderwall — Oasis", "Wonderwall — Ryan Adams"; "Hurt — Johnny
+  Cash · American IV"). A catalogue song's public identity is **title –
+  artist – reference label**: the label (the album, "Live at <place>,
+  <date>", "Original", "Cover"…) is shown after the artist everywhere a
+  catalogue song is listed (The Big Songbook, search, the Add dialog,
+  the song's header). It is kept in `version_name`, which holds an
+  arrangement's name on other songs. In the public songbook that
+  identity is unique: a second "Wonderwall — Oasis" with the same label
+  is a duplicate (§7).
 - The **work** (`work_id`) groups every song of the same composition:
-  the original and its well-known covers, and every band's own
-  versions. Search and the public songbook show a work once with its
-  versions.
+  the original and its well-known covers and live recordings, and every
+  band's own arrangements. Search and the public songbook show a work
+  once with its recordings and arrangements.
 - A public song **follows its reference recording** (its YouTube link):
   its structure is the recording's. The app can check it with what it
   already has (the recording's analysis, the chart's sync to the
@@ -78,21 +103,22 @@ band or a community; for a person, also what they see through their
 bands and communities, except closed songbooks' songs.
 
 An entry carries what belongs to that songbook: its position and its
-**key** (`semitones`). A key never makes a version: a band's key, a
+**key** (`semitones`). A key never makes an arrangement: a band's key, a
 student's key (Chloé's) is the entry's.
 
 A **set list** lists **songs of its owner's songbook** — a specific
-version when the band has several (§5). Set list items move out of the
+arrangement when the band has several (§5). Set list items move out of the
 text body into a table (`setlist_items`: set list, position, songbook
 entry, note).
 
-## 5. Versions
+## 5. Arrangements
 
-- **Any change to the song itself makes a version**: new chords, a
+- **Changing a song one links makes an arrangement**: new chords, a
   different structure (skip the intro, a new solo, the chorus once
-  more), new lyrics. A version is a new song: owned by the songbook's
-  owner, private, `forked_from_id` set, and it no longer follows the
-  reference recording.
+  more), new lyrics. An arrangement is a new song: owned by the
+  songbook's owner, private, `forked_from_id` set, and it no longer
+  follows the reference recording. (Editing one's own song in place
+  makes a new *version* of it: its history.)
 - **Except fixing the catalogue's song itself** (§11): a wrong chord, a
   typo, a missing section the recording plays is fixed in place by
   anyone signed in — the catalogue's song stays the one that follows
@@ -101,17 +127,17 @@ entry, note).
 - **Another recording** of a catalogue song (a live take, another
   performer) is another catalogue song: changing the reference of a
   catalogue song makes a new one for that recording (§11).
-- **A band can have several versions of one song** — a punchy one and a
-  psychedelic one — and its songbook shows **one row per version**
-  ("Bad Spell — psychedelic", a version name beside the title). A set
-  list picks the one for that gig.
-- On a linked song, **Edit** offers "Make Mercy's version" (a band),
-  "Make my version" (a person), "Make the community's version"; on a
-  version already the band's, Edit edits it, and "New version from
-  this" makes another.
-- **When the song a version came from changes**: the version's owner is
-  told what changed and can take the change or keep theirs (the same
-  idea as the Guitar Pro drift check).
+- **A band can have several arrangements of one song** — a punchy one
+  and a psychedelic one — and its songbook shows **one row per
+  arrangement** ("Bad Spell — psychedelic", the arrangement's name
+  beside the title). A set list picks the one for that gig.
+- On a linked song, **Edit** offers "Make Mercy's arrangement" (a band),
+  "Make my arrangement" (a person), "Make the community's arrangement";
+  on an arrangement already the band's, Edit edits it, and "New
+  arrangement from this" makes another.
+- **When the song an arrangement came from changes**: the arrangement's
+  owner is told what changed and can take the change or keep theirs
+  (the same idea as the Guitar Pro drift check).
 - **Making a song private, or deleting it, while others link to it**:
   each songbook linking to it gets a **frozen copy** as it was, owned
   by that songbook's owner; set lists keep working; new people can't
@@ -127,11 +153,11 @@ entry, note).
 
 ## 7. De-duplication
 
-- Same **title + artist** (normalised: case, accents, "The", "&/and")
-  among public songs → duplicates.
+- Same **title + artist + reference label** (normalised: case, accents,
+  "The", "&/and") among public songs → duplicates.
 - Same **reference video** among public songs → duplicates.
 - Duplicates are merged by the global community's staff: one stays,
-  the others' links move to it, versions keep their `forked_from_id`
+  the others' links move to it, arrangements keep their `forked_from_id`
   to it. A reviewed command lists them first.
 
 ## 8. Band recordings, public
@@ -149,7 +175,7 @@ recordings, is the next step; a page for the world is
 | `global` (catalogue) | 122 | owner: global community, public |
 | `user` | 9 | owner: the person, private |
 | `bandsongs` copies of Nov 2026, unchanged | 54 (Mercy 43, Couleur Acoustique 11) | removed; the band's entries become links again |
-| Couleur Acoustique's songs differing from the catalogue | 15 | the band's versions, private |
+| Couleur Acoustique's songs differing from the catalogue | 15 | the band's arrangements, private |
 | Other Lies | 30 | the band's originals, private |
 | What's Up, Koalition (catalogue songs, never edited) | 9 | move to the catalogue (public, global community); the bands link to them. The Final Countdown: What's Up's chart (201) becomes the catalogue's; the catalogue's 52 is merged into it |
 | Bands Camp's songbook | 66 links | stays a selection of catalogue songs (The Final Countdown: 201) |
@@ -172,8 +198,9 @@ Done by a reviewed command with a dry run first (like `bandsongs`).
    can be public either way; staff use it to tidy The Big Songbook.
    Since §11 it also weighs the edits of the catalogue's songs: one that
    makes the fit worse waits for review.
-6. Keys on the entry; any change to the song a version, several per
-   band, one row each; the original's changes offered to its versions;
+6. Keys on the entry; any change to a linked song an arrangement,
+   several per band, one row each; the original's changes offered to
+   its arrangements;
    frozen copies on unpublish/delete; everything public with a song;
    core members / staff publish.
 
@@ -183,15 +210,15 @@ The catalogue's songs (The Big Songbook's) are everyone's, so anyone
 signed in fixes them — and nothing is lost.
 
 - **Who**: everyone signed in edits a catalogue song's chart in place
-  (Edit opens the editor; "Make my version instead" is beside it). The
+  (Edit opens the editor; "Make my arrangement instead" is beside it). The
   recordings, the Guitar Pro file, erasing or deleting the song stay
   its staff's. Someone the staff keep from editing (the review queue's
   "Reject and keep … from editing") can't, until let again.
 - **Nothing is lost**: every edit is a revision — who, when, and a
   one-line summary asked at save (optional) — listed in the song's
   History. One click reverts it: by its author while it is the latest,
-  by a trusted editor or the staff any time. The versions made from the
-  song are told what changed and take it or keep theirs (§5).
+  by a trusted editor or the staff any time. The arrangements made from
+  the song are told what changed and take it or keep theirs (§5).
 - **The reference recording is the anchor**: each catalogue song
   follows one recording, its `reference:`. The "follows the recording"
   check (§3, `songimport.RecordingFit`, cached in `song_recording_fit`)
@@ -200,23 +227,35 @@ signed in fixes them — and nothing is lost.
     chord fixes, lyrics typos, a missing section the recording plays;
   - an edit that makes it worse waits for **review**, and so does one
     that changes the lead-in (`lead:`), the Guitar Pro sync (`gp_start`,
-    the sections' `gp[...]` lines), the key, the title or the artist,
-    or adds or removes the recording. It is saved as a pending edit:
+    the sections' `gp[...]` lines) or the key, or removes the
+    recording. It is saved as a pending edit:
     the song stays as it was for everyone; its author sees "waits for
     review" on the song and opens their text; it becomes current when
     approved (merged with what changed since, where it doesn't touch
     the same place);
   - a song whose recording has no analysis yet: a change of the
     sections or their bars waits too; other edits apply.
-- **Another recording, another song**: changing a catalogue song's
-  reference (in the Reference view or in Source) doesn't change it: it
-  makes a new catalogue song for that recording — same work,
-  `forked_from_id` set, public, The Big Songbook's — with the edited
-  chart; the original stays as it is. Its artist is that recording's
-  performer: the album version and a couple of live ones, even by other
-  artists, side by side. Title, artist and the reference identify it
-  (§3): the duplicates review (§7) doesn't take two songs following two
-  different recordings for duplicates.
+- **A fix, or another recording — asked at edit time**: an edit that
+  changes the reference (in the Reference view or in Source), the title
+  or the artist asks which it is:
+  - **a fix** (the same recording: a dead link, a typo) edits the song
+    in place, like any edit: not held for review on that account (the
+    fit and the newcomer's rule still weigh it), a version in its
+    history, revertable;
+  - **another recording** (album and live, original and cover) makes a
+    new catalogue song for it — same work, `forked_from_id` set,
+    public, The Big Songbook's — with the edited chart and its
+    **reference label** (prefilled with the video's title, #144); the
+    original stays as it is. Its artist is that recording's performer:
+    the album take and a couple of live ones, even by other artists,
+    side by side. A new recording is **never held for review**, a
+    newcomer's neither. When the reference didn't change (a new artist:
+    a cover), its video is asked for.
+- **The reference label** is edited in the Reference view by anyone
+  who edits the catalogue, at once (a version, revertable). Title,
+  artist and label identify the song (§3): the duplicates review (§7)
+  takes the same three (or the same video) for duplicates, not two
+  recordings labelled apart.
 - **The key is the recording's**: a catalogue song isn't transposed in
   place (the editor's Transpose is off on it, and a chart transposed as
   a whole is refused); keys are set per songbook, student or band.
@@ -229,7 +268,8 @@ signed in fixes them — and nothing is lost.
   marks it done. The author is told when their edit is approved or
   rejected; the reviewers are told when the queue has items — once
   while it does, not per edit.
-- Migration 0125: `revisions.summary`, `people.catalogue_banned_at`,
+- Migration 0125 (no column added since: the label is `version_name`):
+  `revisions.summary`, `people.catalogue_banned_at`,
   `catalogue_edits` (every edit by someone not staff: applied, pending,
   approved, rejected, superseded; accepted ones count towards trust),
   `catalogue_reports`.

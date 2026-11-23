@@ -47,7 +47,7 @@ func TestJudgeCatalogueEdit(t *testing.T) {
 		{"the lead-in", "lead: 1\n" + base, nil, false, []string{"lead"}},
 		{"the Guitar Pro sync", strings.Replace(base, "artist: Someone\n", "artist: Someone\ngp_start: 3\n", 1), nil, false, []string{"gp"}},
 		{"the key", strings.Replace(base, "artist: Someone\n", "artist: Someone\nkey: C\n", 1), nil, false, []string{"key"}},
-		{"the artist", strings.Replace(base, "Someone", "Someone Else", 1), nil, false, []string{"title"}},
+		{"the artist (a fix: catalogueSave asks first)", strings.Replace(base, "Someone", "Someone Else", 1), nil, false, nil},
 		{"a newcomer's typo", strings.Replace(base, "lève", "lèvent", 1), nil, true, []string{"newcomer"}},
 	} {
 		got := judgeCatalogueEdit(base, c.after, c.fit, c.newcomer).Reasons
@@ -90,5 +90,17 @@ func TestSameReference(t *testing.T) {
 	}
 	if sameReference("https://www.youtube.com/watch?v=AAAAAAAAAAA", "https://www.youtube.com/watch?v=BBBBBBBBBBB") {
 		t.Error("two videos")
+	}
+}
+
+func TestSetHeaderLine(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"title: A\nreference: x\n\n[Verse]\n", "title: A\nreference: y\n\n[Verse]\n"},
+		{"title: A\n\n[Verse]\nreference: not a header\n", "title: A\nreference: y\n\n[Verse]\nreference: not a header\n"},
+		{"[Verse]\n", "reference: y\n[Verse]\n"},
+	} {
+		if got := setHeaderLine(c.in, "reference", "y"); got != c.want {
+			t.Errorf("%q: %q, want %q", c.in, got, c.want)
+		}
 	}
 }

@@ -80,7 +80,7 @@ func searchHitItem(lang string, h store.SearchHit, now time.Time) searchItem {
 			it.Badge = ownerBadge(lang, *h.Owner)
 			it.Public = h.Owner.Public
 		} else if h.BandName != "" {
-			it.Subtitle = strings.TrimPrefix(it.Subtitle+" · "+i18n.T(lang, "sentence|%s’s version", h.BandName), " · ")
+			it.Subtitle = strings.TrimPrefix(it.Subtitle+" · "+i18n.T(lang, "sentence|%s’s arrangement", h.BandName), " · ")
 		}
 		it.URL = fmt.Sprintf("/song/%d", h.ID)
 		if h.BandID != 0 {

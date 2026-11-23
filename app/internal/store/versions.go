@@ -15,7 +15,7 @@ import (
 // forked_from_id the song it came from. A songbook holds links and own
 // songs; Edit on a link offers "Make Mercy's version" (MakeVersion), and
 // the version takes the link's place; on an own song, Edit edits it, and
-// "New version from this" makes another, named, beside it — one row per
+// "New arrangement from this" makes another, named, beside it — one row per
 // version.
 
 // ownerMayChange reports whether personID may put songs in owner's

@@ -89,7 +89,8 @@ func (st *Store) searchSongs(ctx context.Context, personID int64, q string, limi
 	title, order := matchSQL("s.title")
 	artist, _ := matchSQL("s.artist")
 	rows, err := st.db.Query(ctx, searchScope+`
-		SELECT s.id, s.title, s.artist, `+songKindSQL("s")+`, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0),
+		SELECT s.id, s.title, s.artist || CASE WHEN s.version_name <> '' THEN ' · ' || s.version_name ELSE '' END,
+		       `+songKindSQL("s")+`, coalesce(s.owner_band_id, 0), coalesce(s.owner_community_id, 0),
 		       coalesce((SELECT b.name FROM bands b WHERE b.id = s.owner_band_id), ''),
 		       coalesce((SELECT p.display_name FROM people p WHERE p.id = s.owner_person_id),
 		                (SELECT c.name FROM communities c WHERE c.id = s.owner_community_id), ''),

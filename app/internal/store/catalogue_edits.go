@@ -563,9 +563,11 @@ func (st *Store) MayRevertCatalogue(ctx context.Context, personID, revisionID in
 // songID's (docs/ownership-model.md, "The catalogue: open edits"): a new
 // song of The Big Songbook's, public, of the same work, made from it
 // (forked_from_id), with the chart as edited (title, artist — the
-// recording's performer —, reference, body) by personID. songID stays as
-// it is. Its first revision is songID's chart, with summary.
-func (st *Store) CreateRecordingVersion(ctx context.Context, songID, personID int64, title, artist, referenceURL, body, summary string) (int64, error) {
+// recording's performer —, reference, body) by personID, and its
+// reference label (the album, "Live at …", "Cover"…: version_name).
+// songID stays as it is. Its first revision is songID's chart, with
+// summary.
+func (st *Store) CreateRecordingVersion(ctx context.Context, songID, personID int64, title, artist, referenceURL, label, body, summary string) (int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -591,9 +593,9 @@ func (st *Store) CreateRecordingVersion(ctx context.Context, songID, personID in
 	}
 	var id int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO songs (title, artist, body, reference_url, work_id, forked_from_id, owner_community_id, public, created_by_person_id)
-		VALUES ($1, $2, $3, $4, $5, $6, big_songbook_id(), true, $7) RETURNING id`,
-		title, artist, body, referenceURL, workID, songID, creator).Scan(&id); err != nil {
+		INSERT INTO songs (title, artist, body, reference_url, version_name, work_id, forked_from_id, owner_community_id, public, created_by_person_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, big_songbook_id(), true, $8) RETURNING id`,
+		title, artist, body, referenceURL, strings.TrimSpace(label), workID, songID, creator).Scan(&id); err != nil {
 		return 0, err
 	}
 	// Where it came from, in its history: the original's chart, then
@@ -754,4 +756,48 @@ func (st *Store) SongChartOf(ctx context.Context, songID int64) (*SongChart, err
 		return nil, fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
 	}
 	return &c, err
+}
+
+// SetReferenceLabel sets catalogue song songID's reference label (the
+// album, "Live at …, 1994", "Original", "Cover"…: shown after its artist;
+// version_name, which holds an arrangement's name on other songs), as an
+// edit by personID: a revision kept (its snapshot carries the label
+// before), the song's version moves on.
+func (st *Store) SetReferenceLabel(ctx context.Context, songID, personID int64, label, summary string) error {
+	label = strings.TrimSpace(label)
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var title, artist, ref, body, cur string
+	var catalogue bool
+	err = tx.QueryRow(ctx, `
+		SELECT title, artist, reference_url, body, version_name, `+catalogueSQL("s")+`
+		FROM songs s WHERE id = $1 FOR UPDATE`, songID).Scan(&title, &artist, &ref, &body, &cur, &catalogue)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
+	}
+	if err != nil {
+		return err
+	}
+	if !catalogue {
+		return fmt.Errorf("song %d isn't the catalogue's: %w", songID, ErrForbidden)
+	}
+	if cur == label {
+		return tx.Commit(ctx)
+	}
+	var actor *int64
+	if personID != 0 {
+		actor = &personID
+	}
+	if _, err := recordRevision(ctx, tx, "variant", strconv.FormatInt(songID, 10), actor, VariantSnapshot{
+		Title: title, Artist: artist, ReferenceURL: ref, Body: body, VersionName: &cur,
+	}, summary); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE songs SET version_name = $2, version = version + 1 WHERE id = $1`, songID, label); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

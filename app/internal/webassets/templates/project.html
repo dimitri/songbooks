@@ -55,7 +55,7 @@
             <span class="song-title">{{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</span>
             <span class="song-meta">{{if .Tempo}}{{t "%s bpm" .Tempo}}{{end}}{{if and .Tempo .Key}} &middot; {{end}}{{.Key}}</span>
             {{template "song-badges" (index $.Badges .VariantID)}}
-            {{with index $.BandVersions .VariantID}}<span class="band-version-tag" title="{{t "%s has its own version of this song" .BandName}}">{{t "band has its own version"}}</span>{{end}}
+            {{with index $.BandVersions .VariantID}}<span class="band-version-tag" title="{{t "%s has its own arrangement of this song" .BandName}}">{{t "band has its own arrangement"}}</span>{{end}}
           </a>
           {{with .Keys}}<select class="row-key-select" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{$song.VariantID}}" aria-label="{{t "Key of %s in this songbook" $song.Title}}" title="{{t "the key the song opens in from this songbook"}}">{{range .}}<option value="{{.N}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select>{{end}}
           <button type="button" class="remove-song-btn icon-btn danger" data-songbook-id="{{$.Songbook.ID}}" data-variant-id="{{.VariantID}}" title="{{t "Remove from this songbook"}}" aria-label="{{t "Remove %s from this songbook" .Title}}">{{template "icon-trash"}}</button>

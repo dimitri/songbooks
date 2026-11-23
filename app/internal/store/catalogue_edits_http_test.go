@@ -270,7 +270,6 @@ func TestCatalogueEditWithoutAnalysis(t *testing.T) {
 		{"lead", "lead: 2\n" + lyrics},
 		{"gp", strings.Replace(lyrics, "[Verse]\n", "[Verse]\ngp[Lead]: 1-4\n", 1)},
 		{"key", strings.Replace(lyrics, "artist: Someone\n", "artist: Someone\nkey: Am\n", 1)},
-		{"title", strings.Replace(lyrics, "artist: Someone", "artist: Somebody Else", 1)},
 		{"struct", strings.Replace(lyrics, "[Verse]", "[Chorus]", 1)},
 	} {
 		if w := ed.saveRaw(f.CatalogSong, c.text); w.Code != http.StatusAccepted {
@@ -457,24 +456,27 @@ func TestCatalogueReport(t *testing.T) {
 	}
 }
 
-// TestCatalogueReferenceMakesANewVersion: another recording as the
-// catalogue song's reference makes a new catalogue song for it, with the
-// edited chart (its artist the performer's); the song edited stays as it
-// was; the duplicates review doesn't take them for duplicates.
-func TestCatalogueReferenceMakesANewVersion(t *testing.T) {
-	st := store.NewTestStore(t)
-	ctx := context.Background()
-	f := newCatalogueFixture(t, st)
-	start := "title: Le Vent\nartist: Someone\nreference: https://www.youtube.com/watch?v=AAAAAAAAAAA\n\n[Verse]\nLe vent\n"
-	setChart(t, st, f.CatalogSong, start)
-	store.ExecForTest(t, st, `UPDATE songs SET reference_url = 'https://www.youtube.com/watch?v=AAAAAAAAAAA' WHERE id = $1`, f.CatalogSong)
-	v := version(t, st, f.CatalogSong)
+// saveRawAs is PUT /api/songs/{id}/raw at the song's version, with the
+// headers given (URL-encoded as the editor sends them).
+func (c client) saveRawAs(id int64, text string, headers map[string]string) *httptest.ResponseRecorder {
+	c.t.Helper()
+	_, version, err := c.st.LoadVariantRaw(id)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	raw, _ := json.Marshal(map[string]string{"version": version, "text": text})
+	r := httptest.NewRequest("PUT", fmt.Sprintf("/api/songs/%d/raw", id), strings.NewReader(string(raw)))
+	r.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		r.Header.Set(k, url.QueryEscape(v))
+	}
+	w := httptest.NewRecorder()
+	c.h.ServeHTTP(w, r)
+	return w
+}
 
-	// The same recording, another link to it: an edit like any other.
-	o := as(t, st, f.Outsider)
-	live := strings.Replace(start, "watch?v=AAAAAAAAAAA", "watch?v=BBBBBBBBBBB", 1)
-	live = strings.Replace(live, "Le vent\n", "Le vent (live)\n", 1)
-	w := o.saveRaw(f.CatalogSong, live)
+func newSongID(t *testing.T, w *httptest.ResponseRecorder) int64 {
+	t.Helper()
 	if w.Code != http.StatusCreated {
 		t.Fatalf("another recording: %d %s", w.Code, w.Body.String())
 	}
@@ -482,49 +484,159 @@ func TestCatalogueReferenceMakesANewVersion(t *testing.T) {
 		NewSongID int64 `json:"newSongId"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &out)
-	if out.NewSongID == 0 || out.NewSongID == f.CatalogSong {
-		t.Fatalf("the new version: %d", out.NewSongID)
+	if out.NewSongID == 0 {
+		t.Fatal("no new song")
 	}
-	if version(t, st, f.CatalogSong) != v || body(t, st, f.CatalogSong) != start {
+	return out.NewSongID
+}
+
+// TestCatalogueFixOrAnotherRecording: a new reference, title or artist
+// is asked about (428): a fix edits the song in place (not held for
+// review on that account; the newcomer rule still holds), another
+// recording makes a new catalogue song with its reference label — never
+// held for review, a newcomer's neither — the song edited unchanged.
+func TestCatalogueFixOrAnotherRecording(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := newCatalogueFixture(t, st)
+	start := "title: Le Vent\nartist: Someone\nreference: https://www.youtube.com/watch?v=AAAAAAAAAAA\n\n[Verse]\nLe vent\n"
+	setChart(t, st, f.CatalogSong, start)
+	store.ExecForTest(t, st, `UPDATE songs SET reference_url = 'https://www.youtube.com/watch?v=AAAAAAAAAAA' WHERE id = $1`, f.CatalogSong)
+	ed, o := as(t, st, f.Editor), as(t, st, f.Outsider)
+	newLink := strings.Replace(start, "AAAAAAAAAAA", "BBBBBBBBBBB", 1)
+
+	// Asked first.
+	w := ed.saveRaw(f.CatalogSong, newLink)
+	if w.Code != http.StatusPreconditionRequired || !strings.Contains(w.Body.String(), `"referenceChanged":true`) {
+		t.Fatalf("a new reference, unasked: %d %s", w.Code, w.Body.String())
+	}
+	if body(t, st, f.CatalogSong) != start {
+		t.Fatal("the song changed before the choice")
+	}
+	// A fix: in place, at once.
+	if w := ed.saveRawAs(f.CatalogSong, newLink, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusOK {
+		t.Fatalf("a fixed link: %d %s", w.Code, w.Body.String())
+	}
+	if v, _ := st.GetVariant(ctx, f.CatalogSong); body(t, st, f.CatalogSong) != newLink || v == nil {
+		t.Error("the fixed link isn't the song's")
+	}
+	if r, _ := st.SongChartOf(ctx, f.CatalogSong); r.ReferenceURL != "https://www.youtube.com/watch?v=BBBBBBBBBBB" {
+		t.Errorf("the song's reference: %q", r.ReferenceURL)
+	}
+	// A newcomer's fix: held, as a newcomer's, not for the link.
+	back := strings.Replace(newLink, "BBBBBBBBBBB", "AAAAAAAAAAA", 1)
+	if w := o.saveRawAs(f.CatalogSong, back, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusAccepted {
+		t.Errorf("a newcomer's fixed link: %d", w.Code)
+	} else if e := pendingOf(t, st, f.Outsider, f.CatalogSong); len(e.Reasons) != 1 || e.Reasons[0] != "newcomer" {
+		t.Errorf("a newcomer's fixed link waits for: %v", e.Reasons)
+	}
+	// A title fixed: in place too.
+	typo := strings.Replace(newLink, "title: Le Vent", "title: Le Vent se lève", 1)
+	if w := ed.saveRaw(f.CatalogSong, typo); w.Code != http.StatusPreconditionRequired {
+		t.Errorf("a new title, unasked: %d", w.Code)
+	}
+	if w := ed.saveRawAs(f.CatalogSong, typo, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusOK {
+		t.Errorf("a fixed title: %d %s", w.Code, w.Body.String())
+	}
+	if v, _ := st.GetVariant(ctx, f.CatalogSong); v.Title != "Le Vent se lève" {
+		t.Errorf("the title: %q", v.Title)
+	}
+
+	// Another recording, by a newcomer: a new song at once, labelled.
+	v := version(t, st, f.CatalogSong)
+	before := body(t, st, f.CatalogSong)
+	live := strings.Replace(before, "BBBBBBBBBBB", "CCCCCCCCCCC", 1)
+	live = strings.Replace(live, "artist: Someone", "artist: Someone Else", 1)
+	nv := newSongID(t, o.saveRawAs(f.CatalogSong, live, map[string]string{"X-Edit-Kind": "recording", "X-Reference-Label": "Live at the Olympia, 1994"}))
+	if version(t, st, f.CatalogSong) != v || body(t, st, f.CatalogSong) != before {
 		t.Error("the song edited changed")
 	}
 	orig, _ := st.GetVariant(ctx, f.CatalogSong)
-	nv, err := st.GetVariant(ctx, out.NewSongID)
+	got, err := st.GetVariant(ctx, nv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if nv.Visibility != "global" || !nv.Public || nv.WorkID != orig.WorkID || nv.ForkedFromID == nil || *nv.ForkedFromID != f.CatalogSong {
-		t.Errorf("the new version: %+v", nv)
+	if got.Visibility != "global" || !got.Public || got.WorkID != orig.WorkID || got.ForkedFromID == nil || *got.ForkedFromID != f.CatalogSong ||
+		got.VersionName != "Live at the Olympia, 1994" || got.Artist != "Someone Else" {
+		t.Errorf("the new recording's song: %+v", got)
 	}
-	if body(t, st, out.NewSongID) != live {
-		t.Error("the new version's chart isn't the edited one")
+	if body(t, st, nv) != live {
+		t.Error("the new song's chart isn't the edited one")
 	}
-	if r, _ := st.SongRightsFor(ctx, f.Outsider, out.NewSongID); !r.Catalogue || !r.Contribute {
-		t.Errorf("the new version: catalogue %v, open to edits %v", r.Catalogue, r.Contribute)
+	if html := o.page(fmt.Sprintf("/song/%d", nv)); !strings.Contains(html, "Live at the Olympia, 1994") || !strings.Contains(html, "Another recording of:") {
+		t.Error("the new song's page: no label, or not said to be another recording")
 	}
-	if groups, _ := st.FindDuplicates(ctx); len(groups) != 0 {
-		t.Errorf("the duplicates review: %+v, want none (two recordings)", groups)
-	}
-	// Same title and artist, the same video: duplicates still.
-	store.ExecForTest(t, st, `UPDATE songs SET reference_url = 'https://youtu.be/AAAAAAAAAAA' WHERE id = $1`, out.NewSongID)
-	if groups, _ := st.FindDuplicates(ctx); len(groups) != 1 {
-		t.Errorf("the same video: %d groups, want 1", len(groups))
+	if html := o.page("/big-songbook"); !strings.Contains(html, "Live at the Olympia, 1994") {
+		t.Error("The Big Songbook doesn't show the label")
 	}
 
-	// Its staff too: another recording is another song.
-	if w := as(t, st, f.Admin).saveRaw(f.CatalogSong, strings.Replace(start, "AAAAAAAAAAA", "CCCCCCCCCCC", 1)); w.Code != http.StatusCreated {
-		t.Errorf("the staff change the recording: %d", w.Code)
+	// Another recording, the title changed and the link kept: its video asked.
+	cover := strings.Replace(before, "artist: Someone", "artist: Johnny", 1)
+	if w := ed.saveRawAs(f.CatalogSong, cover, map[string]string{"X-Edit-Kind": "recording"}); w.Code != http.StatusUnprocessableEntity {
+		t.Errorf("another recording without its own video: %d", w.Code)
+	}
+	cv := newSongID(t, ed.saveRawAs(f.CatalogSong, cover, map[string]string{
+		"X-Edit-Kind": "recording", "X-New-Reference": "https://youtu.be/DDDDDDDDDDD", "X-Reference-Label": "Cover"}))
+	if c, _ := st.SongChartOf(ctx, cv); c.ReferenceURL != "https://youtu.be/DDDDDDDDDDD" || !strings.Contains(c.Body, "reference: https://youtu.be/DDDDDDDDDDD") || c.Artist != "Johnny" {
+		t.Errorf("the cover's song: %q %q", c.ReferenceURL, c.Artist)
+	}
+
+	// The reference editor's own save (PUT meta) is asked about too.
+	w = o.do("PUT", fmt.Sprintf("/api/songs/%d/meta", f.CatalogSong), map[string]string{"key": "reference", "value": "https://www.youtube.com/watch?v=EEEEEEEEEEE"})
+	if w.Code != http.StatusPreconditionRequired {
+		t.Errorf("the reference editor's save: %d %s", w.Code, w.Body.String())
 	}
 	// Removing the recording waits for review.
-	if w := as(t, st, f.Editor).saveRaw(f.CatalogSong, strings.Replace(start, "reference: https://www.youtube.com/watch?v=AAAAAAAAAAA\n", "", 1)); w.Code != http.StatusAccepted {
+	if w := ed.saveRaw(f.CatalogSong, strings.Replace(before, "reference: https://www.youtube.com/watch?v=BBBBBBBBBBB\n", "", 1)); w.Code != http.StatusAccepted {
 		t.Errorf("the recording removed: %d", w.Code)
 	} else if e := pendingOf(t, st, f.Editor, f.CatalogSong); !hasReason(e, "reference") {
 		t.Errorf("the recording removed: reasons %v", e.Reasons)
 	}
-	// The reference editor's own save (PUT meta) does the same.
-	w = o.do("PUT", fmt.Sprintf("/api/songs/%d/meta", f.CatalogSong), map[string]string{"key": "reference", "value": "https://www.youtube.com/watch?v=DDDDDDDDDDD"})
-	if w.Code != http.StatusCreated {
-		t.Errorf("the reference editor's save: %d %s", w.Code, w.Body.String())
+}
+
+// TestCatalogueReferenceLabel: anyone who edits the catalogue sets a
+// song's reference label, at once, a revision kept (revertable); the
+// duplicates review takes the same title, artist and label (or the same
+// video) for duplicates, not two labels apart.
+func TestCatalogueReferenceLabel(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := newCatalogueFixture(t, st)
+	setChart(t, st, f.CatalogSong, "title: Le Vent\nartist: Someone\n\n[Verse]\nLe vent\n")
+	store.ExecForTest(t, st, `UPDATE songs SET reference_url = 'https://www.youtube.com/watch?v=AAAAAAAAAAA' WHERE id = $1`, f.CatalogSong)
+	other, err := st.CreateVariant(ctx, store.OwnerCatalog, 0, "Le Vent", "Someone", f.Admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.ExecForTest(t, st, `UPDATE songs SET reference_url = 'https://www.youtube.com/watch?v=BBBBBBBBBBB' WHERE id = $1`, other)
+	if groups, _ := st.FindDuplicates(ctx); len(groups) != 1 {
+		t.Errorf("same title, artist and label, two videos: %d groups, want 1", len(groups))
+	}
+	o := as(t, st, f.Outsider)
+	if w := o.do("PUT", fmt.Sprintf("/api/variants/%d/reference-label", other), map[string]string{"label": "  Live at the Olympia,   1994 "}); w.Code != http.StatusOK {
+		t.Fatalf("a label: %d %s", w.Code, w.Body.String())
+	}
+	if v, _ := st.GetVariant(ctx, other); v.VersionName != "Live at the Olympia, 1994" {
+		t.Errorf("the label: %q", v.VersionName)
+	}
+	if groups, _ := st.FindDuplicates(ctx); len(groups) != 0 {
+		t.Errorf("two labels apart: %d groups, want none", len(groups))
+	}
+	if html := o.page(fmt.Sprintf("/song/%d", other)); !strings.Contains(html, `<span class="topbar-label"> · Live at the Olympia, 1994</span>`) || !strings.Contains(html, `id="catalogue-label-input"`) {
+		t.Error("the song's header doesn't show the label, or no label field")
+	}
+	revs, _ := st.ListRevisions(ctx, "variant", strconv.FormatInt(other, 10))
+	if len(revs) == 0 || !strings.Contains(revs[0].Summary, "Live at the Olympia, 1994") {
+		t.Fatalf("the label's revision: %+v", revs)
+	}
+	if err := st.RevertRevision(ctx, revs[0].ID, f.Admin); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := st.GetVariant(ctx, other); v.VersionName != "" {
+		t.Errorf("reverted, the label: %q", v.VersionName)
+	}
+	if w := as(t, st, f.Core).do("PUT", fmt.Sprintf("/api/variants/%d/reference-label", f.BandSong), map[string]string{"label": "x"}); w.Code != http.StatusForbidden {
+		t.Errorf("a label on a band's song: %d", w.Code)
 	}
 }
 

@@ -107,7 +107,7 @@ func (st *Store) tellVersions(ctx context.Context, songID int64, chart string, a
 				lang = "en"
 			}
 			if _, err := st.CreateNotification(ctx, p, NotificationVersionChanged,
-				i18n.T(lang, "The shared version of %s changed", v.title), link); err != nil {
+				i18n.T(lang, "The song your arrangement of %s comes from changed", v.title), link); err != nil {
 				return err
 			}
 		}

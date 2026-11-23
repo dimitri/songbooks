@@ -7,7 +7,7 @@
 {{define "original-change"}}
 <details class="original-change" id="original-change" data-variant-id="{{.VersionID}}" data-original-version="{{.OriginalVersion}}" open>
   <summary><strong>{{t "The original changed"}}</strong> · <a href="/song/{{.OriginalID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</a>{{if eq .OwnerKind "global"}} ({{t "the catalogue’s"}}){{else if .OwnerName}} ({{.OwnerName}}){{end}}</summary>
-  <p class="hint">{{if .SyncedAt}}{{t "What changed in it since %s, when this version was made or last answered its changes:" (date .SyncedAt "2 Jan 2006")}}{{else}}{{t "What changed in it since this version was made:"}}{{end}}</p>
+  <p class="hint">{{if .SyncedAt}}{{t "What changed in it since %s, when this arrangement was made or last answered its changes:" (date .SyncedAt "2 Jan 2006")}}{{else}}{{t "What changed in it since this arrangement was made:"}}{{end}}</p>
   {{if .Changes}}<ul class="original-change-list">{{range .Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>{{end}}
   {{if .Lines}}
   <details class="history-diff"><summary>{{t "Show the text"}}</summary>
@@ -15,7 +15,7 @@
   </details>
   {{end}}
   <fieldset class="original-change-parts">
-    <legend>{{t "Take into this version"}}</legend>
+    <legend>{{t "Take into this arrangement"}}</legend>
     {{range .Parts}}
     <label class="original-change-part{{if .Conflict}} is-conflict{{end}}">
       <input type="checkbox" value="{{.Key}}"{{if .Conflict}} disabled{{else}} checked{{end}}>
@@ -26,7 +26,7 @@
   </fieldset>
   <div class="original-change-actions">
     {{if .Takeable}}<button type="button" class="primary" data-act="take">{{t "Take this change"}}</button>{{end}}
-    <button type="button" data-act="keep" title="{{t "this version stays as it is; the original’s next changes will be offered"}}">{{t "Keep ours"}}</button>
+    <button type="button" data-act="keep" title="{{t "this arrangement stays as it is; the original’s next changes will be offered"}}">{{t "Keep ours"}}</button>
   </div>
   <p class="form-status" id="original-change-status" role="status"></p>
 </details>

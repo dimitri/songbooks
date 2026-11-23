@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"app/internal/chordsym"
 	"app/internal/i18n"
+	"app/internal/reftitle"
 	"app/internal/song"
 	"app/internal/songdiff"
 	"app/internal/songimport"
@@ -47,6 +49,67 @@ import (
 // editSummaryHeader carries the edit's one-line summary.
 const editSummaryHeader = "X-Edit-Summary"
 
+// The choice made for an edit that changes the reference, the title or
+// the artist (X-Edit-Kind): a fix of this song, or another recording; for
+// another recording, its reference label (X-Reference-Label) and, when
+// the edit kept the reference, the new recording's link
+// (X-New-Reference). URL-encoded.
+const (
+	editKindHeader       = "X-Edit-Kind"
+	editKindFix          = "fix"
+	editKindRecording    = "recording"
+	referenceLabelHeader = "X-Reference-Label"
+	newReferenceHeader   = "X-New-Reference"
+)
+
+// headerText is a URL-encoded header's text on one line, at most max
+// characters.
+func headerText(r *http.Request, name string, max int) string {
+	raw := r.Header.Get(name)
+	if s, err := url.QueryUnescape(raw); err == nil {
+		raw = s
+	}
+	raw = strings.Join(strings.Fields(raw), " ")
+	if utf8.RuneCountInString(raw) > max {
+		raw = string([]rune(raw)[:max])
+	}
+	return raw
+}
+
+// setHeaderLine sets a chart's "key: value" header line in place, or
+// adds it after the first header line.
+func setHeaderLine(body, key, value string) string {
+	lines := strings.Split(body, "\n")
+	for i, l := range lines {
+		if k, _, ok := strings.Cut(l, ":"); ok && strings.TrimSpace(k) == key && !strings.HasPrefix(l, " ") {
+			lines[i] = key + ": " + value
+			return strings.Join(lines, "\n")
+		}
+		if strings.HasPrefix(strings.TrimSpace(l), "[") {
+			break
+		}
+	}
+	at := 0
+	if len(lines) > 0 && strings.Contains(lines[0], ":") && !strings.HasPrefix(strings.TrimSpace(lines[0]), "[") {
+		at = 1
+	}
+	lines = append(lines[:at], append([]string{key + ": " + value}, lines[at:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+// refTitleNow is the title of reference link ref, fetched now (a few
+// seconds at most; "" without a fetcher or when none is found): a
+// reference label's suggestion.
+func (s *Server) refTitleNow(ctx context.Context, ref string) string {
+	if RefTitles == nil || strings.TrimSpace(ref) == "" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, reftitle.Timeout+time.Second)
+	defer cancel()
+	title, _ := RefTitles.Title(ctx, ref)
+	return strings.TrimSpace(title)
+}
+
 // maxEditSummary is the longest summary kept, in characters.
 const maxEditSummary = 200
 
@@ -73,7 +136,6 @@ type chartAnchors struct {
 	Lead     string // the "lead:" line
 	GP       string // "gp_start:" and the sections' "gp[...]:" lines
 	Key      string
-	Identity string // title and artist
 }
 
 func anchorsOf(body string) chartAnchors {
@@ -97,7 +159,6 @@ func anchorsOf(body string) chartAnchors {
 	a.Lead = sg.LeadLine()
 	a.GP = gp.String()
 	a.Key = strings.TrimSpace(sg.Get("key"))
-	a.Identity = strings.TrimSpace(sg.Get("title")) + "\n" + strings.TrimSpace(sg.Get("artist"))
 	return a
 }
 
@@ -158,9 +219,6 @@ func judgeCatalogueEdit(before, after string, fit func(string) *songimport.Fit, 
 	if a.Key != b.Key {
 		add("key")
 	}
-	if a.Identity != b.Identity {
-		add("title")
-	}
 	if newcomer {
 		add("newcomer")
 	}
@@ -218,7 +276,7 @@ func catalogueReasonText(lang, why string) string {
 	case "title":
 		return i18n.T(lang, "it changes the title or the artist")
 	case "reference":
-		return i18n.T(lang, "it adds or removes the reference recording")
+		return i18n.T(lang, "it removes the reference recording")
 	case "newcomer":
 		return i18n.T(lang, "it is one of its author’s first edits")
 	}
@@ -287,17 +345,46 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		httpError(w, http.StatusUnprocessableEntity, i18n.T(lang, "The Big Songbook’s songs stay in their recording’s key: transpose it in a songbook, for a student or for a band instead."))
 		return true
 	}
-	// Another recording: a new catalogue song for it.
+	// A new reference, or a new title or artist: a fix of this song (the
+	// same recording: a dead link, a typo), or another recording of it
+	// (album and live, original and cover), which is another catalogue
+	// song. The editor asks (428) and says it again (X-Edit-Kind).
 	oldRef, newRef := strings.TrimSpace(cur.ReferenceURL), strings.TrimSpace(ref)
-	if oldRef != "" && newRef != "" && !sameReference(oldRef, newRef) {
-		newID, err := s.store.CreateRecordingVersion(ctx, id, person.ID, title, artist, newRef, body, summary)
+	refChanged := oldRef != "" && newRef != "" && !sameReference(oldRef, newRef)
+	identityChanged := strings.TrimSpace(title) != strings.TrimSpace(cur.Title) || strings.TrimSpace(artist) != strings.TrimSpace(cur.Artist)
+	kind := r.Header.Get(editKindHeader)
+	if (refChanged || identityChanged) && kind != editKindFix && kind != editKindRecording {
+		// The new link's title, a label's suggestion, comes after
+		// (GET /api/reference-title): the question doesn't wait for it.
+		out := map[string]any{"choose": true, "referenceChanged": refChanged, "identityChanged": identityChanged}
+		if refChanged {
+			out["newReference"] = newRef
+		}
+		writeJSON(w, http.StatusPreconditionRequired, out)
+		return true
+	}
+	if kind == editKindRecording && (refChanged || identityChanged) {
+		rec := newRef
+		if !refChanged {
+			rec = headerText(r, newReferenceHeader, 500)
+			if rec == "" || sameReference(rec, oldRef) {
+				httpError(w, http.StatusUnprocessableEntity, i18n.T(lang, "Another recording needs its own reference: give the link to its video."))
+				return true
+			}
+			body = setHeaderLine(body, "reference", rec)
+		}
+		label := headerText(r, referenceLabelHeader, 80)
+		if label == "" {
+			label = s.refTitleNow(ctx, rec)
+		}
+		newID, err := s.store.CreateRecordingVersion(ctx, id, person.ID, title, artist, rec, label, body, summary)
 		if err != nil {
 			writeSaveErr(w, err)
 			return true
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"version": curVersion, "newSongId": newID, "url": fmt.Sprintf("/song/%d", newID),
-			"message": i18n.T(lang, "Another recording makes another version of the song, with your chart: OK opens it. The song you edited stays as it was."),
+			"message": i18n.T(lang, "Another recording is another song of The Big Songbook, with your chart: OK opens it. The song you edited stays as it was."),
 		})
 		return true
 	}
@@ -321,7 +408,8 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		return true
 	}
 	j := judgeCatalogueEdit(curBody, body, s.recordingFitFunc(ctx, id), standing.Newcomer())
-	if (oldRef == "") != (newRef == "") {
+	// The recording taken away: the song follows none any more.
+	if oldRef != "" && newRef == "" {
 		j.Reasons = append(j.Reasons, "reference")
 	}
 	in := store.CatalogueEditInput{
@@ -641,4 +729,59 @@ func (s *Server) catalogueRevertable(ctx context.Context, personID int64, revisi
 		}
 	}
 	return out
+}
+
+// handlePutReferenceLabel is PUT /api/variants/{id}/reference-label,
+// {"label"}: a catalogue song's reference label (the album, "Live at …",
+// "Original", "Cover"…), shown after its artist. A fix like the title's:
+// anyone who edits the catalogue, at once, a revision kept.
+func (s *Server) handlePutReferenceLabel(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req struct {
+		Label string `json:"label"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	person := personFromContext(r)
+	lang := s.langOfRequest(r)
+	rights, err := s.store.SongRightsFor(r.Context(), person.ID, id)
+	if err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	if !rights.Catalogue || !rights.Contribute {
+		httpError(w, http.StatusForbidden, i18n.T(lang, "You can’t edit The Big Songbook’s songs."))
+		return
+	}
+	label := strings.Join(strings.Fields(req.Label), " ")
+	if utf8.RuneCountInString(label) > 80 {
+		label = string([]rune(label)[:80])
+	}
+	summary := editSummary(r)
+	if summary == "" {
+		summary = i18n.T(lang, "Reference label: %s", label)
+	}
+	if err := s.store.SetReferenceLabel(r.Context(), id, person.ID, label, summary); err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"label": label})
+}
+
+// handleReferenceTitle is GET /api/reference-title?url=: a reference
+// link's title (a video's, a page's), "" when none is found — the
+// reference label's suggestion when an edit makes another recording.
+func (s *Server) handleReferenceTitle(w http.ResponseWriter, r *http.Request) {
+	ref := strings.TrimSpace(r.URL.Query().Get("url"))
+	if !strings.HasPrefix(ref, "https://") && !strings.HasPrefix(ref, "http://") {
+		writeJSON(w, http.StatusOK, map[string]string{"title": ""})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"title": s.refTitleNow(r.Context(), ref)})
 }

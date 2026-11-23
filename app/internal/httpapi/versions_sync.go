@@ -113,7 +113,7 @@ func songUsesMessage(lang, title string, u *store.SongUses, forDelete bool) stri
 		msg += " " + i18n.T(lang, "Their songbooks keep a frozen copy of it as it is now, and their set lists keep working; nobody else will find it any more.")
 	}
 	if u.BandVersions+u.PersonVersions+u.CommunityVersions > 0 {
-		msg += " " + i18n.T(lang, "Their own versions stay theirs; they won’t be offered its changes any more.")
+		msg += " " + i18n.T(lang, "Their own arrangements stay theirs; they won’t be offered its changes any more.")
 	}
 	return msg
 }

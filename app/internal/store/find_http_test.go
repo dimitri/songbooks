@@ -79,7 +79,7 @@ func TestFindBadgesOverHTTP(t *testing.T) {
 		t.Errorf("Mine: %v", got)
 	}
 	html := g.page("/catalog?q=vent")
-	if !strings.Contains(html, "Yours · private") || !strings.Contains(html, "2 versions") {
+	if !strings.Contains(html, "Yours · private") || !strings.Contains(html, "2 recordings and arrangements") {
 		t.Error("the catalogue doesn't show the badges, or the work's versions")
 	}
 	if !strings.Contains(g.page("/catalog?scope=bands"), "Night Drive") {
@@ -204,7 +204,7 @@ func TestBigSongbookAndDuplicatesOverHTTP(t *testing.T) {
 	}
 
 	html := as(t, st, f.Outsider).page("/big-songbook")
-	if !strings.Contains(html, "Le Vent") || !strings.Contains(html, "2 versions") || strings.Contains(html, "Night Drive") {
+	if !strings.Contains(html, "Le Vent") || !strings.Contains(html, "2 recordings and arrangements") || strings.Contains(html, "Night Drive") {
 		t.Error("The Big Songbook: not every public song by work, or a private one")
 	}
 	if !strings.Contains(html, "follows the recording") || !strings.Contains(html, "differs from the recording") {
