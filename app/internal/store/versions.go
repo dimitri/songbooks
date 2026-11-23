@@ -62,9 +62,10 @@ func (st *Store) isCoachingCommunity(ctx context.Context, o Owner) (bool, error)
 // as changing owner's songbooks goes (ownerMayChange) — CanVersionFor is
 // the song's side. A coaching community's version is the coach's to make
 // (its staff, who edit its repertoire), and, of a song it links, the
-// students it's given to (their student songbook holds it): the song the
-// coach and those students work on becomes the community's, which they
-// all edit (SongRights.AssignedStudent). A student makes no other.
+// students it's given to (their student songbook holds it, or their
+// group's): the song the coach and those students work on becomes the
+// community's, which they all edit (SongRights.AssignedStudent,
+// GroupMember). A student makes no other.
 func (st *Store) MayMakeVersion(ctx context.Context, personID, songID int64, owner Owner, own bool) (bool, error) {
 	coaching, err := st.isCoachingCommunity(ctx, owner)
 	if err != nil || !coaching {

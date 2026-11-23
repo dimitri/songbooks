@@ -60,6 +60,13 @@ type SongRights struct {
 	// gave it to them): they edit it in place, as the coach does — not
 	// another student's song, not the repertoire's others.
 	AssignedStudent bool
+	// GroupMember: the person is a current student of that coaching
+	// community and a member of one of its groups whose songbook holds
+	// the song: they edit it in place, as the coach and the group's other
+	// members do — one song for all of them, only the key the group's
+	// (docs/coaching.md, "A group works on one song"). Leaving the group,
+	// or the song leaving its songbook, ends it.
+	GroupMember bool
 	// ViaProposal: the person sees the song only because a student
 	// proposed it to a coaching community they coach, and the proposal
 	// waits (coaching_proposals.go): open it, play it, nothing else — no
@@ -215,19 +222,21 @@ func songRightsFor(ctx context.Context, q dbtx, personID, songID int64) (*SongRi
 
 // coachingSongRights is the rule for a coaching community's song
 // (docs/coaching.md, "The song the coach and the students share"): the
-// coach (its staff, who edit its repertoire) and the students it's given
-// to (their own student songbook holds it) edit it in place;
+// coach (its staff, who edit its repertoire), the students it's given to
+// (their own student songbook holds it) and the members of the groups
+// it's given to (their group's songbook holds it) edit it in place;
 // edit_repertoire alone, the built-in member role's, opens none of them.
 // Nothing changes for any other community.
 func coachingSongRights(ctx context.Context, q dbtx, r *SongRights, personID int64, coach bool) error {
 	err := q.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM communities WHERE id = $1 AND kind = 'coaching'),
-		       `+assignedStudentSQL("$1::bigint", "$2::bigint", "$3::bigint"),
-		r.Owner.ID, r.SongID, personID).Scan(&r.Coaching, &r.AssignedStudent)
+		       `+assignedStudentSQL("$1::bigint", "$2::bigint", "$3::bigint")+`,
+		       `+groupMemberSQL("$1::bigint", "$2::bigint", "$3::bigint"),
+		r.Owner.ID, r.SongID, personID).Scan(&r.Coaching, &r.AssignedStudent, &r.GroupMember)
 	if err != nil || !r.Coaching {
 		return err
 	}
-	r.Edit = r.See && (coach || r.AssignedStudent)
+	r.Edit = r.See && (coach || r.AssignedStudent || r.GroupMember)
 	return nil
 }
 
@@ -244,12 +253,30 @@ func assignedStudentSQL(community, song, person string) string {
 	                 AND asb.student_person_id = ` + person + `)`
 }
 
+// groupMemberSQL is "person is a current student of the coaching
+// community community and a member of one of its groups whose songbook
+// holds song" in a query (community, song and person are SQL
+// expressions). A group's songbook is the community's, its members
+// granted (coaching_groups.go); who leaves the group leaves its row.
+func groupMemberSQL(community, song, person string) string {
+	return `EXISTS (SELECT 1 FROM coaching_groups gg
+	               JOIN coaching_group_members gm ON gm.group_id = gg.id
+	               JOIN songbook_entries ge ON ge.songbook_id = gg.songbook_id
+	               JOIN communities gc ON gc.id = gg.community_id AND gc.kind = 'coaching'
+	               JOIN community_members gcm ON gcm.community_id = gc.id AND gcm.person_id = gm.person_id
+	                                         AND upper_inf(gcm.validity)
+	               WHERE ge.variant_id = ` + song + ` AND gg.community_id = ` + community + `
+	                 AND gm.person_id = ` + person + `)`
+}
+
 // IsAssignedStudent reports whether personID is a current student of the
-// coaching community communityID whose own student songbook holds songID
-// (a link or the community's own song).
+// coaching community communityID to whom songID is given (a link or the
+// community's own song): their own student songbook holds it, or the
+// songbook of a group of theirs does.
 func (st *Store) IsAssignedStudent(ctx context.Context, personID, communityID, songID int64) (bool, error) {
 	var ok bool
-	err := st.db.QueryRow(ctx, `SELECT `+assignedStudentSQL("$1::bigint", "$2::bigint", "$3::bigint"), communityID, songID, personID).Scan(&ok)
+	err := st.db.QueryRow(ctx, `SELECT `+assignedStudentSQL("$1::bigint", "$2::bigint", "$3::bigint")+
+		` OR `+groupMemberSQL("$1::bigint", "$2::bigint", "$3::bigint"), communityID, songID, personID).Scan(&ok)
 	return ok, err
 }
 

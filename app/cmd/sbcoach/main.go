@@ -8,11 +8,13 @@
 // community makes a coaching community, its coach its first member (an
 // account made for them when there's none yet: no password, no email,
 // theirs once they're invited), a student with it, and a look (a
-// brand.Brand as JSON). songs copies songs into the
-// community (its songbook, the coach's reference) and puts them in the
-// student's songbook; with --clips (lines "songID<TAB>YouTube URL"), it
-// sets each song's reference video and downloads its sound, which the
-// stems worker then splits (voice and backing).
+// brand.Brand as JSON). songs puts songs in the community's songbook
+// (the coach's reference) and the student's — linked, or the community's
+// own song or arrangement, never a copy per student (communitySong); with
+// --clips (lines "songID<TAB>YouTube URL"), it sets each song's reference
+// video and downloads its sound, which the stems worker then splits
+// (voice and backing): another recording than a linked song's makes the
+// community's arrangement of it.
 //
 // add, sync, lyrics, ireal and key (songcmds.go) are the import wizard's
 // steps for one song: a new song with its reference recording, chart,
@@ -190,26 +192,31 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		repertoire, err := st.GetDefaultSongbook(ctx, "community", *communityID)
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, field := range strings.Split(*songs, ",") {
 			src, err := strconv.ParseInt(strings.TrimSpace(field), 10, 64)
 			if err != nil {
 				log.Fatalf("song %q: %v", field, err)
 			}
-			// The community's own copy: its members (the coach) may open it.
-			copyID, err := st.ForkVariant(ctx, src, by.ID, "community", *communityID)
-			if err != nil {
-				log.Fatalf("copying song %d: %v", src, err)
-			}
-			if err := st.AddToSongbook(ctx, sbID, copyID, by.ID); err != nil {
-				log.Fatal(err)
-			}
-			title, artist, _, body, err := st.VariantContent(ctx, copyID)
-			if err != nil {
-				log.Fatal(err)
-			}
 			url := urls[src]
-			if url == "" {
-				fmt.Printf("%d → %d %s (no clip)\n", src, copyID, title)
+			copyID, how, err := communitySong(ctx, st, *communityID, src, url, by.ID)
+			if err != nil {
+				log.Fatalf("song %d: %v", src, err)
+			}
+			for _, book := range []int64{repertoire, sbID} {
+				if err := st.AddToSongbook(ctx, book, copyID, by.ID); err != nil {
+					log.Fatal(err)
+				}
+			}
+			title, artist, ref, body, err := st.VariantContent(ctx, copyID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if url == "" || (how == "linked" && url == ref) {
+				fmt.Printf("%d → %d %s (%s, no clip)\n", src, copyID, title, how)
 				continue
 			}
 			// Its reference: the "reference:" line of the song's header.
@@ -231,6 +238,38 @@ func main() {
 		}
 		fmt.Printf("student songbook %d\n", sbID)
 	}
+}
+
+// communitySong is the song a coaching community's songbooks get for
+// src (docs/coaching.md, "A group works on one song"): one song the coach
+// and the students share, never a copy per student or per run. The
+// community's own song, or its arrangement of src when it has one; else
+// src itself, linked, when clip doesn't change its recording; else
+// (another recording of it) the community's arrangement made from it,
+// once. Someone else's private song is refused (store.LinkRefusal). how
+// says which: "own", "linked" or "arrangement".
+func communitySong(ctx context.Context, st *store.Store, communityID, src int64, clip string, actor int64) (int64, string, error) {
+	owner := store.CommunityOwner(communityID)
+	id, err := st.CommunityVersionOf(ctx, communityID, src)
+	if err != nil {
+		return 0, "", err
+	}
+	r, err := st.SongRightsFor(ctx, actor, id)
+	if err != nil {
+		return 0, "", err
+	}
+	if r.Owner == owner {
+		return id, "own", nil
+	}
+	_, _, ref, _, err := st.VariantContent(ctx, id)
+	if err != nil {
+		return 0, "", err
+	}
+	if r.CanLinkFrom(owner) && (clip == "" || clip == ref) {
+		return id, "linked", nil
+	}
+	id, err = st.ForkVariant(ctx, id, actor, "community", communityID)
+	return id, "arrangement", err
 }
 
 // withReference sets the "reference:" line of a song's header (the lines

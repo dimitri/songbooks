@@ -1611,6 +1611,15 @@ const ICONS = {
     const at = document.activeElement;
     if ((!at || at === document.body || offerDialog.contains(at)) && editToggle.offsetParent) editToggle.focus();
   });
+  // A coaching community's link to The Big Songbook's song (play.html's
+  // CatalogueFix): "Fix the catalogue's song" opens the editor on it, in
+  // place, under the catalogue's rules; the editor's note offers the
+  // community's arrangement again.
+  document.querySelector('[data-edit-offer-fix]')?.addEventListener('click', () => {
+    offerDialog?.close();
+    setDrawerOpen(true);
+  });
+  document.querySelector('[data-edit-offer-open]')?.addEventListener('click', openEditOffer);
   // "Make Mercy's version", "Make the community's version", "Make my
   // version" (docs/ownership-model.md §5): the version takes the link's
   // place in the songbook the page was opened from (data-songbook-id),

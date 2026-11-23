@@ -2537,6 +2537,22 @@
       <button type="button" class="primary" id="edit-offer-go" data-action="band" data-band-id="{{.BandID}}"{{with $.SongbookRef}} data-songbook-id="{{.}}"{{end}}>{{t "Make %s’s arrangement" .BandName}}</button>
     </div>
     {{end}}{{else if .CommunityOffer}}{{with .CommunityOffer}}
+    {{if .CatalogueFix}}
+    {{/* A coaching community's link to The Big Songbook's song: a fix
+         goes to the catalogue's song itself, under its rules; a change
+         the studio's way makes the community's arrangement, the one song
+         the coach and its students and groups share (docs/coaching.md,
+         "A group works on one song"). */}}
+    <h2 id="edit-offer-title">{{t "Change this song"}}</h2>
+    <p id="edit-offer-text">{{t "This is The Big Songbook’s song, which %s links: the coach and the students and groups it’s given to share it, each in their own key." .Name}}</p>
+    <p class="hint">{{t "A fix — a wrong chord, a typo, a section the recording plays — goes to the catalogue’s song itself, for everyone who has it: at once, or after a review."}}</p>
+    <p class="hint">{{t "A change your way — a chord grid to play while singing, a Guitar Pro file, a shorter form — makes %s’s arrangement: it takes this song’s place in the repertoire and in the students’ and groups’ songbooks, keys kept, and the coach and those students change it together." .Name}}</p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
+      <button type="button" data-edit-offer-fix>{{t "Fix the catalogue’s song"}}</button>
+      <button type="button" class="primary" id="edit-offer-go" data-action="community" data-community-id="{{.CommunityID}}" data-songbook-id="{{.SongbookID}}">{{t "Make the community’s arrangement"}}</button>
+    </div>
+    {{else}}
     <h2 id="edit-offer-title">{{t "Make the community’s arrangement"}}</h2>
     <p id="edit-offer-text">{{t "This song isn’t %s’s own: its songbook links it. Changing it here would change it for everyone who links it." .Name}}</p>
     {{if .Coaching}}
@@ -2550,6 +2566,7 @@
       <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="edit-offer-go" data-action="community" data-community-id="{{.CommunityID}}" data-songbook-id="{{.SongbookID}}">{{t "Make the community’s arrangement"}}</button>
     </div>
+    {{end}}
     {{end}}{{else}}{{if and .EditOwner (eq .EditOwner.Kind "global")}}
     {{/* The catalogue's song: everyone's, changed in place by no one but
          the site's admins; everyone has their own songbook for their

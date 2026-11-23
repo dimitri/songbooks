@@ -58,8 +58,10 @@ same work.
   each edit weighed against the song's reference recording and applied
   at once or held for review, its staff (site admins) at once (§11). In
   a **coaching** community, the coach (its staff) and, for each of its
-  songs, the students it's given to (their student songbook holds it):
-  not another student's song, not the repertoire's others
+  songs, the students it's given to (their student songbook holds it,
+  or the songbook of a group of theirs: every member edits the group's
+  songs, one song for all; a linked catalogue song stays the
+  catalogue's): not another student's song, not the repertoire's others
   ([coaching.md](coaching.md), "The song the coach and the students
   share").
 - **Making public** (a song or a whole songbook): a person for their
