@@ -172,6 +172,24 @@ wizard now says so too, section by section ("23 bars in the chart, about
 17 in the recording") and keeps the chart's tempo rather than proposing
 the 122 its fit implies (`songimport.ProposeSync`, `TempoMismatch`).
 
+Only the starts set by ear count for that warning: a span between two
+section starts is compared with the chart's tempo only when both ends are
+`origin = 'set'`. A span touching an estimate never warns — not the
+badge, not the panel, not the Sync sheet's box or its rows — and never
+feeds the one-click "Use ♩. = N as the chart's tempo": estimates may be a
+section off. Wake Up Alone (song 335) was the case: six unchecked
+estimates made the counter run at ♩. = 46, while the chart's ♩. = 72
+(tapped on 1 and 4 of its 6/8 bars) was right, and the one-click fix would
+have broken it. The Sync sheet still shows an estimated span's tempo on its
+row, muted and marked "≈" (`sync-wave-math.js` `spanByEar`, `offSpans`,
+`medianTempo(…, { byEar: true })`, `tempoFix`; `audio-player.js`
+`syncTempos`).
+
+The panel's Sync line is always there with a recording, for everyone:
+its state ("set by ear", "n to check", "estimated", or "the Guitar Pro
+file's"), where the sync comes from, and for an editor the Sync sheet
+("Correct the sync", or "Review or adjust…" once it's all set).
+
 ### The Sync sheet
 
 `sync-sheet.js`, for editors: tap along while listening. Play, tap the
@@ -187,8 +205,12 @@ step by step; Save writes the whole sync in one request
 replaces (`song_audio_sync_history`, the last 20,
 `GET …/markers/history`) so an earlier one can be taken back.
 
-It opens from the badge's panel and from the import wizard's step 5
-("Adjust by ear…", with the wizard's proposal).
+It opens from the badge (an editor's tap), the panel's Sync line, the
+song's ⋯ menu and the phone's Morceau sheet ("Sync…", for whoever may
+edit the song, whenever it has a recording: a sync set by ear can always
+be reviewed and adjusted), the Mixer, and the import wizard's step 5
+("Adjust by ear…", with the wizard's proposal). A Guitar Pro file's own
+sync opens there read-only, as before.
 
 Its top is the recording's waveform (`sync-wave.js`, its arithmetic in
 `sync-wave-math.js`, tested by `internal/webassets/jstest`), drawn on a

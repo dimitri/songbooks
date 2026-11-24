@@ -15,6 +15,15 @@
 .audio-sync-detail p { margin: 0; line-height: 1.4; }
 .audio-sync-warn { color: var(--danger); font-weight: 600; }
 #audio-line-sync .form-status:empty { display: none; }
+/* The line's state (audio-player.js renderSync), for everyone: set by
+   ear, n to check, estimated; red while the counter runs off tempo. */
+.audio-sync-state { display: inline-flex; align-items: center; min-height: 1.5rem; padding: 0 0.55rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; color: var(--ok, var(--fg)); background: color-mix(in srgb, var(--ok, var(--accent)) 12%, transparent); white-space: nowrap; }
+.audio-sync-state[hidden] { display: none; }
+.audio-sync-state:is([data-state="check"], [data-state="estimated"]) { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.audio-sync-state.warn { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+/* "Sync…" in the song's ⋯ menu and the phone's Morceau sheet: only once
+   the song has a recording (audio-player.js data-recording). */
+body:not(:has(#audio-player[data-recording="yes"])) .song-sync-open { display: none; }
 /* A phone's card has no room for it: "≈ 1.1" says it there; the open
    sheet shows it above the bar.beat. */
 @media (max-width: 720px) { .audio-dock:not(.is-open) .audio-sync-badge { display: none; } }
@@ -125,6 +134,8 @@ html.sync-sheet-open { overflow: hidden; }
 .sync-row-flag { font-size: 0.8rem; font-weight: 600; color: var(--danger); }
 .sync-row-bars { font-size: 0.8rem; font-weight: 600; color: var(--warn); }
 .sync-row-bpm { font-size: 0.8rem; color: var(--danger); }
+/* A tempo between estimated starts: said, quiet, never a warning. */
+.sync-row-bpm.is-est { color: var(--fg-muted); }
 /* Automatic suggestions: each one accepted or rejected. */
 .sync-suggest {
   display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.3rem 0.3rem 0.6rem;
@@ -156,9 +167,23 @@ html.sync-sheet-open { overflow: hidden; }
 .sync-row-note.flag { color: var(--danger); }
 .sync-row-note.bars { color: var(--warn); }
 .sync-row-note.bpm { color: var(--danger); }
-.sync-warn:not([hidden]) { flex: none; font-size: 0.8rem; line-height: 1.4; color: var(--danger); padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--danger-bg, var(--warn-bg)); }
+.sync-row-note.bpm-est { color: var(--fg-muted); font-weight: 500; }
+.sync-warn-box:not([hidden]) { flex: none; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; line-height: 1.4; color: var(--danger); padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--danger-bg, var(--warn-bg)); }
 .sync-warn summary { font-weight: 700; cursor: pointer; }
 .sync-warn p { margin: 0.35rem 0 0; }
+.sync-warn-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.sync-warn-actions .audio-pill-btn { min-height: 2.2rem; }
+
+/* The chart's tempo (sync-sheet.js "The chart's tempo"): typed, picked
+   in a compound metre's note, tapped, set. */
+.sync-tempo { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.sync-tempo-label { font-weight: 600; }
+.sync-tempo-input { width: 4.5rem; min-height: 2.2rem; box-sizing: border-box; padding: 0 0.45rem; font: inherit; font-variant-numeric: tabular-nums; }
+.sync-tempo-unit { color: var(--fg-muted); }
+.sync-tempo-unit .tempo-unit { min-height: 2.2rem; }
+.sync-tempo .sync-btn, .sync-tempo .audio-pill-btn { min-height: 2.2rem; }
+.sync-tempo-now { flex-basis: 100%; margin: 0; font-size: 0.78rem; }
+.sync-tempo-now:empty { display: none; }
 .sync-suggest-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: none; }
 .sync-suggest-bar .audio-pill-btn { min-height: 2.2rem; }
 .sync-suggest-notes:not([hidden]) { flex-basis: 100%; margin: 0; font-size: 0.78rem; line-height: 1.35; }

@@ -110,7 +110,15 @@
 
   const N = () => (data ? data.totalBars : 0);
   const beatsPerBar = () => (data ? data.timeNum : 4);
+  // data.tempo counts quarter notes (handlers_mixer.go converts the
+  // chart's, a dotted quarter in 6/8): so do alphaTab and the auto-align.
   const nominalBarSec = () => (data ? data.timeNum * (4 / data.timeDen) * 60 / (data.tempo || 120) : 2);
+  // A tempo in quarters (the auto-align's), said in the chart's beat.
+  const chartBpm = (q) => {
+    const TU = window.SongbooksTempoUnits;
+    const v = TU && data ? q / TU.beatQuarters(data.timeNum, data.timeDen) : q;
+    return TU && data && TU.compound(data.timeNum, data.timeDen) ? TU.text(v, data.timeNum, data.timeDen, { short: true }) : t('%s bpm', v.toFixed(1));
+  };
   const ticksPerBar = () => (data ? 960 * 4 * data.timeNum / data.timeDen : 3840);
   // A pickup (anacrusis) is, in time, a whole count-in bar with its notes
   // on the last beats — Guitar Pro's own convention, which its bar sync
@@ -1722,7 +1730,7 @@
       if (asProposal) {
         const proposal = data.sections.map((s) => ({ sectionIndex: s.index, timeSeconds: res.barTimes[s.startBar] }))
           .filter((m) => isFinite(m.timeSeconds) && m.timeSeconds < audioDuration);
-        alignStatus.textContent = t('Auto-align: %s bpm (%s). Its section starts are in the Sync sheet, to accept or reject one by one.', res.bpm.toFixed(1), res.how);
+        alignStatus.textContent = t('Auto-align: %s (%s). Its section starts are in the Sync sheet, to accept or reject one by one.', chartBpm(res.bpm), res.how);
         window.songbooksSyncSheet.open({ category: refCat, proposal, source: 'beat' });
         return;
       }
@@ -1732,7 +1740,7 @@
       if (!aligning) alignBtn.click();
       $('daw-align-undo').hidden = false;
       const first = leadIn();
-      alignStatus.textContent = t('Auto-aligned and saved (%s: %s bpm, bar %s at %s). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.', res.how, res.bpm.toFixed(1), barLabel(first), fmtTime(barTimes[first]));
+      alignStatus.textContent = t('Auto-aligned and saved (%s: %s, bar %s at %s). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.', res.how, chartBpm(res.bpm), barLabel(first), fmtTime(barTimes[first]));
       seek(Math.max(0, barTimes[first] - 2 * nominalBarSec()));
       followPlayhead();
     } catch (err) {

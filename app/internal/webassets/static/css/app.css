@@ -10371,3 +10371,8 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
   .membership-add { grid-template-columns: minmax(0, 1fr) auto; }
   .membership-add #add-membership-target { grid-column: 1 / -1; }
 }
+
+/* ---- Tempo units (tempo-units.js): the note a compound metre's tempo is
+   typed or tapped in, beside the field (the editor, Tap tempo, the Sync
+   sheet). ---- */
+.tempo-unit { font: inherit; font-size: 0.85em; padding: 0.15rem 0.3rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); max-width: 11rem; }

@@ -340,8 +340,14 @@
       tbody.appendChild(tr);
     };
     const songTempo = headerValue(text, 'tempo');
-    row(t('Tempo'), songTempo ? t('%s bpm', songTempo) : t('none (120)'), facts.tempo ? t('%s bpm', facts.tempo) : '', !!facts.tempo && String(facts.tempo) !== (songTempo || '120'));
     const songTime = headerValue(text, 'time') || '4/4';
+    // The file's tempo counts quarters; said, and compared, in the beat
+    // of its own metre (a dotted quarter in 6/8), as the song's is.
+    const TU = window.SongbooksTempoUnits;
+    const ft = (facts.time || [])[0];
+    const fileTempo = facts.tempo && TU && ft ? Math.round(facts.tempo / TU.beatQuarters(ft.num, ft.den)) : facts.tempo;
+    const tempoSaid = (v, num, den) => (TU && TU.compound(num, den) ? TU.text(+v, num, den, { short: true }) : t('%s bpm', v));
+    row(t('Tempo'), songTempo ? tempoSaid(songTempo, ...songTime.split('/')) : t('none (120)'), fileTempo ? tempoSaid(fileTempo, ft ? ft.num : 4, ft ? ft.den : 4) : '', !!fileTempo && String(fileTempo) !== (songTempo || '120'));
     const times = (facts.time || []).map((x) => (x.bar > 1 ? t('%s from bar %d', `${x.num}/${x.den}`, x.bar) : `${x.num}/${x.den}`)).join(', ');
     row(t('Time signature'), headerValue(text, 'time') || t('none (4/4)'), times, !!facts.time.length && `${facts.time[0].num}/${facts.time[0].den}` !== songTime || facts.time.length > 1);
     const fk = GPAlign.keyName((facts.keys || [])[0]);
@@ -1536,8 +1542,12 @@
     // alphaTab's TripletFeel: 2 = triplet 8th (a shuffle), 1 = triplet 16th.
     const swing = most(2) > feels.length / 2 ? '8' : most(1) > feels.length / 2 ? '16' : '';
     const keys = fileFacts().keys || [];
+    // The file's tempo counts quarter notes; the song's, its beat: a
+    // dotted quarter in 6/8, 9/8, 12/8 (tempo-units.js), 92 quarters
+    // there are "tempo: 61".
+    const q = window.SongbooksTempoUnits ? window.SongbooksTempoUnits.beatQuarters(full.timeSignatureNumerator, full.timeSignatureDenominator) : 1;
     return {
-      tempo: String(Math.round(score.tempo || 120)),
+      tempo: String(Math.round((score.tempo || 120) / q)),
       time: `${full.timeSignatureNumerator}/${full.timeSignatureDenominator}`,
       swing,
       key: GPAlign.keyName(keys[0]),
@@ -1573,7 +1583,7 @@
     try { text = (await (await fetch(`/api/songs/${variantId}/raw`)).json()).text || ''; } catch (e) { return; }
     const gp = gpHeader();
     const rows = [
-      { key: 'tempo', label: t('Tempo'), show: (v) => (v ? t('%s bpm', v) : t('none (120)')) },
+      { key: 'tempo', label: t('Tempo'), show: (v) => (!v ? t('none (120)') : window.SongbooksTempoUnits && window.SongbooksTempoUnits.compound(gp.time) ? window.SongbooksTempoUnits.text(+v, gp.time) : t('%s bpm', v)) },
       { key: 'time', label: t('Time signature'), show: (v) => v || t('none (4/4)') },
       { key: 'swing', label: t('Swing'), show: (v) => (v === '8' ? t('swung eighths') : v === '16' ? t('swung sixteenths') : t('straight')) },
       // A file left in C major says nothing about the key.

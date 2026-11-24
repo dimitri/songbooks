@@ -143,7 +143,8 @@ func scorePage(s *song.Song, id string, withPieceHeader bool) string {
 	b.WriteString("  \\override Staff.NoteHead.style = #'slash\n")
 	if tempo := s.Get("tempo"); tempo != "" {
 		if bpm, err := strconv.Atoi(strings.TrimSpace(tempo)); err == nil && bpm > 0 {
-			fmt.Fprintf(&b, "  \\tempo 4 = %d\n", bpm)
+			// The chart's beat: a dotted quarter in 6/8 (song.BeatNote).
+			fmt.Fprintf(&b, "  \\tempo %s = %d\n", song.BeatNote(s.Get("time")), bpm)
 		}
 	}
 	writeMelody(&b, slots)

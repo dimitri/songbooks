@@ -109,7 +109,7 @@
   <div class="jz-paper">
     <div class="jz-chart">
       <div class="jz-head">
-        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="sr-only">{{t "Tempo"}}</span><span class="jz-bpm" aria-hidden="true">{{if $.Compound}}&#xE1D5;&#xE1E7;{{else}}&#xE1D5;{{end}}</span> = {{.}}</span>{{end}}</div>
+        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="sr-only">{{t "Tempo"}}</span><span class="jz-bpm" aria-hidden="true">&#xE1D5;{{if $.Compound}}<span class="jz-bpm-dot">&#xE1E7;</span>{{end}}</span> = {{.}}</span>{{end}}</div>
         <div class="jz-title">{{.Title}}</div>
         <div class="jz-composer">{{.Composer}}{{with .Key}}<span class="jz-sub">{{t "Key"}}: <span class="sr-only jz-key-say" data-say-rest="{{range $.KeySayRest}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}">{{range $.KeySayRoot}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{range $.KeySayRest}} {{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}</span><span class="jz-key" aria-hidden="true">{{.}}</span></span>{{end}}</div>
       </div>
@@ -543,7 +543,7 @@
     <h1>{{.Title}}</h1>
     <div class="topbar-meta">
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}{{with .VersionName}}<span class="topbar-label"> · {{.}}</span>{{end}}</span>{{end}}
-      {{if .Tempo}}<span class="topbar-meta-item topbar-tempo">{{.Tempo}} bpm</span>{{end}}
+      {{if .Tempo}}<span class="topbar-meta-item topbar-tempo">{{if .TempoCompound}}&#9833;. = {{.Tempo}}{{else}}{{.Tempo}} bpm{{end}}</span>{{end}}
       {{if and .Time (ne .Time "4/4")}}<span class="topbar-meta-item topbar-time">{{.Time}}</span>{{end}}
       {{if .Key}}<span class="topbar-meta-item topbar-key">
         {{/* View-only transpose: shifts the chords on screen for tonight,
@@ -595,7 +595,7 @@
        back. */}}
   <div class="view-tabs song-views" id="mode-segmented" data-value="normal" role="group" aria-label="{{t "View"}}">
     <button type="button" data-value="normal" class="active" title="{{t "the chart, chords and lyrics"}}">{{template "icon-mode-normal"}} {{t "Song"}}</button>
-    <button type="button" data-value="jazz" title="{{t "jazz chart"}}">{{template "icon-mode-jazz"}} {{t "Jazz chart"}}</button>
+    <button type="button" data-value="jazz" title="{{t "the chords, iReal Pro style"}}">{{template "icon-mode-jazz"}} {{t "Jazz chart"}}</button>
     <button type="button" data-value="map" title="{{t "song map"}}">{{template "icon-mode-map"}} {{t "Map"}}</button>
     {{if .HasLyrics}}<button type="button" data-value="lyrics" title="{{t "lyrics only"}}">{{template "icon-mode-lyrics"}} {{t "Lyrics"}}</button>{{end}}
     {{if .GPFileName}}<button type="button" data-value="score" title="{{t "the Guitar Pro file"}}">{{template "icon-mode-score"}} {{t "Score"}}</button>{{end}}
@@ -617,6 +617,10 @@
         {{if .WorkID}}<a role="menuitem" href="/works/{{.WorkID}}" title="{{t "this song’s recordings and arrangements"}}">{{template "icon-mode-map"}} {{t "Recordings and arrangements"}}</a>{{end}}
         {{if .VariantID}}<a role="menuitem" href="/variants/{{.VariantID}}/history" title="{{t "revision history"}}">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
         <button type="button" role="menuitem" id="reference-toggle" title="{{t "the reference video and recordings"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
+        {{/* The Sync sheet (sync-sheet.js), always within reach of who may
+             edit the song, once the song has a recording (CSS: shown with
+             #audio-player[data-recording="yes"]). */}}
+        {{if .CanEdit}}<button type="button" role="menuitem" class="song-sync-open" id="song-sync-open" data-sync-open aria-haspopup="dialog" title="{{t "the chart’s sections on the recording: check them by ear, adjust them"}}">{{template "icon-sync"}} {{t "Sync…"}}</button>{{end}}
         <button type="button" role="menuitem" data-pdf-dialog aria-haspopup="dialog">{{template "icon-download"}} {{t "Export as PDF…"}}</button>
         {{if .GPFileName}}<a role="menuitem" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
         {{if .HasAnyScore}}<a role="menuitem" class="gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
@@ -761,7 +765,7 @@
     <fieldset class="song-pdf-layouts">
       <legend>{{t "Layout"}}</legend>
       <label><input type="radio" name="pdf-mode" class="pdf-mode-radio" value="" checked> {{t "Song"}} <small>{{t "the chart, chords and lyrics"}}</small></label>
-      <label><input type="radio" name="pdf-mode" class="pdf-mode-radio" value="jazz"> {{t "Jazz chart"}} <small>{{t "the chords on one page"}}</small></label>
+      <label><input type="radio" name="pdf-mode" class="pdf-mode-radio" value="jazz"> {{t "Jazz chart"}} <small>{{t "the chords, iReal Pro style"}}</small></label>
       <label><input type="radio" name="pdf-mode" class="pdf-mode-radio" value="map"> {{t "Map"}} <small>{{t "the sections and their bars"}}</small></label>
       {{if $.HasLyrics}}<label><input type="radio" name="pdf-mode" class="pdf-mode-radio" value="lyrics"> {{t "Lyrics"}} <small>{{t "the words alone"}}</small></label>{{end}}
     </fieldset>
@@ -1538,6 +1542,7 @@
     <a class="stack-sheet-row" id="song-tuner-row" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
     <button type="button" class="stack-sheet-row" data-tap-tempo-open aria-haspopup="dialog">{{template "icon-tap"}} {{t "Tap tempo"}}</button>
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} {{t "Reference"}}</button>
+    {{if .CanEdit}}<button type="button" class="stack-sheet-row song-sync-open" data-sync-open aria-haspopup="dialog">{{template "icon-sync"}} {{t "Sync…"}}</button>{{end}}
     <button type="button" class="stack-sheet-row" data-pdf-dialog aria-haspopup="dialog">{{template "icon-download"}} {{t "Export as PDF…"}}</button>
     {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
     {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
@@ -2066,6 +2071,7 @@
                      "Sync state"), what's off (a section whose tempo isn't
                      the recording's), and for an editor the Sync sheet or
                      "it's right". */}}
+                <span class="audio-sync-state" id="audio-sync-state" hidden></span>
                 <span class="hint" id="audio-sync-text"></span>
                 <div class="audio-sync-detail" id="audio-pop-sync"></div>
                 <div class="audio-pop-row">
@@ -2164,7 +2170,25 @@
           </section>
           <div class="sync-list">
             <p class="hint sync-gp-note" id="sync-gp-note" hidden>{{t "The Guitar Pro file places every bar itself: section starts placed here don’t change what the chart follows."}}</p>
-            <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+            {{/* The chart's tempo, which the counter's bars outside the
+                 starts and the "off tempo" checks go by: typed (in a
+                 compound metre, in the note picked), tapped while the
+                 recording plays, or the counter's own taken in one click
+                 from the warning; saved as any edit of the song (PUT
+                 …/meta), the counter following at once (sync-sheet.js
+                 "The chart's tempo"). */}}
+            <div class="sync-tempo" id="sync-tempo">
+              <label class="sync-tempo-label" for="sync-tempo-input">{{t "Chart tempo"}}</label>
+              <input type="number" class="sync-tempo-input" id="sync-tempo-input" inputmode="numeric" min="20" max="400" step="1" autocomplete="off">
+              <span class="sync-tempo-unit" id="sync-tempo-unit">bpm</span>
+              <button type="button" class="sync-btn sync-tempo-tap" id="sync-tempo-tap" title="{{t "tap the beat while the recording plays: the tempo fills in"}}">{{t "Tap"}}</button>
+              <button type="button" class="audio-pill-btn" id="sync-tempo-save" disabled>{{t "Set the tempo"}}</button>
+              <span class="hint sync-tempo-now" id="sync-tempo-now"></span>
+            </div>
+            <div class="sync-warn-box" id="sync-warn-box" hidden>
+              <details class="sync-warn" id="sync-warn"><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+              <div class="sync-warn-actions"><button type="button" class="audio-pill-btn" id="sync-warn-use"></button></div>
+            </div>
             <ol class="sync-rows" id="sync-rows"></ol>
             <div class="sync-suggest-bar">
               <button type="button" class="audio-pill-btn" id="sync-suggest-btn" title="{{t "where the singing starts, and the downbeats: each to accept or reject"}}">{{t "Suggest"}}</button>
@@ -2587,7 +2611,8 @@
 
 {{if .SongbookRef}}<script>window.songbooksPracticeContext = { songbookId: {{.SongbookRef}}, variantId: {{.VariantID}} };</script>
 <script src="/static/js/practice-time.js?v={{staticVersion}}"></script>
-{{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
+{{end}}<script src="/static/js/tempo-units.js?v={{staticVersion}}"></script>
+<script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/bar-rows.js?v={{staticVersion}}"></script>
 <script src="/static/js/yt-picker.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>

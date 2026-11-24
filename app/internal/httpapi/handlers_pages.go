@@ -3003,6 +3003,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"), "GPSource": sg.Get("gp_source"),
 		"TimeBeats":          timeSigBeats(sg.Get("time")),
+		// The tempo counts dotted quarters (song.CompoundTime): the
+		// header says "♩. = 46", not a bare "46 bpm".
+		"TempoCompound":      song.CompoundTime(sg.Get("time")),
 		"Sections":           sections,
 		"LeadIn":             sg.LeadIn(),
 		"MapLines":           buildMapLines(sections),

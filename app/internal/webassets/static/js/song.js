@@ -3303,10 +3303,35 @@ const ICONS = {
     tempoInput.type = 'text'; tempoInput.inputMode = 'numeric'; tempoInput.className = 'header-field-input';
     tempoInput.autocomplete = 'off';
     tempoInput.placeholder = t('e.g. 120');
-    tempoInput.value = metaGet('tempo');
     tempoInput.title = t('beats per minute, saved to the song header');
-    tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
-    tempoField.append(tempoInput, ' bpm');
+    // A compound metre (6/8, 9/8, 12/8): the tempo counts dotted
+    // quarters; it can be typed or tapped in quarters or eighths too, the
+    // note picked beside the field, and is saved in dotted quarters
+    // (tempo-units.js).
+    const TU = window.SongbooksTempoUnits;
+    let tempoUnit = 'beat';
+    const sigNow = () => metaGet('time') || '4/4';
+    const shown = (v) => {
+      const n = parseFloat(v);
+      return TU && n > 0 && tempoUnit !== 'beat' && TU.compound(sigNow()) ? String(Math.round(TU.fromBeat(n, tempoUnit, sigNow()))) : (v || '');
+    };
+    const stored = (v) => {
+      const n = parseFloat(v);
+      return TU && n > 0 && tempoUnit !== 'beat' && TU.compound(sigNow()) ? String(Math.round(TU.toBeat(n, tempoUnit, sigNow()))) : v;
+    };
+    tempoInput.value = metaGet('tempo');
+    tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', stored(tempoInput.value.trim())); });
+    const tempoUnitHost = document.createElement('span');
+    tempoUnitHost.className = 'header-field-unit';
+    const renderTempoUnit = () => {
+      const pick = TU && TU.compound(sigNow()) ? TU.picker(...sigNow().split('/'), (id) => { tempoUnit = id; tempoInput.value = shown(metaGet('tempo')); }) : null;
+      tempoUnit = pick ? pick.value : 'beat';
+      tempoUnitHost.replaceChildren(pick || ' bpm');
+      tempoInput.value = shown(metaGet('tempo'));
+    };
+    renderTempoUnit();
+    timeInput.addEventListener('change', renderTempoUnit);
+    tempoField.append(tempoInput, tempoUnitHost);
     // Tap: the beat tapped fills the field (tap-tempo.js, the ⋯ menu's
     // Tap tempo's arithmetic), from the second tap; saved with the rest.
     // Outside the label, so a tap doesn't also focus the field.
@@ -3325,7 +3350,7 @@ const ICONS = {
         if (bpm == null || !window.SongbooksTapTempo.usable(bpm)) return;
         tempoInput.value = String(bpm);
         markDirty();
-        metaSet('tempo', String(bpm));
+        metaSet('tempo', stored(String(bpm)));
       };
       tempoTap.addEventListener('pointerdown', (e) => { if (e.button === 0) { e.preventDefault(); tapOnce(); } });
       // Space or Enter on the button (a pointer's tap was already counted).
@@ -3869,7 +3894,7 @@ const ICONS = {
     const timeSpan = document.createElement('span'); timeSpan.className = 'toolbar-meta-chip';
     timeSpan.textContent = (metaGet('time') || '4/4');
     const tempoSpan = document.createElement('span'); tempoSpan.className = 'toolbar-meta-chip toolbar-meta-tempo';
-    tempoSpan.textContent = metaGet('tempo') ? metaGet('tempo') + ' bpm' : '';
+    tempoSpan.textContent = !metaGet('tempo') ? '' : window.SongbooksTempoUnits && +metaGet('tempo') > 0 ? window.SongbooksTempoUnits.text(+metaGet('tempo'), metaGet('time') || '4/4', undefined, { short: true }) : metaGet('tempo') + ' bpm';
     const slotLabel = document.createElement('span'); slotLabel.className = 'toolbar-slot-label hint';
     slotLabel.textContent = t('tap a bar slot below to select it');
     meta.append(timeSpan, tempoSpan, slotLabel);

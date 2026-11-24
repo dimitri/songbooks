@@ -71,14 +71,19 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 
 	// Header facts. A song with no "tempo:"/"time:" is drawn at 120 and
 	// 4/4, so those are what it says.
+	// The file's tempo counts quarter notes, the song's its beat (a
+	// dotted quarter in 6/8: song.BeatQuarters): compared, taken and
+	// pushed in the song's.
 	if f.Tempo > 0 {
 		text := strings.TrimSpace(sg.Get("tempo"))
-		if n, err := strconv.Atoi(orDefault(text, "120")); err != nil || n != f.Tempo {
-			p := &driftPush{Kind: "tempo", Tempo: n}
+		sig := orDefault(sg.Get("time"), "4/4")
+		file := song.FromQuarterTempo(float64(f.Tempo), sig)
+		if n, err := strconv.Atoi(orDefault(text, "120")); err != nil || n != file {
+			p := &driftPush{Kind: "tempo", Tempo: song.QuarterTempo(float64(n), sig)}
 			if err != nil {
 				p = nil
 			}
-			add(driftItem{Fact: "tempo", Title: "Tempo", Text: text, File: strconv.Itoa(f.Tempo), Take: true, Push: p})
+			add(driftItem{Fact: "tempo", Title: "Tempo", Text: text, File: strconv.Itoa(file), Take: true, Push: p})
 		}
 	}
 	if len(f.Time) > 0 {

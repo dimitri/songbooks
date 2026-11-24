@@ -33,16 +33,32 @@ func newDoc() (*gopdf.GoPdf, error) {
 // web chart; pass nil when there's nothing to overlay (every call site
 // except the single-song export route, for now — see ExportSetlist's own
 // doc comment on why this isn't threaded through setlist/songbook export
-// yet).
+// yet). ModeJazz prints the song's header alone: the Jazz chart is the
+// web's, ExportJazzChart draws it.
 func (r *Renderer) ExportSong(ctx context.Context, book, body string, scores map[int]*tab.Riff, opts Options) ([]byte, error) {
 	s := song.Parse(body)
 	doc, err := newDoc()
 	if err != nil {
 		return nil, err
 	}
+	if opts.Mode == ModeJazz {
+		renderJazz(doc, jazzHeaderOnly(s))
+		return pdfBytes(doc)
+	}
 	if err := renderSong(doc, s, scores, themeFor(opts.Theme), opts.Mode, opts.HideNotes, opts.Cols()); err != nil {
 		return nil, err
 	}
+	return pdfBytes(doc)
+}
+
+// ExportJazzChart renders one song's Jazz chart (the web's, see
+// JazzChart) on A4: one page, or more for a form that needs them.
+func (r *Renderer) ExportJazzChart(ctx context.Context, ch *JazzChart) ([]byte, error) {
+	doc, err := newDoc()
+	if err != nil {
+		return nil, err
+	}
+	renderJazz(doc, ch)
 	return pdfBytes(doc)
 }
 
@@ -104,7 +120,11 @@ func buildEntries(refs []SongRef, th theme, withPages bool, mode Mode, hideNotes
 		}
 		if withPages {
 			e.Page = page
-			page += songPages(measureDoc, s, th, mode, hideNotes, cols)
+			if mode == ModeJazz {
+				page += jazzPages(measureDoc, jazzChartOf(ref, s))
+			} else {
+				page += songPages(measureDoc, s, th, mode, hideNotes, cols)
+			}
 		}
 		entries[i] = e
 	}
@@ -126,7 +146,11 @@ func (r *Renderer) ExportSetlist(ctx context.Context, title string, front FrontM
 	parsed, entries := buildEntries(refs, th, true, opts.Mode, opts.HideNotes, opts.Cols())
 	renderContentsPage(doc, title, "", entries, true, th)
 
-	for _, s := range parsed {
+	for i, s := range parsed {
+		if opts.Mode == ModeJazz {
+			renderJazz(doc, jazzChartOf(refs[i], s))
+			continue
+		}
 		// scores is nil: a setlist/songbook export's SongRef carries only
 		// a resolved body string, not a variant id to look up "score:"
 		// riffs against — threading that through is a real follow-up,
