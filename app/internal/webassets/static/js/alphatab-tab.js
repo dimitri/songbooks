@@ -231,6 +231,12 @@
     // its own undersized system within it, is the right default for
     // every mount here, drum or melodic alike.
     settings.display.justifyLastSystem = true;
+    // A riff row of the chord chart lines up with the chart's grid rows
+    // above and below it (a 4-bar riff over a 12-bar blues: one tab row,
+    // two grid rows) — the staff from the grid's left edge to its right
+    // one, not inset by alphaTab's own 35px page margin, and as close
+    // to the rows around it as the grid rows are to each other.
+    if (!isDrumTrack && container.closest('.sheet-section .grid')) settings.display.padding = [2, 8];
     settings.notation.rhythmMode = alphaTab.TabRhythmMode.ShowWithBars;
     // The "Guitar/Bass Standard Tuning" caption above the staff — this
     // app's own tuning is already implied by the song/section (and the
@@ -244,9 +250,10 @@
     // Drummer view's own "\tempo" boundary markers (ToAlphaTexDrums,
     // internal/tab/alphatex.go — see its own doc comment) are a pure
     // multiBarRest-consolidation trick: they must never actually draw a
-    // "♩ = N" marking. Every OTHER mount in this app is unaffected —
-    // nothing else ever emits a "\tempo" directive.
-    settings.notation.elements.set(alphaTab.NotationElement.EffectTempo, false);
+    // "♩ = N" marking. A riff row's "\tempo" is real: the song's tempo
+    // mark on its first bar (riffBarMeta, handlers_pages.go), printed
+    // there as the chord chart's first row prints it.
+    settings.notation.elements.set(alphaTab.NotationElement.EffectTempo, !isDrumTrack && !!container.closest('.sheet-section .grid'));
     // No dynamics are ever written in this app's scores: alphaTab's default
     // "f" on the first note of every row is noise.
     settings.notation.elements.set(alphaTab.NotationElement.EffectDynamics, false);

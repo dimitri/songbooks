@@ -379,19 +379,12 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup int, rif
 	if len(measures) == 0 {
 		return
 	}
-	// tabH reserves room ABOVE the normal chord/staff row for a "score:"
-	// riff's note-level tab, when this row has any — same "overlay above
-	// this bar, same bar width, optional per bar" layout as the web
-	// chart's .tab-block (see internal/httpapi's attachTabRiffs and
-	// play.html's "chart-bar" template). 0 when no bar in this row has one,
-	// so a normal chart's row height is completely unchanged.
-	tabH := 0.0
-	hasTab := false
+	// A row the section's riff covers whole is drawn as tab (tabOnlyRow);
+	// measureSection cuts the rows at the riff's ends (splitRiffRows), so
+	// a row is all riff or none.
 	allTab := len(riffBars) > 0
 	for _, b := range riffBars {
-		if b != nil {
-			hasTab = true
-		} else {
+		if b == nil {
 			allTab = false
 		}
 	}
@@ -407,18 +400,12 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup int, rif
 		c.tabOnlyRow(measures, riffBars, tuning, size, beatsPerBar, firstStaff, tempo, timeNum, timeDen, timeNumI, timeDenI)
 		return
 	}
-	if hasTab {
-		tabH = float64(len(tuning))*size*0.5 + size*0.3
-	}
-
 	chordH := size * 1.4
 	staffH := size * 1.05
 	ruleGap := size * 0.5
-	rowH := tabH + chordH + staffH + ruleGap
+	rowH := chordH + staffH + ruleGap
 	c.ensureSpace(rowH + 6)
 
-	rowTop := c.y
-	c.y += tabH
 	x0 := c.curX()
 	tsW := 0.0
 	if firstStaff {
@@ -458,10 +445,6 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup int, rif
 	for i, m := range measures {
 		bx, boxW := barsX0+xs[i], ws[i]
 		c.leadTag(measures, i, bx, staffBottom, size)
-
-		if i < len(riffBars) && riffBars[i] != nil {
-			c.drawTabBar(riffBars[i], tuning, bx, boxW, rowTop, tabH, size)
-		}
 
 		if i > 0 {
 			c.line(bx, staffTop, bx, staffBottom, c.th.line, 0.7)
@@ -521,43 +504,6 @@ func (c *canvas) staffBarRow(measures []song.Measure, slots int, pickup int, rif
 		}
 	}
 	c.y = staffBottom + ruleGap
-}
-
-// drawTabBar draws one bar's worth of note-level tab notation (from a
-// "score:" riff — see internal/tab) into the (x, x+w) by (top, top+h)
-// box reserved for it above this bar's normal chord/staff row — string
-// lines full-width, fret numbers positioned by beat fraction across the
-// bar and by string. A simplified v1 (no stems/beams — see
-// internal/tab's own package doc comment on scope), matching the web
-// chart's .tab-block overlay.
-func (c *canvas) drawTabBar(bar *tab.Bar, tuning []int, x, w, top, h, size float64) {
-	n := len(tuning)
-	if n == 0 || !c.draw {
-		return
-	}
-	lineGap := h / float64(n+1)
-	for s := 1; s <= n; s++ {
-		ly := top + lineGap*float64(s)
-		c.line(x, ly, x+w, ly, c.th.faint, 0.4)
-	}
-	beats := len(bar.Beats)
-	if beats == 0 {
-		return
-	}
-	colW := w / float64(beats)
-	for bi, beat := range bar.Beats {
-		cx := x + colW*(float64(bi)+0.5)
-		for _, note := range beat.Notes {
-			if note.String < 1 || note.String > n {
-				continue
-			}
-			ly := top + lineGap*float64(note.String)
-			txt := strconv.Itoa(note.Fret)
-			tw := c.measureWidth(txt, faceSansBold, size*0.55)
-			c.filledRect(cx-tw/2-1, ly-size*0.3, tw+2, size*0.6, c.th.bg)
-			c.textAt(cx-tw/2, ly+size*0.2, txt, faceSansBold, size*0.55, c.th.ink)
-		}
-	}
 }
 
 // drawSlash draws one rhythm-slash mark (the LilyPond/Real Book "play a
@@ -763,6 +709,11 @@ func (c *canvas) measureSection(sec song.Section, riff *tab.Riff, bodySize float
 		// Song view's own cap (song.js reflowStaffLines, modeCap 4) — so a
 		// section authored "bars: 8" for a full-width page doesn't cram 8
 		// bars into half the width. Jazz keeps its own density, as on the web.
+		// A riff over part of the section (a 4-bar intro riff over a
+		// 12-bar blues): rows cut at the riff's ends, all tab or all grid.
+		if mode != ModeJazz && riffBars != nil {
+			rows = splitRiffRows(rows, riffBars, len(sec.BarsPerLine) > 0, pickups)
+		}
 		if mode != ModeJazz && c.colW < contentWidth()-1 {
 			rows = capBarRowsN(rows, 4, pickups)
 		}

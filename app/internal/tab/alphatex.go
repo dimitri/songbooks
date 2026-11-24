@@ -51,6 +51,15 @@ func midiToAlphaTexNote(midi int) string {
 // matching beat; flagged, not silently dropped — see this function's
 // caller).
 func ToAlphaTex(riff *Riff, clef string, chordLabels []string) string {
+	return ToAlphaTexBars(riff, clef, chordLabels, nil)
+}
+
+// ToAlphaTexBars is ToAlphaTex with barMeta, when non-nil, one string of
+// alphaTeX bar metadata per bar ("" for none) written at the start of
+// that bar: what the chord chart says about the bar that the riff
+// doesn't — a repeat sign ("\ro", "\rc 2"), a plain closing barline
+// where the chart goes on after the riff ("\barlineright regular").
+func ToAlphaTexBars(riff *Riff, clef string, chordLabels, barMeta []string) string {
 	var b strings.Builder
 	b.WriteString(`\tuning (`)
 	for i, midi := range riff.Tuning {
@@ -68,6 +77,10 @@ func ToAlphaTex(riff *Riff, clef string, chordLabels []string) string {
 		if bi == 0 && clef != "" {
 			b.WriteString(`\clef `)
 			b.WriteString(clef)
+			b.WriteByte(' ')
+		}
+		if bi < len(barMeta) && barMeta[bi] != "" {
+			b.WriteString(barMeta[bi])
 			b.WriteByte(' ')
 		}
 		var label string

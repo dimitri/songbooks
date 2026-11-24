@@ -134,6 +134,13 @@ type relParser struct {
 	// — -1 means no pending slide. See Beat.HasSlideFrom's own doc
 	// comment for the real corpus example this models.
 	pendingSlideMIDI int
+
+	// tieFrom are the notes of the last event written with a "~" tie
+	// ("f~ f8"): the next event's notes of the same pitch continue them
+	// (Note.Tied) on the same string and fret, as LilyPond prints a tie.
+	// A tie to a different pitch ("ees8~ \grace f16( \glissando g8)")
+	// ties nothing, as in LilyPond (which only warns).
+	tieFrom []Note
 }
 
 func parseRelativeMusic(toks []token, lastPitch *int, tuning []int, minFret int, absolute bool) ([]Bar, error) {
@@ -322,6 +329,13 @@ func (p *relParser) chordEvent() error {
 	if p.peek().kind == tWord && startsWithDigit(p.peek().text) {
 		durSpec = p.next().text
 	}
+	// A tie after a chord: "<c e>4~" or "<c e>~".
+	tied := strings.HasSuffix(durSpec, "~")
+	durSpec = strings.TrimSuffix(durSpec, "~")
+	if !tied && p.peek().kind == tWord && p.peek().text == "~" {
+		p.next()
+		tied = true
+	}
 	dur, beats, err := parseDuration(durSpec, &p.lastDur)
 	if err != nil {
 		return err
@@ -329,6 +343,7 @@ func (p *relParser) chordEvent() error {
 	if err := assignFrets(notes, p.tuning, p.minFret); err != nil {
 		return err
 	}
+	p.tie(notes, tied)
 	p.addBeat(Beat{Notes: notes, Duration: dur}, beats)
 	p.lastPitch = firstResolved // LilyPond's own quirk: the NEXT event is relative to the chord's FIRST note, not its last
 	return nil
@@ -341,6 +356,7 @@ func (p *relParser) singleEvent(raw string) error {
 		if err != nil {
 			return err
 		}
+		p.tieFrom = nil
 		p.addBeat(Beat{Rest: true, Duration: dur}, beats)
 		return nil
 	}
@@ -356,6 +372,7 @@ func (p *relParser) singleEvent(raw string) error {
 	if err := assignFrets(notes, p.tuning, p.minFret); err != nil {
 		return err
 	}
+	p.tie(notes, strings.Contains(raw, "~"))
 	beat := Beat{Notes: notes, Duration: dur, HammerPull: slurStart}
 	if hasArticulation {
 		if p.peek().kind != tString {
@@ -379,6 +396,26 @@ func (p *relParser) singleEvent(raw string) error {
 	p.addBeat(beat, beats)
 	p.lastPitch = pitch
 	return nil
+}
+
+// tie marks the notes continuing a tie from the event before (same
+// pitch: Tied, kept on that note's string and fret, whatever
+// minimumFret now says) and remembers this event's notes when it is
+// tied on itself.
+func (p *relParser) tie(notes []Note, tiedOn bool) {
+	for i := range notes {
+		for _, t := range p.tieFrom {
+			if t.MIDI == notes[i].MIDI {
+				notes[i].Tied = true
+				notes[i].String, notes[i].Fret = t.String, t.Fret
+				break
+			}
+		}
+	}
+	p.tieFrom = nil
+	if tiedOn {
+		p.tieFrom = append([]Note(nil), notes...)
+	}
 }
 
 func (p *relParser) addBeat(b Beat, beats float64) {

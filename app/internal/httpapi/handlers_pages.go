@@ -800,13 +800,6 @@ type viewerMeasure struct {
 	// (assignPlayedBars, playedbars.go); data-played.
 	Played []int
 
-	// Tab is this bar's note-level tab notation, from the section's
-	// "score:" field (internal/tab) — nil for the common case of a bar
-	// with no such data, which renders exactly as before. Set by
-	// attachTabRiffs after buildSections, not by buildSections itself:
-	// it needs a separate, optional store lookup buildSections' own
-	// signature (sg *song.Song only, no variant id/ctx) doesn't have.
-	Tab *viewerTabBar
 	// TabOnly mirrors this bar's display row's own viewerLine.TabOnly —
 	// copied onto each bar rather than looked up from the parent row so
 	// the "chart-bar" template (which only ever sees one viewerMeasure,
@@ -814,80 +807,6 @@ type viewerMeasure struct {
 	TabOnly bool
 }
 
-// viewerTabBar is one bar's worth of tab notation. When every bar in its
-// display row has one (see viewerLine.TabOnly), the row renders tab-only
-// — a real string/fret staff with rhythm marks in place of the normal
-// 5-line staff, chord names kept in the same position above it (see
-// play.html's "chart-bar" template) — matching how a real tab chart
-// looks (fret numbers ARE the notation, not an annotation on top of
-// one). When only SOME bars in a row have one, those bars instead get it
-// as a smaller overlay above their own normal chord/slash content — "not
-// every bar needs one."
-type viewerTabBar struct {
-	Strings int // how many string lines to draw (len(Riff.Tuning))
-	Beats   []viewerTabBeat
-	// GridCols is a CSS grid-template-columns value, one "<weight>fr"
-	// term per beat — real engraving spaces notes proportionally to
-	// duration (a half note gets twice a quarter's horizontal room), not
-	// in equal-width slots; reviewed against real LilyPond tab output.
-	GridCols string
-	// Beams are runs of 2+ consecutive eighth-or-shorter notes joined by
-	// a horizontal beam bar instead of each drawing its own hooked flag
-	// — standard notation (and real LilyPond \tabFullNotation) practice.
-	// A lone flagged note with no flagged neighbor still falls back to
-	// an individual hooked flag (see viewerTabBeat.Flags), same as
-	// real engraving.
-	Beams []viewerTabBeam
-}
-
-// viewerTabBeam is one beamed run within a bar — StartCol/EndCol are
-// 1-based CSS grid-column line numbers (so "span StartCol to EndCol"
-// reads directly into a grid-column CSS value), Levels is how many beam
-// bars to stack (1 for an eighth-note run, 2 if the run's shortest
-// member is a sixteenth, matching DurationGlyph's flag count).
-type viewerTabBeam struct {
-	StartCol, EndCol int
-	Levels           int
-}
-
-type viewerTabBeat struct {
-	Notes []viewerTabNote
-	Rest  bool
-	// Flags/Dotted are the rhythm mark under this beat's fret numbers —
-	// real tab/Guitar-Pro/LilyPond \tabFullNotation convention: a bare
-	// stem for a quarter note or longer, one flag per eighth-note
-	// halving (8th=1, 16th=2, ...), a dot for a dotted duration. This is
-	// the "how long does this note last" information a bare fret number
-	// can't carry on its own — see internal/tab.DurationGlyph. Only
-	// drawn as an individual hooked flag when NOT part of a beam group
-	// (see viewerTabBar.Beams) — a beamed note still carries these so
-	// the stem itself still draws, just without its own flag hooks.
-	Flags  int
-	Dotted bool
-	// Beamed is true when this beat is part of a viewerTabBar.Beams run
-	// — the template skips drawing individual hook flags for it (the
-	// beam bar already shows the rhythm), drawing only its stem.
-	Beamed bool
-}
-
-type viewerTabNote struct {
-	String int // 1-based, top line = string 1
-	Fret   int
-}
-
-// attachTabRiffs attaches each riff's bars onto the matching section's
-// measures, bar index to bar index — a section's "score:" riff is
-// expected to cover the SAME bars as its "grid:" (that's the whole
-// point: the chord chart and the note-level riff describe the same
-// passage), so riff.Bars[j] overlays sections[i].Measures[j]. A riff
-// with more bars than the section has grid measures is truncated rather
-// than erroring; a shorter riff just leaves the remaining bars plain —
-// "optionally we have scores content for some of the bars" is exactly
-// this: not every bar needs one. A display row whose every bar got one
-// is additionally flagged TabOnly, switching that row's own rendering
-// from the normal chord/slash staff to a tab staff (see viewerTabBar's
-// doc comment) — computed per actual display row (not per section),
-// since a line break can fall mid-riff.
 // atoiOr parses s as an int, returning fallback on any parse failure or
 // an empty string — timeSigParts's own return values are raw, unvalidated
 // source text ("4", "6", possibly "" if time: was absent/malformed).
@@ -1421,6 +1340,16 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 	return rows
 }
 
+// attachTabRiffs lays each section's riff onto its bars, bar index to
+// bar index — a section's "score:" riff covers the same bars as its
+// "grid:" (the chord chart and the note-level riff describe the same
+// passage), so riff.Bars[j] goes with sections[i].Measures[j]. A riff
+// with more bars than the section has is truncated; a shorter one covers
+// the section's first bars only. Every display row the riff covers whole
+// is flagged TabOnly and drawn by alphaTab as tab (AlphaTex), the grid's
+// chord names on top; a row it covers in part is first cut at the riff's
+// ends (splitRiffRows), so no row mixes tab and grid bars.
+//
 // instrument, when non-empty, is the #instrument-picker's own selection
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
@@ -1436,6 +1365,9 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 			break
 		}
 	}
+	// The song's last section: its last row ends the song, where a riff
+	// row keeps alphaTab's final barline.
+	lastGrid := len(sections) - 1
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
@@ -1446,45 +1378,19 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 			continue
 		}
 		numStrings := len(riff.Tuning)
-		byBarIndex := make(map[int]*viewerTabBar, len(riff.Bars))
 		rawBarByIndex := make(map[int]tab.Bar, len(riff.Bars))
 		for bi, bar := range riff.Bars {
 			rawBarByIndex[bi] = bar
-			vb := make([]viewerTabBeat, 0, len(bar.Beats))
-			weights := make([]float64, 0, len(bar.Beats))
-			for _, beat := range bar.Beats {
-				var notes []viewerTabNote
-				for _, n := range beat.Notes {
-					notes = append(notes, viewerTabNote{String: n.String, Fret: n.Fret})
-				}
-				flags, dotted := tab.DurationGlyph(beat.Duration)
-				vb = append(vb, viewerTabBeat{Notes: notes, Rest: beat.Rest, Flags: flags, Dotted: dotted})
-				w := beat.Beats()
-				if w <= 0 {
-					w = 1
-				}
-				weights = append(weights, w)
-			}
-			var beams []viewerTabBeam
-			for _, bg := range tab.GroupBeams(bar.Beats, timeNum, timeDen) {
-				for i := bg.StartIdx; i <= bg.EndIdx; i++ {
-					vb[i].Beamed = true
-				}
-				// CSS grid-column uses LINE numbers, not track indices:
-				// track i (0-based) starts at line i+1, and spanning
-				// through track j ends at line j+2.
-				beams = append(beams, viewerTabBeam{StartCol: bg.StartIdx + 1, EndCol: bg.EndIdx + 2, Levels: bg.MinFlags})
-			}
-			byBarIndex[bi] = &viewerTabBar{Strings: numStrings, Beats: vb, GridCols: gridColsCSS(weights), Beams: beams}
 		}
-		// Set on both the flat Measures list AND each grouped display
-		// row's own copy (groupMeasures may re-slice or copy — matching
-		// by Index rather than assuming which keeps this correct either
-		// way, since Index uniquely identifies a bar within its section).
+		covered := func(m viewerMeasure) bool {
+			_, ok := rawBarByIndex[m.Index]
+			return ok
+		}
 		fullyCovered := len(sections[si].Measures) > 0
-		for bi := range sections[si].Measures {
-			if tb, ok := byBarIndex[sections[si].Measures[bi].Index]; ok {
-				sections[si].Measures[bi].Tab = tb
+		anyCovered := false
+		for _, m := range sections[si].Measures {
+			if covered(m) {
+				anyCovered = true
 			} else {
 				fullyCovered = false
 			}
@@ -1502,14 +1408,18 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 		// this riff would want.
 		if fullyCovered && !sections[si].ExplicitBarsPerLine && len(sections[si].Lyrics) == 0 {
 			sections[si].Lines = groupMeasures(sections[si].Measures, []int{len(sections[si].Measures)})
+		} else if anyCovered && !fullyCovered && len(sections[si].Lines) > 0 {
+			// A riff over part of the section's bars (a 4-bar intro riff
+			// over a 12-bar blues grid): its rows are cut where the riff
+			// starts and ends, so the covered bars make whole rows drawn
+			// as tab like any riff-only row, and the rest stay chord-grid
+			// rows (splitRiffRows).
+			sections[si].Lines = splitRiffRows(sections[si].Measures, sections[si].Lines, covered, sections[si].ExplicitBarsPerLine)
 		}
 		for li := range sections[si].Lines {
 			allCovered := len(sections[si].Lines[li].Measures) > 0
-			for bi := range sections[si].Lines[li].Measures {
-				tb, ok := byBarIndex[sections[si].Lines[li].Measures[bi].Index]
-				if ok {
-					sections[si].Lines[li].Measures[bi].Tab = tb
-				} else {
+			for _, m := range sections[si].Lines[li].Measures {
+				if !covered(m) {
 					allCovered = false
 				}
 			}
@@ -1517,8 +1427,10 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				sections[si].Lines[li].TabOnly = true
 				var rowBars []tab.Bar
 				var chordLabels []string
-				for bi := range sections[si].Lines[li].Measures {
-					m := &sections[si].Lines[li].Measures[bi]
+				lineBars := sections[si].Lines[li].Measures
+				barMeta := make([]string, len(lineBars))
+				for bi := range lineBars {
+					m := &lineBars[bi]
 					m.TabOnly = true
 					if rb, ok := rawBarByIndex[m.Index]; ok {
 						rowBars = append(rowBars, rb)
@@ -1528,13 +1440,14 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 						label = chordsym.Glyphs(m.Beats[0].Text)
 					}
 					chordLabels = append(chordLabels, label)
+					barMeta[bi] = riffBarMeta(*m, bi == len(lineBars)-1 && !(si == lastGrid && li == len(sections[si].Lines)-1))
 				}
 				rowRiff := &tab.Riff{Tuning: riff.Tuning, MinimumFret: riff.MinimumFret, Bars: rowBars}
 				clef := ""
 				if numStrings <= 4 {
 					clef = "F4"
 				}
-				tex := tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				tex := tab.ToAlphaTexBars(rowRiff, clef, chordLabels, barMeta)
 				// alphaTab assumes straight 4/4: a 12/8 shuffle drawn without
 				// its own time signature reads as overfull 4/4 bars.
 				if meta := tab.FirstBarMeta(timeNum, timeDen, swing); meta != "" {
@@ -1569,6 +1482,33 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 			}
 		}
 	}
+}
+
+// riffBarMeta is the alphaTeX bar metadata (tab.ToAlphaTexBars) that
+// draws a riff row's bar with what the chord chart shows on it: the
+// song's tempo mark, its repeat signs, and — goesOn, the row's last bar
+// when the song goes on after it — a plain barline instead of the final
+// one alphaTab ends every score with (each riff row is its own score).
+func riffBarMeta(m viewerMeasure, goesOn bool) string {
+	var meta []string
+	// The song's first bar carries its tempo mark (viewerMeasure.Clef),
+	// printed above it as the chord chart's first row does.
+	if t, err := strconv.Atoi(strings.TrimSpace(m.Tempo)); m.Clef && err == nil && t > 0 {
+		meta = append(meta, `\tempo `+strconv.Itoa(t))
+	}
+	if m.Open {
+		meta = append(meta, `\ro`)
+	}
+	if m.Close {
+		n := m.BracketRepeatCount
+		if n < 2 {
+			n = 2
+		}
+		meta = append(meta, `\rc `+strconv.Itoa(n))
+	} else if goesOn {
+		meta = append(meta, `\barlineright regular`)
+	}
+	return strings.Join(meta, " ")
 }
 
 // withRiffOnlyBars gives a section that has a score but no chord bars
@@ -1639,20 +1579,6 @@ func anySectionHasLyrics(sections []viewerSection) bool {
 	return false
 }
 
-// gridColsCSS renders a CSS grid-template-columns value, one "<w>fr"
-// term per beat's duration weight — real engraving spaces notes
-// proportionally to how long they last (reviewed against real LilyPond
-// tab output), not in uniform equal-width slots.
-func gridColsCSS(weights []float64) string {
-	var b strings.Builder
-	for i, w := range weights {
-		if i > 0 {
-			b.WriteByte(' ')
-		}
-		fmt.Fprintf(&b, "%.3ffr", w)
-	}
-	return b.String()
-}
 
 // expandBeats maps a bar's raw tokens onto beatsPerBar rhythm-slash slots.
 // Two authoring styles both appear in real .song files, and both need to
@@ -1905,9 +1831,9 @@ type viewerSection struct {
 type viewerLine struct {
 	Measures []viewerMeasure
 	Capacity int
-	// TabOnly is set by attachTabRiffs when every bar in this display row
-	// has note-level tab data — see viewerTabBar's doc comment for what
-	// that switches in the template.
+	// TabOnly is set by attachTabRiffs when the section's riff covers
+	// every bar of this display row: the row is drawn as tab by alphaTab
+	// (AlphaTex), not as a chord grid.
 	TabOnly bool
 	// AlphaTex is this row's note-level riff, re-encoded as alphaTeX
 	// source for the vendored alphaTab JS renderer to draw (real
@@ -1984,6 +1910,91 @@ func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
 		i = end
 	}
 	return lines
+}
+
+// splitRiffRows regroups a section's display rows when a "score:" riff
+// covers only some of its bars (attachTabRiffs): the rows are cut where
+// the riff's coverage starts and ends, so that every row is either all
+// riff — drawn as tab by alphaTab, the riff's chord names on top — or no
+// riff at all, a plain chord-grid row. A 4-bar riff over a 12-bar blues
+// written as one 12-bar line reads as one tab row and two grid rows,
+// as the legacy LilyPond books printed it, instead of a row of bars
+// half tab, half grid.
+//
+// Without "bars:" a covered run of bars is one row (alphaTab breaks it
+// into systems of 4 itself, see viewerLine.Systems) and an uncovered run
+// rows of 4-bar phrases (riffPhraseRows), a pickup riding on the first;
+// with "bars:" the author's rows are kept, only cut at the riff's ends.
+// bars are the section's Measures, lines its rows (groupMeasures): the
+// new rows slice the same bars, so what is set on them (Played, TabOnly)
+// is shared with the section's Measures, as groupMeasures' rows are.
+func splitRiffRows(bars []viewerMeasure, lines []viewerLine, covered func(viewerMeasure) bool, explicit bool) []viewerLine {
+	var authorCuts []int
+	n := 0
+	for _, l := range lines {
+		n += len(l.Measures)
+		authorCuts = append(authorCuts, n)
+	}
+	if n != len(bars) {
+		return lines // not the section's bars: leave them be
+	}
+	row := func(from, to int) viewerLine {
+		return viewerLine{Measures: bars[from:to], Capacity: to - from}
+	}
+	var out []viewerLine
+	for start := 0; start < len(bars); {
+		cov := covered(bars[start])
+		end := start + 1
+		for end < len(bars) && covered(bars[end]) == cov {
+			end++
+		}
+		switch {
+		case explicit:
+			from := start
+			for _, cut := range authorCuts {
+				if cut > from && cut < end {
+					out = append(out, row(from, cut))
+					from = cut
+				}
+			}
+			out = append(out, row(from, end))
+		case cov:
+			out = append(out, row(start, end))
+		default:
+			from := start
+			for _, size := range riffPhraseRows(bars[start:end]) {
+				out = append(out, row(from, from+size))
+				from += size
+			}
+		}
+		start = end
+	}
+	return out
+}
+
+// riffPhraseRows is the bar count of each row for a run of chord-grid
+// bars beside a riff: 4-bar phrases, the run's opening pickups riding on
+// the first, a lone last bar joining the row before it (5 → 5, 9 → 4 +
+// 5) — the Song view's own rows (bar-rows.js' plan, which re-plans them
+// for the screen's width).
+func riffPhraseRows(bars []viewerMeasure) []int {
+	pickups := 0
+	for pickups < len(bars) && bars[pickups].Pickup {
+		pickups++
+	}
+	var sizes []int
+	for rest := len(bars) - pickups; rest > 0; rest -= 4 {
+		sizes = append(sizes, min(4, rest))
+	}
+	if k := len(sizes); k > 1 && sizes[k-1] == 1 {
+		sizes[k-2]++
+		sizes = sizes[:k-1]
+	}
+	if len(sizes) == 0 {
+		return []int{pickups}
+	}
+	sizes[0] += pickups
+	return sizes
 }
 
 // mapCell is one rendered unit of Song Map's continuous score: either a

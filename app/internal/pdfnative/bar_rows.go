@@ -1,5 +1,7 @@
 package pdfnative
 
+import "app/internal/tab"
+
 // bar_rows.go: how many bars each printed row of a section holds — the Go
 // twin of the web Song view's static/js/bar-rows.js, so that the PDF and
 // the screen print the same rows. Both are checked against one table of
@@ -252,6 +254,74 @@ func capBarRowsN(rows []barRow, limit int, pickups int) []barRow {
 			left -= k
 			extra = 0
 		}
+	}
+	return out
+}
+
+// splitRiffRows cuts a section's rows where its "score:" riff starts and
+// ends (riffBars: one per bar, nil where the riff doesn't reach), so that
+// every row is all riff — drawn as tab, tabOnlyRow — or all chord grid,
+// as the web chart's rows are (internal/httpapi's splitRiffRows). A
+// section the riff covers whole, or not at all, keeps its rows.
+//
+// Without "bars:" (explicit false) each run of riff or grid bars is laid
+// out in 4-bar phrases of its own (rowSizes), the section's pickups
+// riding on its first row; with "bars:" the author's rows are kept, only
+// cut at the riff's ends. pickups: how many of the section's first bars
+// are the song's pickups (they ride on its first row).
+func splitRiffRows(rows []barRow, riffBars []*tab.Bar, explicit bool, pickups int) []barRow {
+	covered, none := true, true
+	for _, b := range riffBars {
+		if b == nil {
+			covered = false
+		} else {
+			none = false
+		}
+	}
+	n := 0
+	for _, r := range rows {
+		n += r.Bars
+	}
+	if covered || none || n != len(riffBars) {
+		return rows
+	}
+	var out []barRow
+	if explicit {
+		start := 0
+		for _, r := range rows {
+			from := start
+			for i := start + 1; i < start+r.Bars; i++ {
+				if (riffBars[i] == nil) != (riffBars[i-1] == nil) {
+					out = append(out, barRow{Bars: i - from, Cap: r.Cap})
+					from = i
+				}
+			}
+			out = append(out, barRow{Bars: start + r.Bars - from, Cap: r.Cap})
+			start += r.Bars
+		}
+		return out
+	}
+	for start := 0; start < n; {
+		end := start + 1
+		for end < n && (riffBars[end] == nil) == (riffBars[start] == nil) {
+			end++
+		}
+		pk := 0
+		if start == 0 {
+			pk = min(pickups, end)
+		}
+		sizes := rowSizes(end-start-pk, phraseBars, noFit, noFit, false)
+		if len(sizes) == 0 {
+			sizes = []int{0}
+		}
+		for i, b := range sizes {
+			r := barRow{Bars: b, Cap: max(b, phraseBars)}
+			if i == 0 {
+				r.Bars += pk
+			}
+			out = append(out, r)
+		}
+		start = end
 	}
 	return out
 }
