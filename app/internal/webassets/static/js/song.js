@@ -58,41 +58,80 @@ const ICONS = {
   // e.g. a phone rotation) never compound drift or lose bars, and always
   // converge on the same layout a fresh load at that width would produce.
   let staffLineOriginals = null;
+  const staffRunMarker = 'staff-run';
   function captureStaffLineOriginals() {
-    // A TabOnly grid's real content is an .alphatab-row, not a
-    // .staff-line — this system has no model of alphaTab's own live SVG
-    // and nothing useful to reflow it into. Excluding it here (not just
-    // giving it an empty `lines` array) keeps reflowStaffLines()'s loop
-    // below from ever reaching it, so it never calls replaceChildren()
-    // on this grid and never wipes the real alphaTab row — confirmed
-    // live as the cause of both the Jazz-chart-empty regression and the
-    // disconnected-duplicate-grid bug: every reflow (any mode switch or
-    // resize) rebuilt this grid's children from whatever it had
-    // captured as `.staff-line`, which never included the alphaTab row
-    // itself. CSS alone handles showing/hiding .alphatab-row vs
+    // A riff-covered row is an .alphatab-row, not a .staff-line of bars —
+    // this system has no model of alphaTab's own live SVG and nothing
+    // useful to reflow it into, and a reflow must never wipe it: the
+    // Jazz-chart-empty regression and the disconnected-duplicate-grid
+    // bug both came from rebuilding a grid's children around one. CSS
+    // alone handles showing/hiding .alphatab-row vs
     // .tab-only-chords-fallback per mode, and the fallback's own
-    // flex-wrap handles its jazz-mode wrapping — neither needs this JS
-    // reflow pass at all.
-    staffLineOriginals = [...sheet.querySelectorAll('.grid.spans-full')]
-      .filter(grid => !grid.querySelector(':scope > .alphatab-row'))
-      .map(grid => ({
-      grid,
-      lines: [...grid.querySelectorAll(':scope > .staff-line')].map(line => {
-        const barEls = [...line.querySelectorAll(':scope > .bar')];
-        // The densest bar in this row sets its own needed min-width — see
-        // the matching CSS comment on .bar's min-width formula, which this
-        // mirrors exactly (max(2.6em, slots * 0.9em)) so a busier bar (more
-        // mid-bar chord changes, more --slots) never gets squeezed by a
-        // budget sized for a plainer one.
-        const maxSlots = barEls.reduce((m, b) => Math.max(m, parseInt(b.style.getPropertyValue('--slots'), 10) || 3), 3);
-        return {
-          cap: parseInt(line.style.getPropertyValue('--cap'), 10) || 4,
-          hasClef: !!line.querySelector(':scope > .staff-timesig-cell'),
-          maxSlots,
-          template: line,
-        };
-      }),
-    }));
+    // flex-wrap handles its jazz-mode wrapping.
+    //
+    // A grid whose riff covers only some of its bars (a 4-bar riff over a
+    // 12-bar blues: attachTabRiffs cuts its rows at the riff's ends) has
+    // chord-grid rows beside its alphaTab row: each run of them is
+    // reflowed on its own, in place — a comment node marks where it
+    // starts (staffRunMarker), and only the rows after it are replaced
+    // (placeStaffLines), the alphaTab row and its fallback left alone.
+    staffLineOriginals = [];
+    for (const grid of sheet.querySelectorAll('.grid.spans-full')) {
+      const isRow = (el) => el.classList.contains('staff-line') && !el.classList.contains('alphatab-row');
+      if (!grid.querySelector(':scope > .alphatab-row')) {
+        staffLineOriginals.push({ grid, marker: null, lines: [...grid.querySelectorAll(':scope > .staff-line')].map(captureStaffLine) });
+        continue;
+      }
+      let run = null;
+      for (const el of [...grid.children]) {
+        if (!isRow(el)) { run = null; continue; }
+        if (!run) {
+          let marker = el.previousSibling;
+          if (!(marker && marker.nodeType === Node.COMMENT_NODE && marker.data === staffRunMarker)) {
+            marker = document.createComment(staffRunMarker);
+            el.before(marker);
+          }
+          run = { grid, marker, lines: [] };
+          staffLineOriginals.push(run);
+        }
+        run.lines.push(captureStaffLine(el));
+      }
+    }
+  }
+  function captureStaffLine(line) {
+    const barEls = [...line.querySelectorAll(':scope > .bar')];
+    // The densest bar in this row sets its own needed min-width — see
+    // the matching CSS comment on .bar's min-width formula, which this
+    // mirrors exactly (max(2.6em, slots * 0.9em)) so a busier bar (more
+    // mid-bar chord changes, more --slots) never gets squeezed by a
+    // budget sized for a plainer one.
+    const maxSlots = barEls.reduce((m, b) => Math.max(m, parseInt(b.style.getPropertyValue('--slots'), 10) || 3), 3);
+    return {
+      cap: parseInt(line.style.getPropertyValue('--cap'), 10) || 4,
+      hasClef: !!line.querySelector(':scope > .staff-timesig-cell'),
+      maxSlots,
+      template: line,
+    };
+  }
+  // placeStaffLines puts a reflowed run of rows in place: the whole grid,
+  // or, in a grid with an alphaTab row, the rows after its run's marker
+  // up to the next non-row (the alphaTab row, its fallback, the next
+  // run's marker) — whatever rows the last pass, or
+  // resolveLabelCollisions' splits, left there.
+  function placeStaffLines(entry, lines) {
+    if (!entry.marker) { entry.grid.replaceChildren(...lines); return; }
+    let el = entry.marker.nextSibling;
+    while (el) {
+      const next = el.nextSibling;
+      if (el.nodeType === Node.ELEMENT_NODE) {
+        if (!el.classList.contains('staff-line') || el.classList.contains('alphatab-row')) break;
+        el.remove();
+      } else if (el.nodeType === Node.COMMENT_NODE) {
+        break;
+      }
+      el = next;
+    }
+    entry.marker.after(...lines);
   }
   // Song Map's own pristine original — captured the same way as
   // staffLineOriginals, but flattened across every server-rendered
@@ -196,7 +235,8 @@ const ICONS = {
     // (.map-score, reflowMapLines above); the per-section grids stay in
     // the DOM there but hidden (display:none), so their clientWidth is 0
     // and the loop below skips them on its own.
-    for (const { grid, lines: originalLines } of staffLineOriginals) {
+    for (const entry of staffLineOriginals) {
+      const { grid, lines: originalLines } = entry;
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;
       if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
@@ -232,7 +272,7 @@ const ICONS = {
       // short row of its own.
       const PHRASE = 4;
       const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
-      if (!allBars.length) { grid.replaceChildren(...originalLines.map(l => l.template.cloneNode(true))); continue; }
+      if (!allBars.length) { placeStaffLines(entry, originalLines.map(l => l.template.cloneNode(true))); continue; }
       const hasClef = originalLines[0].hasClef;
       const clefEl = hasClef ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
       const maxSlots = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
@@ -279,7 +319,7 @@ const ICONS = {
         for (const bar of chunk) line.appendChild(bar.cloneNode(true));
         newLines.push(line);
       });
-      grid.replaceChildren(...newLines);
+      placeStaffLines(entry, newLines);
       resolveLabelCollisions(grid);
     }
   }
@@ -309,7 +349,7 @@ const ICONS = {
   function resolveLabelCollisions(grid) {
     let guard = 0;
     while (guard++ < 40) {
-      const line = [...grid.querySelectorAll(':scope > .staff-line')].find(lineLabelsCollide);
+      const line = [...grid.querySelectorAll(':scope > .staff-line:not(.alphatab-row)')].find(lineLabelsCollide);
       if (!line) return;
       const barEls = [...line.querySelectorAll(':scope > .bar')];
       const curCap = parseInt(line.style.getPropertyValue('--cap'), 10) || barEls.length;

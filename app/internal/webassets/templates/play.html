@@ -31,23 +31,7 @@
      that floor (reflowStaffLines(), song.js, only ever narrows rows
      down TO it) — each one just collided with its neighbor instead
      of the row ever being flagged as needing to wrap further. */}}
-<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Lead}} bar-lead{{end}}{{if .Tab}} has-tab{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}"{{with .PlayedAttr}} data-played="{{.}}"{{end}} style="--slots: {{len .Beats}}">
-  {{/* The bar's "score:" riff, if this bar has one. When its whole
-       display row is fully covered (.TabOnly), the riff REPLACES the
-       normal staff/slash content below — real tab notation, not an
-       annotation on top of a staff (see viewerTabBar's doc comment);
-       chord names stay in the same position above it. Otherwise (a row
-       only partly covered) it's a smaller overlay above that one bar's
-       still-normal content — "optionally we have scores content for
-       some of the bars." */}}
-  {{if and .Tab (not .TabOnly)}}
-  <span class="tab-block" style="--strings: {{.Tab.Strings}}">
-    {{range $i := seq .Tab.Strings}}<span class="tab-line" style="--string: {{$i}}"></span>{{end}}
-    <span class="tab-beats">
-      {{range .Tab.Beats}}<span class="tab-beat">{{range .Notes}}<span class="tab-fret" style="--string: {{.String}}">{{.Fret}}</span>{{end}}</span>{{end}}
-    </span>
-  </span>
-  {{end}}
+<span class="bar{{if .Open}} bar-open{{end}}{{if .Close}} bar-close{{end}}{{if .IsRepeat}} bar-pct{{end}}{{if .Volta}} has-volta{{end}}{{if and .Volta (not .VoltaFirst)}} volta-continues{{end}}{{if .Placeholder}} bar-placeholder{{end}}{{if .Pickup}} bar-pickup{{end}}{{if .Lead}} bar-lead{{end}}{{if .TabOnly}} tab-only{{end}}" data-bar="{{.Index}}" data-global-bar="{{.GlobalBar}}"{{with .PlayedAttr}} data-played="{{.}}"{{end}} style="--slots: {{len .Beats}}">
   {{/* MapAnnotate/MapMark/MapLabel are only ever set on a cell built by
        buildMapLines (Song Map's continuous score) — zero-value (no-op)
        for every other mode's ordinary per-section rendering. A CHILD of
@@ -60,44 +44,12 @@
   {{if .MapAnnotate}}<span class="map-sec-badge">{{if .MapMark}}<span class="rehearsal-mark">{{.MapMark}}</span>{{end}}{{label .MapLabel}}</span>{{end}}
   {{if .Open}}<span class="repeat-dots" title="{{t "repeat starts"}}"></span>{{end}}
   {{if .Volta}}<span class="volta">{{if .VoltaFirst}}<span class="volta-num">{{.Volta}}</span>{{end}}</span>{{end}}
-  <span class="bar-body{{if .TabOnly}} bar-body-tab-only{{end}}"{{if .TabOnly}} style="--strings: {{.Tab.Strings}}"{{end}}>
-    {{if .TabOnly}}
-      {{/* Chord names ride above this row exactly like a normal bar's
-           (.chord-label, floating via CSS over this same beat-slot
-           row) — just with no slash marks underneath them, since the
-           tab staff below IS the notation now, not an annotation on
-           top of one. */}}
-      <span class="tab-only-chords">
-        {{range .Beats}}<span class="beat-slot tab-only-slot{{if .IsTie}} tie{{end}}" style="--span: {{.Span}}">{{if not .IsTie}}<span class="chord-label"><span class="chord-std">{{chord .Text}}</span></span>{{end}}</span>{{end}}
-      </span>
-      <span class="tab-block tab-replaces-staff" style="--strings: {{.Tab.Strings}}">
-        {{range $i := seq .Tab.Strings}}<span class="tab-line" style="--string: {{$i}}"></span>{{end}}
-        {{/* Real engraving spaces notes proportionally to duration (a
-             half note gets twice a quarter's room), not in uniform
-             slots — reviewed against real LilyPond tab output.
-             grid-template-columns (one "<weight>fr" term per beat, from
-             .Tab.GridCols) gives exact proportional widths; beam bars
-             (below) then span whole-number grid-column ranges to
-             connect the stems of consecutive eighth/sixteenth notes. */}}
-        <span class="tab-beats" style="grid-template-columns: {{.Tab.GridCols}}">
-          {{range .Tab.Beats}}<span class="tab-beat">
-            {{range .Notes}}<span class="tab-fret" style="--string: {{.String}}">{{.Fret}}</span>{{end}}
-            {{/* Rhythm mark under the fret numbers — the crucial "how
-                 long does this beat last" information real tab/
-                 Guitar-Pro/LilyPond \tabFullNotation notation always
-                 carries: a stem for every sounding note, individual
-                 hooked flags ONLY for an unbeamed eighth/sixteenth (a
-                 beamed run draws one shared bar instead — see below), a
-                 dot for a dotted duration, a rest glyph instead of a
-                 stem for a rest beat. */}}
-            {{if .Rest}}<span class="tab-rest" aria-hidden="true"></span>
-            {{else}}<span class="tab-stem{{if .Dotted}} dotted{{end}}" aria-hidden="true">{{if not .Beamed}}{{range seq .Flags}}<span class="tab-flag"></span>{{end}}{{end}}</span>
-            {{end}}
-          </span>{{end}}
-          {{range .Tab.Beams}}<span class="tab-beam" aria-hidden="true" style="grid-column: {{.StartCol}} / {{.EndCol}}; --levels: {{.Levels}}">{{range seq .Levels}}<span class="tab-beam-bar"></span>{{end}}</span>{{end}}
-        </span>
-      </span>
-    {{else if .IsRepeat}}
+  {{/* A bar of a riff-covered row (.TabOnly) is drawn here only by the
+       Song Map — the Song view draws its whole row as tab, by alphaTab
+       (.alphatab-row) — and reads there like any other bar: chords over
+       the staff. */}}
+  <span class="bar-body">
+    {{if .IsRepeat}}
       <span class="simile-mark{{if eq .RepeatCount 2}} simile-wide{{end}}" title="{{if eq .RepeatCount 2}}{{t "repeat previous 2 bars"}}{{else}}{{t "repeat previous bar"}}{{end}}">
         <span class="simile-slash" aria-hidden="true"></span>
         <span class="simile-dot simile-dot-a" aria-hidden="true"></span>
@@ -334,11 +286,10 @@
     <div class="staff-line alphatab-row" style="--cap: {{.Capacity}}" data-tex="{{.AlphaTex}}"{{if .Systems}} data-systems="{{.Systems}}"{{end}}{{with .Measures}} data-first-bar="{{(index . 0).GlobalBar}}"{{end}} data-played-bars="{{.PlayedBars}}" data-bar-shift="{{.BarShift}}"{{with .Instrument}} data-instrument="{{.}}"{{end}}></div>
     {{/* Jazz chart / Song map / Lyrics only never show the real tab
          notation (CSS hides .alphatab-row outside "normal" mode) — but
-         a fully riff-covered line has no OTHER markup at all otherwise,
-         since the per-bar chart-bar template (which is where a PARTLY
-         tab-covered bar's own .tab-only-chords fallback already lives)
-         never runs for a line that skipped straight to the single
-         alphaTab mount above. Confirmed live: a GP-imported song (one
+         a riff-covered line has no OTHER markup at all otherwise,
+         since the per-bar chart-bar template never runs for a line
+         that skipped straight to the single alphaTab mount above.
+         Confirmed live: a GP-imported song (one
          giant tab-only section, the common case) showed a completely
          empty Jazz chart — not a broken render, nothing to render at
          all. This repeats that same chord-label-only fallback at the
