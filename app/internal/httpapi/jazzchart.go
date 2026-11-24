@@ -101,6 +101,8 @@ type jzChordView struct {
 	// The chord spoken (aria-label): the root, the quality, the bass —
 	// apart so that the page's transpose can say the moved root and bass.
 	SayRoot, SayQ, SayBass []jzWord
+
+	sym string // the chord as written, for the PDF (jazz_pdf.go)
 }
 
 // buildJazzChart builds the Jazz chart for sg, whose sections were built
@@ -836,6 +838,7 @@ func jzFillContent(v *jzCellView, c jzCell, measures map[int][]song.Measure, cel
 			Title:   title,
 			Q:       p.Quality,
 			SayRoot: sayRoot, SayQ: sayQ, SayBass: sayBass,
+			sym: sym,
 		})
 	}
 }
@@ -882,14 +885,20 @@ func jzNoteHTML(name, class string) string {
 	return b.String()
 }
 
-// jzExtHTML writes an extension ("7b9", "sus4", "#11"), its "b"/"#"
-// before a number as music glyphs.
-func jzExtHTML(ext string) string {
-	var b strings.Builder
+// jzExtRun is a piece of an extension: text, or an accidental glyph.
+type jzExtRun struct {
+	s   string
+	acc bool
+}
+
+// jzExtRuns cuts an extension ("7b9", "sus4", "#11") into its text and
+// its "b"/"#" before a number, those as music glyphs.
+func jzExtRuns(ext string) []jzExtRun {
+	var out []jzExtRun
 	var buf strings.Builder
 	flush := func() {
 		if buf.Len() > 0 {
-			b.WriteString(html.EscapeString(buf.String()))
+			out = append(out, jzExtRun{s: buf.String()})
 			buf.Reset()
 		}
 	}
@@ -906,13 +915,13 @@ func jzExtHTML(ext string) string {
 			if c == '#' {
 				g = jzGlyphSharp
 			}
-			b.WriteString(`<span class="jz-acc2">` + g + `</span>`)
+			out = append(out, jzExtRun{s: g, acc: true})
 			continue
 		}
 		buf.WriteByte(c)
 	}
 	flush()
-	return b.String()
+	return out
 }
 
 // jzQual is a chord's quality as the chart writes it: its signs, in
@@ -1079,6 +1088,51 @@ func jzQualWords(q jzQual) []jzWord {
 	return out
 }
 
+// jzRunKind is how a piece of a chord's quality is drawn.
+type jzRunKind int
+
+const (
+	jzRunText  jzRunKind = iota // the extension's text, hand-lettered
+	jzRunSign                   // ø ° + △ in the music font (.jz-g)
+	jzRunMinor                  // the minor sign (.jz-g.jz-min)
+	jzRunAcc                    // ♭/♯ in the extension (.jz-acc2)
+)
+
+type jzQualRun struct {
+	s    string
+	kind jzRunKind
+}
+
+// jzQualRuns is a quality as the chart writes it, in order: the
+// half-diminished, diminished or augmented sign, the minor sign, the
+// major-7 triangle, then the extension — what the page (jzChordHTML)
+// and the PDF (jazz_pdf.go) both draw.
+func jzQualRuns(q jzQual) []jzQualRun {
+	var out []jzQualRun
+	switch {
+	case q.halfDim:
+		out = append(out, jzQualRun{jzGlyphHalfDim, jzRunSign})
+	case q.dim:
+		out = append(out, jzQualRun{jzGlyphDim, jzRunSign})
+	case q.aug:
+		out = append(out, jzQualRun{jzGlyphAug, jzRunSign})
+	}
+	if q.minor {
+		out = append(out, jzQualRun{jzGlyphMin, jzRunMinor})
+	}
+	if q.maj {
+		out = append(out, jzQualRun{jzGlyphMaj, jzRunSign})
+	}
+	for _, r := range jzExtRuns(q.ext) {
+		k := jzRunText
+		if r.acc {
+			k = jzRunAcc
+		}
+		out = append(out, jzQualRun{r.s, k})
+	}
+	return out
+}
+
 // jzChordHTML draws one chord symbol the fake-book way: a big root, its
 // quality raised (− △ ø ° +, then the extension), a slash bass smaller
 // and below the quality.
@@ -1096,22 +1150,18 @@ func jzChordHTML(sym string) template.HTML {
 	b.WriteString(`<span class="jz-ch">`)
 	b.WriteString(jzNoteHTML(p.Root, "jz-root"))
 	b.WriteString(`<span class="jz-qb"><span class="jz-q">`)
-	q := jzQuality(p.Quality)
-	switch {
-	case q.halfDim:
-		b.WriteString(`<span class="jz-g">` + jzGlyphHalfDim + `</span>`)
-	case q.dim:
-		b.WriteString(`<span class="jz-g">` + jzGlyphDim + `</span>`)
-	case q.aug:
-		b.WriteString(`<span class="jz-g">` + jzGlyphAug + `</span>`)
+	for _, r := range jzQualRuns(jzQuality(p.Quality)) {
+		switch r.kind {
+		case jzRunSign:
+			b.WriteString(`<span class="jz-g">` + r.s + `</span>`)
+		case jzRunMinor:
+			b.WriteString(`<span class="jz-g jz-min">` + r.s + `</span>`)
+		case jzRunAcc:
+			b.WriteString(`<span class="jz-acc2">` + r.s + `</span>`)
+		default:
+			b.WriteString(html.EscapeString(r.s))
+		}
 	}
-	if q.minor {
-		b.WriteString(`<span class="jz-g jz-min">` + jzGlyphMin + `</span>`)
-	}
-	if q.maj {
-		b.WriteString(`<span class="jz-g">` + jzGlyphMaj + `</span>`)
-	}
-	b.WriteString(jzExtHTML(q.ext))
 	b.WriteString(`</span>`)
 	if p.Bass != "" {
 		b.WriteString(`<span class="jz-b">/` + jzNoteHTML(p.Bass, "jz-root jz-broot") + `</span>`)

@@ -12,7 +12,7 @@ type Mode string
 
 const (
 	ModeDefault Mode = ""       // chords + lyrics — every existing caller's implicit mode today
-	ModeJazz    Mode = "jazz"   // chords only, denser — the print analogue of the web Jazz chart view
+	ModeJazz    Mode = "jazz"   // the web Jazz chart itself, on A4 (jazz.go, SongRef.Jazz)
 	ModeMap     Mode = "map"    // section order only, no chords, no lyrics — a one-page "roadmap"
 	ModeLyrics  Mode = "lyrics" // lyrics + section labels, no chord chart — for the singer
 )
@@ -70,6 +70,9 @@ type SongRef struct {
 	Stem  string
 	Body  string
 	Note  string // the setlist entry's own gig note (setlist.Entry.Note), e.g. "capo 2, watch the bridge tempo" — printed in the contents/running-order table, not part of the song's own chart
+	// Jazz is the song's Jazz chart as the web builds it, for a ModeJazz
+	// export; nil there: the song's header alone (jazzHeaderOnly).
+	Jazz *JazzChart
 }
 
 // FrontMatter controls the single cover page rendered before the
