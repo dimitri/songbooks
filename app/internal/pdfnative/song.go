@@ -120,9 +120,28 @@ func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize 
 		}
 	}
 	firstStaffDrawn := false
+	// The song's pickup bar, when its first grid opens with one, or its
+	// "lead:" bars: on the first row on top of its 4-bar phrase, as the
+	// web chart has it.
+	pickupSec := tab.FirstGridSection(s)
+	if s.LeadIn() == 0 && !tab.StartsWithPickup(s, pickupSec) {
+		pickupSec = -1
+	}
 	marks := map[string]string{}
 	next := 'A'
 	for si, sec := range s.Sections {
+		isFirst := !firstStaffDrawn && !sec.Repeat && len(sec.Measures) > 0 && mode != ModeLyrics
+		// Keep a section together in one column when it fits in one (the
+		// web Song view's break-inside: avoid): measure it first, and if
+		// it would straddle the bottom of this column, start it at the
+		// top of the next one instead. A section taller than a whole
+		// column still flows across the break.
+		if c.cols > 1 {
+			h := c.sectionHeight(sec, scores[si], bodySize, mode, hideNotes, globalBeats, isFirst, si == pickupSec, tempo, timeNum, timeDen)
+			if c.y+h > c.bottom && h <= c.bottom-c.top {
+				c.ensureSpace(h)
+			}
+		}
 		if sec.Label != "" {
 			mark, ok := marks[sec.Label]
 			if !ok {
@@ -136,12 +155,47 @@ func renderSongBody(c *canvas, s *song.Song, scores map[int]*tab.Riff, bodySize 
 			continue // mirrors v2/lib/song.typ: a (repeat) occurrence prints
 			// only its label, no measures/lyrics of its own.
 		}
-		isFirst := !firstStaffDrawn && len(sec.Measures) > 0 && mode != ModeLyrics
-		c.measureSection(sec, scores[si], bodySize, mode, hideNotes, globalBeats, isFirst, tempo, timeNum, timeDen)
+		c.measureSection(sec, scores[si], bodySize, mode, hideNotes, globalBeats, isFirst, si == pickupSec, tempo, timeNum, timeDen)
 		if isFirst {
 			firstStaffDrawn = true
 		}
 	}
+}
+
+// sectionHeight returns how tall one section (its rehearsal mark plus
+// whatever measureSection draws for it) lays out at the current column
+// width, without drawing anything or moving c's own cursor.
+func (c *canvas) sectionHeight(sec song.Section, riff *tab.Riff, bodySize float64, mode Mode, hideNotes bool, globalBeats int, firstStaff, pickup bool, tempo, timeNum, timeDen string) float64 {
+	m := &canvas{doc: c.doc, draw: false, th: c.th, cols: 1, colX: []float64{c.curX()}, colW: c.colW, top: 0, bottom: 1e9, pages: 1}
+	if sec.Label != "" {
+		m.sectionTag(sec.Label, "A", bodySize*0.78)
+	}
+	if !sec.Repeat {
+		m.measureSection(sec, riff, bodySize, mode, hideNotes, globalBeats, firstStaff, pickup, tempo, timeNum, timeDen)
+	}
+	return m.y
+}
+
+// songHasLyrics reports whether any section of s carries a lyric line.
+func songHasLyrics(s *song.Song) bool {
+	for _, sec := range s.Sections {
+		if len(sec.Lyrics) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// songCols is the column count s actually prints in: cols (Options.Cols,
+// normally 2), except that a Song-layout chart with no lyrics anywhere
+// takes one full-width column — the same rule as the web Song view
+// (#sheet:not(:has(.lyrics)) { column-count: 1 }): a run of staff rows
+// with no words has nothing proportioned for a half-width column.
+func songCols(s *song.Song, mode Mode, cols int) int {
+	if cols > 1 && mode == ModeDefault && !songHasLyrics(s) {
+		return 1
+	}
+	return cols
 }
 
 // fitSongToPage picks the largest candidateSizes entry that lays the whole
@@ -160,16 +214,34 @@ func fitSongToPage(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th 
 	return candidateSizes[len(candidateSizes)-1], true
 }
 
+// withLeadDrawn is s with its "lead:" bars (song.LeadMeasures, in no
+// section) written ahead of its first grid's bars, where the chart draws
+// them; the song itself is left untouched.
+func withLeadDrawn(s *song.Song) *song.Song {
+	lead := s.LeadMeasures()
+	si := tab.FirstGridSection(s)
+	if len(lead) == 0 || si < 0 {
+		return s
+	}
+	cp := *s
+	cp.Sections = append([]song.Section(nil), s.Sections...)
+	cp.Sections[si].Measures = append(lead, s.Sections[si].Measures...)
+	return &cp
+}
+
 // renderSong draws one full song, starting a fresh page, at whatever size
 // fitSongToPage determines it needs (one page if at all possible, two as a
 // last resort for a genuinely long chart). ModeMap is handled separately
 // (renderSongMap) — it's not a smaller chart, it's a different page. cols
-// is normally 2; a setlist/gig export passes 1 (see Options.Columns)
-// so the printed chart is legible from a few feet away.
+// is normally 2 (sections flow down two columns, like the web Song view);
+// ?cols=1 on an export link asks for one full-width column (see
+// Options.Columns), and songCols drops a lyric-less chart to one column.
 func renderSong(doc *gopdf.GoPdf, s *song.Song, scores map[int]*tab.Riff, th theme, mode Mode, hideNotes bool, cols int) error {
 	if mode == ModeMap {
 		return renderSongMap(doc, s, th, hideNotes)
 	}
+	s = withLeadDrawn(s)
+	cols = songCols(s, mode, cols)
 	size, allowPage2 := fitSongToPage(doc, s, scores, th, mode, hideNotes, cols)
 	doc.AddPage()
 	paintPageBackground(doc, th)

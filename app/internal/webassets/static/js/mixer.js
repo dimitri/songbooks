@@ -118,9 +118,12 @@
   // pads the pickup with leading rests); it only changes the numbering:
   // full bars count from 1, the pickup is bar 0 and unlabeled.
   const pickup = () => (data && data.pickupBeats > 0 ? data.pickupBeats : 0);
+  // The bars before bar 1: the song's "lead:" bars (the server's leadIn),
+  // else the score's pickup.
+  const leadIn = () => (data && data.leadIn > 0 ? data.leadIn : pickup() ? 1 : 0);
   const barNomSec = () => nominalBarSec();
   const beatsIn = () => beatsPerBar();
-  const barLabel = (b) => String(pickup() ? b : b + 1);
+  const barLabel = (b) => String(b - leadIn() + 1);
   const barStartTick = (b) => Math.max(0, b) * ticksPerBar();
   const tickAtBar = (pos) => pos * ticksPerBar();
   const barAtTick = (tick) => tick / ticksPerBar();
@@ -379,10 +382,16 @@
       tr.notation = notationOf(tr.instrument);
       const tt = window.t; // t is the track here
       const how = tr.instrument === 'bass' ? tt('how you read bass parts, on every song (just for you)') : tt('how you read guitar parts, on every song (just for you)');
-      const pick = t.drums ? '' : `<div class="daw-hdr-row"><select class="daw-notation" aria-label="${escapeHTML(tt('notation'))}" title="${escapeHTML(how)}">
+      const pick = t.drums ? '' : `<div class="daw-hdr-row daw-hdr-picks"><select class="daw-notation" aria-label="${escapeHTML(tt('notation'))}" title="${escapeHTML(how)}">
           <option value="tab">${escapeHTML(tt('Tab'))}</option><option value="staff">${escapeHTML(tt('notation|Staff'))}</option><option value="both">${escapeHTML(tt('Staff + tab'))}</option></select></div>`;
-      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, `${escapeHTML(tt(GM[t.program] || 'MIDI'))} · ${escapeHTML(tt('score (MIDI)'))}`, pick));
+      // A track of the song's Guitar Pro file: its instrument can be
+      // chosen here (gp-instruments.js); the picker shows it.
+      const choosable = !t.drums && t.fileTrack >= 0 && !!window.GPInstruments;
+      const sub = choosable ? escapeHTML(tt('score (MIDI)')) : `${escapeHTML(tt(GM[t.program] || 'MIDI'))} · ${escapeHTML(tt('score (MIDI)'))}`;
+      const row = addRow('midi' + i, t.drums ? 96 : 112, trackHeader(tr, sub, pick));
       tr.hdr = row.hdr; tr.lane = row.lane;
+      tr.fileTrack = choosable ? t.fileTrack : -1;
+      if (choosable) row.hdr.querySelector('.daw-hdr-picks')?.appendChild(GPInstruments.pickerFor(variantId, t.fileTrack, { className: 'daw-instrument', onError: (e) => setStatus(e.message) }));
       tracks.push(tr);
       wireTrackHeader(tr);
       const sel = tr.hdr.querySelector('.daw-notation');
@@ -425,6 +434,8 @@
     let sync = t('not aligned yet');
     if (meta && meta.barSyncPoints && meta.barSyncPoints.length) sync = tn(meta.barSyncPoints.length, 'aligned · %d bar sync point', 'aligned · %d bar sync points');
     else if (meta && meta.markers && meta.markers.length) sync = tn(meta.markers.length, 'aligned · %d section marker', 'aligned · %d section markers');
+    // Placed by Auto-align or the import wizard, not checked by ear yet.
+    if (meta && meta.syncOrigin === 'auto') sync += ' · ' + t('sync|estimated');
     return `${CAT_LABEL[refCat] || refCat}${dur} · ${sync}`;
   }
 
@@ -456,7 +467,7 @@
     for (let b = 0; b <= n; b++) {
       const x = xOf(barTimes[b]);
       frag.appendChild(tick(x, 'is-bar'));
-      if (b < n && b % labelEvery === 0 && !(b === 0 && pickup())) frag.appendChild(label(x, barLabel(b)));
+      if (b < n && (data.leadIn > 0 ? b >= data.leadIn && (b - data.leadIn) % labelEvery === 0 : b % labelEvery === 0 && !(b === 0 && pickup()))) frag.appendChild(label(x, barLabel(b)));
       if (b < n && avgBarPx / beatsPerBar() >= 9) {
         for (let k = 1; k < beatsIn(b); k++) frag.appendChild(tick(xOf(barTimes[b] + k / beatsIn(b) * (barTimes[b + 1] - barTimes[b])), 'is-beat'));
       }
@@ -516,11 +527,11 @@
         const grip = document.createElement('span');
         grip.className = 'daw-section-grip';
         grip.title = t('drag to move where %s starts — everything after follows (⌥: only this boundary, ⇧: whole grid)', s.label);
-        grip.addEventListener('mousedown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
+        grip.addEventListener('pointerdown', (e) => startAnchorDrag(e, anchorList().find((x) => x.i === i)));
         grip.addEventListener('click', (e) => e.stopPropagation());
         el.appendChild(grip);
       }
-      if (canEdit) el.addEventListener('mousedown', (e) => {
+      if (canEdit) el.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.daw-section-grip')) return;
         startAnchorDrag(e, anchorList().find((x) => x.i === i), 5);
       });
@@ -530,7 +541,9 @@
         selected = selected === i && !aligning ? -1 : i;
         renderSections();
         renderRuler();
-        if (selected >= 0) seek(t0);
+        // Aligning, a section is picked to place it while the music
+        // plays on: no jump (M then sets it at the playhead).
+        if (selected >= 0 && !aligning) seek(t0);
         updateAlignStatus();
       });
       lane.appendChild(el);
@@ -678,6 +691,10 @@
       playerApi.changeTrackTranspositionPitch(playerApi.score.tracks, n);
     }
     if (!n && !keyGraph) return;
+    // No context at load for a key kept from the song page: made when the
+    // Mixer plays (a click, play() below), never outside one, where Safari
+    // would leave it suspended and the Mixer's parts routed into it silent.
+    if (!keyGraph && !playing) return;
     if (!keyGraph) {
       const ctx = clicker ? clicker._ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
       const bus = ctx.createGain();
@@ -746,7 +763,9 @@
         const bt = barTimes[b] + (k / (pulses * subs)) * dur;
         if (bt < from || bt >= until) continue;
         const soft = k % subs !== 0;
-        clicker._click(ctx.currentTime + (bt - t) / speed + keyDelay(), k === 0, soft, tr.volume);
+        // The pitch shifter's latency isn't known until it has loaded.
+        const when = ctx.currentTime + (bt - t) / speed + (keyDelay() || 0);
+        if (isFinite(when)) clicker._click(when, k === 0, soft, tr.volume);
       }
     }
     clicksUntil = until;
@@ -1004,11 +1023,30 @@
       let score;
       if (data.gpScoreJson) {
         score = alphaTab.model.JsonConverter.jsonToScore(data.gpScoreJson, settings);
+        // The chords over the file's bars (gp-chords.js): its own, else
+        // the chart's (the file is unrolled into the chart's bars here).
+        if (laneChords(score, tr.index)) {
+          settings.notation.elements.set(alphaTab.NotationElement.EffectChordNames, true);
+          GPChords.style(settings, alphaTab, 13);
+        }
       } else {
         const imp = new alphaTab.importer.AlphaTexImporter();
         imp.initFromString(data.alphaTex, settings);
         score = imp.readScore();
-        score.tracks.forEach((st, i) => { const p = data.tracks[i] && data.tracks[i].program; if (p >= 0) st.playbackInfo.program = p; });
+        // The file's instrument (applyGPInstruments): alphaTab plays the
+        // first beat's Instrument automation, which the alphaTeX wrote from
+        // the name's guess, so playbackInfo alone isn't heard.
+        score.tracks.forEach((st, i) => {
+          const p = data.tracks[i] && data.tracks[i].program;
+          if (!(p >= 0)) return;
+          if (window.GPInstruments) GPInstruments.setProgram(st, p); else st.playbackInfo.program = p;
+        });
+      }
+      let soundFontURL = null;
+      if (isPlayer) {
+        applyInstruments(score);
+        // The score's own subset of the soundfont (gp-soundfont.js).
+        if (window.GPSoundFont) soundFontURL = GPSoundFont.player(settings, score);
       }
       setStaffNotation(score, tr);
       applyBarWidths(score, target);
@@ -1027,13 +1065,60 @@
       api.postRenderFinished.on(() => fitNotation(tr));
       if (isPlayer) {
         playerApi = api;
-        api.playerReady.on(() => { synthReady = true; applyMix(); if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
+        if (soundFontURL) GPSoundFont.attach(api, soundFontURL);
+        api.playerReady.on(() => { synthReady = true; applyMix(); if (resumeAfterMidi) { resumeAfterMidi = false; play(); } if (semitones && api.score && typeof api.changeTrackTranspositionPitch === 'function') api.changeTrackTranspositionPitch(api.score.tracks, semitones); });
         api.playerStateChanged.on((e) => { synthPlaying = e.state === 1; });
         api.playerFinished.on(() => { if (!hasAudio()) pause(); });
       }
       api.renderScore(score, [tr.index]);
     }
   }
+
+  // A Guitar Pro file's lane shows the chords over its bars: the file's own
+  // chord symbols, else the chart's, bar p of the lane being the chart's
+  // bar p. True when it has any to show (drums never do).
+  function laneChords(score, index) {
+    const tr = score.tracks[index];
+    if (!window.GPChords || !tr || tr.staves[0].isPercussion) return false;
+    if (GPChords.hasOwn(score)) return true;
+    const byBar = GPChords.byChartBar(data.sections);
+    const chords = new Map();
+    byBar.forEach((c, b) => { if (c) chords.set(b, c); });
+    return GPChords.put(score, index, chords, (name) => {
+      const c = new alphaTab.model.Chord();
+      c.name = name;
+      c.showDiagram = false;
+      c.showFingering = false;
+      return c;
+    }) > 0;
+  }
+
+  // ---- Instruments (gp-instruments.js) ------------------------------------
+  // The score plays each file track with the instrument chosen for the
+  // song (by its editors, or by this person); a new choice reloads the
+  // synthesizer's MIDI (and its soundfont, when the new instrument isn't
+  // in it: gp-soundfont.js), playing on from where it was.
+  let resumeAfterMidi = false;
+  function applyInstruments(score) {
+    if (!window.GPInstruments) return false;
+    let changed = false;
+    (data.tracks || []).forEach((t, i) => {
+      if (t.drums || !(t.fileTrack >= 0) || !score.tracks[i]) return;
+      if (GPInstruments.setProgram(score.tracks[i], GPInstruments.programFor(variantId, t.fileTrack))) changed = true;
+    });
+    return changed;
+  }
+  document.addEventListener('songbooks:gp-instrument', async (e) => {
+    if (e.detail.variantId !== String(variantId) || !playerApi || !playerApi.score) return;
+    if (!applyInstruments(playerApi.score)) return;
+    // With no recording the synthesizer is the clock: it stops to reload.
+    if (playing && !hasAudio()) { pause(); resumeAfterMidi = true; }
+    synthReady = false;
+    if (window.GPSoundFont) {
+      try { await GPSoundFont.update(playerApi, playerApi.score); } catch (err) { /* the one it has */ }
+    }
+    playerApi.loadMidiForScore();
+  });
 
   // Line the rendered staff up with the lane: bar 0's own x inside the
   // SVG goes to barTimes[0] on the timeline; crop to the staff system
@@ -1134,7 +1219,9 @@
     clicksUntil = null;
     playStartPos = position;
     playBtn.innerHTML = ICON_PAUSE;
-    if (keyGraph && keyGraph.ctx.state === 'suspended') keyGraph.ctx.resume().catch(() => {});
+    // The key's context and routing, made here in the click (applyKey).
+    if (semitones && !keyGraph) applyKey(semitones);
+    if (keyGraph && keyGraph.ctx.state !== 'running') keyGraph.ctx.resume().catch(() => {});
     if (hasAudio()) {
       audio.playbackRate = speed;
       audio.preservesPitch = true;
@@ -1249,7 +1336,7 @@
   });
 
   function wireLaneSeeking() {
-    contentEl.addEventListener('mousedown', (e) => {
+    contentEl.addEventListener('pointerdown', (e) => {
       if (rows.audio && rows.audio.lane.contains(e.target)) startClipDrag(e);
     });
     contentEl.addEventListener('click', (e) => {
@@ -1363,7 +1450,7 @@
         ? t('%s starts at %s — drag to align', a.label, fmtTime(barTimes[a.bar]))
         : t('%s starts at %s (estimated from tempo) — drag to align', a.label, fmtTime(barTimes[a.bar]));
       el.innerHTML = `<span class="daw-anchor-flag">${escapeHTML(a.label)}</span>`;
-      el.addEventListener('mousedown', (e) => startAnchorDrag(e, a));
+      el.addEventListener('pointerdown', (e) => startAnchorDrag(e, a));
       lane.appendChild(el);
     }
   }
@@ -1412,8 +1499,10 @@
     if (!aligning) alignBtn.click();
   }
 
+  // Pointer events: a mouse, a pen or a finger. A finger only drags while
+  // aligning; otherwise it scrolls the timeline.
   function startAnchorDrag(e, a, threshold = 0) {
-    if (!canEdit || !hasAudio() || e.button !== 0) return;
+    if (!canEdit || !hasAudio() || e.button !== 0 || (e.pointerType === 'touch' && !aligning)) return;
     e.preventDefault();
     e.stopPropagation();
     const orig = barTimes.slice();
@@ -1435,21 +1524,23 @@
       alignStatus.textContent = `${a.label} → ${fmtTime(barTimes[a.bar])}`;
     };
     const onUp = async () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       if (!moved) return;
       swallowClick();
       if (barTimes[a.bar] === orig[a.bar] && barTimes[0] === orig[0]) { renderAnchors(); return; }
       await saveAlignment(a, orig);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   // Drag the recording itself, like Audacity's time-shift tool: it slides
   // against the bars (the whole grid moves the other way in its time).
   function startClipDrag(e) {
-    if (!canEdit || !hasAudio() || e.button !== 0 || e.target.closest('.daw-anchor')) return;
+    if (!canEdit || !hasAudio() || e.button !== 0 || e.target.closest('.daw-anchor') || (e.pointerType === 'touch' && !aligning)) return;
     const orig = barTimes.slice();
     const x0 = e.clientX;
     const lane = rows.audio.lane;
@@ -1469,8 +1560,9 @@
         : t('recording earlier by %ss against the bars', Math.abs(dx / pxPerSec).toFixed(2));
     };
     const onUp = async (ev) => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       if (!moved) return;
       swallowClick();
       lane.classList.remove('is-sliding');
@@ -1478,11 +1570,12 @@
       const d = (ev.clientX - x0) / pxPerSec;
       barTimes = orig.map((t) => t - d);
       layout(true);
-      const first = pickup() ? 1 : 0;
+      const first = leadIn();
       await saveAlignment({ bar: first, label: t('Bar %s', barLabel(first)), i: 0 }, orig);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   async function saveAlignment(a, orig) {
@@ -1494,16 +1587,21 @@
         for (let b = 0; b < N(); b++) points.push({ barIndex: b, timeSeconds: barTimes[b] });
         await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points });
         meta.barSyncPoints = points;
+        meta.syncOrigin = 'set';
       } else {
-        const shifted = data.sections.filter((s) => realBars.has(s.startBar) || s.startBar === a.bar);
-        meta.markers = meta.markers || [];
-        for (const s of shifted) {
+        // The whole sync in one request: a drag that ripples through
+        // eight sections is saved, or not, as one. The starts it moved
+        // were placed by hand ("set"); the others keep their origin.
+        const old = meta.markers || [];
+        const markers = data.sections.filter((s) => realBars.has(s.startBar) || s.startBar === a.bar).map((s) => {
           const t = barTimes[s.startBar];
-          if (Math.abs(t - orig[s.startBar]) < 1e-6 && s.startBar !== a.bar) continue;
-          await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: t });
-          const m = meta.markers.find((x) => x.sectionIndex === s.index);
-          if (m) m.timeSeconds = t; else meta.markers.push({ sectionIndex: s.index, timeSeconds: t });
-        }
+          const was = old.find((x) => x.sectionIndex === s.index);
+          const moved = !was || s.startBar === a.bar || Math.abs(t - orig[s.startBar]) > 1e-6;
+          return { sectionIndex: s.index, timeSeconds: t, origin: moved ? 'set' : (was.origin || 'set') };
+        });
+        await put(`/api/songs/${variantId}/audio/${refCat}/markers`, { markers });
+        meta.markers = markers;
+        meta.syncOrigin = markers.some((m) => m.origin === 'auto') ? 'auto' : 'set';
       }
       alignStatus.textContent = t('saved — %s at %s', a.label, fmtTime(barTimes[a.bar]));
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
@@ -1523,7 +1621,7 @@
 
   function updateAlignStatus() {
     if (!aligning) return;
-    alignStatus.textContent = selected >= 0 ? t('selected: %s', data.sections[selected].label) : t('select a section to set its start at the playhead');
+    alignStatus.textContent = selected >= 0 ? t('next: %s — press M on its first beat', data.sections[selected].label) : t('select a section to set its start at the playhead');
   }
 
   alignBtn?.addEventListener('click', () => {
@@ -1531,35 +1629,47 @@
     aligning = !aligning;
     alignBtn.setAttribute('aria-pressed', aligning);
     alignBar.hidden = !aligning;
+    dawEl.classList.toggle('is-aligning', aligning);
+    clickWhileAligning(aligning);
     renderSections();
     renderAudioLane();
     updateAlignStatus();
   });
-  $('daw-align-here')?.addEventListener('click', async () => {
+  $('daw-align-here')?.addEventListener('click', () => {
     if (selected < 0) { alignStatus.textContent = t('select a section first (click it in the Sections row)'); return; }
-    const s = data.sections[selected];
-    const a = anchorList().find((x) => x.i === selected);
-    const orig = barTimes.slice();
-    barTimes = movedTimes(orig, a, position, 'ripple');
-    layout(true);
-    await saveAlignment({ ...a, label: s.label }, orig);
+    markAtPlayhead();
+  });
+  // The Sync sheet (sync-sheet.js), the way to sync on a phone too.
+  $('daw-sync-sheet')?.addEventListener('click', () => {
+    if (!window.songbooksSyncSheet) return;
+    pause();
+    window.songbooksSyncSheet.open({ category: refCat });
   });
 
   // ---- Auto-align ------------------------------------------------------------
   // mixer-autoalign.js finds the count-in and downbeats; this feeds it the
   // song's bar positions and score onsets (in ticks), applies the result,
   // saves it like a manual alignment, and keeps the previous one for Undo.
-  let undoSnapshot = null;
-  // The alignment as it was before an edit (a drag or Auto-align), for Undo.
+  // The alignments as they were before each edit (a drag, a nudge, M,
+  // Auto-align), newest last: Undo (or ⌘Z) goes back one at a time.
+  const undoStack = [];
   function snapshotForUndo() {
     const meta = audioCats[refCat] || {};
-    undoSnapshot = {
+    undoStack.push({
       cat: refCat,
       sync: (meta.barSyncPoints || []).map((p) => ({ ...p })),
       markers: (meta.markers || []).map((m) => ({ ...m })),
-    };
+      origin: meta.syncOrigin || '',
+    });
+    if (undoStack.length > 50) undoStack.shift();
+    renderUndo();
+  }
+  function renderUndo() {
     const btn = $('daw-align-undo');
-    if (btn) btn.hidden = false;
+    if (!btn) return;
+    const n = undoStack.filter((s) => s.cat === refCat).length;
+    btn.hidden = !n;
+    btn.textContent = n > 1 ? t('Undo (%d)', n) : t('Undo');
   }
 
   function songForAlign() {
@@ -1587,7 +1697,7 @@
     }
     const barChords = [];
     for (const sec of data.sections) sec.chords.forEach((c, i) => { barChords[sec.startBar + i] = c || []; });
-    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: pickup() ? 1 : 0 };
+    return { tempo: data.tempo || 120, barTicks, onsets, barChords, firstFull: leadIn(), lead: data && data.leadIn > 0 ? data.leadIn : 0 };
   }
 
   async function autoAlign() {
@@ -1596,7 +1706,11 @@
     if (!window.SongbooksAutoAlign) { setStatus(t('Auto-align did not load.')); return; }
     const existing = audioCats[refCat] || {};
     const authored = (existing.barSyncPoints || []).length || (existing.markers || []).length;
-    if (authored && !window.confirm(t('This recording is already aligned (%s). Replace that with an automatic alignment? You can undo it afterwards.', refSubtitle().split(' · ').pop()))) return;
+    // Section markers: a proposal, accepted or rejected section by section
+    // in the Sync sheet (sync-sheet.js), nothing overwritten. Guitar Pro
+    // sync points (every bar) are still replaced as a whole, with Undo.
+    const asProposal = refCat !== 'gp' && !!window.songbooksSyncSheet;
+    if (!asProposal && authored && !window.confirm(t('This recording is already aligned (%s). Replace that with an automatic alignment? You can undo it afterwards.', refSubtitle().split(' · ').pop()))) return;
     pause();
     btn.disabled = true;
     btn.textContent = t('Analysing…');
@@ -1605,12 +1719,19 @@
       if (!analysis) throw new Error(t('the recording could not be decoded'));
       await new Promise((r) => setTimeout(r, 30));
       const res = window.SongbooksAutoAlign.analyze(analysis, songForAlign());
+      if (asProposal) {
+        const proposal = data.sections.map((s) => ({ sectionIndex: s.index, timeSeconds: res.barTimes[s.startBar] }))
+          .filter((m) => isFinite(m.timeSeconds) && m.timeSeconds < audioDuration);
+        alignStatus.textContent = t('Auto-align: %s bpm (%s). Its section starts are in the Sync sheet, to accept or reject one by one.', res.bpm.toFixed(1), res.how);
+        window.songbooksSyncSheet.open({ category: refCat, proposal, source: 'beat' });
+        return;
+      }
       snapshotForUndo();
       barTimes = res.barTimes;
       await saveAllAnchors();
       if (!aligning) alignBtn.click();
       $('daw-align-undo').hidden = false;
-      const first = pickup() ? 1 : 0;
+      const first = leadIn();
       alignStatus.textContent = t('Auto-aligned and saved (%s: %s bpm, bar %s at %s). The Song view follows it too. Check by playing; drag a flag to correct (saved as you drop it), or undo.', res.how, res.bpm.toFixed(1), barLabel(first), fmtTime(barTimes[first]));
       seek(Math.max(0, barTimes[first] - 2 * nominalBarSec()));
       followPlayhead();
@@ -1626,21 +1747,21 @@
   // Saves the current barTimes as this recording's alignment: every bar for
   // the Guitar Pro recording (bar sync points), every section start for
   // any other recording (section markers).
+  // Auto-align's: an estimate ("auto") until checked by ear, saved in one
+  // request.
   async function saveAllAnchors() {
     const meta = audioCats[refCat];
     if (refCat === 'gp') {
       const points = [];
       for (let b = 0; b < N(); b++) points.push({ barIndex: b, timeSeconds: barTimes[b] });
-      await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points });
+      await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points, origin: 'auto' });
       meta.barSyncPoints = points;
     } else {
-      meta.markers = [];
-      for (const s of data.sections) {
-        const t = barTimes[s.startBar];
-        await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: t });
-        meta.markers.push({ sectionIndex: s.index, timeSeconds: t });
-      }
+      const markers = data.sections.map((s) => ({ sectionIndex: s.index, timeSeconds: barTimes[s.startBar], origin: 'auto' }));
+      await put(`/api/songs/${variantId}/audio/${refCat}/markers`, { markers });
+      meta.markers = markers;
     }
+    meta.syncOrigin = 'auto';
     document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
     computeBarTimes();
     rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
@@ -1648,44 +1769,125 @@
   }
 
   async function undoAutoAlign() {
-    const snap = undoSnapshot;
-    if (!snap || snap.cat !== refCat) return;
+    clearTimeout(nudgeTimer);
+    nudgeTimer = null;
+    let i = undoStack.length - 1;
+    while (i >= 0 && undoStack[i].cat !== refCat) i--;
+    if (i < 0) return;
+    const snap = undoStack.splice(i, 1)[0];
     const meta = audioCats[refCat];
     try {
       if (refCat === 'gp') {
-        await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points: snap.sync });
+        await put(`/api/songs/${variantId}/audio/gp/sync-points`, { points: snap.sync, origin: snap.origin === 'auto' ? 'auto' : 'set' });
         meta.barSyncPoints = snap.sync;
       }
       if (refCat !== 'gp' || snap.markers.length) {
-        for (const s of data.sections) {
-          const old = snap.markers.find((m) => m.sectionIndex === s.index);
-          if (old) await put(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { timeSeconds: old.timeSeconds });
-          else if (refCat !== 'gp') await fetch(`/api/songs/${variantId}/audio/${refCat}/markers/${s.index}`, { method: 'DELETE' });
-        }
+        // Back as it was, origins too, in one request.
+        await put(`/api/songs/${variantId}/audio/${refCat}/markers`, { markers: snap.markers });
         meta.markers = snap.markers;
       }
-      undoSnapshot = null;
-      $('daw-align-undo').hidden = true;
+      meta.syncOrigin = snap.origin;
+      renderUndo();
       alignStatus.textContent = t('Undone — back to the previous alignment.');
       document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
       computeBarTimes();
       rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
       layout();
     } catch (err) {
+      undoStack.splice(i, 0, snap);
+      renderUndo();
       alignStatus.textContent = t('Could not undo: %s', err.message);
     }
   }
+
+  // ---- Aligning from the keyboard --------------------------------------------
+  // M: the selected section starts at the playhead, and the next one is
+  // selected — tap along while it plays, as Logic's D or Transcribe!'s M.
+  // ⌥← / ⌥→ move the selected start by 10 ms, ⇧⌥ by a beat; nudges in a
+  // row are saved together, a moment after the last.
+  async function markAtPlayhead() {
+    if (!aligning || selected < 0 || !hasAudio()) return;
+    const s = data.sections[selected];
+    const a = anchorList().find((x) => x.i === selected);
+    const orig = barTimes.slice();
+    snapshotForUndo();
+    barTimes = movedTimes(orig, a, position, 'ripple');
+    // On to the next section; after the last, done (M again doesn't move
+    // the last one's start).
+    const last = selected >= data.sections.length - 1;
+    selected = last ? -1 : selected + 1;
+    layout(true);
+    await saveAlignment({ ...a, label: s.label }, orig);
+    updateAlignStatus();
+    if (last && aligning) alignStatus.textContent = t('Every section is placed: select one to place it again.');
+  }
+  let nudgeTimer = null;
+  let nudgeFrom = null;
+  function nudge(d) {
+    if (!aligning || selected < 0 || !hasAudio()) return;
+    const a = anchorList().find((x) => x.i === selected);
+    if (!nudgeTimer) { nudgeFrom = barTimes.slice(); snapshotForUndo(); }
+    barTimes = movedTimes(barTimes.slice(), a, barTimes[a.bar] + d, 'boundary');
+    layout(true);
+    alignStatus.textContent = `${a.label} → ${fmtTime(barTimes[a.bar])}`;
+    clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(async () => {
+      nudgeTimer = null;
+      await saveAlignment(a, nudgeFrom);
+    }, 700);
+  }
+  // Aligning is done by ear: the click lane plays (as it was after).
+  let clickWasMuted = null;
+  function clickWhileAligning(on) {
+    const tr = tracks.find((x) => x.kind === 'click');
+    if (!tr) return;
+    if (on && tr.muted) { clickWasMuted = true; tr.muted = false; }
+    else if (!on && clickWasMuted) { tr.muted = true; clickWasMuted = null; }
+    else return;
+    syncTrackControls(tr);
+    applyMix();
+  }
+
+  // A sync saved from the Sync sheet (sync-sheet.js): follow it here too.
+  document.addEventListener('songbooks:sync-saved', async () => {
+    if (!built) return;
+    const res = await fetch(`/api/songs/${variantId}/audio`).catch(() => null);
+    if (!res || !res.ok) return;
+    ((await res.json()).categories || []).forEach((c) => {
+      if (audioCats[c.category]) Object.assign(audioCats[c.category], { markers: c.markers || [], barSyncPoints: c.barSyncPoints || [], syncOrigin: c.syncOrigin || '' });
+    });
+    computeBarTimes();
+    rows.audio.hdr.querySelector('.daw-hdr-sub').textContent = refSubtitle();
+    layout();
+  });
 
   $('daw-autoalign')?.addEventListener('click', autoAlign);
   $('daw-align-undo')?.addEventListener('click', undoAutoAlign);
 
   // ---- Keyboard ------------------------------------------------------------
   document.addEventListener('keydown', (e) => {
+    // The Sync sheet open over the Mixer has the keys: M or Alt + arrows
+    // here would save markers behind it.
+    if (window.songbooksSyncSheet?.isOpen?.()) return;
     if (!isActive() || e.target.closest('input, select, textarea, [contenteditable]')) return;
     if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
     else if (e.key === 'Home') { e.preventDefault(); seek(barTimes[0] || 0); followPlayhead(); }
     else if (e.key === 'l' || e.key === 'L') toggleLoop();
+    else if (aligning && (e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoAutoAlign(); }
+    else if (aligning && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && selected >= 0) {
+      e.preventDefault();
+      const b = data.sections[selected].startBar;
+      const beat = ((barTimes[b + 1] ?? barTimes[b] + nominalBarSec()) - barTimes[b]) / beatsPerBar();
+      nudge((e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? beat : 0.01));
+    }
     else if (e.metaKey || e.ctrlKey || e.altKey) return;
+    else if (aligning && (e.key === 'm' || e.key === 'M')) { e.preventDefault(); markAtPlayhead(); }
+    else if (aligning && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      selected = Math.max(0, Math.min(data.sections.length - 1, (selected < 0 ? 0 : selected + (e.key === 'ArrowUp' ? -1 : 1))));
+      renderSections();
+      updateAlignStatus();
+    }
     else if (e.key === 'f' || e.key === 'F') zoomToFit();
     else if (e.key === 'b' || e.key === 'B') zoomToTwoBars();
     else if (e.key === '+' || e.key === '=') setZoom(pxPerSec * 1.4);
@@ -1853,15 +2055,26 @@
       });
       phoneBar.appendChild(row);
     }
+    // Syncing on a phone: the Sync sheet (the align tools want a mouse).
+    if (canEdit && refCat && window.songbooksSyncSheet) {
+      const row = document.createElement('div');
+      row.className = 'daw-presets';
+      row.appendChild(chip(t('Sync by ear'), false, () => $('daw-sync-sheet')?.click()));
+      phoneBar.appendChild(row);
+    }
   }
 
   function pickReference() {
     const cats = Object.keys(audioCats);
     if (!cats.length) return null;
-    if (audioCats.gp) return 'gp';
+    // A file next to the chart: the song's own recording first, as the
+    // Score view's simplified mixer has it.
+    const beside = !!document.querySelector('#gp-score-page[data-gp-beside]');
+    if (audioCats.gp && !beside) return 'gp';
     let pref = null;
     try { pref = localStorage.getItem(`songbooks:audio-category-choice:${variantId}`); } catch (e) { /* ignore */ }
-    return pref && audioCats[pref] ? pref : cats[0];
+    if (pref && audioCats[pref]) return pref;
+    return beside ? (['youtube', 'band', 'gp'].find((c) => audioCats[c]) || cats[0]) : cats[0];
   }
 
   // A song that points into its Guitar Pro file (data.gpOrder: the
@@ -1873,7 +2086,13 @@
     if (typeof alphaTab === 'undefined' || !data.gpOrder) return;
     const res = await fetch(`/song/${variantId}/gp-file`);
     if (!res.ok) throw new Error(t('could not load the Guitar Pro file'));
-    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()), new alphaTab.Settings());
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const file = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
+    // Each track at its level in the file (gp-levels.js: Guitar Pro 8's
+    // own, which alphaTab reads as silence).
+    if (window.GPLevels) GPLevels.apply(file, await GPLevels.read(bytes));
+    if (window.GPInstruments) GPInstruments.knowFile(variantId, file);
+    data.tracks.forEach((t, i) => { if (file.tracks[i]) t.fileTrack = i; });
     const obj = JSON.parse(alphaTab.model.JsonConverter.scoreToJson(file));
     const copy = (x) => JSON.parse(JSON.stringify(x));
     const order = data.gpOrder.map((n) => n - 1);
@@ -1948,10 +2167,14 @@
       const res = await fetch(`/song/${variantId}/gp-file`);
       if (!res.ok) return;
       const gp = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await res.arrayBuffer()));
+      if (window.GPInstruments) GPInstruments.knowFile(variantId, gp);
       const byName = new Map(gp.tracks.map((t) => [String(t.name).trim().toLowerCase(), t]));
       for (const t of data.tracks) {
         const g = byName.get(String(t.name).trim().toLowerCase());
-        if (g && !t.drums && !(g.staves[0] && g.staves[0].isPercussion)) t.program = g.playbackInfo.program;
+        if (g && !t.drums && !(g.staves[0] && g.staves[0].isPercussion)) {
+          t.program = g.playbackInfo.program;
+          t.fileTrack = gp.tracks.indexOf(g);
+        }
       }
     } catch (e) { /* keep the name-based guess */ }
   }
@@ -1964,6 +2187,7 @@
         fetch(`/api/songs/${variantId}/audio`).then((r) => (r.ok ? r.json() : { categories: [] })),
       ]);
       data = mx;
+      if (window.GPInstruments) GPInstruments.setStored(variantId, mx.gpInstruments);
       await Promise.all([applyGPInstruments(), loadGPScore(), loadPrefs()]);
       audioCats = {};
       (au.categories || []).forEach((c) => { audioCats[c.category] = c; });
@@ -2007,6 +2231,7 @@
     bar: barAt(position), synthBar: playerApi && synthReady ? barAtTick(playerApi.tickPosition) : null,
     synthPlaying, synthSpeed: playerApi ? playerApi.playbackSpeed : null,
     semitones, keyRouted: !!(keyGraph && keyGraph.routed), keyCtx: keyGraph ? keyGraph.ctx.state : null,
+    synthReady, programs: playerApi && playerApi.score ? playerApi.score.tracks.map((x) => x.playbackInfo.program) : null,
   });
   // Dry run of auto-align for debugging: the analysis without applying it.
   page.mixerAnalyze = () => (analysis && window.SongbooksAutoAlign ? window.SongbooksAutoAlign.analyze(analysis, songForAlign()) : null);

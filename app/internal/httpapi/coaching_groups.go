@@ -19,10 +19,11 @@ func (s *Server) handleCoachingGroupsPage(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	person := personFromContext(r)
-	only := person.ID
+	only := s.viewedPersonID(r, community.ID)
 	if coach {
 		only = 0
+	} else if only == 0 {
+		only = -1 // a member with nothing yet: no groups
 	}
 	groups, err := s.store.ListCoachingGroups(r.Context(), community.ID, only)
 	if err != nil {
@@ -89,7 +90,7 @@ func (s *Server) coachingGroup(w http.ResponseWriter, r *http.Request, write boo
 		return nil, nil, false, false
 	}
 	g, err := s.store.GetCoachingGroup(r.Context(), groupID)
-	if err != nil || g.CommunityID != community.ID || (!coach && !g.HasMember(personFromContext(r).ID)) {
+	if err != nil || g.CommunityID != community.ID || (!coach && !g.HasMember(s.viewedPersonID(r, community.ID))) {
 		http.NotFound(w, r)
 		return nil, nil, false, false
 	}

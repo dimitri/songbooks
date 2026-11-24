@@ -1,0 +1,50 @@
+{{/* A public song's bands' recordings everyone signed in hears
+     (docs/ownership-model.md §8, versions_sync.go's
+     handleSongRecordingsPage): by band, the latest first, played with the
+     band recordings' player (rec-player), through the app
+     (/recordings/{id}/audio): the bands' folder links stay on the server. */}}
+{{define "song_public_recordings"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{t "Played by"}} · {{.Song.Title}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body class="rec-page">
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/song/{{.Song.VariantID}}">{{template "icon-back"}} {{.Song.Title}}</a>
+  <h1>{{t "Played by"}}</h1>
+</header>
+<main class="index rec">
+  <p class="hint">{{t "The bands’ recordings of %s that everyone signed in can hear." .Song.Title}}</p>
+  {{range .Bands}}
+  <section class="played-by-band" id="band-{{.BandID}}">
+    <h2>{{.BandName}} <small>{{tn (len .Recordings) "%d recording" "%d recordings"}}</small></h2>
+    <ol class="rec-list">
+      {{range .Recordings}}
+      <li class="rec-row" data-rp-src="/recordings/{{.ID}}/audio" data-title="{{$.Song.Title}}" data-detail="{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}}, {{t "recording|take"}} {{.}}{{end}}" data-date="{{with .SessionDate}}{{.Format "2006-01-02"}}{{end}}" data-kind="{{.Kind}}">
+        <button type="button" class="rec-play" aria-label="{{t "Play"}}">{{template "icon-play"}}</button>
+        <span class="rec-text">
+          <strong>{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}} · {{t "recording|take"}} {{.}}{{end}}</strong>
+          <small>{{.Name}} · {{fileSize .Size}}</small>
+        </span>
+      </li>
+      {{end}}
+    </ol>
+  </section>
+  {{else}}
+  <p class="dl-empty">{{t "No band’s recording of this song is public."}}</p>
+  {{end}}
+</main>
+{{template "rec-player" .}}
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

@@ -1,0 +1,112 @@
+{{/* A band's pools of songs to listen to (httpapi/band_listens.go,
+     docs/band-votes.md), views of its Songbook beside To vote: Discover
+     (songs a member shares for the band to hear, no vote) and Influences
+     (the artists and songs that shape the band's sound). Both: add by a
+     YouTube link (band-listens.js), play them one after another in the
+     playlist player. */}}
+{{define "band_discover"}}{{template "band-listens" .}}{{end}}
+{{define "band_influences"}}{{template "band-listens" .}}{{end}}
+
+{{define "band-listens"}}
+{{$brand := brandFor "band" .Band.ID}}
+{{$influence := eq .Pool "influence"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{template "space-title" .Space}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
+</header>
+<main class="index votes-page listens-page">
+  {{template "space-nav" .Space}}
+  <div class="songbook-head">
+    {{template "space-views" .Space}}
+    <div class="setlist-actions songbook-actions">
+      {{if .Cards}}<a class="setlist-action" href="/bands/{{.Band.ID}}/catalog/{{.PathPool}}/listen">{{template "icon-play"}} {{t "Play all"}}</a>{{end}}
+      {{if .CanAdd}}<button type="button" class="setlist-action primary" data-listen-add aria-expanded="false" aria-controls="listen-add">{{template "icon-plus"}} {{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</button>{{end}}
+    </div>
+  </div>
+
+  <p class="hint vote-rule">{{if $influence}}{{t "The artists and songs that shape the band’s sound — what to listen for in each: the drum feel, the vocal harmonies, the guitar tone."}}{{else}}{{t "Songs you’d like the band to hear: no vote, just “listen to this”. When one should be played, propose it for a vote."}}{{end}}</p>
+
+  {{/* Add by a YouTube link: its title and artist read from the video,
+       to fix; a note; tags for an influence. */}}
+  {{if .CanAdd}}<form class="card card--md form-stack listen-add" id="listen-add" hidden novalidate data-band="{{.Band.ID}}" data-pool="{{.Pool}}">
+    <h2>{{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</h2>
+    <div class="field">
+      <label for="listen-url">{{t "YouTube link"}}</label>
+      <p class="field-hint" id="listen-url-hint">{{t "Paste the video’s link: its title and artist are read from it."}}</p>
+      <input type="url" id="listen-url" required autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://youtu.be/…" aria-describedby="listen-url-hint" enterkeyhint="next">
+    </div>
+    <div class="listen-add-found" hidden>
+      <img class="listen-add-thumb" alt="" referrerpolicy="no-referrer">
+      <div class="listen-add-fields">
+        <div class="field"><label for="listen-title">{{t "Title"}}</label><input type="text" id="listen-title" maxlength="200" autocomplete="off"></div>
+        <div class="field"><label for="listen-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="listen-artist" maxlength="200" autocomplete="off"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="listen-note">{{if $influence}}{{t "What to listen for"}}{{else}}{{t "Why this song?"}}{{end}} <span class="field-optional">{{t "(optional)"}}</span></label>
+      <textarea id="listen-note" class="prose" rows="2" maxlength="500" placeholder="{{if $influence}}{{t "e.g. the drum feel in the chorus"}}{{else}}{{t "e.g. heard it on the radio, it’s us"}}{{end}}"></textarea>
+    </div>
+    {{if $influence}}<div class="field">
+      <label for="listen-tags">{{t "Tags"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+      <p class="field-hint" id="listen-tags-hint">{{t "Separated by commas: groove, harmonies, sound…"}}</p>
+      <input type="text" id="listen-tags" autocomplete="off" aria-describedby="listen-tags-hint">
+    </div>{{end}}
+    <div class="form-actions">
+      <button type="button" data-listen-cancel>{{t "Cancel"}}</button>
+      <button type="submit" class="primary">{{if $influence}}{{t "Add"}}{{else}}{{t "Share"}}{{end}}</button>
+    </div>
+    <p class="form-status" role="status"></p>
+  </form>{{end}}
+
+  <div class="vote-list listen-list" data-band="{{.Band.ID}}">
+  {{range .Cards}}
+    <article class="vote-card listen-card" id="l{{.ID}}" data-listen="{{.ID}}" data-url="{{.URL}}" data-title="{{.Title}}">
+      <a class="vote-thumb" href="/bands/{{$.Band.ID}}/catalog/{{$.PathPool}}/listen?start={{.ID}}" tabindex="-1" aria-hidden="true">
+        <img src="https://i.ytimg.com/vi/{{.VideoID}}/mqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer">
+      </a>
+      <div class="vote-main">
+        <h2 class="vote-title"><a href="/bands/{{$.Band.ID}}/catalog/{{$.PathPool}}/listen?start={{.ID}}">{{if .Title}}{{.Title}}{{else}}{{.URL}}{{end}}</a></h2>
+        <p class="vote-artist">{{.Artist}}</p>
+        <p class="vote-meta"><span>{{t "shared by %s, %s" .AddedByName (date .CreatedAt "2 Jan")}}</span>
+          {{range .Tags}}<span class="listen-tag">#{{.}}</span>{{end}}</p>
+        {{with .Note}}<p class="vote-note">“{{.}}”</p>{{end}}
+        <div class="vote-decide listen-actions">
+          {{if not $influence}}{{if .ProposalID}}<a href="/bands/{{$.Band.ID}}/proposals/{{.ProposalID}}">{{t "Proposed for a vote"}} →</a>
+          {{else if $.CanAdd}}<button type="button" class="link-button" data-listen-propose>{{t "Propose for a vote"}}</button>{{end}}{{end}}
+          <a href="{{.URL}}" target="_blank" rel="noopener">{{t "Watch on YouTube"}}</a>
+          {{if .CanRemove}}<button type="button" class="link-button vote-decide-down" data-listen-remove{{if not .Mine}} data-by="{{.AddedByName}}"{{end}}>{{t "Remove"}}</button>{{end}}
+          <p class="form-status" role="status"></p>
+        </div>
+      </div>
+      <a class="vote-listen" href="/bands/{{$.Band.ID}}/catalog/{{$.PathPool}}/listen?start={{.ID}}" aria-label="{{t "Listen to “%s”" .Title}}">{{template "icon-play"}}<span>{{t "Listen"}}</span></a>
+    </article>
+  {{else}}
+    <div class="vote-empty">
+      <p>{{if $influence}}<strong>{{t "No influence yet."}}</strong> {{t "Paste the YouTube link of a song that shapes the band’s sound."}}{{else}}<strong>{{t "Nothing shared yet."}}</strong> {{t "Paste the YouTube link of a song the band should hear."}}{{end}}</p>
+      {{if .CanAdd}}<button type="button" class="primary" data-listen-add>{{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</button>{{end}}
+    </div>
+  {{end}}
+  </div>
+</main>
+<script type="application/json" id="propose-config">{"bandId": {{.Band.ID}}, "canVote": {{.CanVote}}, "setlists": []}</script>
+<script src="/static/js/proposal-flow.js?v={{staticVersion}}"></script>
+<script src="/static/js/band-listens.js?v={{staticVersion}}"></script>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

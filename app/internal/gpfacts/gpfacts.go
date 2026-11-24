@@ -37,6 +37,12 @@ type Facts struct {
 	Tracks   []Track      `json:"tracks"`
 	Chords   [][]BarChord `json:"chords"` // per bar, from the first track that has chord names
 	Diagrams []Diagram    `json:"diagrams"`
+	// Pickup: the file's first bar is a pickup (an anacrusis). Empty: how
+	// many bars the file opens with that have no note on any track (a
+	// count-in or silent lead-in). Both absent from facts read before
+	// they existed.
+	Pickup bool `json:"pickup,omitempty"`
+	Empty  int  `json:"empty,omitempty"`
 }
 
 type TimeSig struct {

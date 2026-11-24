@@ -37,9 +37,16 @@ type canvas struct {
 	overflowed bool
 	pages      int // pages actually used (1, or 2 if overflow was allowed)
 	allowPage2 bool
+
+	// maxColIdx is the highest column index anything was laid out in on
+	// any page — lets a test check a chart really flowed into column 2.
+	maxColIdx int
 }
 
 func newCanvas(doc *gopdf.GoPdf, draw bool, th theme, cols int, allowPage2 bool) *canvas {
+	if cols != 2 {
+		cols = 1 // only one- and two-column layouts exist
+	}
 	c := &canvas{doc: doc, draw: draw, th: th, cols: cols, top: marginY, bottom: contentBottom(), allowPage2: allowPage2, pages: 1}
 	gutter := 18.0
 	full := contentWidth()
@@ -64,6 +71,9 @@ func (c *canvas) ensureSpace(h float64) {
 	}
 	if c.colIdx+1 < c.cols {
 		c.colIdx++
+		if c.colIdx > c.maxColIdx {
+			c.maxColIdx = c.colIdx
+		}
 		c.y = c.top
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"app/internal/i18n"
@@ -43,7 +44,9 @@ type rangeView struct {
 // rangeViews are a student's ranges to show, the notes named in lang;
 // the labels stay English, translated where printed ({{t .Label}}).
 func rangeViews(rs []store.VoiceRange, lang string) []rangeView {
-	labels := map[string]string{"chest": "Chest voice", "mixed": "Mixed voice", "head": "Head voice"}
+	// A pop coach's words too: the chest voice where the belt is, the
+	// head voice where the falsetto is.
+	labels := map[string]string{"chest": "Chest / belt", "mixed": "voice|Mix", "head": "Head / falsetto"}
 	out := make([]rangeView, len(rs))
 	for i, r := range rs {
 		out[i] = rangeView{VoiceRange: r, Label: labels[r.Register]}
@@ -61,9 +64,12 @@ func rangeViews(rs []store.VoiceRange, lang string) []rangeView {
 	return out
 }
 
-// coachingContext loads a coaching community and says whether the viewer
-// is its coach (its staff, or a site admin); nil and an error page when
-// it isn't a coaching community.
+// coachingContext loads a coaching community and says whether its pages
+// are the coach's for this viewer (coachingViewerOf: the staff; a site
+// admin unless they're a student there; an admin's "See as…"); nil and
+// an error page when it isn't a coaching community. A change asked for
+// during a student's or a member's preview is refused: the admin would
+// be acting for someone who didn't.
 func (s *Server) coachingContext(w http.ResponseWriter, r *http.Request) (*store.Community, bool, bool) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	community, err := s.store.GetCommunity(r.Context(), communityID)
@@ -71,21 +77,35 @@ func (s *Server) coachingContext(w http.ResponseWriter, r *http.Request) (*store
 		http.NotFound(w, r)
 		return nil, false, false
 	}
-	person := personFromContext(r)
-	coach := person.IsAdmin
-	if !coach {
-		if coach, err = s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID); err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return nil, false, false
-		}
+	v, err := s.coachingViewerOf(r, communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return nil, false, false
 	}
-	return community, coach, true
+	if v.ReadOnly && r.Method != http.MethodGet && r.Method != http.MethodHead {
+		httpError(w, http.StatusConflict, i18n.T(s.langOfRequest(r), "This is a preview: leave it to make a change."))
+		return nil, false, false
+	}
+	return community, v.Coach, true
+}
+
+// viewedPersonID is whose student pages a coaching community's page shows:
+// the viewer's own, or the student a site admin looks as (0 for a member
+// with nothing yet).
+func (s *Server) viewedPersonID(r *http.Request, communityID int64) int64 {
+	v, err := s.coachingViewerOf(r, communityID)
+	if err != nil {
+		return personFromContext(r).ID
+	}
+	if v.Coach {
+		return personFromContext(r).ID
+	}
+	return v.PersonID
 }
 
 type studentRow struct {
 	PersonID   int64
 	Name       string
-	Username   string
 	Ranges     []rangeView
 	SongbookID int64
 	SongCount  int
@@ -118,9 +138,12 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	person := personFromContext(r)
 	if !coach {
-		http.Redirect(w, r, fmt.Sprintf("/communities/%d/students/%d", community.ID, person.ID), http.StatusFound)
+		if id := s.viewedPersonID(r, community.ID); id != 0 {
+			http.Redirect(w, r, fmt.Sprintf("/communities/%d/students/%d", community.ID, id), http.StatusFound)
+		} else {
+			http.Redirect(w, r, fmt.Sprintf("/communities/%d/songbooks", community.ID), http.StatusFound)
+		}
 		return
 	}
 	members, err := s.store.ListCommunityMembers(r.Context(), community.ID, false)
@@ -150,7 +173,7 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		if m.IsStaff() {
 			continue
 		}
-		row := studentRow{PersonID: m.PersonID, Name: m.DisplayName, Username: m.Username}
+		row := studentRow{PersonID: m.PersonID, Name: m.DisplayName}
 		rs, err := s.store.StudentRanges(r.Context(), community.ID, m.PersonID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -229,6 +252,11 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 	sort.Slice(rows, func(i, j int) bool { return store.FoldName(rows[i].Name) < store.FoldName(rows[j].Name) })
 	data := s.coachingPageData(r, community, coach, "students")
 	data["Students"] = rows
+	// Cards or the table, the Students section's first two views.
+	data["StudentsView"] = ""
+	if v := r.URL.Query().Get("view"); v == "cards" || v == "table" {
+		data["StudentsView"] = v
+	}
 	// The open link that makes students (role member, no names): the
 	// newest one still open, if the coach made one.
 	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", community.ID)
@@ -246,7 +274,9 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) coachingPageData(r *http.Request, community *store.Community, coach bool, tab string) map[string]any {
+	// Me: the sidebar's account chip and Admin, as on every other page.
 	return map[string]any{
+		"Me":        personFromContext(r),
 		"Person":    personFromContext(r),
 		"Community": community,
 		"IsStaff":   coach,
@@ -269,7 +299,7 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	person := personFromContext(r)
-	if !coach && studentID != person.ID {
+	if !coach && studentID != s.viewedPersonID(r, community.ID) {
 		http.NotFound(w, r)
 		return
 	}
@@ -328,6 +358,10 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	}
 	data["Student"] = member
 	data["Ranges"] = rangeViews(rs, s.langOfRequest(r))
+	if err := s.voiceData(r, community.ID, studentID, coach, data["Ranges"].([]rangeView), data); err != nil {
+		fail(err)
+		return
+	}
 	data["SongbookID"] = sbID
 	data["Songs"] = s.withKeys(r.Context(), songs)
 	data["Groups"] = inGroups
@@ -349,6 +383,18 @@ func (s *Server) handleCoachingStudentPage(w http.ResponseWriter, r *http.Reques
 	if data["PracticeLogs"], err = s.store.ListPracticeLogs(ctx, community.ID, studentID, time.Now().AddDate(0, 0, -28)); err != nil {
 		fail(err)
 		return
+	}
+	// The notes the student reads (the coach sees them all, below); the
+	// student opening their own page has read what told them so.
+	data["CoachFirstName"] = firstWord(s.store.CoachName(ctx, community.ID))
+	if !coach {
+		if data["SharedNotes"], err = s.store.ListSharedTeachingNotes(ctx, community.ID, studentID); err != nil {
+			fail(err)
+			return
+		}
+		if studentID == person.ID {
+			_ = s.store.MarkNotificationsReadByLink(ctx, "teaching_note_shared", sharedNotesLink(community.ID, studentID))
+		}
 	}
 	if coach {
 		if data["Notes"], err = s.store.StudentNotes(ctx, community.ID, studentID); err != nil {
@@ -499,6 +545,12 @@ func (s *Server) handlePostCoachingSong(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
+	// The community's songbook links public songs and its own
+	// (store.LinkCheck).
+	if !s.writeLinkErr(w, r, s.store.LinkCheck(r.Context(), personFromContext(r).ID, req.VariantID, sb)) {
+		return
+	}
+	req.VariantID = s.coachingSongFor(r.Context(), sb, req.VariantID)
 	if err := s.store.AddToSongbook(r.Context(), sb.ID, req.VariantID, personFromContext(r).ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -599,23 +651,91 @@ func (s *Server) handlePostTeachingNote(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req struct {
-		Body    string `json:"body"`
-		EventID int64  `json:"eventId"`
+		Body      string `json:"body"`
+		EventID   int64  `json:"eventId"`
+		VariantID int64  `json:"variantId"`
+		// Shared: the student reads it; else it's private, the coach's
+		// and the staff's only.
+		Shared bool `json:"shared"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Body == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Body) == "" {
 		httpError(w, http.StatusBadRequest, "a note needs a text")
 		return
 	}
-	var eventID *int64
+	ctx := r.Context()
+	var eventID, variantID *int64
 	if req.EventID != 0 {
+		ev, err := s.store.GetEvent(ctx, req.EventID)
+		if err != nil || ev.OwnerKind != "community" || ev.OwnerCommunityID != community.ID {
+			httpError(w, http.StatusBadRequest, "not a lesson of this community")
+			return
+		}
 		eventID = &req.EventID
 	}
-	id, err := s.store.AddTeachingNote(r.Context(), community.ID, student.PersonID, eventID, req.Body, personFromContext(r).ID)
+	if req.VariantID != 0 {
+		if ok, err := s.store.CommunityHasSong(ctx, community.ID, req.VariantID); err != nil || !ok {
+			httpError(w, http.StatusBadRequest, "not a song of this community")
+			return
+		}
+		variantID = &req.VariantID
+	}
+	me := personFromContext(r)
+	id, err := s.store.AddStudentNote(ctx, community.ID, student.PersonID, eventID, variantID, strings.TrimSpace(req.Body), req.Shared, me.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int64{"id": id})
+	if req.Shared {
+		if err := s.notifySharedNote(r, community, student.PersonID, me); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "shared": req.Shared})
+}
+
+// handlePostShareTeachingNote is POST
+// /api/communities/{id}/students/{personID}/teaching-notes/{noteID}/share:
+// a private note shared with the student, who is told. One way only: a
+// shared note can be rewritten or deleted, never made private again (the
+// student may have read it).
+func (s *Server) handlePostShareTeachingNote(w http.ResponseWriter, r *http.Request) {
+	community, student, ok := s.coachRequest(w, r)
+	if !ok {
+		return
+	}
+	noteID, err := pathID(r, "noteID")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid note")
+		return
+	}
+	if err := s.store.ShareTeachingNote(r.Context(), community.ID, student.PersonID, noteID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusNotFound, "no such private note")
+			return
+		}
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.notifySharedNote(r, community, student.PersonID, personFromContext(r)); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"shared": true})
+}
+
+// sharedNotesLink is where a student reads their shared notes.
+func sharedNotesLink(communityID, studentID int64) string {
+	return fmt.Sprintf("/communities/%d/students/%d#notes", communityID, studentID)
+}
+
+// notifySharedNote tells the student the coach shared a note with them,
+// in their language ("New note from Chloé").
+func (s *Server) notifySharedNote(r *http.Request, community *store.Community, studentID int64, author *store.Person) error {
+	lang := s.recipientLang(r, studentID, community.ID)
+	body := i18n.T(lang, "New note from %s", i18n.Of(lang, firstWord(author.DisplayName)))
+	_, err := s.store.CreateNotification(r.Context(), studentID, "teaching_note_shared", body, sharedNotesLink(community.ID, studentID))
+	return err
 }
 
 // handlePutTeachingNote is PUT /api/communities/{id}/students/{personID}/teaching-notes/{noteID}.
@@ -663,9 +783,11 @@ func (s *Server) handleCoachingLessonsPage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	person := personFromContext(r)
-	only := person.ID
+	only := s.viewedPersonID(r, community.ID)
 	if coach {
 		only = 0
+	} else if only == 0 {
+		only = -1 // a member with nothing yet: no lessons
 	}
 	lessons, err := s.store.ListCoachingLessons(r.Context(), community.ID, time.Now().Add(-6*time.Hour), only)
 	if err != nil {

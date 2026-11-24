@@ -1,0 +1,50 @@
+{{/* The settings shell (httpapi/settings_shell.go): a space's ⚙ page in
+     sections — a community's Admin, a band's Settings. A sidebar of the
+     sections on a wide screen, each row saying where it stands; on a
+     phone, the list to tap into, a section opening on its own with a way
+     back. One section at a time by the URL's #hash
+     (static/js/settings-shell.js); without scripts every section shows.
+
+     A page lays it out as:
+       <div class="admin-layout" data-admin-layout{{with .Default}} data-default-section="…"{{end}}>
+         {{template "settings-nav" $shell}}
+         <div class="admin-sections">
+           <section class="admin-section" id="…" aria-labelledby="…-title">
+             {{template "settings-back" $shell.Back}}
+             <h2 class="admin-section-title" id="…-title">…</h2>
+             …
+           </section>
+         </div>
+       </div>
+       <script src="/static/js/settings-shell.js?v=…"></script> */}}
+
+{{define "settings-nav"}}
+<nav class="admin-nav" aria-label="{{.Label}}">
+      <ul>
+        {{range .Rows}}{{with .Group}}<li class="admin-nav-group" aria-hidden="true">{{.}}</li>
+        {{end}}{{if .Danger}}<li class="admin-nav-divider" aria-hidden="true"></li>
+        {{end}}<li><a href="{{if .Section}}#{{.Section}}{{else}}{{.Href}}{{end}}"{{with .Section}} data-section-link="{{.}}"{{end}}{{if .Danger}} class="admin-nav-danger"{{end}}>{{template "settings-icon" .Icon}}<span class="admin-nav-label">{{.Label}}</span><span class="admin-nav-state">{{.State}}</span></a></li>
+        {{end}}
+      </ul>
+    </nav>
+{{end}}
+
+{{define "settings-back"}}<a class="admin-section-back" href="#">{{template "icon-back"}} {{.}}</a>{{end}}
+
+{{/* A row's icon, by name: a computed {{template}} name isn't legal Go
+     template syntax. */}}
+{{define "settings-icon"}}{{if eq . "icon-community"}}{{template "icon-community"}}
+{{- else if eq . "icon-bands"}}{{template "icon-bands"}}
+{{- else if eq . "icon-plus"}}{{template "icon-plus"}}
+{{- else if eq . "icon-profile"}}{{template "icon-profile"}}
+{{- else if eq . "icon-settings"}}{{template "icon-settings"}}
+{{- else if eq . "icon-view"}}{{template "icon-view"}}
+{{- else if eq . "icon-play"}}{{template "icon-play"}}
+{{- else if eq . "icon-palette"}}{{template "icon-palette"}}
+{{- else if eq . "icon-roles"}}{{template "icon-roles"}}
+{{- else if eq . "icon-archive"}}{{template "icon-archive"}}
+{{- end}}{{end}}
+
+{{define "icon-palette"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.7-.8 1.4-1.7-.4-1 .2-1.8 1.2-1.8H14a3.5 3.5 0 0 0 3-3.6C17 5.9 13.9 3 10 3z"/><circle cx="6.6" cy="9" r=".9"/><circle cx="9" cy="6.3" r=".9"/><circle cx="12.6" cy="6.8" r=".9"/></svg>{{end}}
+{{define "icon-roles"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg>{{end}}
+{{define "icon-archive"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="4" rx="1"/><path d="M4.5 8v7.5h11V8M8 11h4"/></svg>{{end}}

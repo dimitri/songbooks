@@ -92,12 +92,12 @@ func (s *Server) bandForRecordings(w http.ResponseWriter, r *http.Request) (*sto
 	return band, true
 }
 
-// handleBandRehearsalsPage is GET /bands/{id}/rehearsals.
+// handleBandRehearsalsPage is GET /bands/{id}/recordings/rehearsals.
 func (s *Server) handleBandRehearsalsPage(w http.ResponseWriter, r *http.Request) {
 	s.bandRecordingsPage(w, r, "rehearsal")
 }
 
-// handleBandConcertsPage is GET /bands/{id}/concerts.
+// handleBandConcertsPage is GET /bands/{id}/recordings/concerts.
 func (s *Server) handleBandConcertsPage(w http.ResponseWriter, r *http.Request) {
 	s.bandRecordingsPage(w, r, "concert")
 }
@@ -111,7 +111,7 @@ func (s *Server) bandRecordingsPage(w http.ResponseWriter, r *http.Request, kind
 	}
 	person := personFromContext(r)
 	tab := map[string]string{"rehearsal": "rehearsals", "concert": "concerts"}[kind]
-	base := fmt.Sprintf("/bands/%d/%s", band.ID, tab)
+	base := fmt.Sprintf("/bands/%d/recordings/%s", band.ID, tab)
 	data := map[string]any{"Me": person, "Band": band, "Kind": kind, "Tab": tab, "Base": base}
 	src, err := s.store.GetBandRecordingSource(r.Context(), band.ID)
 	if errors.Is(err, store.ErrNotFound) {
@@ -256,8 +256,14 @@ func (s *Server) handleBandSongRecordingsPage(w http.ResponseWriter, r *http.Req
 		http.NotFound(w, r)
 		return
 	}
+	// Public recordings (docs/ownership-model.md §8, versions_sync.go):
+	// the band's own public song's are public with it; on a public song
+	// it links, a core member makes them public one by one.
+	publicity, _ := s.store.RecordingPublicities(r.Context(), band.ID, variantID)
+	core, _ := s.bandPrivilege(r, band.ID, store.BandPrivPublish)
 	s.render(w, "band_song_recordings", map[string]any{
 		"Me": person, "Band": band, "Source": src, "Song": variant, "Recordings": recs,
+		"Publicity": publicity, "IsCore": core, "OwnSong": variant.OwnerBandID != nil && *variant.OwnerBandID == band.ID,
 	})
 }
 

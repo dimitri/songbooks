@@ -1,0 +1,197 @@
+{{/* A community's Members page (community_members.go): one card per
+     member. Its admins see who hasn't joined yet and past members; a role granting manage_members also changes roles and
+     removes people here. The other members, when the community shows
+     them the list, see names, pictures, roles, instruments and join
+     dates, nothing else. */}}
+{{define "community_members"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{docTitle (t "Members") .Community.Name}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "space-back" .Space}}
+  <h1>{{t "Members"}}</h1>
+</header>
+<main class="index">
+  {{template "space-nav" .Space}}
+
+  {{if .IsStaff}}
+  <p class="hint members-visibility-note">
+    {{if eq .Visibility "members"}}{{t "Every member of the community can see this list."}}{{else}}{{t "Only the community’s admins can see this list."}}{{end}}
+    {{if .CanManageSettings}}<a href="/communities/{{.Community.ID}}/admin#members">{{t "Change who sees it"}}</a>{{end}}
+    {{if .CanManageMembers}}{{if .CanManageSettings}} · {{end}}<a href="/communities/{{.Community.ID}}/admin#joining">{{t "Invite people"}}</a>{{end}}
+    {{if .Community.IsCoaching}}<br>{{t "Each student’s voice, notes and songs are on the Students tab."}}{{end}}
+  </p>
+  {{end}}
+
+  <section class="home-section">
+    <div class="home-section-head">
+      <h3>{{t "Members"}}</h3>
+      <span class="count">{{tn (len .Members) "%d member" "%d members"}}</span>
+    </div>
+
+    {{/* A long list gets a search and a role filter (filtered here, in
+         the page: the list is all there already). */}}
+    {{if gt (len .Members) 8}}
+    <div class="members-filter" role="search">
+      <label for="members-search" class="sr-only">{{t "Search members by name"}}</label>
+      <input type="search" id="members-search" placeholder="{{t "Search by name"}}" autocomplete="off" enterkeyhint="search">
+      {{if gt (len .RoleChoices) 1}}
+      <label for="members-role-filter" class="sr-only">{{t "Show a role"}}</label>
+      <select id="members-role-filter">
+        <option value="">{{t "All roles"}}</option>
+        {{range .RoleChoices}}<option value="{{.Name}}">{{t .Label}}</option>{{end}}
+      </select>
+      {{end}}
+    </div>
+    <p id="members-filter-status" class="hint" role="status" aria-live="polite"></p>
+    {{end}}
+
+    <ul class="members-grid" id="members-list">
+    {{range .Members}}
+      <li class="member-card{{if .IsShell}} is-pending{{end}}" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}" data-role="{{.Role}}">
+        <span class="member-avatar" aria-hidden="true">{{.Initials}}{{if .PictureURL}}<img src="{{.PictureURL}}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{{end}}</span>
+        <div class="member-main">
+          <div class="member-name">
+            {{if .StudentPage}}<a href="/communities/{{$.Community.ID}}/students/{{.PersonID}}">{{.DisplayName}}</a>{{else}}<span>{{.DisplayName}}</span>{{end}}
+            {{if $.IsStaff}}{{if .IsShell}}<span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>{{end}}{{end}}
+          </div>
+          <div class="member-meta">
+            <span class="member-role{{if .RoleKey}} is-{{.RoleKey}}{{end}}">{{t .RoleLabel}}</span>
+            <span class="hint">{{t "member since %s" (date .JoinedAt "2 January 2006")}}</span>
+          </div>
+          {{if .Instruments}}
+          <div class="roster-instruments">{{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{end}}</div>
+          {{end}}
+        </div>
+        {{if $.CanManageMembers}}
+        {{/* Saves as soon as it changes; the card says whether it did. */}}
+        <div class="member-actions">
+          {{$role := .Role}}
+          <select class="member-role-select" data-person-id="{{.PersonID}}" aria-label="{{t "Role for %s" .DisplayName}}">
+            {{range $.Roles}}<option value="{{.Name}}" {{if eq $role .Name}}selected{{end}}>{{t .Label}}</option>{{end}}
+          </select>
+          {{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" .IsShell)}}
+          <button type="button" class="member-remove-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>
+        </div>
+        <p class="form-status" role="status"></p>
+        {{end}}
+      </li>
+    {{else}}
+      <li class="attention-empty">{{t "Nobody here yet."}}</li>
+    {{end}}
+    </ul>
+  </section>
+
+  {{if .PastMembers}}
+  <details class="members-past">
+    <summary>{{tn (len .PastMembers) "%d past member" "%d past members"}}</summary>
+    <ul class="members-grid">
+    {{range .PastMembers}}
+      <li class="member-card is-past">
+        <span class="member-avatar" aria-hidden="true">{{.Initials}}</span>
+        <div class="member-main">
+          <div class="member-name"><span>{{.DisplayName}}</span></div>
+          <div class="member-meta">
+            <span class="member-role">{{t .RoleLabel}}</span>
+            <span class="hint">{{t "from %s to %s" (date .JoinedAt "2 January 2006") (date .LeftAt "2 January 2006")}}</span>
+          </div>
+        </div>
+      </li>
+    {{end}}
+    </ul>
+  </details>
+  {{end}}
+</main>
+<script>
+(function () {
+const communityId = {{.Community.ID}};
+const cards = Array.from(document.querySelectorAll('#members-list .member-card'));
+
+// ---- Search and role filter ----
+const search = document.getElementById('members-search');
+const roleFilter = document.getElementById('members-role-filter');
+const filterStatus = document.getElementById('members-filter-status');
+// Accents and case don't count: "lea" finds "Léa".
+const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function applyFilter() {
+  const q = fold(search ? search.value.trim() : '');
+  const role = roleFilter ? roleFilter.value : '';
+  let shown = 0;
+  for (const card of cards) {
+    const ok = (!q || fold(card.dataset.name).includes(q)) && (!role || card.dataset.role === role);
+    card.hidden = !ok;
+    if (ok) shown++;
+  }
+  if (!filterStatus) return;
+  if (!q && !role) filterStatus.textContent = '';
+  else if (!shown) filterStatus.textContent = t('No member matches.');
+  else filterStatus.textContent = tn(shown, '%d member shown', '%d members shown');
+}
+search?.addEventListener('input', applyFilter);
+roleFilter?.addEventListener('change', applyFilter);
+
+// ---- Admin: change a role, remove someone (the APIs check the
+// manage_members privilege themselves). ----
+async function call(url, method, body, fallback) {
+  const opts = {method};
+  if (body !== undefined) { opts.headers = {'Content-Type': 'application/json'}; opts.body = JSON.stringify(body); }
+  let res;
+  try { res = await fetch(url, opts); } catch { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = res.status < 500 && data && data.error && !/invalid|json|sql|constraint/i.test(data.error) ? data.error : '';
+    throw new Error(msg ? msg.charAt(0).toUpperCase() + msg.slice(1).replace(/([^.!?])$/, '$1.') : fallback);
+  }
+  return data;
+}
+document.querySelectorAll('.member-role-select').forEach(sel => {
+  let previous = sel.value;
+  sel.addEventListener('change', async () => {
+    const status = sel.closest('.member-card').querySelector('.form-status');
+    Forms.status(status, t('Saving…'), '');
+    try {
+      await call(`/api/communities/${communityId}/members/${sel.dataset.personId}/role`, 'POST', {role: sel.value}, t('Couldn’t change that role. Try again.'));
+      previous = sel.value;
+      sel.closest('.member-card').dataset.role = sel.value;
+      Forms.status(status, t('Saved.'), 'ok');
+    } catch (e) {
+      sel.value = previous;
+      Forms.status(status, e.message, 'error');
+    }
+  });
+});
+document.querySelectorAll('.member-remove-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm(t('Remove %s from the community? They’ll move to past members.', btn.dataset.name))) return;
+    const card = btn.closest('.member-card');
+    const status = card.querySelector('.form-status');
+    Forms.busy(btn, true);
+    try {
+      await call(`/api/communities/${communityId}/members/${btn.dataset.personId}`, 'DELETE', undefined, t('Couldn’t remove them. Try again.'));
+      location.reload();
+    } catch (e) {
+      Forms.busy(btn, false);
+      Forms.status(status, e.message, 'error');
+    }
+  });
+});
+})();
+</script>
+{{template "login-link-script" .Me}}
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

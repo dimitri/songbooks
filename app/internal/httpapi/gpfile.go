@@ -114,6 +114,70 @@ func (s *Server) handlePutSongGPFileFacts(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"stored": stored})
 }
 
+// gpTrackProgram is one track's instrument as the song's editors chose
+// it (store.SongGPSourceFile.TrackPrograms).
+type gpTrackProgram struct {
+	Track   int    `json:"track"`
+	Name    string `json:"name"`
+	Program int    `json:"program"`
+}
+
+// handlePutSongGPFileInstruments is PUT /api/songs/{id}/gp-file/instruments
+// {tracks: [{track, name, program}]}: the instrument each track of the
+// song's file plays with, for everyone (editors; an empty list goes back
+// to the file's own). gp-instruments.js.
+func (s *Server) handlePutSongGPFileInstruments(w http.ResponseWriter, r *http.Request) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req struct {
+		Tracks []gpTrackProgram `json:"tracks"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if len(req.Tracks) > 64 {
+		httpError(w, http.StatusBadRequest, "too many tracks")
+		return
+	}
+	seen := map[int]bool{}
+	out := make([]gpTrackProgram, 0, len(req.Tracks))
+	for _, t := range req.Tracks {
+		if t.Track < 0 || t.Track >= 64 || t.Program < 0 || t.Program > 127 || len(t.Name) > 200 || seen[t.Track] {
+			httpError(w, http.StatusBadRequest, "invalid track")
+			return
+		}
+		seen[t.Track] = true
+		out = append(out, t)
+	}
+	var raw []byte
+	if len(out) > 0 {
+		raw, _ = json.Marshal(out)
+	}
+	ok, err := s.store.SetSongGPTrackPrograms(r.Context(), variantID, raw)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tracks": out})
+}
+
+// gpTrackProgramsJSON is a file's chosen instruments for a page or the
+// Mixer: "[]" when none.
+func gpTrackProgramsJSON(meta *store.SongGPSourceFile) json.RawMessage {
+	if meta == nil || len(meta.TrackPrograms) == 0 {
+		return json.RawMessage("[]")
+	}
+	return json.RawMessage(meta.TrackPrograms)
+}
+
 // handleGetSongGPFile is GET /song/{id}/gp-file — a direct download of
 // the original Guitar Pro file, Content-Disposition: attachment so it
 // saves with its own real filename/extension instead of opening inline.

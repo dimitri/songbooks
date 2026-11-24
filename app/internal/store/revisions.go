@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"app/internal/setlist"
 )
 
 // RecordRevision snapshots entity's current editable-fields state into the
@@ -27,15 +29,23 @@ import (
 // filesystem import run) — revisions.actor_person_id is nullable for
 // exactly that case.
 func (st *Store) RecordRevision(ctx context.Context, tx pgx.Tx, entityType, entityID string, actorPersonID *int64, snapshot any) error {
+	_, err := recordRevision(ctx, tx, entityType, entityID, actorPersonID, snapshot, "")
+	return err
+}
+
+// recordRevision is RecordRevision with the edit's one-line summary
+// (migration 0125; "" for none), returning the revision's id.
+func recordRevision(ctx context.Context, tx pgx.Tx, entityType, entityID string, actorPersonID *int64, snapshot any, summary string) (int64, error) {
 	data, err := json.Marshal(snapshot)
 	if err != nil {
-		return fmt.Errorf("marshaling %s %s snapshot: %w", entityType, entityID, err)
+		return 0, fmt.Errorf("marshaling %s %s snapshot: %w", entityType, entityID, err)
 	}
-	_, err = tx.Exec(ctx, `
-		INSERT INTO revisions (entity_type, entity_id, actor_person_id, snapshot)
-		VALUES ($1, $2, $3, $4)`,
-		entityType, entityID, actorPersonID, data)
-	return err
+	var id int64
+	err = tx.QueryRow(ctx, `
+		INSERT INTO revisions (entity_type, entity_id, actor_person_id, snapshot, summary)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		entityType, entityID, actorPersonID, data, summary).Scan(&id)
+	return id, err
 }
 
 // VariantSnapshot is the editable-fields shape recorded for entity_type
@@ -45,6 +55,10 @@ type VariantSnapshot struct {
 	Artist       string `json:"artist"`
 	ReferenceURL string `json:"reference_url"`
 	Body         string `json:"body"`
+	// VersionName: a catalogue song's reference label before a change of
+	// it (SetReferenceLabel); nil in the snapshots of other edits, whose
+	// revert leaves it as it is.
+	VersionName *string `json:"version_name,omitempty"`
 }
 
 // Revision is one row of an entity's revision history, as the API/history
@@ -56,6 +70,7 @@ type Revision struct {
 	EntityID     string
 	ActorID      *int64
 	ActorName    string // "" if ActorID is nil or the person no longer exists
+	Summary      string // the edit's one-line summary, "" for none
 	Snapshot     json.RawMessage
 	CreatedAt    time.Time
 	LinesChanged int // vs. the entity's state at the time ListRevisions was called
@@ -76,7 +91,7 @@ func (st *Store) ListRevisions(ctx context.Context, entityType, entityID string)
 	}
 
 	rows, err := st.db.Query(ctx, `
-		SELECT r.id, r.entity_type, r.entity_id, r.actor_person_id, coalesce(p.display_name, ''), r.snapshot, r.created_at
+		SELECT r.id, r.entity_type, r.entity_id, r.actor_person_id, coalesce(p.display_name, ''), r.summary, r.snapshot, r.created_at
 		FROM revisions r
 		LEFT JOIN people p ON p.id = r.actor_person_id
 		WHERE r.entity_type = $1 AND r.entity_id = $2
@@ -89,7 +104,7 @@ func (st *Store) ListRevisions(ctx context.Context, entityType, entityID string)
 	var out []Revision
 	for rows.Next() {
 		var rv Revision
-		if err := rows.Scan(&rv.ID, &rv.EntityType, &rv.EntityID, &rv.ActorID, &rv.ActorName, &rv.Snapshot, &rv.CreatedAt); err != nil {
+		if err := rows.Scan(&rv.ID, &rv.EntityType, &rv.EntityID, &rv.ActorID, &rv.ActorName, &rv.Summary, &rv.Snapshot, &rv.CreatedAt); err != nil {
 			return nil, err
 		}
 		if entityType == "variant" {
@@ -215,10 +230,10 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			return fmt.Errorf("revision %d has a non-numeric variant id %q: %w", revisionID, entityID, err)
 		}
 
-		var curTitle, curArtist, curRef, curBody string
+		var curTitle, curArtist, curRef, curBody, curName string
 		err = tx.QueryRow(ctx, `
-			SELECT title, artist, reference_url, body FROM songs WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curTitle, &curArtist, &curRef, &curBody)
+			SELECT title, artist, reference_url, body, version_name FROM songs WHERE id = $1 FOR UPDATE`, id).
+			Scan(&curTitle, &curArtist, &curRef, &curBody, &curName)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("no such variant %d: %w", id, ErrNotFound)
 		}
@@ -227,16 +242,25 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		}
 
 		actor := &actorPersonID
-		if err := st.RecordRevision(ctx, tx, "variant", entityID, actor, VariantSnapshot{
-			Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody,
-		}); err != nil {
+		undo := VariantSnapshot{Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody}
+		if snap.VersionName != nil {
+			undo.VersionName = &curName
+		}
+		if err := st.RecordRevision(ctx, tx, "variant", entityID, actor, undo); err != nil {
 			return err
 		}
 
 		if _, err := tx.Exec(ctx, `
-			UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1
+			UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1,
+			                 version_name = coalesce($6, version_name)
 			WHERE id = $5`,
-			snap.Title, snap.Artist, snap.ReferenceURL, snap.Body, id); err != nil {
+			snap.Title, snap.Artist, snap.ReferenceURL, snap.Body, id, snap.VersionName); err != nil {
+			return err
+		}
+		if _, err := shiftLeadSync(ctx, tx, id, curBody, snap.Body); err != nil {
+			return err
+		}
+		if _, err := keepEntryKeys(ctx, tx, id, curBody, snap.Body); err != nil {
 			return err
 		}
 
@@ -252,14 +276,15 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 
 		var curBandID, curPersonID int64
 		var curStatus string
+		var curRoleID int64
 		var curJoinedAt time.Time
 		var curLeftAt *time.Time
 		var curInvitedBy *int64
 		err = tx.QueryRow(ctx, `
-			SELECT band_id, person_id, status::text, lower(validity),
+			SELECT band_id, person_id, status::text, role_id, lower(validity),
 			       CASE WHEN upper_inf(validity) THEN NULL ELSE upper(validity) END, invited_by_person_id
 			FROM band_members WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curBandID, &curPersonID, &curStatus, &curJoinedAt, &curLeftAt, &curInvitedBy)
+			Scan(&curBandID, &curPersonID, &curStatus, &curRoleID, &curJoinedAt, &curLeftAt, &curInvitedBy)
 		rowExists := !errors.Is(err, pgx.ErrNoRows)
 		if err != nil && rowExists {
 			return err
@@ -268,7 +293,7 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		actor := &actorPersonID
 		if rowExists {
 			if err := st.RecordRevision(ctx, tx, "band_member", entityID, actor, BandMemberSnapshot{
-				Exists: true, BandID: curBandID, PersonID: curPersonID, Status: curStatus,
+				Exists: true, BandID: curBandID, PersonID: curPersonID, Status: curStatus, RoleID: curRoleID,
 				JoinedAt: curJoinedAt, LeftAt: curLeftAt, InvitedByPersonID: curInvitedBy,
 			}); err != nil {
 				return err
@@ -294,9 +319,14 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			if !rowExists {
 				return fmt.Errorf("band membership row %d no longer exists, can't restore it: %w", id, ErrNotFound)
 			}
+			// The role it had, if the band still has it; else the
+			// built-in role of its status (migration 0130's trigger).
 			if _, err := tx.Exec(ctx, `
-				UPDATE band_members SET status = $1, validity = tstzrange(lower(validity), $2::timestamptz) WHERE id = $3`,
-				snap.Status, snap.LeftAt, id); err != nil {
+				UPDATE band_members SET status = $1::text::band_member_status, validity = tstzrange(lower(validity), $2::timestamptz),
+				       role_id = coalesce((SELECT r.id FROM band_roles r WHERE r.id = $4 AND r.band_id = band_members.band_id),
+				                          (SELECT r.id FROM band_roles r WHERE r.band_id = band_members.band_id AND r.builtin_key = $1::text))
+				WHERE id = $3`,
+				snap.Status, snap.LeftAt, id, snap.RoleID); err != nil {
 				return err
 			}
 		}
@@ -311,29 +341,14 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			return fmt.Errorf("revision %d has a non-numeric setlist id %q: %w", revisionID, entityID, err)
 		}
 
-		var curScope, curTitle, curNotes, curBody string
-		var curOwnerPerson, curOwnerBand *int64
-		err = tx.QueryRow(ctx, `
-			SELECT scope::text, title, notes, body, owner_person_id, owner_band_id
-			FROM setlists WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curScope, &curTitle, &curNotes, &curBody, &curOwnerPerson, &curOwnerBand)
-		rowExists := !errors.Is(err, pgx.ErrNoRows)
-		if err != nil && rowExists {
+		cur, _, rowExists, err := setlistSnapshot(ctx, tx, id)
+		if err != nil {
 			return err
 		}
 
 		actor := &actorPersonID
-		if rowExists {
-			if err := st.RecordRevision(ctx, tx, "setlist", entityID, actor, SetlistSnapshot{
-				Exists: true, Scope: curScope, Title: curTitle, Notes: curNotes,
-				Body: curBody, OwnerPersonID: curOwnerPerson, OwnerBandID: curOwnerBand,
-			}); err != nil {
-				return err
-			}
-		} else {
-			if err := st.RecordRevision(ctx, tx, "setlist", entityID, actor, SetlistSnapshot{Exists: false}); err != nil {
-				return err
-			}
+		if err := st.RecordRevision(ctx, tx, "setlist", entityID, actor, cur); err != nil {
+			return err
 		}
 
 		if !snap.Exists {
@@ -347,10 +362,15 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 			if !rowExists {
 				return fmt.Errorf("setlist %d no longer exists, can't restore it: %w", id, ErrNotFound)
 			}
+			// The snapshot's text form back into rows (a revision recorded
+			// before migration 0115 is the body as it was then).
+			if err := writeSetlistItems(ctx, tx, id, setlist.Parse(snap.Body)); err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, `
-				UPDATE setlists SET title = $1, notes = $2, body = $3, version = version + 1
-				WHERE id = $4`,
-				snap.Title, snap.Notes, snap.Body, id); err != nil {
+				UPDATE setlists SET title = $1, notes = $2, version = version + 1
+				WHERE id = $3`,
+				snap.Title, snap.Notes, id); err != nil {
 				return err
 			}
 		}
@@ -359,5 +379,8 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		return fmt.Errorf("revert not implemented for entity_type %q", entityType)
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	return nil
 }

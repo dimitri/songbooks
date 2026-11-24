@@ -8,21 +8,22 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// Person is one login-capable account. PasswordHash is empty until
-// SetPassword has been called for them (e.g. the accounts Phase 1's
-// --import tool creates). Email is empty for accounts that predate the
-// magic-link login phase and haven't been backfilled yet (see
-// SetEmail / the --set-email bootstrap flag) — such accounts can still
-// only log in via the legacy password path, if they have one.
+// Person is one login-capable account, identified by its Email (see
+// docs/accounts.md): there is no login name (people.username is legacy,
+// migration 0135) and people are shown by DisplayName. PasswordHash is
+// empty until SetPassword has been called for them. Email is empty for
+// a placeholder (shell) account and for the odd old account that never
+// had one backfilled (see SetEmail / the --set-email flag): such an
+// account can't log in at all until it gets one (ListPasswordNoEmail).
 type Person struct {
 	ID           int64
-	Username     string
 	DisplayName  string
 	Email        string
 	PasswordHash string
@@ -34,7 +35,7 @@ type Person struct {
 	Instruments []string
 
 	// Public-profile fields (see migration 0038): shown instead of
-	// Username/DisplayName wherever a "public" view of this person is
+	// DisplayName wherever a "public" view of this person is
 	// shown (not built yet beyond the profile editor itself). ShareEmail/
 	// SharePhone are separate opt-ins — a nickname/picture alone doesn't
 	// expose contact info.
@@ -83,40 +84,40 @@ type ProjectSummary struct {
 // identity, for a project's members/invite-management page.
 type Member struct {
 	PersonID    int64
-	Username    string
 	DisplayName string
 	Role        string
 }
 
-// Invite is a pending, single-use invitation. It targets exactly one of:
-// a band (BandID/BandStatus set), or neither — a "plain" invite that
-// just lets its holder create an account with no membership attached
-// (see Kind).
+// Invite is a pending, single-use invitation: a personal one (PersonID
+// set: a placeholder's link, see CreateShellPerson), or a "plain" one
+// that just lets its holder create an account with no membership
+// attached (see Kind).
+//
+// A band's nameless one-off link (band_id set, no person) is gone
+// (decided 2026-11-24: invites are made by name, or by the band's open
+// link): GetInvite and accepting no longer take one still in the
+// table (notNamelessBandInvite).
 type Invite struct {
-	Token      string
-	BandID     int64
-	BandName   string
-	BandStatus string
-	PersonID   int64 // set for a personal invite — see Kind, CreateShellPerson
-	CreatedBy  int64 // 0/unknown for invites predating this column
-	ExpiresAt  time.Time
+	Token     string
+	PersonID  int64 // set for a personal invite — see Kind, CreateShellPerson
+	CreatedBy int64 // 0/unknown for invites predating this column
+	ExpiresAt time.Time
 }
 
 // Kind reports which shape inv is, for templates and handlers that need
 // to branch on it: "personal" (PersonID set — completes an existing
-// shell person's account, see ClaimPersonalInvite) takes priority over
-// the older "band" (BandID set, no shell — grants the given account
-// membership in one band directly) and "plain" (neither — just an
-// account with no attached membership) shapes.
+// shell person's account, see ClaimPersonalInvite) or "plain" (just an
+// account with no attached membership).
 func (inv Invite) Kind() string {
 	if inv.PersonID != 0 {
 		return "personal"
 	}
-	if inv.BandID != 0 {
-		return "band"
-	}
 	return "plain"
 }
+
+// notNamelessBandInvite is the condition on invites i that leaves out a
+// band's nameless one-off link, made until 2026-11-24 (see Invite).
+const notNamelessBandInvite = `(i.band_id IS NULL OR i.person_id IS NOT NULL)`
 
 func randomToken() (string, error) {
 	b := make([]byte, 32)
@@ -126,27 +127,39 @@ func randomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// GetPersonByUsername looks up a person by their login name.
-func (st *Store) GetPersonByUsername(ctx context.Context, username string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE username = $1`, username)
-}
-
 // GetPersonByID looks up a person by id.
 func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, id)
+	return st.scanPerson(ctx, `SELECT id, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, id)
 }
 
 // GetPersonByEmail looks up a person by their email address — the
-// magic-link login lookup. Case-sensitive exact match, matching how the
-// email was stored (emails are lowercased on input, see handleLogin/
-// SetEmail).
+// login lookup (magic link and password alike), the email being the
+// account. Emails are lowercased on input (handleLogin, SetEmail,
+// CreatePerson); the match ignores case all the same, an exact match
+// first should two old rows differ only by case.
 func (st *Store) GetPersonByEmail(ctx context.Context, email string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE email = $1`, email)
+	return st.scanPerson(ctx, `SELECT id, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people
+		WHERE lower(email) = lower($1) ORDER BY email = $1 DESC, id LIMIT 1`, strings.TrimSpace(email))
+}
+
+// FindPerson resolves how a command line or a config names a person
+// (cmd/songbooks --set-email, SONGBOOKS_DEV_AUTO_LOGIN, cmd/sbcoach…):
+// a numeric id, or an email (matched lowercased, as stored). There is
+// no login name any more (migration 0135). ErrNotFound if nobody.
+func (st *Store) FindPerson(ctx context.Context, emailOrID string) (*Person, error) {
+	ref := strings.TrimSpace(emailOrID)
+	if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
+		return st.GetPersonByID(ctx, id)
+	}
+	if !strings.Contains(ref, "@") {
+		return nil, fmt.Errorf("%q is neither an email nor an id (there are no usernames any more): %w", ref, ErrNotFound)
+	}
+	return st.GetPersonByEmail(ctx, strings.ToLower(ref))
 }
 
 func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person, error) {
 	var p Person
-	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
+	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -156,21 +169,9 @@ func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person
 	return &p, nil
 }
 
-// SetInstruments replaces personID's set of instruments (see Person.Instruments).
-func (st *Store) SetInstruments(ctx context.Context, personID int64, instruments []string) error {
-	tag, err := st.db.Exec(ctx, `UPDATE people SET instruments = $1 WHERE id = $2`, instruments, personID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
-	}
-	return nil
-}
-
 // SetPublicProfile replaces personID's public-profile fields wholesale
 // (see migration 0038 / Person's doc comment) — the "public profile" tab
-// on /profile, same "whole-form save" posture as SetInstruments.
+// on /profile, a whole-form save.
 func (st *Store) SetPublicProfile(ctx context.Context, personID int64, nickname, pictureURL, phone string, shareEmail, sharePhone, gravatarOptOut bool) error {
 	tag, err := st.db.Exec(ctx, `
 		UPDATE people SET nickname = $1, picture_url = $2, phone = $3, share_email = $4, share_phone = $5, gravatar_opt_out = $6
@@ -216,15 +217,16 @@ func (st *Store) SetAdmin(ctx context.Context, personID int64, isAdmin bool) err
 // PersonAdminRow is one row of the admin panel's people list.
 type PersonAdminRow struct {
 	ID          int64
-	Username    string
 	DisplayName string
+	Email       string // "" for a placeholder, or an account that can't log in
 	IsAdmin     bool
+	IsShell     bool
 	CreatedAt   time.Time
 }
 
 // ListAllPeople lists every person in the system, for the admin panel.
 func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
-	rows, err := st.db.Query(ctx, `SELECT id, username, display_name, is_admin, created_at FROM people ORDER BY created_at`)
+	rows, err := st.db.Query(ctx, `SELECT id, display_name, coalesce(email, ''), is_admin, is_shell, created_at FROM people ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +234,64 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 	var out []PersonAdminRow
 	for rows.Next() {
 		var p PersonAdminRow
-		if err := rows.Scan(&p.ID, &p.Username, &p.DisplayName, &p.IsAdmin, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Email, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ListPasswordNoEmail lists the accounts that have a password but no
+// email: with email the only identity (migration 0135) they can't log
+// in any more — no magic link to send, no email to type with the
+// password — until someone gives them one (songbooks --set-email
+// <id> <email>). Placeholder (shell) accounts aren't in it: they have
+// neither, and their invite link is how they get both. For the admin
+// panel and a line at startup.
+func (st *Store) ListPasswordNoEmail(ctx context.Context) ([]PersonAdminRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT id, display_name, is_admin, is_shell, created_at FROM people
+		WHERE email IS NULL AND password_hash IS NOT NULL AND password_hash <> '' AND NOT is_shell
+		ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PersonAdminRow
+	for rows.Next() {
+		var p PersonAdminRow
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ListEmailNoPassword lists the accounts with an email but neither a
+// password nor a passkey: registering for an event used to make them
+// (the password was optional until 2026-11-24). Their only way in is an
+// emailed login link, and no login email reaches anyone yet (the console
+// mailer, no SMTP): once their session ends they can't log in, until
+// they get a login link from a site admin (a members page's "Login
+// link") and set a password on their profile, or someone sets one
+// (songbooks --set-password). Placeholders aren't in it. For the admin
+// panel and a line at startup, as ListPasswordNoEmail.
+func (st *Store) ListEmailNoPassword(ctx context.Context) ([]PersonAdminRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT p.id, p.display_name, p.email, p.is_admin, p.is_shell, p.created_at FROM people p
+		WHERE p.email IS NOT NULL AND coalesce(p.password_hash, '') = '' AND NOT p.is_shell
+		  AND NOT EXISTS (SELECT 1 FROM webauthn_credentials w WHERE w.person_id = p.id)
+		ORDER BY p.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PersonAdminRow
+	for rows.Next() {
+		var p PersonAdminRow
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Email, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -244,7 +303,7 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 // email (invite-only account creation — see CreatePersonAndAcceptInvite,
 // which is the one actually wired to the accept flow; this is kept as
 // the plain non-transactional equivalent for any future direct caller).
-func (st *Store) CreatePerson(ctx context.Context, username, displayName, email string) (int64, error) {
+func (st *Store) CreatePerson(ctx context.Context, displayName, email string) (int64, error) {
 	// email is UNIQUE but nullable — a literal "" (no caller ever passed
 	// one until cmd/songimport started restoring people with no email on
 	// file) collides with itself on the SECOND such person, since two
@@ -252,13 +311,13 @@ func (st *Store) CreatePerson(ctx context.Context, username, displayName, email 
 	// NULLs are not. Store "no email" as NULL, same as every other no-
 	// email person already in the table.
 	var emailArg *string
-	if email != "" {
+	if email = strings.ToLower(strings.TrimSpace(email)); email != "" {
 		emailArg = &email
 	}
 	var id int64
 	err := st.db.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, emailArg).Scan(&id)
+		`INSERT INTO people (display_name, email) VALUES ($1, $2) RETURNING id`,
+		displayName, emailArg).Scan(&id)
 	return id, err
 }
 
@@ -318,11 +377,11 @@ func (st *Store) CreateSession(ctx context.Context, personID int64) (string, err
 func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) {
 	var p Person
 	err := st.db.QueryRow(ctx, `
-		SELECT p.id, p.username, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments,
+		SELECT p.id, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments,
 		       p.nickname, p.picture_url, p.phone, p.share_email, p.share_phone, p.gravatar_opt_out
 		FROM sessions s JOIN people p ON p.id = s.person_id
 		WHERE s.token = $1 AND s.expires_at > now()`, token).
-		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
+		Scan(&p.ID, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such session: %w", ErrNotFound)
 	}
@@ -386,7 +445,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 		return nil, err
 	}
 
-	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, personID)
+	p, err := st.scanPersonTx(ctx, tx, `SELECT id, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +457,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 
 func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg any) (*Person, error) {
 	var p Person
-	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
+	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -406,60 +465,6 @@ func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg 
 		return nil, err
 	}
 	return &p, nil
-}
-
-// CreateBandInvite makes a single-use, time-limited invite to join a band
-// at status ("core" or "guest") — the band equivalent of CreateInvite.
-func (st *Store) CreateBandInvite(ctx context.Context, bandID int64, status string, createdBy int64, ttl time.Duration) (string, error) {
-	if status != "core" && status != "guest" {
-		return "", fmt.Errorf("invalid band member status %q", status)
-	}
-	token, err := randomToken()
-	if err != nil {
-		return "", err
-	}
-	_, err = st.db.Exec(ctx,
-		`INSERT INTO invites (token, band_id, band_status, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5)`,
-		token, bandID, status, nullableID(createdBy), time.Now().Add(ttl))
-	if err != nil {
-		return "", err
-	}
-	return token, nil
-}
-
-// OpenBandInvite is one still-redeemable single-use band invite: just
-// enough for a page to show "here's a link you can still share" and let
-// it be copied again, without re-running the full Invite/project/band
-// join resolution GetInvite does for the /join landing page itself.
-type OpenBandInvite struct {
-	Token     string
-	Status    string
-	ExpiresAt time.Time
-}
-
-// ListOpenBandInvites lists bandID's still-redeemable single-use invites
-// — any row currently in `invites` for this band hasn't been accepted
-// yet (AcceptInvite deletes its row on accept, single-use by design; see
-// that doc comment), so "not expired" is the only filter needed. Fills
-// the same "show a link I already made, don't force a new one" gap
-// ListGroupInvitesForTarget fills for the reusable roster-link kind.
-func (st *Store) ListOpenBandInvites(ctx context.Context, bandID int64) ([]OpenBandInvite, error) {
-	rows, err := st.db.Query(ctx, `
-		SELECT token, band_status::text, expires_at FROM invites
-		WHERE band_id = $1 AND expires_at > now() ORDER BY expires_at DESC`, bandID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []OpenBandInvite
-	for rows.Next() {
-		var inv OpenBandInvite
-		if err := rows.Scan(&inv.Token, &inv.Status, &inv.ExpiresAt); err != nil {
-			return nil, err
-		}
-		out = append(out, inv)
-	}
-	return out, rows.Err()
 }
 
 // CreatePlainInvite makes a single-use, time-limited invite that carries
@@ -491,39 +496,65 @@ func nullableID(id int64) *int64 {
 }
 
 // CreateShellPerson makes a not-yet-claimed person row — displayName
-// set, username a throwaway unique placeholder (replaced by whatever
-// the real person picks when they claim their invite; people.username
-// is NOT NULL+UNIQUE, so a shell needs *something* there from the
-// start), is_shell true. The caller attaches whatever band_members/
+// set, no email (the real person gives theirs when they claim their
+// invite: the email is the account), is_shell true. The caller attaches whatever band_members/
 // community_members rows this person should have (AddBandMember/
 // AddCommunityMember both work unchanged against a shell's id — they're
 // ordinary membership rows, nothing shell-specific about them) before
 // ever generating an invite link — see CreatePersonalInvite.
 func (st *Store) CreateShellPerson(ctx context.Context, displayName string) (int64, error) {
-	placeholder, err := randomToken()
-	if err != nil {
-		return 0, err
-	}
 	var id int64
-	err = st.db.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, is_shell) VALUES ($1, $2, true) RETURNING id`,
-		"pending-"+placeholder[:16], displayName).Scan(&id)
+	err := st.db.QueryRow(ctx,
+		`INSERT INTO people (display_name, is_shell) VALUES ($1, true) RETURNING id`,
+		displayName).Scan(&id)
 	return id, err
 }
 
-// CreatePersonalInvite makes a single-use token for personID (normally
-// a shell — see CreateShellPerson) to complete their own account.
-// Unlike CreatePlainInvite/CreateBandInvite, claiming it never creates
-// a new person row: ClaimPersonalInvite finishes the EXISTING one.
+// ErrNotShell is returned by CreatePersonalInvite when the person
+// already has a real account: a personal invite finishes a placeholder
+// (shell) account, and one for a real account would hand that account
+// to whoever opens the link.
+var ErrNotShell = errors.New("that person already has an account")
+
+// CreatePersonalInvite makes a single-use token for personID, a shell
+// (see CreateShellPerson), to complete their own account, and returns
+// it. It replaces any link the person had: one live link per person, so
+// "New link" always works and the old link stops working as soon as a
+// new one exists. ErrNotFound if there's no such person, ErrNotShell if
+// they already have an account. Unlike CreatePlainInvite/
+// CreateBandInvite, claiming it never creates a new person row:
+// ClaimPersonalInvite finishes the EXISTING one.
 func (st *Store) CreatePersonalInvite(ctx context.Context, personID, createdBy int64, ttl time.Duration) (string, error) {
 	token, err := randomToken()
 	if err != nil {
 		return "", err
 	}
-	_, err = st.db.Exec(ctx,
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+
+	var isShell bool
+	err = tx.QueryRow(ctx, `SELECT is_shell FROM people WHERE id = $1 FOR UPDATE`, personID).Scan(&isShell)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
+	}
+	if err != nil {
+		return "", err
+	}
+	if !isShell {
+		return "", ErrNotShell
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE person_id = $1`, personID); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx,
 		`INSERT INTO invites (token, person_id, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4)`,
-		token, personID, nullableID(createdBy), time.Now().Add(ttl))
-	return token, err
+		token, personID, nullableID(createdBy), time.Now().Add(ttl)); err != nil {
+		return "", err
+	}
+	return token, tx.Commit(ctx)
 }
 
 // PersonalInviteMembership is one band/community PersonalInviteView's
@@ -609,19 +640,23 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 }
 
 // ClaimPersonalInvite finishes a shell person's account: sets their
-// real username/email/password (bcryptHash may be "" for an email-
-// only/magic-link account, same as the plain-invite path), clears
-// is_shell, and deletes the invite — no new person row, no new
-// memberships (those were already granted when the shell was made).
-func (st *Store) ClaimPersonalInvite(ctx context.Context, token, username, email, bcryptHash string) (personID int64, err error) {
+// email — the account itself from now on — and password (bcryptHash
+// may be "" for an email-only/magic-link account, same as the plain-
+// invite path), clears is_shell, and deletes the invite — no new
+// person row, no new memberships (those were already granted when the
+// shell was made). ErrEmailTaken if another account has that email.
+func (st *Store) ClaimPersonalInvite(ctx context.Context, token, email, bcryptHash string) (personID int64, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
 
+	// Only a placeholder account can be claimed: a link left over for
+	// someone who has an account since must not hand it to anyone else.
 	err = tx.QueryRow(ctx, `
-		SELECT person_id FROM invites WHERE token = $1 AND expires_at > now() AND person_id IS NOT NULL`, token).
+		SELECT i.person_id FROM invites i JOIN people p ON p.id = i.person_id
+		WHERE i.token = $1 AND i.expires_at > now() AND p.is_shell`, token).
 		Scan(&personID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("no such invite: %w", ErrNotFound)
@@ -635,12 +670,9 @@ func (st *Store) ClaimPersonalInvite(ctx context.Context, token, username, email
 		pwHash = &bcryptHash
 	}
 	_, err = tx.Exec(ctx, `
-		UPDATE people SET username = $1, email = $2, password_hash = $3, is_shell = false WHERE id = $4`,
-		username, nullableString(email), pwHash, personID)
+		UPDATE people SET email = $1, password_hash = $2, is_shell = false WHERE id = $3`,
+		nullableString(email), pwHash, personID)
 	if err != nil {
-		if constraintViolated(err, "people_username_key") {
-			return 0, ErrUsernameTaken
-		}
 		if constraintViolated(err, "people_email_key") {
 			return 0, ErrEmailTaken
 		}
@@ -663,8 +695,11 @@ type ShellPersonRow struct {
 	DisplayName     string
 	CreatedAt       time.Time
 	Memberships     []PersonalInviteMembership
-	OpenInviteToken string // "" if no still-valid invite exists
-	CreatedByName   string
+	OpenInviteToken string    // "" if no still-valid invite exists
+	OpenInviteUntil time.Time // when OpenInviteToken expires (zero without one)
+	// OpenInviteExpiresAt is the same expiry, nil without one.
+	OpenInviteExpiresAt *time.Time
+	CreatedByName       string
 }
 
 // ListShellPeople lists every not-yet-claimed shell person on the
@@ -724,15 +759,22 @@ func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]She
 
 		var token sql.NullString
 		var createdByName sql.NullString
+		var until sql.NullTime
 		err = st.db.QueryRow(ctx, `
-			SELECT i.token, p.display_name FROM invites i
+			SELECT i.token, p.display_name, i.expires_at FROM invites i
 			LEFT JOIN people p ON p.id = i.created_by_person_id
-			WHERE i.person_id = $1 AND i.expires_at > now() LIMIT 1`, out[i].PersonID).
-			Scan(&token, &createdByName)
+			WHERE i.person_id = $1 AND i.expires_at > now()
+			ORDER BY i.expires_at DESC LIMIT 1`, out[i].PersonID).
+			Scan(&token, &createdByName, &until)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 		out[i].OpenInviteToken = token.String
+		out[i].OpenInviteUntil = until.Time
+		if until.Valid {
+			t := until.Time
+			out[i].OpenInviteExpiresAt = &t
+		}
 		out[i].CreatedByName = createdByName.String
 	}
 	return out, nil
@@ -783,96 +825,49 @@ func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error)
 }
 
 // GetInvite resolves a token to its still-valid invite, or ErrNotFound if
-// missing/expired. BandID is set, or not, for a plain invite — see
-// Invite.Kind.
+// missing/expired, or a band's nameless one-off link (see Invite).
 func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	var inv Invite
-	var bandID, personID sql.NullInt64
-	var bandName, bandStatus sql.NullString
+	var personID sql.NullInt64
 	var createdBy sql.NullInt64
 	err := st.db.QueryRow(ctx, `
-		SELECT i.token, i.band_id, b.name, i.band_status::text,
-		       i.person_id, i.created_by_person_id, i.expires_at
+		SELECT i.token, i.person_id, i.created_by_person_id, i.expires_at
 		FROM invites i
-		LEFT JOIN bands b ON b.id = i.band_id
-		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&inv.Token, &bandID, &bandName, &bandStatus, &personID, &createdBy, &inv.ExpiresAt)
+		WHERE i.token = $1 AND i.expires_at > now() AND `+notNamelessBandInvite, token).
+		Scan(&inv.Token, &personID, &createdBy, &inv.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, err
 	}
-	inv.BandID, inv.BandName, inv.BandStatus = bandID.Int64, bandName.String, bandStatus.String
 	inv.PersonID = personID.Int64
 	inv.CreatedBy = createdBy.Int64
 	return &inv, nil
 }
 
 // acceptInviteTx is the shared body of AcceptInvite/CreatePersonAndAcceptInvite:
-// given the invite row (already locked/read inside tx) and the person now
-// accepting it, grants the right membership (band, or none for a plain
-// invite), deletes the invite, and — for a band invite — notifies
-// whoever created it. dest is where the browser should be redirected
-// afterwards.
+// a plain invite, the only kind accepted this way (a personal one is
+// ClaimPersonalInvite's; a band's nameless one-off link isn't taken any
+// more, see Invite), has no membership to grant: it is deleted, and the
+// browser goes home (dest). accepterName is unused since the band
+// one-off link went (it named the accepter in the inviter's
+// notification).
 func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, personID int64, accepterName string) (dest string, err error) {
-	var bandID, createdBy sql.NullInt64
-	var bandName sql.NullString
-	err = tx.QueryRow(ctx, `
-		SELECT i.band_id, b.name, i.created_by_person_id
-		FROM invites i LEFT JOIN bands b ON b.id = i.band_id
-		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&bandID, &bandName, &createdBy)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such invite: %w", ErrNotFound)
-	}
+	tag, err := tx.Exec(ctx, `
+		DELETE FROM invites i
+		WHERE i.token = $1 AND i.expires_at > now() AND i.band_id IS NULL AND i.person_id IS NULL`, token)
 	if err != nil {
 		return "", err
 	}
-
-	switch {
-	case bandID.Valid:
-		var invitedBy *int64
-		if createdBy.Valid {
-			invitedBy = &createdBy.Int64
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
-			VALUES ($1, $2, (SELECT band_status FROM invites WHERE token = $3), $4)`,
-			bandID.Int64, personID, token, invitedBy); err != nil {
-			return "", err
-		}
-		dest = fmt.Sprintf("/bands/%d", bandID.Int64)
-
-		// First real use case for the notification plumbing: tell the
-		// inviter their invite was accepted. A plain invite has nothing to
-		// notify about (no inviter is even meaningfully "waiting" on it),
-		// and a project invite is unchanged existing behavior — this is
-		// deliberately band-invite-only for now.
-		if createdBy.Valid && createdBy.Int64 != personID {
-			body := fmt.Sprintf("%s accepted your invite to join %s", accepterName, bandName.String)
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO notifications (person_id, kind, body, link) VALUES ($1, $2, $3, $4)`,
-				createdBy.Int64, "band_invite_accepted", body, fmt.Sprintf("/bands/%d", bandID.Int64)); err != nil {
-				return "", err
-			}
-		}
-
-	default:
-		// Plain invite: no membership to grant, just the fresh account.
-		dest = "/"
+	if tag.RowsAffected() == 0 {
+		return "", fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
-
-	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE token = $1`, token); err != nil {
-		return "", err
-	}
-	return dest, nil
+	return "/", nil
 }
 
-// AcceptInvite grants an already-logged-in person (personID, display name
-// accepterName — used in the accept notification) the invite's membership
-// (project role, band status, or nothing for a plain invite), and deletes
-// the invite — single-use by design, so a link can't be replayed to add an
+// AcceptInvite takes a plain invite for an already-logged-in person
+// (personID, display name accepterName), and deletes the invite — single-use by design, so a link can't be replayed to add an
 // unbounded number of people (anyone wanting more invitees gets a fresh
 // invite instead). dest is where the browser should land afterwards.
 func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64, accepterName string) (dest string, err error) {
@@ -893,8 +888,6 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64,
 // visitor (not already logged in): it creates the person row — identified
 // by email, plus accepts the invite as them, in one transaction so a
 // failed membership insert never leaves an orphan account behind.
-// username is kept only as a display label distinct from login identity
-// (see Member/PersonAdminRow and the templates that show it).
 //
 // bcryptHash is optional: pass "" (the invite form's password field left
 // blank) for a passwordless account that can only log in via magic link,
@@ -902,7 +895,7 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64,
 // first-class option; pass an already-hashed password (handlePostInvite
 // hashes it before calling this) to let the new account log in with that
 // password immediately, same as any other account with a password set.
-func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, email, bcryptHash string) (personID int64, dest string, err error) {
+func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, displayName, email, bcryptHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -914,11 +907,8 @@ func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, usernam
 		pwHash = &bcryptHash
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id`,
-		username, displayName, email, pwHash).Scan(&personID); err != nil {
-		if constraintViolated(err, "people_username_key") {
-			return 0, "", ErrUsernameTaken
-		}
+		`INSERT INTO people (display_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id`,
+		displayName, email, pwHash).Scan(&personID); err != nil {
 		if constraintViolated(err, "people_email_key") {
 			return 0, "", ErrEmailTaken
 		}

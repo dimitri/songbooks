@@ -16,7 +16,7 @@ type CommunityCatalogEntry struct {
 	EntryID         int64
 	AddedAt         time.Time
 	AddedByPersonID *int64
-	AddedByUsername string
+	AddedByName     string // who added it: their display name
 }
 
 // AddCommunityCatalogEntry points communityID's default songbook at variantID —
@@ -46,8 +46,8 @@ func (st *Store) ListCommunityCatalog(ctx context.Context, communityID int64) ([
 		return nil, err
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT se.id, se.added_at, se.added_by_person_id, coalesce(p.username, ''),
-		       s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.forked_from_id
+		SELECT se.id, se.added_at, se.added_by_person_id, coalesce(p.display_name, ''),
+		       s.id, s.work_id, s.title, s.artist, `+songKindSQL("s")+`, s.owner_person_id, s.forked_from_id, s.public, s.version_name
 		FROM songbook_entries se
 		JOIN songs s ON s.id = se.variant_id
 		LEFT JOIN people p ON p.id = se.added_by_person_id
@@ -60,8 +60,8 @@ func (st *Store) ListCommunityCatalog(ctx context.Context, communityID int64) ([
 	var out []CommunityCatalogEntry
 	for rows.Next() {
 		var e CommunityCatalogEntry
-		if err := rows.Scan(&e.EntryID, &e.AddedAt, &e.AddedByPersonID, &e.AddedByUsername,
-			&e.VariantID, &e.WorkID, &e.Title, &e.Artist, &e.Visibility, &e.OwnerID, &e.ForkedFromID); err != nil {
+		if err := rows.Scan(&e.EntryID, &e.AddedAt, &e.AddedByPersonID, &e.AddedByName,
+			&e.VariantID, &e.WorkID, &e.Title, &e.Artist, &e.Visibility, &e.OwnerID, &e.ForkedFromID, &e.Public, &e.VersionName); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

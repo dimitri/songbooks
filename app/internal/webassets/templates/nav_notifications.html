@@ -1,0 +1,54 @@
+{{/* Notifications, one entry point on each surface (menu proposal §3.9),
+     in the global navigation's slots (icons.html):
+
+     - desktop: the sidebar's Notifications entry, right under Accueil,
+       carries "nav-notifications", the unread count (server-rendered
+       from .Nav.Unread, which render() fills in for the signed-in
+       person; kept fresh by the script below);
+     - phone and tablet: "notif-bell", the bell in the top bar's
+       notifications slot next to the avatar, with the count, and the
+       Accueil tab's dot (global-tabbar, from the entry's Dot). The song
+       page has none of its own: a focused view, its bar in place of the
+       tab bar.
+
+     Badges count unread notifications only. Every badge and dot carries
+     data-unread-count or data-unread-dot, and nav-notifications-script
+     updates them all from /api/notifications/unread-count; a page that
+     changes the count (the notifications page, marking read) calls
+     window.SongbooksUnread.refresh(). The partials are self-contained so
+     the global navigation's layout can move them without changes here. */}}
+
+{{/* The sidebar entry's count; called with the number unread. */}}
+{{define "nav-notifications"}}<span class="nav-count" data-nav-badge="notifications" data-unread-count{{if not .}} hidden{{end}}>{{if .}}{{.}}{{end}}</span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span>{{end}}
+
+{{/* The top bar's bell; called with the number unread. */}}
+{{define "notif-bell"}}<a href="/notifications" class="notif-bell" id="notif-bell-link" title="{{t "Notifications"}}">{{template "icon-bell"}}<span class="sr-only">{{t "Notifications"}}</span><span id="notif-badge" class="notif-badge" data-unread-count{{if not .}} hidden{{end}}>{{if .}}{{.}}{{end}}</span><span class="sr-only" data-unread-label{{if not .}} hidden{{end}}>{{t "unread"}}</span></a>{{end}}
+
+{{define "notif-bell-script"}}{{template "nav-notifications-script"}}{{end}}
+{{define "nav-notifications-script"}}<script>(function () {
+  if (window.SongbooksUnread) return;
+  var label = {{t "%d unread notifications"}};
+  function apply(n) {
+    document.querySelectorAll('[data-unread-count]').forEach(function (el) {
+      el.textContent = n > 99 ? '99+' : String(n);
+      el.hidden = !n;
+    });
+    document.querySelectorAll('[data-unread-label]').forEach(function (el) { el.hidden = !n; });
+    document.querySelectorAll('[data-unread-dot]').forEach(function (el) { el.hidden = !n; });
+    // The Accueil tab's dot (global-tabbar renders it): its tab says why.
+    document.querySelectorAll('.global-tabbar [data-unread-dot]').forEach(function (dot) {
+      var a = dot.closest('a');
+      if (n) a.setAttribute('title', label.replace('%d', n)); else a.removeAttribute('title');
+    });
+  }
+  function refresh() {
+    return fetch('/api/notifications/unread-count', {credentials: 'same-origin'})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { if (data) apply(data.count || 0); })
+      .catch(function () {});
+  }
+  window.SongbooksUnread = {refresh: refresh, apply: apply};
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', refresh); else refresh();
+  // Back to the tab after a while: the count may have moved.
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+})();</script>{{end}}

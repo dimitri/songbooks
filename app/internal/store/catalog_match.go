@@ -14,7 +14,7 @@ type LibraryMatch struct {
 	Artist     string
 	Key        string // from the song's own "key:" header line; "" if unset
 	Visibility string // "global", or "user" for the viewer's own private song
-	MadeBy     string // owner's username, else whoever created it; "" if unknown
+	MadeBy     string // owner's display name, else whoever created it's; "" if unknown
 	Bands      int    // how many bands have it in their repertoire
 	Songbooks  int    // how many songbooks (any owner) contain it
 	Exact      bool   // normalized title is identical, not just a prefix/word match
@@ -67,7 +67,7 @@ func (st *Store) MatchLibrary(ctx context.Context, viewerID int64, title, artist
 		c AS (
 		  SELECT s.id, `+matchNormSQL("s.title")+` AS nt, `+matchNormSQL("s.artist")+` AS na
 		  FROM songs s
-		  WHERE s.visibility = 'global' OR (s.visibility = 'user' AND s.owner_person_id = $1)
+		  WHERE s.public OR s.owner_person_id = $1
 		),
 		scored AS (
 		  SELECT c.id,
@@ -90,8 +90,8 @@ func (st *Store) MatchLibrary(ctx context.Context, viewerID int64, title, artist
 		)
 		SELECT s.id, s.title, s.artist,
 		       btrim(coalesce(substring(s.body from '(?n)^key:[ \t]*([^\r\n]*)'), '')),
-		       s.visibility::text,
-		       coalesce(po.username, pc.username, ''),
+		       `+songKindSQL("s")+`,
+		       coalesce(po.display_name, pc.display_name, ''),
 		       (SELECT count(DISTINCT sb.owner_band_id) FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
 		         WHERE se.variant_id = s.id AND sb.owner_kind = 'band')::int AS bands,
 		       (SELECT count(*) FROM songbook_entries se WHERE se.variant_id = s.id)::int,

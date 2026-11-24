@@ -144,6 +144,81 @@ beat-detection/alignment in v1 — a human sets markers by ear, which is
 both simpler to build and more reliable than audio analysis for a rock/
 pop reference track with no guaranteed clean transients.
 
+### Sync state: estimated or set
+
+Three things place a chart on a recording, and the player says which one
+it follows (`audio-player.js`, "Sync state"):
+
+| Where it comes from | Saved? | State |
+|---|---|---|
+| The player's own detection (no markers, no sync points: `mixer-autoalign.js` run in the browser) | no | estimated |
+| A program's proposal: the import wizard's step 5 (`songimport.ApplySync`), the Mixer's Auto-align | yes, `origin = 'auto'` | estimated |
+| A person: a tap or a nudge in the Sync sheet, a flag dragged in the Mixer, a Guitar Pro file's own sync, "It's right: confirm" | yes, `origin = 'set'` | set |
+
+`song_audio_markers.origin` and `gp_bar_sync_point.origin` (migration
+0094) hold it; a recording is "estimated" while any of its markers is. The
+badge by the counter reads **Synchro estimée** or **Synchro réglée**; its
+panel says where the sync comes from and opens the Sync sheet to correct
+it.
+
+The badge also warns when the markers make the bar.beat counter run at
+another tempo than the chart's (more than 8% off): the chart's bars are
+spread evenly between two section starts, so a section with more bars
+written than the recording plays makes the counter run fast. Song 334 was
+the case: its verses are written with 23 bars and sung over 17 (the
+recording is at 90 bpm, the chart says 104), the wizard placed each
+section where the singing starts, and the counter ran at 122 bpm. The
+wizard now says so too, section by section ("23 bars in the chart, about
+17 in the recording") and keeps the chart's tempo rather than proposing
+the 122 its fit implies (`songimport.ProposeSync`, `TempoMismatch`).
+
+### The Sync sheet
+
+`sync-sheet.js`, for editors: tap along while listening. Play, tap the
+big button on the first beat of each section; the tap sets that section
+and moves on, never seeking. A tap snaps to the nearest detected downbeat
+or to the voice coming in (`GET /api/songs/{id}/audio/{category}/voice`:
+the vocals part's phrases) within 0.15 s; the delay left after snapping
+is learnt and taken off later taps. Each section has ▶ 2 s before, ±0.1 s,
+±1 bar, ✓ (right as it is) and "Redo from here". The chart, the counter
+and the click follow the unsaved sync while it's edited. Undo goes back
+step by step; Save writes the whole sync in one request
+(`PUT /api/songs/{id}/audio/{category}/markers`), which keeps the sync it
+replaces (`song_audio_sync_history`, the last 20,
+`GET …/markers/history`) so an earlier one can be taken back.
+
+It opens from the badge's panel and from the import wizard's step 5
+("Adjust by ear…", with the wizard's proposal).
+
+Its top is the recording's waveform (`sync-wave.js`, its arithmetic in
+`sync-wave-math.js`, tested by `internal/webassets/jstest`), drawn on a
+canvas from peaks at several resolutions (built from the player's ~11 kHz
+mono copy), zoomed from the whole song to a few beats: trackpad pinch,
+Ctrl/⌘ + wheel, a phone's two fingers, − / Fit / + (keys − 0 +). The
+wheel or a drag scrolls, a click plays from there, and while playing it
+follows the playhead until you scroll or zoom (Follow, F, brings it back);
+an overview strip under it shows the window and moves it. On it: the
+sections as a band, the bar lines with their numbers, the chart's chords
+(`GET /api/songs/{id}/mixer`), the analysis' beats and downbeats faintly,
+its suggestions as dashed lines with a chip (once: that section; twice:
+taken), its chord checks as flags (they open the analysis there). Each
+section's start is a marker to drag, snapping to the nearest downbeat,
+beat or voice onset within a few pixels (`Alt` places it freely), the bars
+between the starts following. Below it: the section the next tap sets
+with its tools, the list of sections (a dot for each one's state, notes
+for what needs a look), and the analysis. A phone stacks them, the
+waveform on top and Save at the bottom.
+
+### Lines in Lyrics only
+
+A chart has no time per lyric line. While the recording leads, Lyrics
+only lights the line the singer is on from the vocals part's phrases
+(`lyric-lines.js`): the phrases starting in the section's span are merged
+(shortest rest first) or split (longest phrase first) until there is one
+per line, and each line starts with its phrase. Without the voice (the
+recording not split yet, or the metronome leading), the section's lines
+are spread evenly over its bars, as before.
+
 ## 5. Build order
 
 1. `song_audio`/`song_audio_markers` tables + migration.

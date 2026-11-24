@@ -10,8 +10,13 @@ import (
 
 // Stems are a reference recording's parts, split by Demucs in the
 // background (cmd/stemsd, migration 0078): what the practice player's
-// voice control and the Mixer's lanes play.
+// voice control and the Mixer's lanes play. A Guitar Pro file's backing
+// track (AudioGP) isn't split (migration 0123): none queued, none served.
 var Stems = []string{"vocals", "drums", "bass", "other", "no_vocals"}
+
+// ErrNotSplit: a recording that isn't split into parts (a Guitar Pro
+// file's backing track).
+var ErrNotSplit = errors.New("a Guitar Pro backing track isn't split into parts")
 
 // StemJob is one recording waiting to be split.
 type StemJob struct {
@@ -50,11 +55,18 @@ func (st *Store) ResetRunningStemJobs(ctx context.Context) error {
 // goes to one (SKIP LOCKED).
 func (st *Store) ClaimStemJob(ctx context.Context, model string) (*StemJob, error) {
 	var j StemJob
+	// The worker looking: at work (the Melody view tells a server
+	// without one, migration 0134).
+	if err := st.NoteStemWorker(ctx, model); err != nil {
+		return nil, err
+	}
 	err := st.db.QueryRow(ctx, `
 		UPDATE song_audio_stem_jobs SET status = 'running', model = $1, started_at = now(), attempts = attempts + 1
 		WHERE song_audio_id = (
-			SELECT song_audio_id FROM song_audio_stem_jobs WHERE status = 'queued'
-			ORDER BY queued_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+			SELECT j.song_audio_id FROM song_audio_stem_jobs j
+			JOIN song_audio a ON a.id = j.song_audio_id AND a.category <> 'gp'
+			WHERE j.status = 'queued'
+			ORDER BY j.queued_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED)
 		RETURNING song_audio_id, source_sha256, attempts,
 			CASE WHEN EXISTS (
 				SELECT 1 FROM song_audio a
@@ -124,13 +136,14 @@ func (st *Store) FailStemJob(ctx context.Context, job StemJob, why string) error
 }
 
 // GetStemStatus is a recording's split: its job's status and the parts
-// stored for the recording as it is now.
+// stored for the recording as it is now; none for a Guitar Pro backing
+// track (its parts made before migration 0123 are kept, not served).
 func (st *Store) GetStemStatus(ctx context.Context, songAudioID int64) (StemStatus, error) {
 	var s StemStatus
 	err := st.db.QueryRow(ctx, `
-		SELECT coalesce((SELECT status FROM song_audio_stem_jobs WHERE song_audio_id = a.id), ''),
-		       coalesce((SELECT array_agg(st.stem ORDER BY st.stem) FROM song_audio_stems st
-		                 WHERE st.song_audio_id = a.id AND st.source_sha256 = a.sha256), '{}')
+		SELECT CASE WHEN a.category = 'gp' THEN '' ELSE coalesce((SELECT status FROM song_audio_stem_jobs WHERE song_audio_id = a.id), '') END,
+		       CASE WHEN a.category = 'gp' THEN '{}' ELSE coalesce((SELECT array_agg(st.stem ORDER BY st.stem) FROM song_audio_stems st
+		                 WHERE st.song_audio_id = a.id AND st.source_sha256 = a.sha256), '{}') END
 		FROM song_audio a WHERE a.id = $1`, songAudioID).Scan(&s.Status, &s.Stems)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s, ErrNotFound
@@ -145,7 +158,7 @@ func (st *Store) GetStemData(ctx context.Context, songAudioID int64, stem string
 	var at time.Time
 	err := st.db.QueryRow(ctx, `
 		SELECT st.data, st.content_type, st.created_at FROM song_audio_stems st
-		JOIN song_audio a ON a.id = st.song_audio_id AND a.sha256 = st.source_sha256
+		JOIN song_audio a ON a.id = st.song_audio_id AND a.sha256 = st.source_sha256 AND a.category <> 'gp'
 		WHERE st.song_audio_id = $1 AND st.stem = $2`, songAudioID, stem).Scan(&data, &contentType, &at)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", at, ErrNotFound
@@ -154,8 +167,19 @@ func (st *Store) GetStemData(ctx context.Context, songAudioID int64, stem string
 }
 
 // QueueStemJob queues a recording's split again (an editor's "split
-// again", or a failed one retried).
+// again", or a failed one retried); ErrNotSplit for a Guitar Pro backing
+// track.
 func (st *Store) QueueStemJob(ctx context.Context, songAudioID int64) error {
+	var category string
+	if err := st.db.QueryRow(ctx, `SELECT category FROM song_audio WHERE id = $1`, songAudioID).Scan(&category); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if AudioCategory(category) == AudioGP {
+		return ErrNotSplit
+	}
 	_, err := st.db.Exec(ctx, `
 		INSERT INTO song_audio_stem_jobs (song_audio_id, source_sha256)
 		SELECT id, sha256 FROM song_audio WHERE id = $1

@@ -1,0 +1,195 @@
+{{/* The Big Songbook (« Le Grand Songbook », docs/ownership-model.md
+     §6): the global community everyone belongs to, its songbook
+     computed — every public song, by work with its versions. Its staff
+     (the site's admins) review its duplicates (§7). */}}
+{{define "big_songbook"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{docTitle (t "The Big Songbook")}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/catalog">{{template "icon-back"}} {{t "Library"}}</a>
+  <h1>{{t "The Big Songbook"}}</h1>
+</header>
+<main class="index big-songbook">
+  <p class="catalog-intro">{{t "Every public song, one song’s recordings and arrangements together: the catalogue’s, and the ones bands and communities made public. Everyone signed in plays them, adds them to a songbook, makes their own arrangement."}}</p>
+  {{if or .IsStaff .IsReviewer}}
+  <p class="big-staff">
+    {{if .IsStaff}}{{if .Duplicates}}<a class="chip-link" href="/big-songbook/duplicates">{{tn .Duplicates "%d duplicate to review" "%d duplicates to review"}} &rarr;</a>
+    {{else}}<span class="hint">{{t "No duplicates to review."}}</span>{{end}}{{end}}
+    {{if .IsReviewer}}<a class="chip-link" href="/big-songbook/review">{{if .QueueCount}}{{tn .QueueCount "%d edit or report to review" "%d edits or reports to review"}}{{else}}{{t "Edits and reports: none waiting"}}{{end}} &rarr;</a>{{end}}
+  </p>
+  {{end}}
+
+  <form class="catalog-search form-inline big-search" method="get" action="/big-songbook" role="search">
+    {{with .From}}<input type="hidden" name="from" value="{{.}}">{{end}}
+    <input type="search" name="q" value="{{.Q}}" placeholder="{{t "Title, artist or words from the song"}}" aria-label="{{t "Search songs"}}" enterkeyhint="search" autocomplete="off">
+    <button type="submit">{{t "Search"}}</button>
+  </form>
+  <nav class="space-views find-scopes" aria-label="{{t "Where they come from"}}">
+    {{range .Froms}}<a href="{{.Href}}" class="space-view{{if .Active}} active{{end}}"{{if .Active}} aria-current="page"{{end}}>{{t .Label}}</a>{{end}}
+  </nav>
+  <p class="hint big-count">{{tn (len .Works) "%d song" "%d songs"}}{{if ne (len .Works) .Songs}} &middot; {{tn .Songs "%d recording or arrangement" "%d recordings and arrangements"}}{{end}}</p>
+
+  {{if .Works}}
+  <ul class="big-works">
+  {{range $w := .Works}}
+    <li class="big-work" data-work-id="{{$w.WorkID}}">
+      <div class="big-work-head">
+        <a class="big-work-title" href="/works/{{$w.WorkID}}">{{$w.Title}}</a>
+        {{if gt (len $w.Songs) 1}}<span class="addsong-versions">{{tn (len $w.Songs) "%d recording or arrangement" "%d recordings and arrangements"}}</span>{{end}}
+      </div>
+      <ul class="big-versions">
+      {{range $w.Songs}}
+        {{$fit := index $w.Fits .ID}}
+        <li class="big-version" data-variant-id="{{.ID}}">
+          <a class="big-version-title" href="/song/{{.ID}}">{{.Artist}}{{with .VersionName}} — {{.}}{{end}}</a>
+          <span class="owner-badge is-public">{{index $w.Badges .ID}}</span>
+          {{with index $.PlayedBy .ID}}<span class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}{{$b.BandName}} ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</span>{{end}}
+          {{if $fit.Fit}}<span class="fit-badge is-{{$fit.Fit}}"{{with $fit.Why}} title="{{.}}"{{end}}>{{$fit.Label}}</span>{{end}}
+          <button type="button" class="link-button" data-add-to="{{.ID}}" data-title="{{.Title}} — {{.Artist}}" data-badge="{{index $w.Badges .ID}}">{{t "Add to…"}}</button>
+          {{if and $.IsStaff $fit.Why}}<p class="hint fit-why">{{$fit.Why}}</p>{{end}}
+        </li>
+      {{end}}
+      </ul>
+    </li>
+  {{end}}
+  </ul>
+  {{else}}
+  <p class="hint">{{t "No songs match this filter."}}</p>
+  {{end}}
+</main>
+<script src="/static/js/add-song.js?v={{staticVersion}}"></script>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+{{/* The duplicates review (§7), for The Big Songbook's staff: public
+     songs with the same title and artist (case, accents, "The", "&"
+     don't count) or the same reference video. One is kept, each other
+     one merged into it — previewed first (a dry run: what would move),
+     then merged. */}}
+{{define "big_songbook_duplicates"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{docTitle (t "Duplicates")}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/big-songbook">{{template "icon-back"}} {{t "The Big Songbook"}}</a>
+  <h1>{{t "Duplicates"}}</h1>
+</header>
+<main class="index big-dups">
+  <p class="catalog-intro">{{t "Public songs that are the same song: the same title, artist and reference label, or the same reference video. Keep one; merge the other into it — its songbook entries (with their keys), set list lines, band recordings and the arrangements made from it move to the one kept, its history stays readable there, and its old links open the one kept."}}</p>
+  {{range $gi, $g := .Groups}}
+  <section class="card big-dup" data-group="{{$gi}}">
+    <h2 class="big-dup-title">{{$g.Title}}</h2>
+    <p class="hint">{{range $i, $r := $g.Reasons}}{{if $i}} &middot; {{end}}{{if eq $r "title"}}{{t "same title and artist"}}{{else}}{{t "same reference video"}}{{end}}{{end}}</p>
+    <ul class="big-dup-songs">
+    {{range $i, $s := $g.Songs}}
+      <li class="big-dup-song" data-song-id="{{$s.ID}}">
+        <label class="big-dup-keep"><input type="radio" name="keep-{{$gi}}" value="{{$s.ID}}"{{if eq $s.ID $g.KeepID}} checked{{end}}> {{t "Keep"}}</label>
+        <div class="big-dup-text">
+          <a href="/song/{{$s.ID}}">{{t "Song %d" $s.ID}}</a> — {{$s.Title}} — {{$s.Artist}}{{with $s.VersionName}} — {{.}}{{end}}
+          <span class="owner-badge is-public">{{if $s.Catalogue}}{{t "The Big Songbook"}}{{else}}{{$s.OwnerName}}{{end}}</span>
+          <p class="hint">
+            {{tn $s.Entries "%d songbook entry" "%d songbook entries"}} &middot; {{tn $s.Setlists "%d set list" "%d set lists"}} &middot; {{tn $s.Recordings "%d band recording" "%d band recordings"}} &middot; {{tn $s.Versions "%d arrangement made from it" "%d arrangements made from it"}} &middot; {{tn $s.Media "%d file" "%d files"}}
+            {{with $s.ReferenceURL}}<br><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{else}}<br>{{t "no reference video"}}{{end}}
+            <br>{{t "created %s" (date $s.CreatedAt "2 January 2006")}} &middot; {{t "revision %d" $s.Version}}
+          </p>
+        </div>
+        <div class="big-dup-actions">
+          <button type="button" class="big-dup-preview">{{t "Preview merging into the kept one"}}</button>
+        </div>
+      </li>
+    {{end}}
+    </ul>
+    <div class="big-dup-report" hidden>
+      <p class="big-dup-summary"></p>
+      <ul class="big-dup-lines"></ul>
+      <div class="form-actions">
+        <button type="button" class="danger big-dup-merge">{{t "Merge"}}</button>
+        <button type="button" class="big-dup-cancel">{{t "Cancel"}}</button>
+      </div>
+    </div>
+    <p class="form-status" role="status"></p>
+  </section>
+  {{else}}
+  <p class="hint">{{t "No duplicates to review."}}</p>
+  {{end}}
+</main>
+<script>
+document.querySelectorAll('.big-dup').forEach((group) => {
+  const report = group.querySelector('.big-dup-report');
+  const status = group.querySelector('.form-status');
+  let pending = null;
+  const keepId = () => Number(group.querySelector('input[type=radio]:checked')?.value);
+  // The kept song's own row has nothing to merge.
+  const sync = () => group.querySelectorAll('.big-dup-song').forEach((li) => {
+    li.querySelector('.big-dup-preview').hidden = Number(li.dataset.songId) === keepId();
+  });
+  group.addEventListener('change', () => { sync(); report.hidden = true; pending = null; });
+  sync();
+  const merge = async (drop, dryRun) => {
+    const res = await fetch('/api/big-songbook/merge', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({keep: keepId(), drop, dryRun}),
+    }).catch(() => null);
+    const d = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok) throw new Error(d.error || t('Couldn’t reach the server. Check your connection and try again.'));
+    return d;
+  };
+  group.querySelectorAll('.big-dup-preview').forEach((btn) => btn.addEventListener('click', async () => {
+    const drop = Number(btn.closest('.big-dup-song').dataset.songId);
+    Forms.busy(btn, true);
+    Forms.status(status, '');
+    try {
+      const d = await merge(drop, true);
+      pending = drop;
+      group.querySelector('.big-dup-summary').textContent = d.summary;
+      const ul = group.querySelector('.big-dup-lines');
+      ul.replaceChildren(...d.lines.map((l) => { const li = document.createElement('li'); li.textContent = l; return li; }));
+      report.hidden = false;
+    } catch (e) {
+      Forms.status(status, e.message, 'error');
+    }
+    Forms.busy(btn, false);
+  }));
+  group.querySelector('.big-dup-cancel').addEventListener('click', () => { report.hidden = true; pending = null; });
+  group.querySelector('.big-dup-merge').addEventListener('click', async (e) => {
+    if (!pending) return;
+    Forms.busy(e.target, true);
+    try {
+      const d = await merge(pending, false);
+      Forms.status(status, d.summary + ' ' + d.lines.join('; '), 'ok');
+      setTimeout(() => location.reload(), 900);
+    } catch (err) {
+      Forms.busy(e.target, false);
+      Forms.status(status, err.message, 'error');
+    }
+  });
+});
+</script>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

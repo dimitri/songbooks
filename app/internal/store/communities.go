@@ -26,6 +26,13 @@ type Community struct {
 	// Kind is "community", or "coaching" for a voice coach and their
 	// students (migration 0079, coaching.go).
 	Kind string
+	// PlayerVocalSlider: its songs' player has the voice's volume beside
+	// play and the key out in the open (migration 0093, vocal_slider.go).
+	PlayerVocalSlider bool
+	// CoachStudentKeys: in the songs opened from its songbooks, the coach
+	// picks a student and saves their key from the player, the coming
+	// week's lessons first (migration 0097, vocal_slider.go).
+	CoachStudentKeys bool
 }
 
 // IsCoaching reports whether the community is a coach's and their students'.
@@ -42,14 +49,13 @@ type CommunityMember struct {
 	ID                int64
 	CommunityID       int64
 	PersonID          int64
-	Username          string
 	DisplayName       string
 	RoleID            int64
 	Role              string
 	JoinedAt          time.Time
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
-	InvitedByUsername string
+	InvitedByName     string // the inviter's display name
 	// JoinedViaBandID/JoinedViaBandName: non-nil when this stint was
 	// granted automatically because the person joined a band linked to
 	// this community (see community_bands.go's
@@ -107,8 +113,8 @@ func (st *Store) CreateCommunity(ctx context.Context, name string, creatorPerson
 // GetCommunity loads one community by id.
 func (st *Store) GetCommunity(ctx context.Context, communityID int64) (*Community, error) {
 	var sc Community
-	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at, kind FROM communities WHERE id = $1`, communityID).
-		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt, &sc.Kind)
+	err := st.db.QueryRow(ctx, `SELECT id, name, default_join_role::text, created_at, kind, player_vocal_slider, coach_student_keys FROM communities WHERE id = $1`, communityID).
+		Scan(&sc.ID, &sc.Name, &sc.DefaultJoinRole, &sc.CreatedAt, &sc.Kind, &sc.PlayerVocalSlider, &sc.CoachStudentKeys)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such community %d: %w", communityID, ErrNotFound)
 	}
@@ -225,14 +231,18 @@ type CommunityCardRow struct {
 	MemberCount int
 	SongCount   int
 	MyRole      string
+	Kind        string // "community" or "coaching" (Community.Kind)
 }
+
+// IsCoaching reports whether the community is a coach's and their students'.
+func (r CommunityCardRow) IsCoaching() bool { return r.Kind == "coaching" }
 
 // ListCommunityCardsForPerson is ListCommunitiesForPerson plus the counts
 // a listing card shows — one query per community would N+1 on a person
 // in many communities, so this does it in a single round trip instead.
 func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64) ([]CommunityCardRow, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT sc.id, sc.name, my_role.name,
+		SELECT sc.id, sc.name, my_role.name, sc.kind,
 		       count(DISTINCT cm.person_id) FILTER (WHERE upper_inf(cm.validity)),
 		       count(DISTINCT se.variant_id)
 		FROM communities sc
@@ -241,7 +251,7 @@ func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64
 		LEFT JOIN community_members cm ON cm.community_id = sc.id
 		LEFT JOIN songbooks sb ON sb.owner_community_id = sc.id AND sb.is_default
 		LEFT JOIN songbook_entries se ON se.songbook_id = sb.id
-		GROUP BY sc.id, sc.name, my_role.name
+		GROUP BY sc.id, sc.name, my_role.name, sc.kind
 		ORDER BY sc.name`, personID)
 	if err != nil {
 		return nil, err
@@ -250,7 +260,7 @@ func (st *Store) ListCommunityCardsForPerson(ctx context.Context, personID int64
 	var out []CommunityCardRow
 	for rows.Next() {
 		var r CommunityCardRow
-		if err := rows.Scan(&r.ID, &r.Name, &r.MyRole, &r.MemberCount, &r.SongCount); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.MyRole, &r.Kind, &r.MemberCount, &r.SongCount); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -298,9 +308,9 @@ func isCurrentCommunityMember(ctx context.Context, q dbtx, communityID, personID
 // ones. Newest first — same shape/ordering as ListBandMembers.
 func (st *Store) ListCommunityMembers(ctx context.Context, communityID int64, includePast bool) ([]CommunityMember, error) {
 	q := `
-		SELECT m.id, m.community_id, m.person_id, p.username, p.display_name, m.role_id, cr.name,
+		SELECT m.id, m.community_id, m.person_id, p.display_name, m.role_id, cr.name,
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
-		       m.invited_by_person_id, coalesce(ip.username, ''), m.joined_via_band_id, coalesce(vb.name, '')
+		       m.invited_by_person_id, coalesce(ip.display_name, ''), m.joined_via_band_id, coalesce(vb.name, '')
 		FROM community_members m
 		JOIN people p ON p.id = m.person_id
 		JOIN community_roles cr ON cr.id = m.role_id
@@ -319,8 +329,8 @@ func (st *Store) ListCommunityMembers(ctx context.Context, communityID int64, in
 	var out []CommunityMember
 	for rows.Next() {
 		var m CommunityMember
-		if err := rows.Scan(&m.ID, &m.CommunityID, &m.PersonID, &m.Username, &m.DisplayName, &m.RoleID, &m.Role,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.JoinedViaBandID, &m.JoinedViaBandName); err != nil {
+		if err := rows.Scan(&m.ID, &m.CommunityID, &m.PersonID, &m.DisplayName, &m.RoleID, &m.Role,
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByName, &m.JoinedViaBandID, &m.JoinedViaBandName); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

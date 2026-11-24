@@ -30,13 +30,13 @@ func optionsFromRequest(r *http.Request) pdfnative.Options {
 }
 
 // setlistOptionsFromRequest is optionsFromRequest for a gig/setlist
-// export: single-column by default, since it's printed to read off a
-// music stand from a few feet away, where the normal two-column chart
-// isn't legible — ?cols=2 opts back into the dense layout if wanted.
+// export: the renderer's normal two-column layout (sections flow down two
+// columns, like the web Song view), so a song stays on one page instead of
+// running a narrow single column over several; ?cols=1 opts into one
+// full-width column.
 func setlistOptionsFromRequest(r *http.Request) pdfnative.Options {
 	o := optionsFromRequest(r)
-	o.Columns = 1
-	if c, err := strconv.Atoi(r.URL.Query().Get("cols")); err == nil && c > 0 {
+	if c, err := strconv.Atoi(r.URL.Query().Get("cols")); err == nil && c > 0 && c <= 2 {
 		o.Columns = c
 	}
 	return o
@@ -218,7 +218,7 @@ func (s *Server) handleExportSetlistPageOnlyByIDPDF(w http.ResponseWriter, r *ht
 }
 
 // handleExportSongbookPDF renders a songbook's entire song list to one
-// combined PDF (cover, plain title page, contents, every song) — in the
+// combined PDF (cover, contents, every song) — in the
 // songbook's own canonical song_order, the same ordering the songbook's
 // own page already shows.
 func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request) {
@@ -247,6 +247,17 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// ?keys=songbook: each song in the key it has in this songbook (a
+	// coaching student's, a group's: songbook_entries.semitones), "PDF in
+	// my keys"; else as written.
+	var keys map[int64]int
+	if r.URL.Query().Get("keys") == "songbook" {
+		if keys, err = s.store.SongbookKeys(r.Context(), id); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
 	var refs []pdfnative.SongRef
 	for _, g := range groups {
 		groupLabel := g.Label
@@ -258,7 +269,11 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 			if err != nil {
 				continue
 			}
-			refs = append(refs, pdfnative.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: song.Write(sg)})
+			body := song.Write(sg)
+			if n := keys[vid]; n != 0 {
+				body = transposedBody(body, n)
+			}
+			refs = append(refs, pdfnative.SongRef{Group: groupLabel, Stem: strconv.FormatInt(vid, 10), Body: body})
 		}
 	}
 	if len(refs) == 0 {
@@ -308,7 +323,7 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 		refs = append(refs, pdfnative.SongRef{Stem: strconv.FormatInt(e.VariantID, 10), Body: song.Write(sg)})
 	}
 	if len(refs) == 0 {
-		httpError(w, http.StatusNotFound, "this band's repertoire has no songs yet")
+		httpError(w, http.StatusNotFound, "this band's songbook has no songs yet")
 		return
 	}
 
@@ -400,4 +415,15 @@ func withGPNotes(sg *song.Song) *song.Song {
 		return sg
 	}
 	return out
+}
+
+// transposedBody is a song's text moved by n semitones (its chords, its
+// key: header), for a PDF in a singer's key; as it is when its key can't
+// be told (no chords, a key it can't read).
+func transposedBody(body string, n int) string {
+	res, err := song.TransposeText(body, song.TransposeOptions{Semitones: n})
+	if err != nil {
+		return body
+	}
+	return res.Text
 }

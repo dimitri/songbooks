@@ -44,19 +44,20 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 		data["Passkeys"] = passkeys
 		data["AlreadyDone"] = len(passkeys) > 0
 	case 3:
-		checked := map[string]bool{}
-		var other []string
-		for _, inst := range person.Instruments {
-			if isCommonInstrument(inst) {
-				checked[inst] = true
-			} else {
-				other = append(other, inst)
-			}
+		// Read from the profile's rows, not people.instruments (which the
+		// start-up backfill doesn't rewrite), so the icons tick what's
+		// really there. Unticking one takes it off; the rest are listed,
+		// and changed on the profile, never here.
+		mine, err := s.store.ListPersonInstruments(r.Context(), person.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
+		checked, rest := commonChecked(mine, s.langOfRequest(r))
 		data["CommonInstruments"] = commonInstruments
 		data["Checked"] = checked
-		data["Other"] = strings.Join(other, ", ")
-		data["AlreadyDone"] = len(person.Instruments) > 0
+		data["AlsoPlays"] = strings.Join(rest, ", ")
+		data["AlreadyDone"] = len(mine) > 0
 	case 4:
 		bands, err := s.store.ListBandsForPerson(r.Context(), person.ID)
 		if err != nil {
@@ -81,8 +82,11 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		// A pick is a link in the person's songbook (§4); one already
+		// there, or one they made their version of, isn't offered again.
 		mineIDs := map[int64]bool{}
 		for _, e := range mine {
+			mineIDs[e.VariantID] = true
 			if e.ForkedFromID != nil {
 				mineIDs[*e.ForkedFromID] = true
 			}
@@ -98,6 +102,7 @@ func (s *Server) handleWelcomePage(w http.ResponseWriter, r *http.Request) {
 			picks = append(picks, v)
 		}
 		data["Picks"] = picks
+		data["MySongbookID"] = mySongbook
 	}
 
 	s.render(w, "welcome", data)

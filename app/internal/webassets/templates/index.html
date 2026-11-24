@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks</title>
+<title>{{docTitle (t "Today")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -12,44 +12,144 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <h1>Songbooks</h1>
-  {{template "notif-bell"}}
+  <h1>{{t "Today"}}</h1>
 </header>
 <main class="index">
   <div class="home-greeting">
     <h2>{{t .Greeting}}, {{.Me.DisplayName}}</h2>
   </div>
 
-  {{/* Home, in the order that matters when you open the app: what's
-       coming up in all your bands and communities (the month itself is
-       on /calendar, and in your own calendar app by subscribing), what
-       needs you, then your communities, bands and songbooks, each card
-       in that group's own look. */}}
-  <section class="home-section home-upcoming" aria-labelledby="upcoming-title">
-    <div class="home-section-head">
-      <h3 id="upcoming-title">{{t "Coming up"}}</h3>
-      <span class="home-head-links"><a href="/calendar">{{template "icon-calendar"}} {{t "Full calendar"}}</a><a href="/calendar/subscribe">{{t "Subscribe"}}</a></span>
+  {{/* The dashboard (home.go): the person's own songbook beside "This
+       week", then every band and community as one grid of equal cards.
+       A phone stacks them: the songbook, two dates, the cards two by two. */}}
+  <div class="home-top">
+  {{with .MySongbook}}
+  <section class="home-songbook" aria-labelledby="songbook-title">
+    <a class="home-songbook-art home-pic {{.MosaicClass}}" href="/songbooks/{{.ID}}" tabindex="-1" aria-hidden="true">
+      {{if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{template "icon-catalog"}}</span>{{end}}
+    </a>
+    <div class="home-songbook-text">
+      <p class="home-eyebrow">{{t "Your songbook"}}</p>
+      <h2 id="songbook-title"><a href="/songbooks/{{.ID}}">{{.Name}}</a></h2>
+      <p class="home-songbook-count">{{tn .Songs "%d song" "%d songs"}}</p>
+      {{if .Recent}}
+      <p class="home-songbook-recent"><span>{{t "Recently:"}}</span>
+      {{range $i, $r := .Recent}}{{if $i}}<span aria-hidden="true">·</span>{{end}}<a href="/song/{{$r.SongID}}{{if $r.Query}}?{{$r.Query}}{{end}}">{{$r.Title}}</a>{{end}}
+      </p>
+      {{end}}
+      <div class="home-songbook-actions">
+        <a class="home-btn primary" href="/songbooks/{{.ID}}">{{t "Open"}}</a>
+        <a class="home-btn" href="/songbooks/{{.ID}}?new=1">{{template "icon-plus"}} {{t "Add a song"}}</a>
+        <a class="home-btn" href="/songbooks/{{.ID}}/export-songbook.pdf">{{template "icon-download"}} {{t "PDF"}}</a>
+      </div>
+      {{if or .Others .MoreLessons}}
+      <p class="home-songbook-others">{{if .Others}}<span>{{t "Your other songbooks:"}}</span>
+      {{range $i, $b := .Others}}{{if $i}}<span aria-hidden="true">·</span>{{end}}<a href="/songbooks/{{$b.ID}}">{{$b.Name}}</a>{{end}}{{end}}
+      <a href="/catalog?view=songbooks">{{t "All my songbooks"}} &rarr;</a></p>
+      {{end}}
     </div>
-    {{if .Upcoming}}
-    <ol class="upcoming-list">
-    {{range $i, $e := .Upcoming}}
-      <li class="upcoming-row kind-{{.Kind}}{{if eq $i 0}} is-next{{end}}">
+    {{/* A student's songbook in each coaching community (one row each,
+         at most three), under their own: named by the community. */}}
+    {{if .Lessons}}
+    <ul class="home-lesson-books">
+    {{range .Lessons}}
+      <li class="home-lesson-book">
+        <a class="home-pic home-lesson-art {{.MosaicClass}}" href="/songbooks/{{.ID}}" tabindex="-1" aria-hidden="true">{{if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{template "icon-catalog"}}</span>{{end}}</a>
+        <div class="home-lesson-text">
+          <p class="home-eyebrow">{{t "Lessons with %s" .CommunityName}}</p>
+          <h3><a href="/songbooks/{{.ID}}">{{.Name}}</a></h3>
+          <p class="home-songbook-count">{{tn .Songs "%d song" "%d songs"}}</p>
+        </div>
+        <div class="home-lesson-actions">
+          <a class="home-btn primary" href="/songbooks/{{.ID}}">{{t "Open"}}</a>
+          <a class="home-btn" href="/songbooks/{{.ID}}/export-songbook.pdf">{{template "icon-download"}} {{t "PDF"}}</a>
+        </div>
+      </li>
+    {{end}}
+    </ul>
+    {{end}}
+  </section>
+  {{end}}
+
+  {{with .Week}}
+  <section class="home-week" aria-labelledby="week-title">
+    <div class="home-section-head">
+      <h3 id="week-title">{{t "This week"}}</h3>
+      {{if .Total}}<a class="home-week-all" href="/calendar">{{t "See all (%d)" .Total}}</a>{{end}}
+    </div>
+    {{if .Rows}}
+    {{if .Later}}<p class="home-week-later">{{t "Nothing this week. Next:"}}</p>{{end}}
+    <ol class="week-list">
+    {{range .Rows}}
+      <li class="week-row kind-{{.Kind}}">
         <div class="coming-up-date"><span class="month">{{date .Starts "Mon"}}</span><span class="day">{{.Starts.Day}}</span></div>
-        <div class="upcoming-text">
-          <a class="upcoming-title" href="{{.Link}}">{{.Title}}</a>
-          <div class="upcoming-meta"><span class="upcoming-kind">{{t .KindLabel}}</span> &middot; {{if or (eq .When "Today") (eq .When "Tomorrow")}}{{t .When}}{{else if eq .When (.Starts.Format "Monday 2 Jan")}}{{date .Starts "Monday"}}{{else}}{{date .Starts "Mon 2 Jan"}}{{end}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}}{{with .GroupName}} &middot; {{.}}{{end}}{{with .Place}} &middot; {{.}}{{end}}</div>
+        <div class="week-text">
+          <a class="week-title" href="{{.Link}}">{{.Title}}{{with .GroupName}}<span class="week-group"> · {{.}}</span>{{end}}</a>
+          <div class="week-meta"><span class="week-kind">{{t .KindLabel}}</span>{{if or (eq .When "Today") (eq .When "Tomorrow")}} · {{t .When}}{{if not .AllDay}} {{.Starts.Format "15:04"}}{{end}}{{else if not .AllDay}} · {{.Starts.Format "15:04"}}{{end}}{{if .Weekly}} · <span class="week-repeat">{{t "weekly"}}</span>{{else if .More}} · <span class="week-repeat">{{tn .More "+%d date" "+%d dates"}}</span>{{end}}{{with .Place}} · {{.}}{{end}}</div>
         </div>
-        <div class="upcoming-actions">
-          {{if eq .LessonMode "online"}}<a class="chip-link primary" href="{{.Link}}">{{t "Join"}}</a>{{end}}
-          {{if .SetlistLink}}<a class="chip-link{{if eq $i 0}} primary{{end}}" href="{{.SetlistLink}}">{{template "icon-setlists"}} {{t "Set list"}}</a>{{end}}
-        </div>
+        {{if eq .LessonMode "online"}}<a class="chip-link primary" href="{{.Link}}">{{t "Join"}}</a>{{else if .SetlistLink}}<a class="chip-link week-setlist" href="{{.SetlistLink}}" title="{{t "Set list"}}" aria-label="{{t "Set list"}}">{{template "icon-setlists"}}</a>{{end}}
       </li>
     {{end}}
     </ol>
     {{else}}
-    <p class="home-empty">{{t "Nothing planned in the next three months."}} <a href="/calendar">{{t "Open the calendar"}}</a></p>
+    <p class="home-empty">{{t "Nothing planned in the next three months."}}</p>
     {{end}}
+    <p class="home-week-links"><a href="/calendar">{{template "icon-calendar"}} {{t "Full calendar"}}</a><a href="/calendar/subscribe">{{t "Subscribe"}}</a></p>
   </section>
+  {{end}}
+  </div>
+
+  {{/* Aujourd'hui (today.go): one card a role, the most time-critical
+       first, each one tap to the task. */}}
+  {{if .Today}}
+  <section class="today-cards" aria-label="{{t "Today"}}">
+  {{range .Today}}
+    <article class="today-card kind-{{.Kind}}" style="{{with .Header}}--today-bg: {{.}};{{end}}{{with .HeaderFg}}--today-fg: {{.}};{{end}}{{with .Accent}}--today-accent: {{.}};{{end}}">
+      <p class="today-eyebrow">{{.Eyebrow}}</p>
+      <h2 class="today-title"><a href="{{.Link}}">{{.Title}}</a></h2>
+      {{with .Meta}}<p class="today-meta">{{.}}</p>{{end}}
+      {{if .Of}}<div class="today-progress" role="progressbar" aria-label="{{t "days practised this week"}}" aria-valuemin="0" aria-valuemax="{{.Of}}" aria-valuenow="{{.Done}}"><i style="width: {{.Percent}}%"></i></div>{{end}}
+      <div class="today-actions">
+      {{if .RegisterEventID}}
+        <form method="post" action="/events/{{.RegisterEventID}}/register" class="today-register">
+          {{if .AsksPlays}}<input type="hidden" name="plays" value="1">{{range .Plays}}<input type="hidden" name="instrument" value="{{.}}">{{end}}{{end}}
+          <button type="submit" class="today-go">{{.Action}}</button>
+        </form>
+        <p class="today-done" role="status" hidden>✓ {{t "You're registered for this event."}}</p>
+        <a href="{{.Link}}" class="today-secondary">{{t "See the event"}}</a>
+      {{else if .Action}}
+        <a class="today-go" href="{{.Link}}">{{.Action}}</a>
+      {{end}}
+      {{if .More}}<a class="today-secondary" href="{{.MoreLink}}">{{.More}}</a>{{end}}
+      </div>
+    </article>
+  {{end}}
+  </section>
+  {{end}}
+
+  {{with .SongNews}}{{template "home-song-news" .}}{{end}}
+
+  {{/* Your bands, then your communities: two rows of the same cards,
+       each card's line what matters for its kind; a row with no cards
+       is left out. */}}
+  {{if .Bands}}
+  <section class="home-section" aria-labelledby="bands-title">
+    <div class="home-section-head home-row-head">
+      <h3 id="bands-title" class="home-row-title">{{template "icon-pick"}} {{t "Your bands"}} <span class="home-row-hint">{{t "the people you play with"}}</span></h3>
+      <a class="home-row-all" href="/bands">{{t "All bands"}} &rarr;</a>
+    </div>
+    <ul class="group-cards">{{range .Bands}}{{template "home-group-card" .}}{{end}}</ul>
+  </section>
+  {{end}}
+  {{if .Communities}}
+  <section class="home-section" aria-labelledby="communities-title">
+    <div class="home-section-head home-row-head">
+      <h3 id="communities-title" class="home-row-title">{{template "icon-users-group"}} {{t "Your communities"}} <span class="home-row-hint">{{t "schools, teachers, jams"}}</span></h3>
+      <a class="home-row-all" href="/communities">{{t "All communities"}} &rarr;</a>
+    </div>
+    <ul class="group-cards">{{range .Communities}}{{template "home-group-card" .}}{{end}}</ul>
+  </section>
+  {{end}}
 
   {{/* Open band votes and unread notifications, merged; the section
        only shows when there's something in it. */}}
@@ -76,58 +176,8 @@
   </section>
   {{end}}
 
-  {{if or .Bands .Communities}}
-  {{if .Communities}}
-  <section class="home-section" aria-labelledby="communities-title">
-    <div class="home-section-head"><h3 id="communities-title">{{t "Your communities"}}</h3><a href="/communities">{{t "All communities"}} &rarr;</a></div>
-    <div class="home-cards">
-    {{range .Communities}}{{$c := .Community}}
-      <a class="home-card" href="/communities/{{$c.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent2}}--card-tag: {{.}};{{end}}">
-        <div class="home-card-head">
-          <span class="home-card-mark" aria-hidden="true">{{if .Look.LogoURL}}<img src="{{.Look.LogoURL}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-community"}}{{end}}</span>
-          <span class="home-card-name"><b>{{$c.Name}}</b>{{with .Look.Tagline}}<span class="home-card-tag">{{.}}</span>{{end}}</span>
-        </div>
-        <ul class="home-card-facts">
-          {{if $c.HasNextEvent}}<li>{{t "Next:"}} <b>{{$c.NextEventName}}</b>, {{date $c.NextEventDate "Mon 2 Jan"}}</li>{{end}}
-          <li>{{tn $c.SongCount "%d song" "%d songs"}} &middot; {{tn $c.MemberCount "%d member" "%d members"}}</li>
-        </ul>
-      </a>
-    {{end}}
-    </div>
-  </section>
-  {{end}}
-
-  {{if .Bands}}
-  <section class="home-section" aria-labelledby="bands-title">
-    <div class="home-section-head"><h3 id="bands-title">{{t "Your bands"}}</h3><a href="/bands">{{t "All bands"}} &rarr;</a></div>
-    <div class="home-cards home-cards-small">
-    {{range .Bands}}{{$b := .Band}}
-      <a class="home-card home-card-band" href="/bands/{{$b.ID}}" style="{{with .Look.Header}}--card-head: {{.}};{{end}}{{with .Look.Accent}}--card-tag: {{.}};{{end}}">
-        <span class="home-card-mark" aria-hidden="true">{{if .Look.LogoURL}}<img src="{{.Look.LogoURL}}" alt="">{{else if .Look.Mark}}{{.Look.Mark}}{{else}}{{template "icon-bands"}}{{end}}</span>
-        <span class="home-card-name"><b>{{$b.Name}}</b>
-          <span class="home-card-line">{{if $b.HasNextGig}}{{t "Gig"}} {{date $b.NextGigDate "Mon 2 Jan"}}{{with $b.NextGigVenue}} &middot; {{.}}{{end}}{{else if $b.Digest}}{{$b.Digest}}{{else}}{{tn $b.Members "%d member" "%d members"}}{{end}}</span>
-        </span>
-      </a>
-    {{end}}
-    </div>
-  </section>
-  {{end}}
-
-  <section class="home-section" aria-labelledby="songbooks-title">
-    <div class="home-section-head"><h3 id="songbooks-title">{{t "Your songbooks"}}</h3><a href="/songbooks">{{t "All songbooks"}} &rarr;</a></div>
-    {{if .Recent}}
-    <div class="home-recent"><span class="home-recent-label">{{t "Recently played"}}</span>
-    {{range .Recent}}<a class="chip-link" href="/song/{{.SongID}}{{if .Query}}?{{.Query}}{{end}}">{{.Title}}</a>{{end}}
-    </div>
-    {{end}}
-    {{if .Songbooks}}
-    <ul class="home-songbooks">
-    {{range .Songbooks}}<li><a href="/songbooks/{{.ID}}">{{.Name}}</a><span>{{tn .SongCount "%d song" "%d songs"}}</span></li>{{end}}
-    </ul>
-    {{end}}
-  </section>
-  {{else}}
-  {{/* Nobody to play with yet: the way in, instead of empty sections. */}}
+  {{if not (or .Bands .Communities)}}
+  {{/* Nobody to play with yet: the way in. */}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Get started"}}</h3></div>
     <div class="attention-list">
@@ -139,6 +189,19 @@
   {{end}}
 </main>
 <script>
+// Registering from a jam's card stays on Accueil (without scripts, the
+// form posts and lands on the event's page, registered).
+document.querySelectorAll('.today-register').forEach(form => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    const res = await fetch(form.action, {method: 'POST', body: new URLSearchParams(new FormData(form))}).catch(() => null);
+    if (!res || !res.ok) { form.submit(); return; }
+    form.hidden = true;
+    form.parentElement.querySelector('.today-done').hidden = false;
+  });
+});
 document.getElementById('attention-filters')?.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-filter]');
   if (!btn) return;
@@ -152,11 +215,29 @@ document.getElementById('attention-filters')?.addEventListener('click', (e) => {
   });
 });
 </script>
-{{template "notif-bell-script"}}
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
+
+{{/* A band's or community's card on the home page (home.go groupCard):
+     its picture, name, kind and the one line that matters for it. */}}
+{{define "home-group-card"}}
+      <li class="group-card kind-{{.Kind}}">
+        <div class="home-pic group-pic {{if .Logo}}has-logo{{else if .Mosaic}}{{.MosaicClass}}{{else}}has-mark{{end}}" style="{{with .TileBg}}--tile-bg: {{.}};{{end}}{{with .TileFg}}--tile-fg: {{.}};{{end}}" aria-hidden="true">
+          {{if .Logo}}<img src="{{.Logo}}" alt="" loading="lazy">{{else if .Mosaic}}{{range .Mosaic}}<img src="{{.Image}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}{{else}}<span class="home-pic-mark">{{.Mark}}</span>{{end}}
+        </div>
+        <div class="group-card-text">
+          <h4><a class="group-card-link" href="{{.Link}}">{{.Name}}</a></h4>
+          <p class="group-card-kind">{{t .KindLabel}}{{with .Tagline}} · {{.}}{{end}}</p>
+          <p class="group-card-line{{if .Waiting}} is-waiting{{end}}">{{.Line}}</p>
+        </div>
+      </li>
+{{end}}
+{{/* The home page's row icons: a guitar pick (bands), a group of people
+     (communities). */}}
+{{define "icon-pick"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 18.2c-1.4 0-6.9-7.6-6.9-11.4C3.1 3.4 6.4 2 10 2s6.9 1.4 6.9 4.8c0 3.8-5.5 11.4-6.9 11.4z"/></svg>{{end}}
+{{define "icon-users-group"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="6.2" r="2.4"/><circle cx="4.6" cy="8" r="1.8"/><circle cx="15.4" cy="8" r="1.8"/><path d="M5.8 16.5v-.8A4.2 4.2 0 0 1 10 11.5a4.2 4.2 0 0 1 4.2 4.2v.8"/><path d="M1.8 15.5v-.4a2.9 2.9 0 0 1 3.8-2.8"/><path d="M18.2 15.5v-.4a2.9 2.9 0 0 0-3.8-2.8"/></svg>{{end}}

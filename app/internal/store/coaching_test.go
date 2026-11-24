@@ -9,15 +9,15 @@ import (
 func TestCoaching(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, err := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	student, err := st.CreatePerson(ctx, "student", "Student", "student@example.com")
+	student, err := st.CreatePerson(ctx, "Student", "student@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := st.CreatePerson(ctx, "other", "Other", "other@example.com")
+	other, err := st.CreatePerson(ctx, "Other", "other@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +104,9 @@ func TestCoaching(t *testing.T) {
 	cal, _ = st.ListCalendarForPerson(ctx, student, time.Now(), time.Now().Add(48*time.Hour))
 	if len(cal) != 1 || cal[0].Kind != "lesson" {
 		t.Fatalf("the student's calendar: %+v", cal)
+	}
+	if cal[0].CommunityID == nil || *cal[0].CommunityID != c || cal[0].BandID != nil {
+		t.Fatalf("the lesson's community: %+v", cal[0])
 	}
 
 	// A year group: its members get its songbook and its coming lessons.

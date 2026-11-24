@@ -1,0 +1,5 @@
+{
+  "This song has no recording: its MIDI plays.": "Ce morceau n’a pas d’enregistrement : son MIDI joue.",
+  "The chart isn’t lined up with the file: the MIDI plays alone, not with the recording.": "La grille n’est pas alignée sur le fichier : le MIDI joue seul, sans l’enregistrement.",
+  "The recording isn’t lined up with the song’s bars yet (Mixer, Align recording): the MIDI can’t follow it.": "L’enregistrement n’est pas encore aligné sur les mesures du morceau (Mixer, Aligner l’enregistrement) : le MIDI ne peut pas le suivre."
+}

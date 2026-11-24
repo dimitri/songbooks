@@ -100,6 +100,55 @@
     return 0;
   }
 
+  // Where the music proper begins, past what only sounds: silence, people
+  // talking, a room, wind, birds. Music is periodic: an onset on every
+  // beat of the grid (period, phase: combFit's over the song), each about
+  // as strong as the song's usual beat (onsets are log-energy jumps, so a
+  // quiet intro's count as much as a loud chorus's), stronger than what
+  // falls between. Speech and ambience have onsets too, but not on eight
+  // beats of a grid in a row. Returns the first beat of the first such
+  // run, or `from` when none qualifies (unsure: the caller's own start).
+  function musicalStart(env, period, phase, from, dur) {
+    if (!(period > 0)) return from;
+    const W = 8;
+    const k0 = Math.ceil((from - phase) / period - 0.25);
+    const kEnd = Math.floor((dur - phase) / period);
+    const on = [], off = [];
+    for (let k = k0; k <= kEnd; k++) {
+      const t = phase + k * period;
+      on.push(at(env.om, t));
+      off.push((at(env.om, t + period / 4) + at(env.om, t + period / 2) + at(env.om, t + (3 * period) / 4)) / 3);
+    }
+    if (on.length < W) return from;
+    const typical = on.slice().sort((p, q) => p - q)[Math.floor(on.length / 2)] || 0;
+    const beat = (i) => on[i] >= 0.5 * typical && on[i] >= 1.2 * off[i];
+    for (let i = 0; i + W <= on.length; i++) {
+      let run = true;
+      for (let k = i; k < i + W && run; k++) run = beat(k);
+      if (run) return phase + (k0 + i) * period;
+    }
+    return from;
+  }
+
+  // The downbeat of the bar the music starts in: of the beat at `t` (the
+  // first one found musical, which a soft first hit can make a beat late)
+  // and the bar's other beats around it, the one whose next eight bars
+  // hit hardest on their first beat — a bar's accent.
+  function barStart(env, period, t, beats) {
+    const B = Math.max(1, Math.round(beats) || 4);
+    let best = t, bestS = -Infinity;
+    for (let c = -1; c < B - 1; c++) {
+      const tc = t + c * period;
+      if (tc < -period / 2) continue;
+      let sc = 0;
+      // The bars after the first: its own first beat may be what came
+      // before the music (a word, a noise) landing on the grid.
+      for (let j = 1; j <= 8; j++) sc += at(env.om, tc + j * B * period) + at(env.lom, tc + j * B * period);
+      if (sc > bestS) { bestS = sc; best = tc; }
+    }
+    return best;
+  }
+
   function detectCountIn(env, beatSec, start) {
     const limit = Math.min(env.n, Math.round(start * FPS));
     if (limit < FPS) return null;
@@ -341,7 +390,10 @@
     const candidates = [];
     let period, t0, how;
 
-    if (countIn) {
+    // A song with a lead starts with it, a count-in or not: the lead is
+    // placed from where the music starts (below), clicks included — and
+    // talk before the music can pass for a count-in's clicks.
+    if (countIn && !(song.lead > 0)) {
       // Bar 1 lands on a click of the grid after the count-in, which
       // fills the (full-length) pickup bar along with any anacrusis notes.
       const click = countIn.period;
@@ -372,7 +424,22 @@
       let best = -1;
       const slide = [];
       for (let d = -0.3; d <= 0.3001; d += 0.075) slide.push(d * period);
-      for (let g = fit.phase; g < duration; g += period) {
+      // A song with a lead ("lead:", song.lead bars before its first
+      // section) starts with it: bar 0 on the beat nearest the music's
+      // start, its first section that many bars on — not wherever the
+      // pattern matches best (a voice coming in bars into the first
+      // section, a riff repeating).
+      if (song.lead > 0) {
+        // On the beat grid of the whole song (the music's, not a talk's
+        // before it), from its first musical stretch.
+        const whole = combFit(env, beatSec, start, duration);
+        period = whole.period;
+        const from = musicalStart(env, period, whole.phase, start, duration);
+        t0 = barStart(env, period, whole.phase + Math.round((from - whole.phase) / period) * period, (song.barTicks[1] - song.barTicks[0]) / TPQ);
+        candidates.push({ t0, score: 1 });
+        best = Infinity;
+      }
+      for (let g = fit.phase; g < duration && best < Infinity; g += period) {
         const cand = g - (song.barTicks[firstFull] / TPQ) * period;
         if (cand + ticksToSec(song.barTicks[Math.min(N, 8)], period) > duration) break;
         let total = 0, windows = 0;
@@ -444,5 +511,8 @@
     return { barTimes: times, period, bpm: 60 / period, countIn, musicStart: start, how, candidates: candidates.slice(0, 8) };
   }
 
-  window.SongbooksAutoAlign = { analyze };
+  // The internals the tests call on synthetic recordings
+  // (jstest/autoalign-lead.test.mjs).
+  const testing = { envelope, musicStart, musicalStart, combFit, FPS };
+  window.SongbooksAutoAlign = { analyze, testing };
 })();

@@ -136,6 +136,9 @@ func computeDrift(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, kep
 		}
 	}
 
+	// A chart next to its file: laid over it bar for bar (gpalign.go).
+	alignDrift(sg, sections, f, add)
+
 	// Sections that point into the file.
 	for i := range sections {
 		sec := &sections[i]
@@ -274,9 +277,14 @@ func sameChordSeq(a, b []string) bool {
 // grid measures, the way the GP import does: one chord, or the chord
 // carried in and the change, per bar; "." where nothing changes.
 func fileGrid(f *gpfacts.Facts, ref gpfacts.Ref) []song.Measure {
+	return fileGridBars(f, f.PlayedBars(ref))
+}
+
+// fileGridBars is fileGrid over a list of the file's bars, as played.
+func fileGridBars(f *gpfacts.Facts, bars []int) []song.Measure {
 	var out []song.Measure
 	last := ""
-	for _, b := range f.PlayedBars(ref) {
+	for _, b := range bars {
 		var cs []gpfacts.BarChord
 		if b-1 < len(f.Chords) {
 			cs = f.Chords[b-1]
@@ -317,6 +325,15 @@ func fileGrid(f *gpfacts.Facts, ref gpfacts.Ref) []song.Measure {
 		out = append(out, song.Measure{Tokens: tok})
 	}
 	return out
+}
+
+// setGPStart writes "gp_start:", or takes it off for the file's first bar.
+func setGPStart(sg *song.Song, n int) {
+	if n <= 1 {
+		sg.Unset("gp_start")
+		return
+	}
+	sg.Set("gp_start", strconv.Itoa(n))
 }
 
 // keySignature is a key name's signature: sharps (> 0) or flats (< 0).
@@ -530,6 +547,27 @@ func (s *Server) handlePostGPDriftTake(w http.ResponseWriter, r *http.Request) {
 		if !replaced {
 			sg.Chords = append(sg.Chords, song.ChordRef{Name: name, Spec: it.File})
 		}
+	case it.Fact == "start":
+		if first := alignChart(sg, buildSections(withGPOnlyBars(sg, f)), f, gpStart(sg)).Sections; len(first) > 0 && first[0].Match != nil {
+			setGPStart(sg, gpStart(sg)+first[0].Shift)
+		}
+	case strings.HasPrefix(it.Fact, "chords:") && !anyGPLine(sg):
+		// Next to the file: the bars the section falls on from gp_start.
+		si, _ := strconv.Atoi(strings.TrimPrefix(it.Fact, "chords:"))
+		var at *viewerSection
+		secs := buildSections(withGPOnlyBars(sg, f))
+		for i := range secs {
+			if secs[i].Index == si {
+				at = &secs[i]
+				break
+			}
+		}
+		if at == nil || si < 0 || si >= len(sg.Sections) {
+			httpError(w, http.StatusConflict, "that section is gone; reload the page")
+			return
+		}
+		sg.Sections[si].Measures = fileGridBars(f, playedBarsOf(f, gpStart(sg), at.StartBar, at.BarCount))
+		sg.Sections[si].Times = 0
 	case strings.HasPrefix(it.Fact, "marker:"), strings.HasPrefix(it.Fact, "chords:"), strings.HasPrefix(it.Fact, "bars:"):
 		si, _ := strconv.Atoi(it.Fact[strings.IndexByte(it.Fact, ':')+1:])
 		if si < 0 || si >= len(sg.Sections) {

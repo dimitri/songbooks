@@ -8,11 +8,11 @@ import (
 func TestMatchLibrary(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "me", "Me", "me@example.com")
+	me, err := st.CreatePerson(ctx, "Me", "me@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	other, err := st.CreatePerson(ctx, "other", "Other", "other@example.com")
+	other, err := st.CreatePerson(ctx, "Other", "other@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}

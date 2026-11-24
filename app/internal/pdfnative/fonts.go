@@ -31,7 +31,7 @@ var fontSansBold []byte
 var fontSansItalic []byte
 
 const (
-	faceSerif    = "serif"     // EB Garamond — titles, cover/title plates
+	faceSerif    = "serif"     // EB Garamond — titles, the cover plate
 	faceSerifIt  = "serif-it"  // EB Garamond italic — artist bylines
 	faceSans     = "sans"      // Lato — lyrics, meta text, contents table
 	faceSansBold = "sans-bold" // Lato Bold — chord symbols, section tags, headings

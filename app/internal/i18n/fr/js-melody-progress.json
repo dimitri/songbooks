@@ -1,0 +1,6 @@
+{
+  "Could not queue the split again.": "Impossible de relancer la séparation.",
+  "key %s, estimated from the melody and chords (the chart has no key)": "tonalité %s, estimée d’après la mélodie et les accords (la grille n’en indique pas)",
+  "key %s, from the recording (the chart has no key)": "tonalité %s, d’après l’enregistrement (la grille n’en indique pas)",
+  "The melody and chords sound like %s, the chart says %s: check its key.": "La mélodie et les accords évoquent %s, la grille indique %s : vérifiez sa tonalité."
+}

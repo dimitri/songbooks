@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Band.Name}} — {{.PageTitle}}</title>
+<title>{{with .Space}}{{template "space-title" .}}{{else}}{{docTitle .PageTitle $.Band.Name}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -55,6 +55,7 @@
      everything in it that opens into a panel (two columns, the player and
      the recordings, on a landscape screen). */}}
 {{define "rec-player"}}
+<script src="/static/js/player-shell.js?v={{staticVersion}}"></script>
 <div class="rec-player" id="rec-player" hidden>
   <div class="rp-backdrop" data-rp-close></div>
   <div class="rp-card" role="region" aria-label="{{t "Player"}}">
@@ -73,6 +74,7 @@
       <div class="rp-track" id="rp-track"><i class="rp-loop" id="rp-loop"></i><input type="range" id="rec-seek" min="0" max="1000" step="1" value="0" aria-label="{{t "Position in the recording"}}"></div>
       <span class="rp-time" id="rec-pos">0:00</span><span class="rp-time rp-left" id="rec-dur">–:––</span>
     </div>
+    <p class="rp-error" id="rp-error" role="status" hidden><span id="rp-error-text"></span> <button type="button" class="rp-chip" id="rp-retry">{{t "Try again"}}</button></p>
     <div class="rp-transport">
       <button type="button" class="rp-btn" data-rp="prev" aria-label="{{t "Previous recording"}}"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 4.5v11L7.5 10z" fill="currentColor"/></svg></button>
       <button type="button" class="rp-btn" data-rp="back" aria-label="{{t "Back 15 seconds"}}">{{template "icon-back15"}}</button>
@@ -123,7 +125,9 @@
     links.set(fileId, {url, until: Date.now() + 60 * 60 * 1000});
     return url;
   }
-  async function play(i) {
+  // from: {at, play, rate}, a recording taken over from another page
+  // (the mini player, below).
+  async function play(i, from) {
     if (i < 0 || i >= rows.length) return;
     at = i;
     loop = null;
@@ -145,10 +149,21 @@
     $('rp-stars').querySelectorAll('.rec-stars').forEach(wireStars);
     try {
       audio.src = row.dataset.rpSrc || await linkFor(row.dataset.file || row.dataset.rpFile, row.dataset.rpHost || host, row.dataset.rpCode || code);
+      const rate = from && [...speed.options].find((o) => Number(o.value) === from.rate);
+      if (rate) speed.value = rate.value;
       audio.playbackRate = Number(speed.value);
-      await audio.play();
+      // From where it was, playing if the browser lets it; where it wants
+      // a tap first (Safari), the Play button is that tap.
+      if (from) await SongbooksNowPlaying.startAt(audio, from.at, from.play);
+      else await audio.play();
+      $('rp-error').hidden = true;
     } catch (e) {
-      $('rec-now-detail').textContent = t('Couldn’t play it: %s', e.message);
+      // One line with a retry, under the title and its date, which stay
+      // (a browser that wants a tap before playing isn't an error).
+      if (e.name === 'NotAllowedError') { render(); return; }
+      $('rp-error-text').textContent = navigator.onLine === false ? t('Offline: this recording can’t be read.') : t('Couldn’t play this file.');
+      $('rp-error').title = e.message || '';
+      $('rp-error').hidden = false;
     }
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({title: row.dataset.title, artist, album: row.dataset.detail || ''});
@@ -169,6 +184,7 @@
   }
   const actions = {expand: () => open(true), toggle, prev, next: () => play(at + 1), back: () => skip(-SKIP), fwd: () => skip(SKIP), restart: () => { audio.currentTime = 0; }, loop: setLoop};
   bar.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => actions[b.dataset.rp]()));
+  $('rp-retry').addEventListener('click', () => { if (at >= 0) { links.clear(); play(at); } });
   speed.addEventListener('change', () => { audio.playbackRate = Number(speed.value); });
   rows.forEach((row, i) => row.querySelector('.rec-play').addEventListener('click', () => (at === i ? toggle() : play(i))));
   document.querySelectorAll('[data-play-all]').forEach((b) => b.addEventListener('click', () => play(0)));
@@ -178,25 +194,17 @@
   document.addEventListener('rp:sources', () => { if (at >= 0) play(at); });
   seek.addEventListener('input', () => { if (isFinite(audio.duration)) audio.currentTime = (seek.value / 1000) * audio.duration; });
 
-  // On a phone the mini player opens into the full one; a wide screen
-  // shows it all at once.
+  // The bar opens into the full player (player-shell.js): a panel on a
+  // wide screen, a sheet on a phone; Escape, ×, the grab handle, a click
+  // beside it or a swipe down close it.
   const card = bar.querySelector('.rp-card');
-  const open = (on) => {
-    if (on === bar.classList.contains('is-open')) return;
-    bar.classList.toggle('is-open', on);
-    document.documentElement.classList.toggle('rp-locked', on);
-    $('rp-open').setAttribute('aria-expanded', on);
-    if (on) {
-      card.setAttribute('role', 'dialog');
-      card.setAttribute('aria-modal', 'true');
-      queue.querySelector('.is-current')?.scrollIntoView({block: 'nearest'});
-      bar.querySelector(matchMedia('(min-width: 901px)').matches ? '.rp-close' : '.rp-grab').focus();
-    } else {
-      card.setAttribute('role', 'region');
-      card.removeAttribute('aria-modal');
-      $('rp-open').focus();
-    }
-  };
+  const shell = PlayerShell.panel({
+    root: bar, card, openers: [$('rp-open')], closers: bar.querySelectorAll('[data-rp-close]'),
+    closedRole: 'region', swipeIgnore: 'input, select, .rec-stars, .rp-queue',
+    focus: () => bar.querySelector(matchMedia('(min-width: 901px)').matches ? '.rp-close' : '.rp-grab'),
+    onChange: (on) => { if (on) queue.querySelector('.is-current')?.scrollIntoView({block: 'nearest'}); },
+  });
+  const open = shell.open;
   // The recordings, to pick one from the open player.
   const queue = $('rp-queue');
   rows.forEach((row, i) => {
@@ -211,24 +219,37 @@
     li.append(b);
     queue.append(li);
   });
-  $('rp-open').addEventListener('click', () => open(!bar.classList.contains('is-open')));
-  bar.querySelectorAll('[data-rp-close]').forEach((el) => el.addEventListener('click', () => open(false)));
-  let y0 = null;
-  card.addEventListener('touchstart', (e) => { y0 = e.target.closest('input, select, .rec-stars, .rp-queue') ? null : e.touches[0].clientY; }, {passive: true});
-  card.addEventListener('touchend', (e) => { if (y0 !== null && bar.classList.contains('is-open') && e.changedTouches[0].clientY - y0 > 80) open(false); y0 = null; });
-  document.addEventListener('keydown', (e) => {
-    if (bar.hidden) return;
-    // Escape closes the open player wherever the focus is in it.
-    if (e.key === 'Escape' && bar.classList.contains('is-open')) {
-      e.preventDefault();
-      open(false);
-      return;
-    }
-    if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.('input, select, textarea, .rec-stars, [contenteditable]')) return;
-    const act = {' ': toggle, k: toggle, ArrowLeft: e.shiftKey ? prev : () => skip(-SKIP), ArrowRight: e.shiftKey ? actions.next : () => skip(SKIP), j: () => skip(-SKIP), l: () => skip(SKIP), '0': actions.restart}[e.key];
-    if (!act) return;
-    e.preventDefault();
-    act();
+  $('rp-open').addEventListener('click', () => open(!shell.isOpen()));
+  // The same keys as every player (player-shell.js, player-proposal.md
+  // §3.5): a recording has no bars, so ←/→ step 5 s and ⌥←/→ 15 s.
+  const speeds = [...speed.options].map((o) => Number(o.value));
+  const setRate = (v) => { speed.value = String(v); audio.playbackRate = v; render(); };
+  const rateBy = (d) => () => { const i = speeds.indexOf(Number(speed.value)); setRate(speeds[Math.max(0, Math.min(speeds.length - 1, i + d))]); };
+  PlayerShell.keys({
+    active: () => !bar.hidden,
+    own: '#rec-player',
+    title: t('The player’s keys'),
+    keys: {
+      ' ': toggle, k: toggle,
+      ArrowLeft: () => skip(-5), ArrowRight: () => skip(5),
+      'Alt+ArrowLeft': () => skip(-SKIP), 'Alt+ArrowRight': () => skip(SKIP),
+      'Shift+ArrowLeft': prev, 'Shift+ArrowRight': actions.next,
+      Home: () => { audio.currentTime = loop && loop.b !== undefined ? loop.a : 0; },
+      0: () => { audio.currentTime = loop && loop.b !== undefined ? loop.a : 0; },
+      c: setLoop,
+      '[': rateBy(-1), ']': rateBy(1), '\\': () => setRate(1),
+      f: () => open(!shell.isOpen()),
+    },
+    help: [
+      [t('Play / pause'), ' ', 'k'],
+      [t('Back / forward 5 s'), 'ArrowLeft', 'ArrowRight'],
+      [t('Back / forward 15 s'), 'Alt+ArrowLeft', 'Alt+ArrowRight'],
+      [t('Previous / next recording'), 'Shift+ArrowLeft', 'Shift+ArrowRight'],
+      [t('Back to the start (of the loop, when looping)'), 'Home', '0'],
+      [t('Loop A–B: A, then B, then off'), 'c'],
+      [t('Slower / faster · back to 1×'), '[', ']', '\\'],
+      [t('Open / close the player · close · these shortcuts'), 'f', 'Escape', '?'],
+    ],
   });
 
   const render = () => {
@@ -267,6 +288,32 @@
     ms.setActionHandler('previoustrack', prev);
     try { ms.setActionHandler('seekto', (d) => { audio.currentTime = d.seekTime; }); } catch (e) {}
   }
+
+  // The mini player (mini-player.js): what plays here goes on on the next
+  // page; a recording kept from another page that is one of these is
+  // taken over here, from the same place.
+  const keyOf = (row) => row.dataset.rpSrc || `pcloud:${row.dataset.file || row.dataset.rpFile}`;
+  window.SongbooksNowPlaying?.register({
+    media: audio,
+    info: () => {
+      const row = rows[at];
+      if (!row) return null;
+      const file = row.dataset.rpSrc ? '' : row.dataset.file || row.dataset.rpFile;
+      return {
+        key: keyOf(row), src: row.dataset.rpSrc || audio.currentSrc,
+        title: row.dataset.title, subtitle: [artist, row.dataset.detail].filter(Boolean).join(' · '),
+        page: location.pathname + location.search,
+        resolve: file ? {kind: 'pcloud', file, host: row.dataset.rpHost || host, code: row.dataset.rpCode || code} : null,
+      };
+    },
+    owns: (key) => rows.some((r) => SongbooksNowPlaying.same(keyOf(r), key)),
+    resume: (state, from) => {
+      const i = rows.findIndex((r) => SongbooksNowPlaying.same(keyOf(r), state.key));
+      if (i < 0) return false;
+      play(i, {...from, rate: state.rate});
+      return true;
+    },
+  });
 
   // Stars: tap where on the five, by halves; arrows step by half; tapping
   // your stars again takes them back. The player shows a copy of the
@@ -318,14 +365,13 @@
 {{end}}
 
 {{define "band_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t (printf "%ss" .Kind)))}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "Space" .Space)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{if eq .Kind "rehearsal"}}{{t "Rehearsals"}}{{else}}{{t "Concerts"}}{{end}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index rec">
-  {{template "band-tabs" (bandTabs .Band.ID .Tab)}}
+  {{template "space-nav" .Space}}
 
   {{if not .Source}}
   <section class="card card--md">
@@ -453,21 +499,23 @@
 </main>
 {{template "rec-player" .}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
 
 {{define "band_song_recordings"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" .Song.Title)}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" .Song.Title)}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/recordings/rehearsals">{{template "icon-back"}} {{t "Recordings"}}</a>
   <h1>{{.Song.Title}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index rec">
   <p class="hint">{{t "The band’s recordings of the song, the best rated first. The one chosen as the reference is what the band’s playlist plays."}} <a href="/song/{{.Song.VariantID}}">{{t "Open the song"}}</a></p>
+  {{/* Public recordings (docs/ownership-model.md §8). */}}
+  {{if and .OwnSong .Song.Public}}<p class="hint rec-public-note">{{template "icon-community"}} {{t "This song is public: everyone signed in hears its recordings."}} <a href="/song/{{.Song.VariantID}}/recordings#band-{{.Band.ID}}">{{t "As they see them"}}</a></p>
+  {{else if and (not .OwnSong) .Song.Public}}<p class="hint rec-public-note">{{template "icon-community"}} {{if .IsCore}}{{t "A public song the band links: a recording made public here is heard by everyone signed in, on the song’s page. It plays from the band’s pCloud folder, through the folder’s shared link."}}{{else}}{{t "A public song the band links: the band’s core members can make a recording of it public."}}{{end}}</p>{{end}}
   {{if .Recordings}}
   <fieldset class="rec-reference">
     <legend>{{t "The band’s reference"}}</legend>
@@ -478,8 +526,9 @@
         <button type="button" class="rec-play" aria-label="{{t "Play"}}">{{template "icon-play"}}</button>
         <span class="rec-text">
           <strong>{{t (recKind .Kind)}} {{with .SessionDate}}{{date . "2 Jan 2006"}}{{end}}{{with .Take}} · {{t "recording|take"}} {{.}}{{end}}</strong>
-          <small>{{.Name}} · {{fileSize .Size}}</small>
+          {{$rec := .}}<small>{{.Name}} · {{fileSize .Size}}{{with index $.Publicity .ID}}{{if and .Public (not .Allowed)}} · <span class="rec-public">{{t "public"}}</span>{{end}}{{end}}</small>
         </span>
+        {{with index $.Publicity .ID}}{{if and .Allowed $.IsCore}}<label class="rec-public-toggle" title="{{t "everyone signed in hears it, on the song’s page"}}"><input type="checkbox" class="rec-public-box" value="{{$rec.ID}}"{{if .Public}} checked{{end}}> {{t "public"}}</label>{{else if and .Allowed .Public}}<span class="rec-public">{{t "public"}}</span>{{end}}{{end}}
         {{template "rec-stars" .}}
       </li>
       {{end}}
@@ -491,20 +540,31 @@
   <p class="dl-empty">{{t "No recording of this song in the band’s folder."}}</p>
   {{end}}
 </main>
+{{if .IsCore}}<script>
+// A recording made public, or not, one by one (docs/ownership-model.md §8).
+const recBand = {{.Band.ID}};
+document.querySelectorAll('.rec-public-box').forEach((box) => box.addEventListener('change', async () => {
+  const out = document.getElementById('reference-status');
+  const res = await fetch(`/api/bands/${recBand}/recordings/${box.value}/public`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({public: box.checked}),
+  }).catch(() => null);
+  if (!res || !res.ok) box.checked = !box.checked;
+  Forms.status(out, res && res.ok ? (box.checked ? t('Public: everyone signed in hears it.') : t('Only the band hears it now.')) : t('Couldn’t save that.'), res && res.ok ? 'ok' : 'error');
+}));
+</script>{{end}}
 {{template "rec-player" .}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
 {{end}}
 
 {{define "band_recording_fixes"}}
-{{template "rec-head" (dict "Band" .Band "Me" .Me "PageTitle" (t "corrections"))}}
+{{template "rec-head" (dict "Band" .Band "Me" .Me "Nav" .Nav "PageTitle" (t "Corrections"))}}
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}/rehearsals">{{template "icon-back"}} {{t "Rehearsals"}}</a>
+  <a class="back-link" href="/bands/{{.Band.ID}}/recordings/rehearsals">{{template "icon-back"}} {{t "Recordings"}}</a>
   <h1>{{t "Corrections"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index rec rec-fixes">
   <p class="hint">{{t "What the recordings’ names get wrong, corrected once: every reading of the folder applies it again."}}</p>
@@ -539,11 +599,13 @@
       {{end}}{{end}}
     </ol>
     {{if not .Own}}<p class="hint rec-templates-none">{{t "No template of the band’s yet: add one below to read names the built-in ones don’t."}}</p>{{end}}
-    <form class="rec-template-form" id="template-form">
+    <form class="rec-template-form form-stack form-stack--wide" id="template-form">
+      <div class="field-row rec-template-row">
       <div class="field"><label for="template-text" id="template-label">{{t "Add a template"}}</label>
         <input id="template-text" name="template" placeholder="{n} - {title} - {date}" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
       <div class="field rec-template-where"><label for="template-where">{{t "template|Tried"}}</label>
         <select id="template-where" name="where"><option value="first">{{t "template|first"}}</option><option value="last">{{t "after yours"}}</option></select></div>
+      </div>
       <div class="form-actions"><button type="button" class="secondary" id="template-try">{{t "Try it"}}</button> <button type="submit" class="primary" id="template-save">{{t "Add it"}}</button> <button type="button" class="link-like" id="template-cancel" hidden>{{t "Cancel"}}</button></div>
       <p class="form-status" role="status"></p>
       <div class="rec-template-try" id="template-result" hidden></div>
@@ -600,7 +662,7 @@
   <section class="card">
     <h2>{{t "Titles to match"}}</h2>
     {{if .Unmatched}}
-    <p class="hint">{{t "Recordings whose title names none of the band’s songs: a spelling, a song not in the repertoire yet, a jam."}}</p>
+    <p class="hint">{{t "Recordings whose title names none of the band’s songs: a spelling, a song not in the songbook yet, a jam."}}</p>
     <ul class="rec-questions">
       {{range .Unmatched}}
       <li>
@@ -632,10 +694,10 @@
       </tbody>
     </table></div>
     {{else}}<p class="hint">{{t "None yet."}}</p>{{end}}
-    <form class="course-form" id="date-fix-form">
+    <form class="form-inline" id="date-fix-form">
       <div class="field"><label for="fix-from">{{t "A date written"}}</label><input id="fix-from" name="from" placeholder="2024-05-26" pattern="\d{4}-\d{2}(-\d{2})?" required autocomplete="off"></div>
       <div class="field"><label for="fix-to">{{t "fix|is"}}</label><input id="fix-to" name="to" type="date" required></div>
-      <div class="form-actions"><button type="submit" class="secondary">{{t "Correct it"}}</button></div>
+      <button type="submit" class="secondary">{{t "Correct it"}}</button>
       <p class="form-status" role="status"></p>
     </form>
   </section>
@@ -727,7 +789,7 @@
   });
 })();
 </script>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

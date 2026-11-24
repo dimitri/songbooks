@@ -26,8 +26,9 @@
       el = document.createElement('p');
       el.className = 'field-error';
       el.id = id;
-      // Under the control, or under the group for a radio/checkbox set.
-      const anchor = input.closest('fieldset.field-group') || input.closest('label.check') || input;
+      // Under the control, or under the group for a radio/checkbox set,
+      // or under a password field's row (the field and its Show button).
+      const anchor = input.closest('fieldset.field-group') || input.closest('label.check') || input.closest('.pw-field') || input;
       anchor.insertAdjacentElement('afterend', el);
     }
     const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
@@ -143,5 +144,14 @@
     const el = e.target;
     if (el.getAttribute && el.getAttribute('aria-invalid') === 'true' && el.checkValidity()) fieldError(el, '');
   });
-  window.Forms = { fieldError, status, busy, run, validate };
+  // An add answered 409 (httpapi writeLinkErr): another band's private
+  // song, which a band doesn't link, or a closed songbook's. With the
+  // work's catalogue version, asks to add that instead: {retryId} on yes;
+  // otherwise {message} to show, or {} when the person said no.
+  async function bandRefusal(res) {
+    const d = await res.json().catch(() => ({}));
+    if (d.catalogVariantId) return confirm(d.question) ? { retryId: d.catalogVariantId } : {};
+    return { message: d.message || '' };
+  }
+  window.Forms = { fieldError, status, busy, run, validate, bandRefusal };
 })();

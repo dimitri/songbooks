@@ -5,7 +5,7 @@
 //	gpmigrate dump  --db URL > songs.jsonl     every song with Riff JSON
 //	gpmigrate dump  --db URL --ids 251-284     these songs, whatever they hold
 //	node tools/gpmigrate/plan.cjs ...           works out the new texts and files
-//	gpmigrate apply --db URL --actor NAME < plan.jsonl
+//	gpmigrate apply --db URL --actor PERSON < plan.jsonl
 //
 // apply saves each song through the app's own save path, so every change
 // is a revision in the song's history; a song edited since the dump
@@ -15,7 +15,7 @@
 //
 // In production it runs inside the app container:
 //
-//	docker compose exec -T app gpmigrate apply --db "$DATABASE_URL" --actor tapoueh < plan.jsonl
+//	docker compose exec -T app gpmigrate apply --db "$DATABASE_URL" --actor 1 < plan.jsonl
 package main
 
 import (
@@ -55,12 +55,12 @@ type planFile struct {
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatal("usage: gpmigrate dump|apply --db URL [--actor NAME] [--dry-run]")
+		log.Fatal("usage: gpmigrate dump|apply --db URL [--actor PERSON] [--dry-run]")
 	}
 	cmd := os.Args[1]
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	dbURL := fs.String("db", "", "database connection string (required)")
-	actor := fs.String("actor", "", "username the changes are made as (apply)")
+	actor := fs.String("actor", "", "who the changes are made as (apply): an email or a person id")
 	dryRun := fs.Bool("dry-run", false, "apply: check every item, write nothing")
 	idList := fs.String("ids", "", "dump: these songs instead (\"251-284,297\")")
 	fs.Parse(os.Args[2:])
@@ -103,7 +103,7 @@ func main() {
 	case "apply":
 		var actorID int64
 		if *actor != "" {
-			p, err := st.GetPersonByUsername(ctx, *actor)
+			p, err := st.FindPerson(ctx, *actor)
 			if err != nil {
 				log.Fatalf("actor %q: %v", *actor, err)
 			}

@@ -1,0 +1,21 @@
+{
+  "%s’s own": "à %s",
+  "Assign it to": "Le donner à",
+  "Assign to %s": "Donner à %s",
+  "Create": "Créer",
+  "Created": "Créé",
+  "Creating it, and fetching its lyrics…": "Création, et recherche des paroles…",
+  "Given to %s": "Donné à %s",
+  "Its lyrics are fetched.": "Ses paroles sont récupérées.",
+  "Its video is the reference.": "Sa vidéo en est la référence.",
+  "Its video: %s": "Sa vidéo : %s",
+  "Looking for its video…": "Recherche de sa vidéo…",
+  "Looking it up…": "Recherche…",
+  "New song": "Nouveau morceau",
+  "No lyrics found: add them from the editor’s Import.": "Pas de paroles trouvées : ajoutez-les depuis l’Import de l’éditeur.",
+  "No video: add its reference later.": "Pas de vidéo : ajoutez sa référence plus tard.",
+  "Title, artist or a YouTube link": "Titre, artiste ou lien YouTube",
+  "down a semitone": "un demi-ton plus bas",
+  "the shared song": "le morceau partagé",
+  "up a semitone": "un demi-ton plus haut"
+}

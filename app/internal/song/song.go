@@ -22,6 +22,9 @@ var MetaKeys = []string{
 	"title", "artist", "key", "tempo", "time", "capo",
 	"transpose", "map", "idiom", "flats", "reference",
 	"cover", "cover-credit", "swing",
+	// style: the tune's style or feel ("Medium Swing", "Bossa Nova"),
+	// as an iReal Pro chart prints it; the Jazz chart shows it.
+	"style",
 	// gp_source: the original Guitar Pro filename this song's score[...]
 	// voices were imported from (see internal/httpapi/gpfile.go's
 	// song_gp_source_file table for the actual file bytes) — kept here
@@ -35,6 +38,12 @@ var MetaKeys = []string{
 	// and sections, grid and lyrics are optional. See
 	// docs/gp-file-model.md §3.2.
 	"content",
+	// gp_start: for a song whose chart sits next to its Guitar Pro file
+	// (no "gp[...]" lines), the file's bar, as played, where the chart's
+	// first bar starts: "3" when the file has two lead-in bars. Absent,
+	// the chart starts on the file's first bar. See
+	// docs/gp-file-model.md §3.4.
+	"gp_start",
 }
 
 func isMetaKey(k string) bool {
@@ -63,7 +72,15 @@ type Song struct {
 	// lines), kept so a song transposed away and back, or played in
 	// another key, still has them. See DiagramsFor.
 	OtherChords []ChordRef
-	Sections    []Section
+	// Lead is the song's "lead:" header line: how many bars are played
+	// before it starts — a count-in, an instrument's lead-in — ahead of
+	// its first section's bar 1, in no section. 0 when absent. LeadGrid
+	// holds their chords when the line writes them as a grid ("lead: |
+	// G |", Lead == len(LeadGrid)); nil for a bare count ("lead: 1", a bar
+	// of rest). See lead.go.
+	Lead     int
+	LeadGrid []Measure
+	Sections []Section
 }
 
 // ChordRef is one "chord: Name Spec" header line — a fretboard-diagram
@@ -147,6 +164,17 @@ func (s *Song) Set(key, value string) {
 		}
 	}
 	s.Meta = append(s.Meta, MetaField{Key: key, Value: value})
+}
+
+// Unset removes every header line for key.
+func (s *Song) Unset(key string) {
+	out := s.Meta[:0]
+	for _, f := range s.Meta {
+		if f.Key != key {
+			out = append(out, f)
+		}
+	}
+	s.Meta = out
 }
 
 // ScoreVoice is one "score[Label]: <content>" block — Label is this
@@ -247,6 +275,11 @@ type Measure struct {
 	RepeatCount int
 	Volta       string // raw volta marker, e.g. "1." or "1,2,3.", "" if absent
 	Meter       string // raw per-bar meter override, e.g. "2/4", "" if absent
+
+	// Lead marks one of the song's lead-in bars (Song.LeadMeasures, from
+	// its "lead:" line), which renderers draw ahead of the first section's
+	// first bar. Never set by Parse on a section's measures.
+	Lead bool
 }
 
 // LyricLine is one chorded lyric line: "Some [Gm]words here".

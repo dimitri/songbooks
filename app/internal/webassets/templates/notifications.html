@@ -44,6 +44,7 @@
 <script>
 async function markRead(id) {
   await fetch(`/notifications/${id}/read`, {method: 'POST'});
+  window.SongbooksUnread?.refresh(); // the sidebar's count, the bell, the Accueil tab's dot
 }
 document.querySelectorAll('.notif-link').forEach((a) => {
   a.addEventListener('click', async (e) => {
@@ -67,7 +68,7 @@ document.getElementById('mark-all-read-btn').addEventListener('click', async () 
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

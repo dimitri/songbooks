@@ -14,14 +14,18 @@ const CACHE_VERSION = 'songbooks-v2';
 const CORE_ASSETS = [
   '/', '/manifest.json',
   '/static/css/app.css',
+  '/static/css/jazz.css',
   '/static/js/song.js',
   '/static/js/clock.js',
   '/static/js/project.js',
   '/static/js/setlist.js',
   '/static/js/gig.js',
   '/static/js/forms.js',
+  '/static/js/mini-player.js',
   '/static/fonts/EBGaramond.ttf',
   '/static/fonts/EBGaramond-Italic.ttf',
+  '/static/fonts/PetalumaScript.woff2',
+  '/static/fonts/ChartSymbols.woff2',
   '/static/icon.svg',
 ];
 

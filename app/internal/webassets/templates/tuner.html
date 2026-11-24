@@ -17,9 +17,21 @@
 <header class="app-header">
   {{if .BackURL}}<a href="{{.BackURL}}" class="back-link">{{template "icon-back"}} {{if .BackTitle}}{{.BackTitle}}{{else}}{{t "back"}}{{end}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{t "Tuner"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main>
+  {{template "tuner-card" .}}
+</main>
+</div>
+<script src="/static/js/tuner.js?v={{staticVersion}}"></script>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+
+{{/* The tuner itself, for the /tuner page and the song page's "Accorder"
+     (play.html #tuner-dialog): .SongTunings, .SongTitle, .SongCapo. */}}
+{{define "tuner-card"}}
   <section class="card tuner" id="tuner" data-song-tunings="{{json .SongTunings}}" data-song-title="{{.SongTitle}}" data-song-capo="{{.SongCapo}}">
     <div class="tuner-picks">
       <label class="tuner-pick"><span class="sr-only">{{t "Tuning"}}</span>
@@ -59,11 +71,4 @@
       <span class="hint">{{t "Stopped, tap a string to hear it. Listening, tap one to tune only that string. A 12th-fret harmonic works too."}}</span>
     </div>
   </section>
-</main>
-</div>
-<script src="/static/js/tuner.js?v={{staticVersion}}"></script>
-{{template "global-tabbar"}}
-{{template "global-tabbar-script"}}
-</body>
-</html>
 {{end}}

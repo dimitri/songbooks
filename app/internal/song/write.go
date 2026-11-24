@@ -19,6 +19,9 @@ func Write(s *Song) string {
 		b.WriteString(f.Value)
 		b.WriteString("\n")
 	}
+	if v := s.LeadLine(); v != "" {
+		b.WriteString("lead: " + v + "\n")
+	}
 	for _, refs := range [][]ChordRef{s.Chords, s.OtherChords} {
 		for _, c := range refs {
 			if c.Key == "" {

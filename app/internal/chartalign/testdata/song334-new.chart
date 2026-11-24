@@ -1,0 +1,18 @@
+time: 4/4
+tempo: 90
+[Intro]
+grid: N.C. | N.C. | N.C.
+[Verse 1]
+grid: D | Asus4 A | Bm Em/B | Bm . . A/C# | D | A | Bm | % | G | Dsus4/F# D/F# | Em | Em/A G/A | D | Asus4 A | Bm | G Asus4
+[Chorus 1]
+grid: |: E | B/D# | F#m | A B :| C | % | Dsus4 | D
+[Verse 2]
+grid: D | Asus4 A | Bm Em/B | Bm . . A/C# | D | A | Bm | % | G | D/F# | Em | Em/A G/A | D | A | Bm | G Asus4
+[Chorus 2]
+grid: |: E | B | F#m7 | A B :|
+[Bridge]
+grid: E | B | F#m7 | A Bsus4 | E | B | F#m7 | A B | C | D
+[Chorus 3]
+grid: |:3 G | D | Am | C . D7sus4 D :| G
+[Outro]
+grid: |: D | Am | C . D7sus4 D | G :|

@@ -78,3 +78,19 @@ func TestLinesFoldsTabData(t *testing.T) {
 		t.Fatal("no changes in the line diff")
 	}
 }
+
+func TestDescribeLead(t *testing.T) {
+	a := "title: T\n\n[Intro]\ngrid: | G | C |\n"
+	for _, c := range []struct{ b, want string }{
+		{"title: T\nlead: 1\n\n[Intro]\ngrid: | G | C |\n", "Header: lead-in none → 1 bar"},
+		{"title: T\nlead: | D7 |\n\n[Intro]\ngrid: | G | C |\n", "Header: lead-in none → |D7|"},
+	} {
+		var got []string
+		for _, ch := range Describe(a, c.b) {
+			got = append(got, ch.Where+": "+ch.What)
+		}
+		if strings.Join(got, "\n") != c.want {
+			t.Errorf("got %q, want %q", got, c.want)
+		}
+	}
+}

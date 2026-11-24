@@ -48,9 +48,8 @@ const (
 // tabOnlyRow draws a display row whose bars ALL have "score:" riff data
 // (the PDF counterpart of the web chart's viewerLine.TabOnly — see
 // attachTabRiffs, internal/httpapi/handlers_pages.go) as a real tab
-// staff REPLACING the normal 5-line staff/slash row, instead of
-// drawTabBar's older fret-numbers-only overlay (still used for a row
-// only PARTLY covered — see staffBarRow's own dispatch). Real stems,
+// staff REPLACING the normal 5-line staff/slash row (a row only partly
+// covered is cut at the riff's ends first — splitRiffRows). Real stems,
 // flags, and beam bars (tab.GroupBeams — the metric-pulse-aware grouping
 // verified against the vendored alphaTab library this session), real
 // engraving proportions and logarithmic spacing (see the const block
@@ -137,6 +136,9 @@ func (c *canvas) tabOnlyRow(measures []song.Measure, riffBars []*tab.Bar, tuning
 	nBars := float64(len(measures))
 	boxW := (c.colW - tsW) / nBars
 	pendingRepeatCount := 0
+	// lastX: where the last note drawn on each string sits, for the arc
+	// of a tie (tab.Note.Tied, a LilyPond "~") into the next one.
+	lastX := map[int]float64{}
 
 	for i, m := range measures {
 		bx := barsX0 + float64(i)*boxW
@@ -170,7 +172,9 @@ func (c *canvas) tabOnlyRow(measures []song.Measure, riffBars []*tab.Bar, tuning
 		if len(slots) > 0 {
 			slotW := (boxW - (startX - bx) - 3) / float64(len(slots))
 			for si, sl := range slots {
-				if !sl.tied {
+				// A "%" bar repeats the chord before it: nothing to label
+				// (staffBarRow draws the simile sign instead).
+				if !sl.tied && sl.label != "%" && sl.label != "%%" && sl.label != "" {
 					c.drawChordSymbolMode(startX+float64(si)*slotW, c.y+chordH, sl.label, size*0.95, c.th.chord, false)
 				}
 			}
@@ -229,6 +233,15 @@ func (c *canvas) tabOnlyRow(measures []song.Measure, riffBars []*tab.Bar, tuning
 				tw := c.measureWidth(txt, faceSans, size*0.6)
 				c.filledRect(cx-tw/2-1, ly-size*0.28, tw+2, size*0.56, c.th.bg)
 				c.textAt(cx-tw/2, ly+size*0.2, txt, faceSans, size*0.6, c.th.ink)
+				// A tie: a shallow arc under the string from the note it
+				// continues, as LilyPond's \tabFullNotation draws it.
+				if x1, ok := lastX[note.String]; ok && note.Tied && c.draw {
+					y := ly + size*0.3
+					c.doc.SetStrokeColor(c.th.faint.r, c.th.faint.g, c.th.faint.b)
+					c.doc.SetLineWidth(0.8)
+					c.doc.Curve(x1+2, y, x1+(cx-x1)*0.3, y+size*0.3, x1+(cx-x1)*0.7, y+size*0.3, cx-2, y, "D")
+				}
+				lastX[note.String] = cx
 			}
 			// Slide-in (tab.Beat.HasSlideFrom — a real LilyPond
 			// "\grace X( \glissando Y)" in the source, e.g. Mercy/

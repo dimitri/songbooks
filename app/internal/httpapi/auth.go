@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/internal/i18n"
+	"app/internal/mailer"
 	"app/internal/store"
 )
 
@@ -101,10 +102,21 @@ func (s *Server) requireVariantRole(minRole string, next http.HandlerFunc) http.
 		}
 		p := personFromContext(r)
 		var allowed bool
-		if minRole == "editor" || minRole == "owner" {
+		if minRole == "chart" {
+			// The song's chart: who edits it in place, or anyone who
+			// edits The Big Songbook's songs (catalogueSave weighs it).
+			var rights *store.SongRights
+			if rights, err = s.store.SongRightsFor(r.Context(), p.ID, id); err == nil {
+				allowed = rights.Edit || rights.Contribute
+			}
+		} else if minRole == "editor" || minRole == "owner" {
 			allowed, err = s.store.CanEditVariant(r.Context(), p.ID, id)
 		} else {
 			allowed, err = s.store.CanViewVariant(r.Context(), p.ID, id)
+		}
+		// A song merged into another (§7): its old links open that one.
+		if errors.Is(err, store.ErrNotFound) && s.mergedRedirect(w, r, id) {
+			return
 		}
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -152,8 +164,16 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "login", map[string]any{
 		"Error":              r.URL.Query().Get("error") != "",
 		"InvalidCredentials": r.URL.Query().Get("badlogin") != "",
+		"LoginEmails":        s.loginEmails(),
 	})
 }
+
+// loginEmails says whether an emailed login link reaches anyone: only
+// with a mailer that delivers (mailer.Delivers), not the console one
+// this deployment has (no SMTP yet). Without it, the pages don't offer
+// "a link we send you" as a way back in, and the login page puts the
+// password first.
+func (s *Server) loginEmails() bool { return mailer.Delivers(s.mailer) }
 
 // handleLogin is POST /login, and branches cleanly on which of the two,
 // equally first-class login forms the visitor submitted (see login.html):
@@ -185,16 +205,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if email != "" {
 		if p, err := s.store.GetPersonByEmail(r.Context(), email); err == nil {
 			if token, err := s.store.CreateLoginToken(r.Context(), p.ID); err == nil {
-				link := s.loginLinkURL(r, token)
-				// In the recipient's language: their own choice, else the
-				// browser's that asked for the link.
-				lang, _ := s.store.PersonLocale(r.Context(), p.ID)
-				if lang == "" {
-					lang = s.langOfRequest(r)
-				}
-				subject := i18n.T(lang, "Your Songbooks login link")
-				body := i18n.T(lang, "Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
-				if err := s.mailer.Send(r.Context(), p.Email, subject, body); err != nil {
+				if err := s.sendLoginEmail(r, p, s.loginLinkURL(r, token)); err != nil {
 					log.Printf("sending login email: %v", err)
 				}
 			} else {
@@ -238,27 +249,24 @@ func getDummyPasswordHash() string {
 }
 
 // handlePasswordLogin is POST /login's password branch (mode=password):
-// verify bcrypt against people.password_hash for the account identified
-// by "identifier" (username or email, either is accepted), and log in
-// directly on success. Any failure — no such account, account has no
-// password set yet (PasswordHash == ""), or wrong password — redirects
+// verify bcrypt against people.password_hash for the account whose
+// "email" it is — the email is the account, there is no login name
+// (docs/accounts.md) — and log in directly on success. Any failure —
+// no such account (or no email typed at all), account has no password
+// set yet (PasswordHash == ""), or wrong password — redirects
 // back to /login with the exact same generic "invalid credentials" error,
 // deliberately not distinguished further: this path has the same
 // non-enumeration requirement the magic-link path already honors.
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
-	identifier := strings.TrimSpace(r.FormValue("identifier"))
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
 
 	var p *store.Person
-	if identifier != "" {
+	if strings.Contains(email, "@") {
 		var err error
-		if strings.Contains(identifier, "@") {
-			p, err = s.store.GetPersonByEmail(r.Context(), strings.ToLower(identifier))
-		} else {
-			p, err = s.store.GetPersonByUsername(r.Context(), identifier)
-		}
+		p, err = s.store.GetPersonByEmail(r.Context(), email)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			log.Printf("password login lookup for %q: %v", identifier, err)
+			log.Printf("password login lookup for %q: %v", email, err)
 		}
 	}
 
@@ -285,6 +293,20 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge: 30 * 24 * 60 * 60,
 	})
 	http.Redirect(w, r, "/home", http.StatusFound)
+}
+
+// sendLoginEmail mails p the login email with link in it: the one the
+// login page sends, and the one an admin sends from a members page (see
+// handleAdminSendLoginLink). In the recipient's language: their own
+// choice, else the language of the request that asked for it.
+func (s *Server) sendLoginEmail(r *http.Request, p *store.Person, link string) error {
+	lang, _ := s.store.PersonLocale(r.Context(), p.ID)
+	if lang == "" {
+		lang = s.langOfRequest(r)
+	}
+	subject := i18n.T(lang, "Your Songbooks login link")
+	body := i18n.T(lang, "Hi %s,\n\nClick this link to log in to Songbooks (expires in 15 minutes):\n\n%s\n\nIf you didn't request this, you can ignore this email.", p.DisplayName, link)
+	return s.mailer.Send(r.Context(), p.Email, subject, body)
 }
 
 // loginLinkURL builds the magic-link URL embedded in the login email,

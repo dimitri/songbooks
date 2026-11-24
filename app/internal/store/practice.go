@@ -568,7 +568,7 @@ func (st *Store) DeletePracticeLog(ctx context.Context, communityID, personID, i
 func (st *Store) ListPracticeLogs(ctx context.Context, communityID, personID int64, since time.Time) ([]PracticeLog, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT l.id, l.assignment_id, l.variant_id,
-		       coalesce(nullif(a.title, ''), s.title, ''), l.practiced_on::timestamptz, l.seconds, l.source, l.note,
+		       coalesce(nullif(a.title, ''), s.title, nullif(l.song_title, ''), ''), l.practiced_on::timestamptz, l.seconds, l.source, l.note,
 		       l.pitch_takes, l.pitch_score, l.rhythm_score
 		FROM practice_logs l
 		LEFT JOIN practice_assignments a ON a.id = l.assignment_id

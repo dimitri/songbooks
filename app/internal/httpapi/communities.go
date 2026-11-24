@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/i18n"
 	"app/internal/store"
-	"app/internal/webassets"
 )
 
 // requireCommunityMember wraps requireAuth, then checks the logged-in
@@ -144,19 +144,27 @@ func (s *Server) requireCommunityAnyManagePrivilege(next http.HandlerFunc) http.
 	})
 }
 
-// communityCardView is store.CommunityCardRow plus the next upcoming
-// event's digest, same "what's coming up" cue bands.html's own card
-// shows via HasNextGig/NextGigDate.
+// communityCardView is store.CommunityCardRow plus the next date on the
+// viewer's calendar in that community (an event, or a lesson of theirs),
+// same "what's coming up" cue bands.html's own card shows via
+// HasNextGig/NextGigDate.
 type communityCardView struct {
 	store.CommunityCardRow
 	HasNextEvent  bool
-	NextEventID   int64
 	NextEventName string
 	NextEventDate time.Time
+	NextEventLink string
+	// Next is that date in full, for the My communities card; nil when
+	// nothing is coming up.
+	Next *store.CalendarItem
+	// LessonsThisWeek counts the viewer's lessons in the next 7 days (a
+	// coaching community's coach or student).
+	LessonsThisWeek int
 }
 
 // handleCommunitiesPage lists the logged-in person's own current communities
-// (either role), with a "start a community" action.
+// (either role), with a "start a community" action. Each card wears its
+// community's look (see list_cards.go).
 func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 	cards, err := s.buildCommunityCards(r.Context(), person.ID)
@@ -164,33 +172,46 @@ func (s *Server) handleCommunitiesPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "communities", map[string]any{"Me": person, "Communities": cards})
+	list, fonts, err := s.communityListCards(r.Context(), person.ID, cards)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "communities", map[string]any{"Me": person, "Communities": list, "BrandFonts": fonts})
 }
 
 // buildCommunityCards is one card per community personID belongs to,
-// with its next upcoming event: shared by Home, My communities and Groups.
+// with the next date of personID's calendar there: shared by Home, My
+// communities and Groups. The calendar, not the community's whole event
+// list, so a coaching community's card shows the viewer's own lessons
+// and not another student's.
 func (s *Server) buildCommunityCards(ctx context.Context, personID int64) ([]communityCardView, error) {
 	rows, err := s.store.ListCommunityCardsForPerson(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
+	items, err := s.calendarAhead(ctx, personID, now)
+	if err != nil {
+		return nil, err
+	}
 	cards := make([]communityCardView, len(rows))
 	for i, row := range rows {
 		cards[i] = communityCardView{CommunityCardRow: row}
-		events, err := s.store.ListEventsForCommunity(ctx, row.ID)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range events {
-			if e.IsPast(now) {
+		for j := range items {
+			it := &items[j]
+			if it.CommunityID == nil || *it.CommunityID != row.ID {
 				continue
 			}
-			if !cards[i].HasNextEvent || e.StartsAt.Before(cards[i].NextEventDate) {
+			if it.Kind == "lesson" && it.Starts.Before(now.AddDate(0, 0, 7)) {
+				cards[i].LessonsThisWeek++
+			}
+			if cards[i].Next == nil {
+				cards[i].Next = it
 				cards[i].HasNextEvent = true
-				cards[i].NextEventID = e.ID
-				cards[i].NextEventName = e.Name
-				cards[i].NextEventDate = e.StartsAt
+				cards[i].NextEventName = it.Title
+				cards[i].NextEventDate = it.Starts
+				cards[i].NextEventLink = it.Link
 			}
 		}
 	}
@@ -262,11 +283,20 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	viewerID, staff := person.ID, false
+	if community.IsCoaching() {
+		v, err := s.coachingViewerOf(r, communityID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		viewerID, staff = v.PersonID, v.Coach
+	}
 	songbookRows := make([]communitySongbookRow, 0, len(songbooks))
 	for _, sb := range songbooks {
 		// The students' songbooks are on their pages (coaching.go): a
-		// student sees their own here.
-		if sb.IsStudent() && sb.StudentPersonID != person.ID {
+		// student sees their own here (an admin's "See as…" student's).
+		if sb.IsStudent() && sb.StudentPersonID != viewerID {
 			continue
 		}
 		entries, err := s.store.ListSongbookEntries(r.Context(), sb.ID)
@@ -298,11 +328,45 @@ func (s *Server) handleCommunityPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.render(w, "community", map[string]any{
-		"Me": person, "Community": community, "Members": members, "StaffNames": staffNames,
+	// The sections' rows on a phone (space-hub): where each one stands.
+	lang := s.langOf(w)
+	hints := map[string]spaceHint{
+		"songbooks": {Text: i18n.N(lang, len(songbookRows), "%d songbook", "%d songbooks")},
+		"members":   {Text: i18n.T(lang, "%d current", len(members))},
+	}
+	if len(upcoming) > 0 {
+		hints["events"] = spaceHint{Text: dayHint(lang, upcoming[0].StartsAt)}
+	}
+	// A coaching studio's: its students, and its calendar (lessons and
+	// events) by the next event.
+	if community.IsCoaching() {
+		hints["agenda"] = hints["events"]
+		students := 0
+		for _, m := range members {
+			if !m.IsStaff() {
+				students++
+			}
+		}
+		hints["students"] = spaceHint{Text: i18n.N(lang, students, "%d student", "%d students")}
+	}
+	data := map[string]any{
+		"Me": person, "SpaceHints": hints, "Community": community, "Members": members, "StaffNames": staffNames,
 		"Songbooks": songbookRows, "UpcomingEvents": upcoming,
 		"IsStaff": canManage || person.IsAdmin, "Person": person, "Tab": "overview",
-	})
+	}
+	if community.IsCoaching() {
+		data["IsStaff"] = staff
+		// A student's own overview: "New note from Chloé", when the coach
+		// shared one they haven't opened (never in an admin's preview:
+		// those are the student's notifications).
+		if !staff && viewerID == person.ID {
+			link := sharedNotesLink(communityID, viewerID)
+			if n, body, err := s.store.UnreadNotificationsAt(r.Context(), person.ID, "teaching_note_shared", link); err == nil && n > 0 {
+				data["NewNote"] = map[string]any{"Link": link, "Body": body, "More": n - 1}
+			}
+		}
+	}
+	s.render(w, "community", data)
 }
 
 // communitySongbookRow is a store.Songbook plus its song count, for the
@@ -344,6 +408,12 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A coaching studio's: the student's songbook and the repertoire, or
+	// the coach's cards of every student's (coaching_songbooks.go).
+	if community.IsCoaching() {
+		s.handleCoachingSongbooksPage(w, r, community)
+		return
+	}
 	songbooks, err := s.store.ListSongbooks(r.Context(), "community", communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -371,9 +441,20 @@ func (s *Server) handleCommunitySongbooksPage(w http.ResponseWriter, r *http.Req
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Members' submissions waiting on the default songbook, for whoever
+	// reviews them (they're reviewed on that songbook's page).
+	toReview := 0
+	if ok, _ := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageSubmissions); ok || person.IsAdmin {
+		pending, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{Status: "pending"})
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		toReview = len(pending)
+	}
 	s.render(w, "community_songbooks", map[string]any{
 		"Me": person, "Community": community, "Songbooks": rows, "CanEdit": canEdit || person.IsAdmin,
-		"IsStaff": canManage || person.IsAdmin,
+		"IsStaff": canManage || person.IsAdmin, "ToReview": toReview,
 	})
 }
 
@@ -440,12 +521,42 @@ func (s *Server) handleCommunityDefaultSongbookPage(w http.ResponseWriter, r *ht
 	for i, e := range catalog {
 		ids[i] = e.VariantID
 	}
+	// Songs members sent in for this songbook, for whoever reviews them.
+	canReview, err := s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageSubmissions)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	canReview = canReview || person.IsAdmin
+	var pending, decided []store.CommunitySubmission
+	if canReview {
+		if pending, err = s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{Status: "pending"}); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		all, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{})
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		for _, sub := range all {
+			if sub.Status != "pending" {
+				decided = append(decided, sub)
+			}
+		}
+	}
+	// The community's songbook: the Add / Create dialog adds to it.
+	songbookID, err := s.store.GetDefaultSongbook(r.Context(), "community", communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "community_default_songbook", map[string]any{
 		"Me": person, "Community": community, "Entries": entries, "Badges": s.songBadgesFor(r.Context(), ids),
+		"SongbookID": songbookID,
 		"IsStaff": canManage || person.IsAdmin, "CanEdit": canEdit || person.IsAdmin,
-		"ContextualGroup": webassets.ContextualGroup{
-			Label: "This community", PDFExportPath: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID),
-		},
+		"CanReview": canReview, "PendingSubmissions": pending, "DecidedSubmissions": decided,
+		"Export": spaceExport{PDF: fmt.Sprintf("/communities/%d/export-songbook.pdf", communityID)},
 	})
 }
 
@@ -500,9 +611,12 @@ func (s *Server) handleSongbookAccessPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleSetSongbookShared is POST /api/communities/{id}/songbooks/{sbID}/shared:
-// whether the songbook's songs may be copied out of it.
-func (s *Server) handleSetSongbookShared(w http.ResponseWriter, r *http.Request) {
+// handleSetSongbookClosed is POST /api/communities/{id}/songbooks/{sbID}/closed
+// {closed}: a closed songbook is a paid one — its songs are never public,
+// and never linked, copied or made a version of anywhere else
+// (docs/ownership-model.md §2). A public songbook, or one holding public
+// songs, isn't closed (409).
+func (s *Server) handleSetSongbookClosed(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	sbID, err := pathID(r, "sbID")
 	if err != nil {
@@ -515,17 +629,20 @@ func (s *Server) handleSetSongbookShared(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Shared bool `json:"shared"`
+		Closed bool `json:"closed"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if err := s.store.SetSongbookShared(r.Context(), sbID, req.Shared); err != nil {
+	if err := s.store.SetSongbookClosed(r.Context(), sbID, req.Closed); errors.Is(err, store.ErrConflict) {
+		httpError(w, http.StatusConflict, i18n.T(s.langOfRequest(r), "A public songbook, or one with public songs, can’t be closed: make them private first."))
+		return
+	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"shared": req.Shared})
+	writeJSON(w, http.StatusOK, map[string]bool{"closed": req.Closed})
 }
 
 // handleSetSongbookRequiresGrant is POST /api/communities/{id}/songbooks/{sbID}/requires-grant.
@@ -608,9 +725,56 @@ func (s *Server) handleRevokeSongbookAccess(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }
 
-// handleCommunityAdminPage is the instructor-only management page:
-// current+past members, the pending submissions queue, and the
-// community's catalog — everything an instructor needs to run the community.
+// The admin page's Members section: a summary of who's in (a few faces,
+// the count), then the pending invites, one row each, in the Members
+// page's language (community_members.html): initials, the name, a role
+// chip and a muted line of who, when and what's next.
+
+// communityMemberFace is one of the few faces on the Members summary.
+type communityMemberFace struct {
+	Name, Initials, PictureURL string
+}
+
+// pendingInvitee is someone invited by name who hasn't made their
+// account yet (a placeholder, store.ShellPersonRow), with their role in
+// this community.
+type pendingInvitee struct {
+	store.ShellPersonRow
+	Initials  string
+	Role      string // the role's name, as the API takes it
+	RoleKey   string // "staff", "member", "guest" or "" for a custom role
+	RoleLabel string // see communityRoleLabel
+	// DateLayout is for the day the invite was made: no year when it's
+	// this year's.
+	DateLayout string
+}
+
+// openInviteLink is one of the community's open links: a role's link, or
+// a link with names (Named) still waiting for some of them.
+type openInviteLink struct {
+	store.GroupInviteView
+	Named      bool
+	Role       string
+	RoleKey    string
+	RoleLabel  string
+	DateLayout string
+	Joined     []string // who joined with it
+	Waiting    []string // the names it's still waiting for
+}
+
+// shortDateLayout is "5 Nov" for a date this year, "5 Nov 2025" otherwise.
+func shortDateLayout(t time.Time) string {
+	if t.Year() == time.Now().Year() {
+		return "2 Jan"
+	}
+	return "2 Jan 2006"
+}
+
+// handleCommunityAdminPage is the staff page for running the community
+// itself: its name and look, its members and their roles, how people
+// join, and the community-wide options. Songbooks are managed on the
+// Songbooks tab (submissions on the default songbook's page) and events
+// on the Events tab and each event's Manage page.
 func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	person := personFromContext(r)
@@ -628,59 +792,128 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	pending, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{Status: "pending"})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	decided, err := s.store.ListCommunitySubmissions(r.Context(), communityID, store.SubmissionFilter{})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	entries, err := s.store.ListCommunityCatalog(r.Context(), communityID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	shellPeople, err := s.store.ListShellPeopleForCommunity(r.Context(), communityID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	all, err := s.store.ListEventsForCommunity(r.Context(), communityID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	var events []store.Event
-	for _, ev := range all {
-		if ev.EventType != "lesson" { // the Lessons tab's
-			events = append(events, ev)
+	current := 0
+	for _, m := range members {
+		if m.IsCurrent() {
+			current++
 		}
 	}
-	eventManagers := map[int64][]store.EventManager{}
-	for _, ev := range events {
-		mgrs, err := s.store.ListEventManagers(r.Context(), ev.ID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		eventManagers[ev.ID] = mgrs
+	shells, err := s.store.ListShellPeopleForCommunity(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	roles, err := s.store.ListCommunityRoles(r.Context(), communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	coaching := community.IsCoaching()
+	// Each role's key and label (communityRoleLabel), by name: the chips
+	// on the pending invites, and the labels the page's scripts give a
+	// link they make.
+	roleKey, roleLabels := map[string]string{}, map[string]string{}
+	for _, role := range roles {
+		roleKey[role.Name] = role.BuiltinKey
+		roleLabels[role.Name] = communityRoleLabel(coaching, role.BuiltinKey, role.Name)
+	}
+	shellPeople := make([]pendingInvitee, 0, len(shells))
+	for _, sp := range shells {
+		v := pendingInvitee{ShellPersonRow: sp, Initials: personInitials(sp.DisplayName), DateLayout: shortDateLayout(sp.CreatedAt)}
+		for _, m := range sp.Memberships {
+			if m.Kind == "community" && m.ID == communityID {
+				v.Role, v.RoleKey = m.Status, roleKey[m.Status]
+				v.RoleLabel = communityRoleLabel(coaching, v.RoleKey, v.Role)
+			}
+		}
+		shellPeople = append(shellPeople, v)
+	}
+	// A few faces for the Members summary: people who have joined,
+	// staff first (the roster's order).
+	roster, err := s.store.ListCommunityRoster(r.Context(), communityID, false)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var faces []communityMemberFace
+	for _, e := range roster {
+		if e.IsShell || !e.IsCurrent() || len(faces) == 5 {
+			continue
+		}
+		faces = append(faces, communityMemberFace{Name: e.DisplayName, Initials: personInitials(e.DisplayName), PictureURL: e.PictureURL})
+	}
 	locale, _ := s.store.CommunityLocale(r.Context(), communityID) // "" automatic
+	membersVisibility, err := s.store.CommunityMembersVisibility(r.Context(), communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Who sees the Members page is a setting: its select only for a role
+	// granting manage_settings (the PUT behind it checks that too).
+	access, err := s.communityMembersAccess(r.Context(), person, communityID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Pending invites: the community's open links (role links and links
+	// with names), for whoever may make and close them.
+	canManageMembers := person.IsAdmin
+	if !canManageMembers {
+		if canManageMembers, err = s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageMembers); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	var openLinks []openInviteLink
+	if canManageMembers {
+		invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", communityID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		for _, gi := range invites {
+			if gi.ClosedAt != nil {
+				continue
+			}
+			l := openInviteLink{GroupInviteView: gi, Role: gi.DefaultStatus, DateLayout: shortDateLayout(gi.CreatedAt)}
+			if l.Role == "" {
+				l.Role = "member"
+			}
+			l.RoleKey = roleKey[l.Role]
+			l.RoleLabel = communityRoleLabel(coaching, l.RoleKey, l.Role)
+			for _, slot := range gi.Slots {
+				if slot.ClaimedByPersonID != nil {
+					l.Joined = append(l.Joined, slot.ClaimedByName)
+				} else {
+					l.Waiting = append(l.Waiting, slot.DisplayName)
+				}
+			}
+			l.Named = len(l.Waiting) > 0
+			openLinks = append(openLinks, l)
+		}
+	}
+	// The people the viewer already plays or learns with, to add by name.
+	var known []store.KnownPerson
+	if canManageMembers {
+		currentIDs := map[int64]bool{}
+		for _, m := range members {
+			if m.IsCurrent() {
+				currentIDs[m.PersonID] = true
+			}
+		}
+		if known, err = s.knownPeopleExcept(r.Context(), person.ID, currentIDs); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	s.render(w, "community_admin", map[string]any{
-		"Me": person, "Community": community, "Members": members,
-		"PendingSubmissions": pending, "AllSubmissions": decided,
-		"Entries": entries, "ShellPeople": shellPeople,
-		"Events": events, "EventManagers": eventManagers,
-		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges,
-		"Locale": locale,
+		"Shell": communityAdminShell(s.langOf(w), community, current, len(shellPeople), len(roles), locale),
+		"Me":    person, "Person": person, "Community": community, "IsStaff": true, "KnownPeople": known,
+		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople, "MemberFaces": faces,
+		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges, "RoleLabels": roleLabels,
+		"Locale": locale, "MembersVisibility": membersVisibility,
+		"CanManageSettings": access.ManageSettings,
+		"CanManageMembers":  canManageMembers, "OpenLinks": openLinks,
 	})
 }
 
@@ -721,29 +954,56 @@ func (s *Server) handleSetCommunityDefaultJoinRole(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
-// handleAddCommunityMember adds an existing person (by username, same
-// direct-add-stands-in-for-invite convention as handleAddBandMember) to
-// a community as instructor or student. Instructor-only.
+// A coaching community's song player options (store/vocal_slider.go),
+// {on} each, its staff's (manage_settings) to change:
+//
+//	PUT /api/communities/{id}/vocal-slider        the voice's slider
+//	PUT /api/communities/{id}/coach-student-keys  the coach's key per student
+//
+// A community that isn't a coaching one can't have either on (400).
+func (s *Server) handlePutCommunityVocalSlider(w http.ResponseWriter, r *http.Request) {
+	s.putPlayerOption(w, r, s.store.SetCommunityPlayerVocalSlider)
+}
+
+func (s *Server) handlePutCommunityCoachStudentKeys(w http.ResponseWriter, r *http.Request) {
+	s.putPlayerOption(w, r, s.store.SetCommunityCoachStudentKeys)
+}
+
+func (s *Server) putPlayerOption(w http.ResponseWriter, r *http.Request, set func(context.Context, int64, bool) error) {
+	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		On *bool `json:"on"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.On == nil {
+		httpError(w, http.StatusBadRequest, "missing on")
+		return
+	}
+	if err := set(r.Context(), communityID, *req.On); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"on": *req.On})
+}
+
+// handleAddCommunityMember adds an existing account to a community
+// holding role: {personId}, someone the adder already plays or learns
+// with (same rule as handleAddBandMember, see addTarget; anyone else is
+// added by name, handleCreateCommunityPersonalInvite). manage_members.
 func (s *Server) handleAddCommunityMember(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Username string `json:"username"`
+		PersonID int64  `json:"personId"`
 		Role     string `json:"role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
-		httpError(w, http.StatusBadRequest, "missing username")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	if req.Role == "" {
 		req.Role = "member"
 	}
-	target, err := s.store.GetPersonByUsername(r.Context(), req.Username)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, "no such person: "+req.Username)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	target := s.addTarget(w, r, req.PersonID)
+	if target == nil {
 		return
 	}
 	actor := personFromContext(r)
@@ -905,13 +1165,26 @@ func (s *Server) handleCreateCommunityLink(w http.ResponseWriter, r *http.Reques
 	if role == "" {
 		role = "member"
 	}
-	actor := personFromContext(r)
-	_, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, nil, role)
+	// One open link per role: the open one is handed back rather than
+	// minting another (a link with names still waiting isn't one).
+	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "community", communityID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"url": "/join/" + token, "role": role})
+	for _, gi := range invites {
+		if gi.ClosedAt == nil && gi.DefaultStatus == role && !hasWaitingSlot(gi) {
+			writeJSON(w, http.StatusOK, map[string]any{"id": gi.ID, "url": "/join/" + gi.Token, "role": role})
+			return
+		}
+	}
+	actor := personFromContext(r)
+	id, token, err := s.store.CreateGroupInvite(r.Context(), "community", communityID, actor.ID, nil, role)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "url": "/join/" + token, "role": role})
 }
 
 // handleCloseCommunityGroupInvite explicitly closes a still-open community
@@ -934,9 +1207,9 @@ func (s *Server) handleCloseCommunityGroupInvite(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]bool{"closed": true})
 }
 
-// handleAddCommunityCatalogEntry points the community's repertoire at an
-// existing (global, or anyone's visible) variant, by reference. Any
-// current member, same as a band's own catalog — no staff review gate.
+// handleAddCommunityCatalogEntry links a song from the community's
+// songbook (docs/ownership-model.md §4): a public song, or one of the
+// community's own (store.LinkCheck). Who edits the community's repertoire.
 func (s *Server) handleAddCommunityCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -947,6 +1220,9 @@ func (s *Server) handleAddCommunityCatalogEntry(w http.ResponseWriter, r *http.R
 		return
 	}
 	actor := personFromContext(r)
+	if !s.writeLinkErr(w, r, s.store.LinkCheckFor(r.Context(), actor.ID, req.VariantID, store.CommunityOwner(communityID))) {
+		return
+	}
 	if err := s.store.AddCommunityCatalogEntry(r.Context(), communityID, req.VariantID, actor.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -970,9 +1246,12 @@ func (s *Server) handleRemoveCommunityCatalogEntry(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]bool{"removed": true})
 }
 
-// handleForkVariantIntoCommunity forks an existing (global, or anyone's
-// visible) variant into the community's own repertoire — visibility=
-// 'community', owner_community_id = this community. Any current member.
+// handleForkVariantIntoCommunity is "Make the community's version" (the
+// song page's Edit on a song a community's songbook links,
+// docs/ownership-model.md §5): the community's own version
+// (store.MakeVersion), in the link's place in {"songbookId"} (else every
+// songbook of the community's that links it). Who edits the community's
+// repertoire (the route's check).
 func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	variantID, err := strconv.ParseInt(r.PathValue("variantID"), 10, 64)
@@ -980,18 +1259,13 @@ func (s *Server) handleForkVariantIntoCommunity(w http.ResponseWriter, r *http.R
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
+	var req struct {
+		SongbookID int64 `json:"songbookId"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req) // an empty body: every songbook
 	actor := personFromContext(r)
-	newID, err := s.store.ForkVariant(r.Context(), variantID, actor.ID, "community", communityID)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, "this song can't be copied")
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	newID, err := s.store.MakeVersion(r.Context(), actor.ID, variantID, store.CommunityOwner(communityID), req.SongbookID, "")
+	if !s.writeLinkErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
@@ -1115,113 +1389,3 @@ func writeCommunitySubmissionDecisionError(w http.ResponseWriter, err error) {
 	httpError(w, http.StatusInternalServerError, err.Error())
 }
 
-// handleListCommunityRoles is GET /api/communities/{id}/roles — any
-// current member may see the role list (needed to populate an invite's
-// target-role picker, for instance), not just those who can edit it.
-func (s *Server) handleListCommunityRoles(w http.ResponseWriter, r *http.Request) {
-	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	roles, err := s.store.ListCommunityRoles(r.Context(), communityID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, roles)
-}
-
-// handleCreateCommunityRole makes a new custom role.
-func (s *Server) handleCreateCommunityRole(w http.ResponseWriter, r *http.Request) {
-	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	var req struct {
-		Name       string   `json:"name"`
-		Privileges []string `json:"privileges"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
-		httpError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	roleID, err := s.store.CreateCommunityRole(r.Context(), communityID, req.Name, req.Privileges)
-	if err != nil {
-		if errors.Is(err, store.ErrConflict) {
-			httpError(w, http.StatusConflict, err.Error())
-			return
-		}
-		httpError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]int64{"roleId": roleID})
-}
-
-// handleSetCommunityRolePrivileges replaces a role's entire privilege
-// set — works for a built-in role too (a community may re-tune what
-// "member" or "staff" itself grants).
-func (s *Server) handleSetCommunityRolePrivileges(w http.ResponseWriter, r *http.Request) {
-	roleID, err := strconv.ParseInt(r.PathValue("roleID"), 10, 64)
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid role id")
-		return
-	}
-	var req struct {
-		Privileges []string `json:"privileges"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := s.store.SetCommunityRolePrivileges(r.Context(), roleID, req.Privileges); err != nil {
-		httpError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
-}
-
-// handleRenameCommunityRole renames a CUSTOM role (refused for a built-in).
-func (s *Server) handleRenameCommunityRole(w http.ResponseWriter, r *http.Request) {
-	roleID, err := strconv.ParseInt(r.PathValue("roleID"), 10, 64)
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid role id")
-		return
-	}
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
-		httpError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := s.store.RenameCommunityRole(r.Context(), roleID, req.Name); err != nil {
-		if errors.Is(err, store.ErrForbidden) {
-			httpError(w, http.StatusForbidden, err.Error())
-			return
-		}
-		if errors.Is(err, store.ErrConflict) {
-			httpError(w, http.StatusConflict, err.Error())
-			return
-		}
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
-}
-
-// handleDeleteCommunityRole deletes a CUSTOM role not currently held by
-// any member (refused for a built-in, or one still in use).
-func (s *Server) handleDeleteCommunityRole(w http.ResponseWriter, r *http.Request) {
-	roleID, err := strconv.ParseInt(r.PathValue("roleID"), 10, 64)
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid role id")
-		return
-	}
-	if err := s.store.DeleteCommunityRole(r.Context(), roleID); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			httpError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		if errors.Is(err, store.ErrForbidden) || errors.Is(err, store.ErrConflict) {
-			httpError(w, http.StatusConflict, err.Error())
-			return
-		}
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
-}

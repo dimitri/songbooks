@@ -15,3 +15,20 @@ import "context"
 type Mailer interface {
 	Send(ctx context.Context, to, subject, body string) error
 }
+
+// Delivering is implemented by a Mailer that really delivers mail to
+// people's inboxes (an SMTP one, once --smtp-url is built). The console
+// mailer doesn't: its login emails only reach the server log and the
+// outbox table.
+type Delivering interface {
+	Delivers() bool
+}
+
+// Delivers says whether m's emails reach people. Without that, an
+// emailed login link isn't a way back into an account, so the login
+// page puts the password first and every new account needs one
+// (docs/accounts.md).
+func Delivers(m Mailer) bool {
+	d, ok := m.(Delivering)
+	return ok && d.Delivers()
+}

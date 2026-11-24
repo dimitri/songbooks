@@ -17,3 +17,13 @@ func TestJSONKeepsChordDiagrams(t *testing.T) {
 		t.Fatalf("chord diagram lost in JSON round trip:\n%s", out)
 	}
 }
+
+func TestJSONKeepsLead(t *testing.T) {
+	for _, src := range []string{"lead: 2\n\n[Intro]\ngrid: | G |\n", "lead: | D7 | G |\n\n[Intro]\ngrid: | G |\n"} {
+		sg := song.Parse(src)
+		back := fromJSON(toJSON(sg))
+		if song.Write(back) != song.Write(sg) {
+			t.Errorf("lead lost through the editor's JSON:\n%s\nvs\n%s", song.Write(back), song.Write(sg))
+		}
+	}
+}

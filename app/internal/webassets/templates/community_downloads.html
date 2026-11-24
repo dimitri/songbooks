@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{.Community.Name}}{{end}} — {{t "downloads"}}</title>
+<title>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}} — {{end}}{{end}}{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,29 +14,22 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{.Community.Name}} — {{t "downloads"}}{{end}}</h1>
+  {{template "space-back" .Space}}
+  <h1>{{if and .One .Songbooks}}{{with index .Songbooks 0}}{{.Name}}{{end}}{{else}}{{template "space-section-name" .Space}}{{end}}</h1>
   {{if .CanEditToggle}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index dl{{if .Editing}} editing{{end}}">
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.Community.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{template "coaching-tab-links" .}}
-    <a href="/communities/{{.Community.ID}}/downloads" class="band-tab active">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-  </nav>
+  {{template "space-nav" .Space}}
 
   {{if not .CanDownload}}
   <p class="dl-empty">{{t "Your role in this community doesn’t include downloads. Ask its staff if you should have them."}}</p>
   {{else}}
-  {{if .One}}<p class="dl-back"><a href="/communities/{{.Community.ID}}/downloads">{{template "icon-back"}} {{t "All the downloads"}}</a></p>{{end}}
+  {{if .One}}<p class="dl-back"><a href="/communities/{{.Community.ID}}/resources">{{template "icon-back"}} {{t "All the resources"}}</a></p>{{end}}
 
   {{range .Songbooks}}{{$sb := .}}
   <section class="dl-songbook" id="songbook-{{.ID}}">
     <header class="dl-head">
-      {{if not $.One}}<h2><a href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{.Name}}</a></h2>{{end}}
+      {{if not $.One}}<h2><a href="/communities/{{$.Community.ID}}/resources/songbooks/{{.ID}}">{{.Name}}</a></h2>{{end}}
       <span class="dl-meta">{{if .Files}}{{if and .IsCourse .Lessons}}{{tn (len .Lessons) "%d lesson" "%d lessons"}} · {{end}}{{tn .Files "%d file" "%d files"}} · {{fileSize .Bytes}}{{else}}{{t "No files yet"}}{{end}}</span>
       {{if and $.IsStaff $.Editing}}
       <span class="dl-access{{if .RequiresGrant}} sold{{end}}">{{if .RequiresGrant}}&#128274; {{t "Sold separately"}} · {{tn .Grants "%d person has it" "%d people have it"}}{{else}}{{t "Every member"}}{{end}}</span>
@@ -48,10 +41,10 @@
     <div class="dl-actions">
       <a class="dl-btn primary" href="{{.ZipHref}}" download>{{template "icon-download"}} {{t "Everything · zip"}}</a>
       {{if $.One}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}/browse/">{{if .Folders}}{{t "Browse the folders"}}{{else}}{{t "All the files"}}{{end}} &rarr;</a>
-      {{else}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{if .IsCourse}}{{t "Lesson by lesson"}}{{else}}{{t "Song by song"}}{{end}} &rarr;</a>{{end}}
+      {{else}}<a class="dl-btn" href="/communities/{{$.Community.ID}}/resources/songbooks/{{.ID}}">{{if .IsCourse}}{{t "Lesson by lesson"}}{{else}}{{t "Song by song"}}{{end}} &rarr;</a>{{end}}
     </div>
     {{else if and $.CanManage $.Editing (not $.One)}}
-    <div class="dl-actions"><a class="dl-btn" href="/communities/{{$.Community.ID}}/downloads/songbooks/{{.ID}}">{{t "Add files"}} &rarr;</a></div>
+    <div class="dl-actions"><a class="dl-btn" href="/communities/{{$.Community.ID}}/resources/songbooks/{{.ID}}">{{t "Add files"}} &rarr;</a></div>
     {{end}}
 
     {{range .Books}}
@@ -99,7 +92,7 @@
 </main>
 </div>
 {{template "dl-script" .Community.ID}}
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"app/internal/instruments"
 	"app/internal/store"
 )
 
@@ -211,10 +212,16 @@ func (s *Server) handleCommunityEventsPage(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	person := personFromContext(r)
-	staff, _ := s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+	var staff, canManage bool
+	if person != nil {
+		staff, _ = s.store.HasAnyCommunityManagePrivilege(r.Context(), communityID, person.ID)
+		canManage, _ = s.store.HasCommunityPrivilege(r.Context(), communityID, person.ID, store.PrivManageEvents)
+		canManage = canManage || person.IsAdmin
+		staff = staff || person.IsAdmin
+	}
 	s.render(w, "community_events", map[string]any{
-		"Me": person, "Community": community, "Upcoming": upcoming, "Past": past,
-		"IsStaff": staff || person.IsAdmin,
+		"Me": person, "Person": person, "Community": community, "Upcoming": upcoming, "Past": past,
+		"IsStaff": staff, "CanManageEvents": canManage,
 	})
 }
 
@@ -327,13 +334,43 @@ func (s *Server) handleEventPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var myBands []store.Band
+	var viewerID int64
 	if person != nil {
+		viewerID = person.ID
 		myBands, _ = s.store.ListBandsForPerson(r.Context(), person.ID)
 	}
 
+	// A jam (or any event people come to play at) asks what one will
+	// play: the person's profile instruments are offered first, ticked,
+	// and the ones registered with show by each name in "Who's coming".
+	playing := ev.OwnerKind == "community" && playingEventTypes[ev.EventType]
+	plays, err := s.eventPlays(r, viewerID, attendees)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var myPlays []string
+	if playing && person != nil {
+		if alreadyRegistered {
+			for _, a := range attendees {
+				if a.PersonID == person.ID {
+					myPlays = a.Instruments
+				}
+			}
+		} else if mine, err := s.store.ListPersonInstruments(r.Context(), person.ID); err == nil {
+			for _, pi := range mine {
+				if pi.Instrument != instruments.Other {
+					myPlays = append(myPlays, pi.Instrument)
+				}
+			}
+		}
+	}
+
+	choices := playChoices(myPlays)
 	s.render(w, "event", map[string]any{
-		"Me": person, "Event": ev, "Attendees": attendees, "AlreadyRegistered": alreadyRegistered,
-		"SongRows": songRows, "MyBands": myBands,
+		"Me": person, "Event": ev, "NavSection": eventNavSection(r, ev), "Attendees": attendees, "AlreadyRegistered": alreadyRegistered,
+		"SongRows": songRows, "MyBands": myBands, "LoginEmails": s.loginEmails(),
+		"Playing": playing, "Plays": plays, "PlayChoices": choices, "PlayChoiceSet": stringSet(choices), "MyPlays": stringSet(myPlays),
 	})
 }
 
@@ -480,7 +517,7 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 	// (dev-auto-login has no real session cookie at all) and silently
 	// fell through to the anonymous-visitor branch even for a logged-in
 	// user, which then failed validation since the page hides the
-	// username/password fields whenever .Me is set.
+	// account fields whenever .Me is set.
 	if p := personFromContext(r); p != nil {
 		if ev.OwnerKind == "band" {
 			isMember, _ := s.store.IsCurrentBandMember(r.Context(), ev.OwnerBandID, p.ID)
@@ -489,7 +526,22 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 		}
+		// Registering as a band signs the band up: its manage_events
+		// (docs/band-roles.md; by default, any member).
+		if bandID != 0 {
+			if may, err := s.bandPrivilege(r, bandID, store.BandPrivManageEvents); err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			} else if !may {
+				httpError(w, http.StatusForbidden, "your role in that band doesn't let you sign it up")
+				return
+			}
+		}
 		if err := s.store.RegisterForEvent(r.Context(), eventID, p.ID, bandID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err := s.saveEventPlays(r, eventID, p.ID); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -502,36 +554,45 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	username := strings.TrimSpace(r.FormValue("username"))
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
-	if username == "" || displayName == "" {
-		httpError(w, http.StatusBadRequest, "username and display name are required")
+	// The email is the account (docs/accounts.md): without one, nobody
+	// could ever log back in to it.
+	if displayName == "" || email == "" {
+		httpError(w, http.StatusBadRequest, "your name and email are both required")
 		return
 	}
-	var hash string
-	if password != "" {
-		h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			log.Printf("hashing event-registration password: %v", err)
-			httpError(w, http.StatusInternalServerError, "couldn't register — try again")
-			return
-		}
-		hash = string(h)
+	if at := strings.IndexByte(email, '@'); at <= 0 || at == len(email)-1 {
+		httpError(w, http.StatusBadRequest, "enter a valid email address")
+		return
 	}
-	personID, err := s.store.CreatePersonAndRegisterForEvent(r.Context(), eventID, username, displayName, email, hash, bandID)
+	// A password too, as on every other way in (password_rule.go): no
+	// login email is sent yet, so without one the account would be
+	// locked out once this session ends.
+	if msg := newPasswordProblem(password, r.FormValue("confirm")); msg != "" {
+		httpError(w, http.StatusBadRequest, msg)
+		return
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("hashing event-registration password: %v", err)
+		httpError(w, http.StatusInternalServerError, "couldn't register — try again")
+		return
+	}
+	personID, err := s.store.CreatePersonAndRegisterForEvent(r.Context(), eventID, displayName, email, string(h), bandID)
 	if err != nil {
 		switch {
-		case errors.Is(err, store.ErrUsernameTaken):
-			httpError(w, http.StatusConflict, "that username is already taken — try another")
 		case errors.Is(err, store.ErrEmailTaken):
-			httpError(w, http.StatusConflict, "that email is already registered to another account")
+			httpError(w, http.StatusConflict, "that email already has an account — log in to register")
 		default:
 			log.Printf("registering for event %d: %v", eventID, err)
 			httpError(w, http.StatusInternalServerError, "couldn't register — try again")
 		}
 		return
+	}
+	if err := s.saveEventPlays(r, eventID, personID); err != nil {
+		log.Printf("event %d: saving what person %d will play: %v", eventID, personID, err)
 	}
 	sessToken, err := s.store.CreateSession(r.Context(), personID)
 	if err != nil {
@@ -546,9 +607,21 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, "/events/"+strconv.FormatInt(eventID, 10), http.StatusFound)
 }
 
+// handleEventLoginRedirect is the registration form's "I already have
+// an account": log in (password or emailed link), then back to the
+// event (pendingJoinCookie) to register as themselves.
+func (s *Server) handleEventLoginRedirect(w http.ResponseWriter, r *http.Request) {
+	eventID, err := pathID(r, "id")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.loginThenResume(w, r, pendingEvent+strconv.FormatInt(eventID, 10))
+}
+
 // handleRegisterSongForEvent claims a song from eventID's attached
-// setlist — as the logged-in person, or as a band they're a current
-// member of (req.bandId). requireAuth only: any logged-in visitor who
+// setlist — as the logged-in person, or as a band whose manage_events
+// their role grants (req.bandId; by default, any member). requireAuth only: any logged-in visitor who
 // can see the event can register a song, same "no extra gate beyond
 // being able to view it" rule the public registration flow uses.
 func (s *Server) handleRegisterSongForEvent(w http.ResponseWriter, r *http.Request) {
@@ -590,13 +663,13 @@ func (s *Server) handleRegisterSongForEvent(w http.ResponseWriter, r *http.Reque
 	personID := actor.ID
 	bandID := int64(0)
 	if req.BandID != 0 {
-		isMember, err := s.store.IsCurrentBandMember(r.Context(), req.BandID, actor.ID)
+		may, err := s.bandPrivilege(r, req.BandID, store.BandPrivManageEvents)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isMember && !actor.IsAdmin {
-			httpError(w, http.StatusForbidden, "must be a current member of that band")
+		if !may {
+			httpError(w, http.StatusForbidden, "your role in that band doesn't let you sign it up")
 			return
 		}
 		bandID, personID = req.BandID, 0
@@ -699,9 +772,39 @@ func (s *Server) handleEventManagePage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A community event's managers are assigned by whoever manages the
+	// community's events, here on the event's own page.
+	me := personFromContext(r)
+	var canAssign bool
+	var candidates []store.CommunityMember
+	if ev.OwnerKind == "community" {
+		canAssign, err = s.store.HasCommunityPrivilege(r.Context(), ev.OwnerCommunityID, me.ID, store.PrivManageEvents)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		canAssign = canAssign || me.IsAdmin
+		if canAssign {
+			members, err := s.store.ListCommunityMembers(r.Context(), ev.OwnerCommunityID, false)
+			if err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			assigned := map[int64]bool{}
+			for _, m := range managers {
+				assigned[m.PersonID] = true
+			}
+			for _, m := range members {
+				if m.IsCurrent() && !assigned[m.PersonID] {
+					candidates = append(candidates, m)
+				}
+			}
+		}
+	}
 	s.render(w, "event_manage", map[string]any{
-		"Me": personFromContext(r), "Event": ev, "SongRows": songRows, "Managers": managers,
+		"Me": me, "Event": ev, "NavSection": ownerNavSection(ev.OwnerKind), "SongRows": songRows, "Managers": managers,
 		"OwnerSongbooks": ownerSongbooks,
+		"CanAssignManagers": canAssign, "ManagerCandidates": candidates,
 	})
 }
 

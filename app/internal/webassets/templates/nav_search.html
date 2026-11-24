@@ -1,0 +1,77 @@
+{{/* Search (menu proposal §3.8, search.go, static/js/search.js).
+
+     - "nav-search": the sidebar's "Rechercher… ⌘K" field, at its top
+       (icons.html desktop-sidebar, and the song page's copy). A plain
+       form to /search without scripts; with them, it opens the palette.
+     - "nav-search-button": the 🔍 in the top bar below 901px
+       (icons.html global-tabbar's topbar-actions) on Accueil and the
+       Bibliothèque's three segments: /search, or the palette full
+       screen.
+     - "search-keys": a command's shortcut, key by key.
+     - "search": the results as a page.
+
+     Self-contained, so the global navigation's layout can move them. */}}
+
+{{define "nav-search"}}<form class="nav-search" action="/search" method="get" role="search">
+  <label class="sr-only" for="nav-search-q">{{t "nav|Search"}}</label>
+  {{template "icon-search"}}<input type="search" id="nav-search-q" name="q" placeholder="{{t "Search…"}}" autocomplete="off" data-search-open>
+  <kbd class="nav-search-kbd" data-search-kbd aria-hidden="true">⌘K</kbd>
+</form>{{end}}
+
+{{define "nav-search-button"}}<a class="nav-search-button" href="/search" data-search-open title="{{t "nav|Search"}}">{{template "icon-search"}}<span class="sr-only">{{t "nav|Search"}}</span></a>{{end}}
+
+{{define "icon-search"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.2"/><path d="m12.5 12.5 4.3 4.3"/></svg>{{end}}
+
+{{define "search-keys"}}<span class="search-keys">{{range .}}<kbd>{{if eq . "Shift+s"}}⇧S{{else}}{{.}}{{end}}</kbd>{{end}}</span>{{end}}
+
+{{define "search"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .Q}}{{.Q}} — {{end}}{{t "nav|Search"}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "home-link"}}
+  <h1>{{t "nav|Search"}}</h1>
+</header>
+<main class="index search-page">
+  <form class="search-page-form" action="/search" method="get" role="search">
+    <label class="sr-only" for="search-page-q">{{t "nav|Search"}}</label>
+    <input type="search" id="search-page-q" name="q" value="{{.Q}}" placeholder="{{t "Songs, set lists, groups, events…"}}" autocomplete="off" {{if not .Q}}autofocus{{end}}>
+    <button type="submit" class="primary">{{t "nav|Search"}}</button>
+  </form>
+  {{if .Q}}
+    {{range .Groups}}
+    <section class="search-group" aria-labelledby="search-group-{{.Kind}}">
+      <h2 id="search-group-{{.Kind}}">{{.Label}}</h2>
+      <ul class="search-list">
+      {{range .Items}}<li><a class="search-row" href="{{.URL}}"><span class="search-row-title">{{.Title}}</span>{{with .Subtitle}}<span class="search-row-sub">{{.}}</span>{{end}}{{if .Badge}}<span class="owner-badge{{if .Public}} is-public{{end}}">{{.Badge}}</span>{{end}}{{if .Here}}<span class="search-here">{{t "here"}}</span>{{end}}</a></li>{{end}}
+      </ul>
+    </section>
+    {{else}}
+    {{if not .Commands}}<p class="home-empty">{{t "Nothing found for “%s”." .Q}}</p>{{end}}
+    {{end}}
+  {{end}}
+  {{if .Commands}}
+  <section class="search-group" aria-labelledby="search-group-commands">
+    <h2 id="search-group-commands">{{t "Commands"}}</h2>
+    <ul class="search-list">
+    {{range .Commands}}<li><a class="search-row" href="{{.URL}}"><span class="search-row-title">{{.Title}}</span>{{template "search-keys" .Keys}}</a></li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+</main>
+{{template "pwa-register"}}
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

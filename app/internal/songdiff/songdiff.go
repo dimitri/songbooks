@@ -78,6 +78,9 @@ func headerChanges(a, b *song.Song) []Change {
 			out = append(out, Change{Where: "Header", What: fmt.Sprintf("%s %s → %s", name, short(va), short(vb))})
 		}
 	}
+	if la, lb := leadText(a), leadText(b); la != lb {
+		out = append(out, Change{Where: "Header", What: fmt.Sprintf("lead-in %s → %s", la, lb)})
+	}
 	return out
 }
 
@@ -459,6 +462,17 @@ func orNone(s string) string {
 		return "the song's"
 	}
 	return s
+}
+
+// leadText is the song's "lead:" line as a diff reads it.
+func leadText(s *song.Song) string {
+	switch {
+	case s.Lead <= 0:
+		return "none"
+	case len(s.LeadGrid) > 0:
+		return s.LeadLine()
+	}
+	return plural(s.Lead, "bar")
 }
 
 func timesText(n int) string {

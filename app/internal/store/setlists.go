@@ -73,19 +73,19 @@ func (st *Store) GetSetlistMeta(ctx context.Context, id int64) (*SetlistMeta, er
 	return &m, nil
 }
 
-// LoadSetlistByID loads one setlist's parsed entries plus its metadata,
-// by id — the resolution path practice/listening use, which works
-// identically regardless of scope (person or band).
+// LoadSetlistByID loads one setlist's sets and songs (its setlist_items
+// rows, setlist_items.go) plus its metadata, by id — what every page of a
+// set list reads, whatever its scope.
 func (st *Store) LoadSetlistByID(ctx context.Context, id int64) (*setlist.Setlist, *SetlistMeta, string, error) {
 	meta, err := st.GetSetlistMeta(ctx, id)
 	if err != nil {
 		return nil, nil, "", err
 	}
-	var body string
-	if err := st.db.QueryRow(ctx, `SELECT body FROM setlists WHERE id = $1`, id).Scan(&body); err != nil {
+	l, err := loadSetlist(ctx, st.db, id)
+	if err != nil {
 		return nil, nil, "", err
 	}
-	return setlist.Parse(body), meta, strconv.Itoa(meta.Version), nil
+	return l, meta, strconv.Itoa(meta.Version), nil
 }
 
 // CanViewSetlistByID reports whether personID may see setlistID's
@@ -116,8 +116,8 @@ func (st *Store) CanViewSetlistByID(ctx context.Context, personID, setlistID int
 
 // CanEditSetlistByID reports whether personID may edit setlistID —
 // person scope: the owner only (no sharing — it's their personal
-// setlist); band scope: any current band member (same open-
-// collaboration rule as a band's songbook); community(community) scope:
+// setlist); band scope: a member whose role grants manage_setlists
+// (by default, any member); community(community) scope:
 // staff only (the existing 'instructor' role) — a read-only community
 // member can view and use the community's setlists but not edit them,
 // same split the user asked for on membership generally.
@@ -133,7 +133,7 @@ func (st *Store) CanEditSetlistByID(ctx context.Context, personID, setlistID int
 		if meta.OwnerBandID == nil {
 			return false, nil
 		}
-		return st.IsCurrentBandMember(ctx, *meta.OwnerBandID, personID)
+		return st.HasBandPrivilege(ctx, *meta.OwnerBandID, personID, BandPrivManageSetlists)
 	case "community":
 		if meta.OwnerCommunityID == nil {
 			return false, nil
@@ -169,8 +169,8 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, 
 
 	var id int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO setlists (title, body, scope, owner_person_id, owner_band_id, owner_community_id, notes)
-		VALUES ($1, '', $2, $3, $4, $5, $6)
+		INSERT INTO setlists (title, scope, owner_person_id, owner_band_id, owner_community_id, notes)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id`,
 		title, scope, ownerPersonID, ownerBandID, ownerCommunityID, notes).Scan(&id); err != nil {
 		return 0, err
@@ -196,10 +196,10 @@ func (st *Store) CreateSetlist(ctx context.Context, scope, title, notes string, 
 	return id, nil
 }
 
-// SaveSetlistByID edits a setlist's title/notes fields and its entries,
-// by id — the path person/band-scoped setlists are edited through
-// (project-scoped setlists keep using SaveSetlist's book/stem path
-// unchanged). If expectVersion is non-empty, the save is rejected with
+// SaveSetlistByID edits a setlist's title/notes fields, its header's
+// date and venue, and its sets and songs (its setlist_items rows, all
+// replaced: setlist_items.go), by id; title "" is l's header title. Its
+// state before is recorded as a revision. If expectVersion is non-empty, the save is rejected with
 // ErrConflict when the row's current version doesn't match.
 func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setlist, title, notes string, expectVersion string, actorPersonID int64) (string, error) {
 	tx, err := st.db.Begin(ctx)
@@ -208,18 +208,12 @@ func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setli
 	}
 	defer tx.Rollback(ctx)
 
-	var curScope, curTitle, curNotes, curBody string
-	var curOwnerPerson, curOwnerBand *int64
-	var curVersion int
-	err = tx.QueryRow(ctx, `
-		SELECT scope::text, title, notes, body, owner_person_id, owner_band_id, version
-		FROM setlists WHERE id = $1 FOR UPDATE`, id).
-		Scan(&curScope, &curTitle, &curNotes, &curBody, &curOwnerPerson, &curOwnerBand, &curVersion)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such setlist %d: %w", id, ErrNotFound)
-	}
+	snap, curVersion, exists, err := setlistSnapshot(ctx, tx, id)
 	if err != nil {
 		return "", err
+	}
+	if !exists {
+		return "", fmt.Errorf("no such setlist %d: %w", id, ErrNotFound)
 	}
 	if expectVersion != "" && strconv.Itoa(curVersion) != expectVersion {
 		return "", ErrConflict
@@ -229,20 +223,22 @@ func (st *Store) SaveSetlistByID(ctx context.Context, id int64, l *setlist.Setli
 	if actorPersonID != 0 {
 		actor = &actorPersonID
 	}
-	if err := st.RecordRevision(ctx, tx, "setlist", strconv.FormatInt(id, 10), actor, SetlistSnapshot{
-		Exists: true, Scope: curScope, Title: curTitle, Notes: curNotes,
-		Body: curBody, OwnerPersonID: curOwnerPerson, OwnerBandID: curOwnerBand,
-	}); err != nil {
+	if err := st.RecordRevision(ctx, tx, "setlist", strconv.FormatInt(id, 10), actor, snap); err != nil {
 		return "", err
 	}
 
-	body := setlist.Write(l)
+	if title == "" {
+		title = l.Get("title")
+	}
+	if err := writeSetlistItems(ctx, tx, id, l); err != nil {
+		return "", err
+	}
 	var newVersion int
 	if err := tx.QueryRow(ctx, `
-		UPDATE setlists SET title = $1, notes = $2, body = $3, version = version + 1
-		WHERE id = $4
+		UPDATE setlists SET title = $1, notes = $2, version = version + 1
+		WHERE id = $3
 		RETURNING version`,
-		title, notes, body, id).Scan(&newVersion); err != nil {
+		title, notes, id).Scan(&newVersion); err != nil {
 		return "", err
 	}
 

@@ -68,13 +68,14 @@
 </div>
 <script src="/static/js/vendor/alphatab/alphaTab.min.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-facts.js?v={{staticVersion}}"></script>
+<script src="/static/js/gp-levels.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-file.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-ui.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-palette.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-bar-picker.js?v={{staticVersion}}"></script>
 <script src="/static/js/gp-editor.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

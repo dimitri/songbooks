@@ -33,6 +33,15 @@ var Parts = []string{"vocals", "drums", "bass", "other"}
 // Split returns the parts of the recording in audio (any format ffmpeg
 // reads), MP3 encoded, keyed by name.
 func (s Splitter) Split(ctx context.Context, audio []byte) (map[string][]byte, error) {
+	return s.SplitThen(ctx, audio, nil)
+}
+
+// SplitThen splits like Split and, before the WAVs are deleted, hands the
+// parts and the WAVs to then (the stems worker saves the parts, then its
+// analysis stage reads the WAVs: no decoding the MP3s
+// again). An error from then doesn't lose the parts: it comes back
+// beside them as a *ThenError.
+func (s Splitter) SplitThen(ctx context.Context, audio []byte, then func(map[string][]byte, WAVs) error) (map[string][]byte, error) {
 	dir, err := os.MkdirTemp("", "stems-")
 	if err != nil {
 		return nil, err
@@ -75,22 +84,69 @@ func (s Splitter) Split(ctx context.Context, audio []byte) (map[string][]byte, e
 	}
 	// no_vocals: the others summed as they are (no level change: they add
 	// back up to the recording).
-	nv := filepath.Join(dir, "no_vocals.mp3")
+	nvWAV := filepath.Join(dir, "no_vocals.wav")
 	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error",
 		"-i", filepath.Join(parts, "drums.wav"), "-i", filepath.Join(parts, "bass.wav"), "-i", filepath.Join(parts, "other.wav"),
-		"-filter_complex", "amix=inputs=3:normalize=0", "-b:a", kbps, nv); err != nil {
+		"-filter_complex", "amix=inputs=3:normalize=0", nvWAV); err != nil {
 		return nil, fmt.Errorf("mixing no_vocals: %w", err)
+	}
+	nv := filepath.Join(dir, "no_vocals.mp3")
+	if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", nvWAV, "-b:a", kbps, nv); err != nil {
+		return nil, fmt.Errorf("encoding no_vocals: %w", err)
 	}
 	if result["no_vocals"], err = os.ReadFile(nv); err != nil {
 		return nil, err
 	}
+	if then != nil {
+		if err := then(result, WAVs{Mix: wav, Backing: nvWAV, Vocals: filepath.Join(parts, "vocals.wav")}); err != nil {
+			return result, &ThenError{err}
+		}
+	}
 	return result, nil
+}
+
+// ThenError is SplitThen's then failing: the parts are fine.
+type ThenError struct{ Err error }
+
+func (e *ThenError) Error() string { return e.Err.Error() }
+func (e *ThenError) Unwrap() error { return e.Err }
+
+// DecodeWAVs writes a stored recording and its parts as WAVs in dir, for
+// analysing a recording split earlier (the analysis jobs, the backfill).
+// backing and vocals may be nil.
+func DecodeWAVs(ctx context.Context, dir string, mix, backing, vocals []byte) (WAVs, error) {
+	var w WAVs
+	write := func(name string, data []byte, to *string) error {
+		if len(data) == 0 {
+			return nil
+		}
+		in := filepath.Join(dir, name+".in")
+		if err := os.WriteFile(in, data, 0o600); err != nil {
+			return err
+		}
+		out := filepath.Join(dir, name+".wav")
+		if err := run(ctx, "ffmpeg", "-nostdin", "-v", "error", "-i", in, "-ac", "2", "-ar", "44100", out); err != nil {
+			return fmt.Errorf("reading %s: %w", name, err)
+		}
+		*to = out
+		return os.Remove(in)
+	}
+	if err := write("track", mix, &w.Mix); err != nil {
+		return w, err
+	}
+	if err := write("no_vocals", backing, &w.Backing); err != nil {
+		return w, err
+	}
+	if err := write("vocals", vocals, &w.Vocals); err != nil {
+		return w, err
+	}
+	return w, nil
 }
 
 func run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	cmd.Stderr = stderrFor(ctx, &stderr)
 	if err := cmd.Run(); err != nil {
 		msg := stderr.String()
 		if len(msg) > 2000 {

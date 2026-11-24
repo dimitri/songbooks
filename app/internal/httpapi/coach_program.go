@@ -37,7 +37,7 @@ func (s *Server) handleCoachRepertoirePage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !coach {
-		http.Redirect(w, r, fmt.Sprintf("/communities/%d/students/%d", community.ID, personFromContext(r).ID), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/communities/%d/songbooks", community.ID), http.StatusFound)
 		return
 	}
 	songs, err := s.store.CommunityRepertoire(r.Context(), community.ID)
@@ -274,7 +274,7 @@ func (s *Server) handleEventProgramPage(w http.ResponseWriter, r *http.Request) 
 	sort.SliceStable(students, func(i, j int) bool {
 		return store.FoldName(students[i].DisplayName) < store.FoldName(students[j].DisplayName)
 	})
-	me := personFromContext(r).ID
+	me := s.viewedPersonID(r, community.ID)
 	totals := map[int64]*programSingerTotal{}
 	var views []programSongView
 	for _, p := range program {

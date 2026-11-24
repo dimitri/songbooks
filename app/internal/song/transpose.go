@@ -103,6 +103,7 @@ func TransposeText(src string, opt TransposeOptions) (*TransposeResult, error) {
 	lyricsStarted := false
 	inScore := false
 	scoreDepth := 0
+	sections := 0
 
 	for _, raw := range lines {
 		line := strings.TrimSpace(raw)
@@ -112,10 +113,11 @@ func TransposeText(src string, opt TransposeOptions) (*TransposeResult, error) {
 		}
 		if sectionHeaderRE.MatchString(line) {
 			inHead, lyricsStarted, inScore = false, false, false
+			sections++
 			out = append(out, raw)
 			continue
 		}
-		if inHead {
+		if inHead && !(strings.HasPrefix(line, "lead:") && validLead(line[5:])) {
 			out = append(out, tr.headerLine(raw, line, oldDiagramKey, res, &sawKey))
 			if strings.HasPrefix(line, "title:") || strings.HasPrefix(line, "artist:") {
 				keySlot = len(out)
@@ -130,6 +132,17 @@ func TransposeText(src string, opt TransposeOptions) (*TransposeResult, error) {
 				continue
 			}
 			inScore = false
+		}
+		// The song's lead (a header line, or in its first section): a
+		// count passes through, bars written as a grid have chords.
+		if (inHead || sections == 1) && strings.HasPrefix(line, "lead:") && validLead(line[5:]) {
+			i := strings.Index(raw, "lead:") + len("lead:")
+			if strings.HasPrefix(strings.TrimSpace(raw[i:]), "|") {
+				out = append(out, raw[:i]+tr.grid(raw[i:]))
+			} else {
+				out = append(out, raw)
+			}
+			continue
 		}
 		if line == "" {
 			out = append(out, raw)

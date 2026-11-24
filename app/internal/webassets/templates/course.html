@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{with .Lesson}}{{template "lesson-label" .}} — {{end}}{{.Songbook.Name}} — Songbooks</title>
+<title>{{with .Lesson}}{{template "lesson-label" .}} — {{end}}{{docTitle .Songbook.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -43,17 +43,9 @@ async function courseApi(method, url, body) {
   {{if .Community}}<a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>{{else}}{{template "home-link"}}{{end}}
   <h1>{{.Songbook.Name}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index course">
-  {{with .Community}}
-  <nav class="band-tabs band-tabs-row">
-    <a class="band-tab" href="/communities/{{.ID}}">{{t "Overview"}}</a>
-    <a class="band-tab active" href="/communities/{{.ID}}/songbooks">{{t (shelfLabel "community" .ID)}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.ID}}/events">{{t "Events"}}</a>
-  </nav>
-  {{end}}
+  {{template "space-nav" .Space}}
 
   {{if .Lessons}}
   <section class="course-progress card" aria-label="{{t "Your progress"}}">
@@ -105,10 +97,10 @@ async function courseApi(method, url, body) {
   {{if .Editing}}
   <section class="card course-tools">
     <h2>{{t "Organize the course"}}</h2>
-    <form id="new-lesson" class="course-form">
-      <div class="field course-field-num"><label for="new-lesson-number">{{t "Number"}}</label><input id="new-lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>
+    <form id="new-lesson" class="form-inline">
+      <div class="field field--xs"><label for="new-lesson-number">{{t "Number"}}</label><input id="new-lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>
       <div class="field"><label for="new-lesson-title">{{t "Title"}}</label><input id="new-lesson-title" name="title" required autocomplete="off"></div>
-      <div class="form-actions"><button type="submit" class="primary">{{template "icon-plus"}} {{t "New lesson"}}</button></div>
+      <button type="submit" class="primary">{{template "icon-plus"}} {{t "New lesson"}}</button>
       <p class="form-status" role="status"></p>
     </form>
     {{if .Community}}
@@ -118,7 +110,7 @@ async function courseApi(method, url, body) {
       <p class="form-status" role="status"></p>
     </div>
     {{end}}
-    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/downloads#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
+    <p class="hint"><a href="/songbooks/{{.Songbook.ID}}?view=songs">{{t "All the songs, as a list"}}</a>{{with .Community}} · <a href="/communities/{{.ID}}/resources#songbook-{{$.Songbook.ID}}">{{t "Its files"}}</a>{{end}}</p>
   </section>
   {{template "course-api"}}
   <script>
@@ -153,7 +145,7 @@ async function courseApi(method, url, body) {
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
@@ -165,7 +157,6 @@ async function courseApi(method, url, body) {
   <a class="back-link" href="/songbooks/{{.Songbook.ID}}">{{template "icon-back"}} {{.Songbook.Name}}</a>
   <h1>{{template "lesson-label" .Lesson}}</h1>
   {{if .CanEdit}}{{template "edit-toggle" .Editing}}{{end}}
-  {{template "notif-bell"}}
 </header>
 <main class="index course lesson">
   <div class="lesson-done">
@@ -204,14 +195,14 @@ async function courseApi(method, url, body) {
     <p class="hint">{{if .Files}}{{t "No song in this lesson: its files are below."}}{{else}}{{t "No song in this lesson."}}{{end}}</p>
     {{end}}
     {{if and .Editing .OtherSongs}}
-    <form id="lesson-add-song" class="course-form">
+    <form id="lesson-add-song" class="form-inline">
       <div class="field"><label for="lesson-add-song-select">{{t "Add a song to this lesson"}}</label>
         <select id="lesson-add-song-select" name="song" required>
           <option value=""></option>
           {{range .OtherSongs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}
         </select>
       </div>
-      <div class="form-actions"><button type="submit" class="secondary">{{template "icon-plus"}} {{t "Add"}}</button></div>
+      <button type="submit" class="secondary">{{template "icon-plus"}} {{t "Add"}}</button>
       <p class="form-status" role="status"></p>
     </form>
     {{end}}
@@ -244,11 +235,13 @@ async function courseApi(method, url, body) {
   {{if .Editing}}
   <section class="card course-tools">
     <h2>{{t "Edit the lesson"}}</h2>
-    <form id="lesson-edit" class="course-form">
-      <div class="field course-field-num"><label for="lesson-number">{{t "Number"}}</label><input id="lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" value="{{with .Lesson.Number}}{{.}}{{end}}" autocomplete="off"></div>
+    <form id="lesson-edit" class="form-stack form-stack--wide">
+      <div class="field-row course-number-title">
+      <div class="field"><label for="lesson-number">{{t "Number"}}</label><input id="lesson-number" name="number" inputmode="numeric" pattern="[0-9]*" value="{{with .Lesson.Number}}{{.}}{{end}}" autocomplete="off"></div>
       <div class="field"><label for="lesson-title">{{t "Title"}}</label><input id="lesson-title" name="title" value="{{.Lesson.Title}}" required autocomplete="off"></div>
-      <div class="field course-field-wide"><label for="lesson-video">{{t "Video"}}</label><input id="lesson-video" name="video" type="url" inputmode="url" value="{{.Lesson.VideoURL}}" placeholder="https://youtu.be/…" aria-describedby="lesson-video-hint" autocomplete="off"><p class="hint" id="lesson-video-hint">{{t "A YouTube link. Left empty, the lesson shows the first video its songs link to."}}</p></div>
-      <div class="field course-field-wide"><label for="lesson-body">{{t "Text"}}</label><textarea id="lesson-body" name="body" rows="6" aria-describedby="lesson-body-hint">{{.Lesson.Body}}</textarea><p class="hint" id="lesson-body-hint">{{t "What to work on, in what order. A blank line starts a new paragraph."}}</p></div>
+      </div>
+      <div class="field"><label for="lesson-video">{{t "Video"}}</label><input id="lesson-video" name="video" type="url" inputmode="url" value="{{.Lesson.VideoURL}}" placeholder="https://youtu.be/…" aria-describedby="lesson-video-hint" autocomplete="off"><p class="field-hint" id="lesson-video-hint">{{t "A YouTube link. Left empty, the lesson shows the first video its songs link to."}}</p></div>
+      <div class="field"><label for="lesson-body">{{t "Text"}}</label><textarea id="lesson-body" name="body" rows="6" aria-describedby="lesson-body-hint">{{.Lesson.Body}}</textarea><p class="field-hint" id="lesson-body-hint">{{t "What to work on, in what order. A blank line starts a new paragraph."}}</p></div>
       <div class="form-actions"><button type="submit" class="primary">{{t "Save"}}</button> <button type="button" id="lesson-delete" class="danger">{{t "Delete the lesson"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
@@ -314,7 +307,7 @@ async function courseApi(method, url, body) {
   {{end}}
 })();
 </script>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

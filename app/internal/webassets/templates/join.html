@@ -13,7 +13,10 @@
   <div class="hero">
     <div>
       <h2>{{t "Join %s" .TargetName}}</h2>
-      {{if eq .Kind "band"}}
+      {{if .Closed}}{{/* the card below says so */}}
+      {{else if .Open}}
+        <p>{{if eq .Kind "band"}}{{t "Create your account, or log in, and you’re in the band."}}{{else}}{{t "Create your account, or log in, and you’re in the community."}}{{end}}</p>
+      {{else if eq .Kind "band"}}
         <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}}</p>
       {{else}}
         <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}} {{t "You'll join this community."}}</p>
@@ -26,6 +29,7 @@
       <p>{{if eq .Kind "band"}}{{t "This invite link has been closed by the band — no further claims are possible. Ask for a fresh link."}}{{else}}{{t "This invite link has been closed by the community — no further claims are possible. Ask for a fresh link."}}{{end}}</p>
     </div>
   {{else}}
+  {{if not .Open}}
   <div class="card card--narrow">
     <fieldset class="field-group">
       <legend>{{t "Who are you?"}}</legend>
@@ -39,6 +43,7 @@
       <label class="check"><input type="radio" name="slot_choice" value="unlisted" checked> {{t "Someone else (not on this list)"}}</label>
     </fieldset>
   </div>
+  {{end}}
 
   {{if .LoggedIn}}
     <form class="card card--narrow" method="post" action="/join/{{.Token}}" id="claim-form">
@@ -52,18 +57,14 @@
       <input type="hidden" name="slot_id" id="create-slot-id" value="unlisted">
       <div class="form-stack">
         <div class="field">
-          <label for="join-username">{{t "Username"}}</label>
-          <p class="field-hint" id="join-username-hint">{{t "What you'll log in with, e.g. marcguitar."}}</p>
-          <input id="join-username" type="text" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-username-hint" required autofocus>
-        </div>
-        <div class="field">
           <label for="join-display-name">{{t "Your name"}}</label>
           <p class="field-hint" id="join-display-name-hint">{{t "How the others will see you."}}</p>
-          <input id="join-display-name" type="text" name="display_name" autocomplete="name" autocapitalize="words" aria-describedby="join-display-name-hint" required>
+          <input id="join-display-name" type="text" name="display_name" autocomplete="name" autocapitalize="words" aria-describedby="join-display-name-hint" required autofocus>
         </div>
         <div class="field">
           <label for="join-email">{{t "Email"}}</label>
-          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+          <p class="field-hint" id="join-email-hint">{{t "What you'll log in with."}}</p>
+          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-email-hint" required>
         </div>
         <div class="field">
           <label for="join-password">{{t "Password"}}</label>
@@ -84,7 +85,7 @@
     </form>
 
     <div class="card card--narrow">
-      <p class="hint">{{t "Already use Songbooks for something else? Log in instead — joining won't touch anything else in your account."}}</p>
+      <p class="hint">{{if .LoginEmails}}{{t "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after."}}{{else}}{{t "Already have an account? Log in with your email and password, and you’ll join right after."}}{{end}}</p>
       <button type="button" id="login-instead-btn">{{t "Log in to join"}}</button>
     </div>
     <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
@@ -116,7 +117,6 @@
     (function() {
       const form = document.getElementById('claim-form') || document.getElementById('create-account-form');
       const btn = form.querySelector('button[type=submit]');
-      const username = document.getElementById('join-username');
       const email = document.getElementById('join-email');
       form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -127,11 +127,8 @@
           // Busy until the next page arrives.
           if (res.redirected || res.ok) { location.href = res.url; return new Promise(() => {}); }
           const text = (await res.text()).toLowerCase();
-          if (username && text.includes('username already')) {
-            Forms.fieldError(username, t('That username is taken. Try another.'));
-            username.focus();
-            return;
-          }
+          // A refusal about the email or the password goes under it.
+          if (email && res.status === 400 && newAccountFieldError(text, {email: 'join-email', password: 'join-password', confirm: 'join-confirm'})) return;
           if (email && text.includes('email already')) {
             Forms.fieldError(email, t('That email already has an account. Use “Log in to join” below instead.'));
             email.focus();

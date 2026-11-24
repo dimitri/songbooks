@@ -22,6 +22,9 @@ type GroupInvite struct {
 	BandID     int64
 	CommunityID   int64
 	CreatedBy  int64
+	// CreatedByName is the creator's display name, "" when unknown;
+	// only ListGroupInvitesForTarget fills it in.
+	CreatedByName string
 	CreatedAt  time.Time
 	ClosedAt   *time.Time
 	// DefaultStatus is the fixed role every claim through this invite
@@ -33,6 +36,11 @@ type GroupInvite struct {
 	// 'guest', a community's still grants 'student' — see
 	// grantGroupInviteMembershipTx.
 	DefaultStatus string
+	// RoleID is the band role an unlisted join gets (a band's open link,
+	// handleCreateBandLink), one of the band's roles, its own included
+	// (migration 0132); 0 for a link made before, which gives its
+	// DefaultStatus's built-in role (guest when it has none).
+	RoleID int64
 }
 
 // GroupInviteSlot is one pre-typed expected person on a group invite's
@@ -46,6 +54,7 @@ type GroupInviteSlot struct {
 	DisplayName       string
 	Instrument        string
 	Status            string // "core" or "guest" — the band status this slot grants on claim
+	RoleID            int64  // the band role it grants (migration 0132), 0 for a slot made before: its Status's
 	ClaimedByPersonID *int64
 	ClaimedByName     string // the claiming person's display name, '' if unclaimed
 	ClaimedAt         *time.Time
@@ -67,6 +76,19 @@ type GroupInviteSlotInput struct {
 	DisplayName string
 	Instrument  string // band kind only; ignored for community
 	Status      string // band kind only; "core" or "guest", defaults to "guest" if blank/invalid
+	RoleID      int64  // band kind only: one of the band's roles, in place of Status (ResolveBandInviteRole)
+}
+
+// bandSlotRole is the role and status a band roster slot keeps: in's
+// role, else its status's built-in role (guest when blank or invalid).
+func bandSlotRole(ctx context.Context, q dbtx, bandID int64, in GroupInviteSlotInput) (int64, string, error) {
+	if in.RoleID != 0 {
+		status, err := bandInviteStatus(ctx, q, bandID, in.RoleID)
+		return in.RoleID, status, err
+	}
+	status := normalizeSlotStatus(in.Status)
+	id, err := builtinBandRoleID(ctx, q, bandID, status)
+	return id, status, err
 }
 
 func normalizeSlotStatus(status string) string {
@@ -86,6 +108,21 @@ func normalizeSlotStatus(status string) string {
 // every other caller (a band's named roster link, or a community link
 // created before this existed).
 func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targetID, createdBy int64, slots []GroupInviteSlotInput, defaultStatus string) (groupInviteID int64, token string, err error) {
+	return st.createGroupInvite(ctx, targetKind, targetID, createdBy, slots, defaultStatus, 0)
+}
+
+// CreateBandLink makes one of bandID's open links (no names: the "Band
+// link or QR code"), giving roleID, one of its roles
+// (ResolveBandInviteRole), to whoever joins with it.
+func (st *Store) CreateBandLink(ctx context.Context, bandID, createdBy, roleID int64) (groupInviteID int64, token string, err error) {
+	status, err := bandInviteStatus(ctx, st.db, bandID, roleID)
+	if err != nil {
+		return 0, "", err
+	}
+	return st.createGroupInvite(ctx, "band", bandID, createdBy, nil, status, roleID)
+}
+
+func (st *Store) createGroupInvite(ctx context.Context, targetKind string, targetID, createdBy int64, slots []GroupInviteSlotInput, defaultStatus string, bandRoleID int64) (groupInviteID int64, token string, err error) {
 	if targetKind != "band" && targetKind != "community" {
 		return 0, "", fmt.Errorf("invalid target kind %q", targetKind)
 	}
@@ -111,9 +148,9 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 		defaultStatusArg = &defaultStatus
 	}
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO group_invites (token, target_kind, band_id, community_id, created_by_person_id, default_status)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		token, targetKind, bandID, communityID, nullableID(createdBy), defaultStatusArg).Scan(&groupInviteID); err != nil {
+		INSERT INTO group_invites (token, target_kind, band_id, community_id, created_by_person_id, default_status, band_role_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		token, targetKind, bandID, communityID, nullableID(createdBy), defaultStatusArg, nullableID(bandRoleID)).Scan(&groupInviteID); err != nil {
 		return 0, "", err
 	}
 
@@ -124,15 +161,18 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 		}
 		var instrument *string
 		status := "guest"
+		var roleID int64
 		if targetKind == "band" {
 			if v := strings.TrimSpace(sl.Instrument); v != "" {
 				instrument = &v
 			}
-			status = normalizeSlotStatus(sl.Status)
+			if roleID, status, err = bandSlotRole(ctx, tx, targetID, sl); err != nil {
+				return 0, "", err
+			}
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO group_invite_slots (group_invite_id, display_name, instrument, status)
-			VALUES ($1, $2, $3, $4)`, groupInviteID, name, instrument, status); err != nil {
+			INSERT INTO group_invite_slots (group_invite_id, display_name, instrument, status, band_role_id)
+			VALUES ($1, $2, $3, $4, $5)`, groupInviteID, name, instrument, status, nullableID(roleID)); err != nil {
 			return 0, "", err
 		}
 	}
@@ -148,7 +188,7 @@ func (st *Store) CreateGroupInvite(ctx context.Context, targetKind string, targe
 // name and full slot list, or ErrNotFound if the token is unknown.
 func (st *Store) GetGroupInviteByToken(ctx context.Context, token string) (*GroupInviteView, error) {
 	gi, targetName, err := st.scanGroupInvite(ctx, st.db, `
-		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''), coalesce(gi.band_role_id, 0),
 		       coalesce(b.name, sc.name, '')
 		FROM group_invites gi
 		LEFT JOIN bands b ON b.id = gi.band_id
@@ -177,9 +217,11 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 		col = "community_id"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT id, token, target_kind, band_id, community_id, created_by_person_id, created_at, closed_at, coalesce(default_status, '')
-		FROM group_invites WHERE `+col+` = $1
-		ORDER BY (closed_at IS NULL) DESC, created_at DESC`, targetID)
+		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id, gi.created_at, gi.closed_at, coalesce(gi.default_status, ''), coalesce(gi.band_role_id, 0),
+		       coalesce(p.display_name, '')
+		FROM group_invites gi LEFT JOIN people p ON p.id = gi.created_by_person_id
+		WHERE gi.`+col+` = $1
+		ORDER BY (gi.closed_at IS NULL) DESC, gi.created_at DESC`, targetID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +231,7 @@ func (st *Store) ListGroupInvitesForTarget(ctx context.Context, targetKind strin
 		var gi GroupInvite
 		var bandID, communityID, createdBy sql.NullInt64
 		var closedAt sql.NullTime
-		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus); err != nil {
+		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &gi.RoleID, &gi.CreatedByName); err != nil {
 			return nil, err
 		}
 		gi.BandID, gi.CommunityID, gi.CreatedBy = bandID.Int64, communityID.Int64, createdBy.Int64
@@ -234,6 +276,27 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 	return ok, err
 }
 
+// CanInvitePerson reports whether actorID may make a new invite link for
+// targetID (a shell waiting to join): actorID's role grants
+// manage_members in a band targetID currently belongs to, or in a
+// community targetID currently belongs to — the same rules as the band
+// and community routes that invite people.
+func (st *Store) CanInvitePerson(ctx context.Context, actorID, targetID int64) (bool, error) {
+	var ok bool
+	err := st.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM band_members b
+			WHERE b.person_id = $2 AND upper_inf(b.validity) AND has_band_privilege(b.band_id, $1, $4)
+			UNION ALL
+			SELECT 1 FROM community_members a
+			JOIN community_role_privileges crp ON crp.role_id = a.role_id AND crp.privilege = $3
+			JOIN community_members b ON a.community_id = b.community_id
+			WHERE a.person_id = $1 AND upper_inf(a.validity)
+			  AND b.person_id = $2 AND upper_inf(b.validity)
+		)`, actorID, targetID, PrivManageMembers, BandPrivManageMembers).Scan(&ok)
+	return ok, err
+}
+
 // ListAllGroupInvites lists every group invite on the instance, open
 // ones first then closed, newest first within each, each with its
 // target's resolved name and full slot list — the admin panel's own
@@ -245,7 +308,7 @@ func (st *Store) SharesMembershipWith(ctx context.Context, actorID, targetID int
 func (st *Store) ListAllGroupInvites(ctx context.Context) ([]GroupInviteView, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT gi.id, gi.token, gi.target_kind, gi.band_id, gi.community_id, gi.created_by_person_id,
-		       gi.created_at, gi.closed_at, coalesce(gi.default_status, ''),
+		       gi.created_at, gi.closed_at, coalesce(gi.default_status, ''), coalesce(gi.band_role_id, 0),
 		       coalesce(b.name, sc.name, '')
 		FROM group_invites gi
 		LEFT JOIN bands b ON b.id = gi.band_id
@@ -266,7 +329,7 @@ func (st *Store) ListAllGroupInvites(ctx context.Context) ([]GroupInviteView, er
 		var closedAt sql.NullTime
 		var targetName string
 		if err := rows.Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy,
-			&gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName); err != nil {
+			&gi.CreatedAt, &closedAt, &gi.DefaultStatus, &gi.RoleID, &targetName); err != nil {
 			return nil, err
 		}
 		gi.BandID, gi.CommunityID, gi.CreatedBy = bandID.Int64, communityID.Int64, createdBy.Int64
@@ -296,7 +359,7 @@ func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg 
 	var closedAt sql.NullTime
 	var targetName string
 	err := q.QueryRow(ctx, query, arg).
-		Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &targetName)
+		Scan(&gi.ID, &gi.Token, &gi.TargetKind, &bandID, &communityID, &createdBy, &gi.CreatedAt, &closedAt, &gi.DefaultStatus, &gi.RoleID, &targetName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", fmt.Errorf("no such group invite: %w", ErrNotFound)
 	}
@@ -312,7 +375,7 @@ func (st *Store) scanGroupInvite(ctx context.Context, q dbtx, query string, arg 
 
 func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID int64) ([]GroupInviteSlot, error) {
 	rows, err := q.Query(ctx, `
-		SELECT s.id, s.group_invite_id, s.display_name, coalesce(s.instrument, ''), s.status, s.claimed_by_person_id, s.claimed_at,
+		SELECT s.id, s.group_invite_id, s.display_name, coalesce(s.instrument, ''), s.status, coalesce(s.band_role_id, 0), s.claimed_by_person_id, s.claimed_at,
 		       coalesce(p.display_name, '')
 		FROM group_invite_slots s
 		LEFT JOIN people p ON p.id = s.claimed_by_person_id
@@ -326,7 +389,7 @@ func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID
 		var sl GroupInviteSlot
 		var claimedBy sql.NullInt64
 		var claimedAt sql.NullTime
-		if err := rows.Scan(&sl.ID, &sl.GroupInviteID, &sl.DisplayName, &sl.Instrument, &sl.Status, &claimedBy, &claimedAt, &sl.ClaimedByName); err != nil {
+		if err := rows.Scan(&sl.ID, &sl.GroupInviteID, &sl.DisplayName, &sl.Instrument, &sl.Status, &sl.RoleID, &claimedBy, &claimedAt, &sl.ClaimedByName); err != nil {
 			return nil, err
 		}
 		if claimedBy.Valid {
@@ -351,7 +414,7 @@ func (st *Store) listGroupInviteSlots(ctx context.Context, q dbtx, groupInviteID
 // joins until a person explicitly closes it.
 func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token string) (*GroupInvite, error) {
 	gi, _, err := st.scanGroupInvite(ctx, tx, `
-		SELECT id, token, target_kind, band_id, community_id, created_by_person_id, created_at, closed_at, coalesce(default_status, ''), ''
+		SELECT id, token, target_kind, band_id, community_id, created_by_person_id, created_at, closed_at, coalesce(default_status, ''), coalesce(band_role_id, 0), ''
 		FROM group_invites WHERE token = $1 FOR UPDATE`, token)
 	if err != nil {
 		return nil, err
@@ -363,24 +426,35 @@ func (st *Store) lockOpenGroupInviteTx(ctx context.Context, tx pgx.Tx, token str
 }
 
 // grantGroupInviteMembershipTx grants personID the membership a group
-// invite's target promises — band status='guest' (a casually roster-
-// invited person isn't automatically "core"), community role='student'
-// (inviting someone AS an instructor stays a deliberate direct-add, see
-// handleAddCommunityMember, not a roster claim) — and is a no-op if
+// invite's target promises — band: the claimed slot's role (roleID), or
+// its status's built-in role for a slot made before roles; for an
+// unlisted join (status "", roleID 0) the link's own role, else its
+// DefaultStatus's, 'guest' when it has none (a casually roster-invited
+// person isn't automatically "core"); community: the link's role (DefaultStatus) — and is a no-op if
 // personID is already a CURRENT member of that band/community (an existing
 // account claiming a slot should never get a duplicate membership row
 // or an error just because they're already in).
-func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64, status string) (dest string, err error) {
+func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi *GroupInvite, personID int64, status string, roleID int64) (dest string, err error) {
 	switch gi.TargetKind {
 	case "band":
+		// An unlisted join (status "") gets the link's own role: a band
+		// link minted for one of the band's roles (handleCreateBandLink),
+		// a link made before roles its status's ("core" or "guest"), or
+		// 'guest' for a roster link made before links carried one.
+		if status == "" && roleID == 0 {
+			status, roleID = gi.DefaultStatus, gi.RoleID
+		}
 		already, err := isCurrentBandMember(ctx, tx, gi.BandID, personID)
 		if err != nil {
 			return "", err
 		}
 		if !already {
+			// role_id NULL (an invite made before roles, or its role
+			// deleted since): the built-in role of the status (migration
+			// 0130's trigger).
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
-				VALUES ($1, $2, $3, $4)`, gi.BandID, personID, normalizeSlotStatus(status), nullableID(gi.CreatedBy)); err != nil {
+				INSERT INTO band_members (band_id, person_id, status, role_id, invited_by_person_id)
+				VALUES ($1, $2, $3, $4, $5)`, gi.BandID, personID, normalizeSlotStatus(status), nullableID(roleID), nullableID(gi.CreatedBy)); err != nil {
 				return "", err
 			}
 		}
@@ -420,22 +494,38 @@ func (st *Store) grantGroupInviteMembershipTx(ctx context.Context, tx pgx.Tx, gi
 // personID, after checking it isn't already claimed by someone else —
 // ErrConflict (same sentinel a stale/concurrent edit uses elsewhere in
 // this codebase) if a double-claim race loses.
-func (st *Store) claimSlotTx(ctx context.Context, tx pgx.Tx, groupInviteID, slotID, personID int64) (status string, err error) {
+func (st *Store) claimSlotTx(ctx context.Context, tx pgx.Tx, groupInviteID, slotID, personID int64) (status string, roleID int64, err error) {
 	var claimed bool
 	err = tx.QueryRow(ctx, `
-		SELECT claimed_by_person_id IS NOT NULL, status FROM group_invite_slots
-		WHERE id = $1 AND group_invite_id = $2 FOR UPDATE`, slotID, groupInviteID).Scan(&claimed, &status)
+		SELECT claimed_by_person_id IS NOT NULL, status, coalesce(band_role_id, 0) FROM group_invite_slots
+		WHERE id = $1 AND group_invite_id = $2 FOR UPDATE`, slotID, groupInviteID).Scan(&claimed, &status, &roleID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such slot on this invite: %w", ErrNotFound)
+		return "", 0, fmt.Errorf("no such slot on this invite: %w", ErrNotFound)
 	}
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if claimed {
-		return "", fmt.Errorf("this slot has already been claimed: %w", ErrConflict)
+		return "", 0, fmt.Errorf("this slot has already been claimed: %w", ErrConflict)
 	}
-	_, err = tx.Exec(ctx, `UPDATE group_invite_slots SET claimed_by_person_id = $1, claimed_at = now() WHERE id = $2`, personID, slotID)
-	return status, err
+	if _, err = tx.Exec(ctx, `UPDATE group_invite_slots SET claimed_by_person_id = $1, claimed_at = now() WHERE id = $2`, personID, slotID); err != nil {
+		return "", 0, err
+	}
+	// A band roster slot's instrument goes on the claimer's profile.
+	var instrument string
+	var bandID int64
+	if err := tx.QueryRow(ctx, `
+		SELECT coalesce(s.instrument, ''), coalesce(gi.band_id, 0)
+		FROM group_invite_slots s JOIN group_invites gi ON gi.id = s.group_invite_id
+		WHERE s.id = $1`, slotID).Scan(&instrument, &bandID); err != nil {
+		return "", 0, err
+	}
+	if instrument != "" && bandID != 0 {
+		if err := collectInstruments(ctx, tx, personID, []string{instrument}, InstrumentSource{InstrumentFromBand, bandID}, true); err != nil {
+			return "", 0, err
+		}
+	}
+	return status, roleID, nil
 }
 
 // ClaimGroupInviteSlot is an already-logged-in person claiming a named
@@ -454,11 +544,11 @@ func (st *Store) ClaimGroupInviteSlot(ctx context.Context, token string, slotID,
 	if err != nil {
 		return "", err
 	}
-	status, err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID)
+	status, roleID, err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID)
 	if err != nil {
 		return "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, status)
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, status, roleID)
 	if err != nil {
 		return "", err
 	}
@@ -480,7 +570,7 @@ func (st *Store) ClaimGroupInviteUnlisted(ctx context.Context, token string, per
 	if err != nil {
 		return "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "", 0)
 	if err != nil {
 		return "", err
 	}
@@ -498,7 +588,7 @@ func (st *Store) ClaimGroupInviteUnlisted(ctx context.Context, token string, per
 // sends no login emails, so a password-less account skipping the passkey
 // step would be locked out once its session ends), then claims the named slot as them, all in one transaction so a failed
 // claim never leaves an orphan account behind.
-func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token string, slotID int64, username, displayName, email, passwordHash string) (personID int64, dest string, err error) {
+func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token string, slotID int64, displayName, email, passwordHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -506,8 +596,11 @@ func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token 
 	defer tx.Rollback(ctx)
 
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, nullif($4, '')) RETURNING id`,
-		username, displayName, email, passwordHash).Scan(&personID); err != nil {
+		`INSERT INTO people (display_name, email, password_hash) VALUES ($1, $2, nullif($3, '')) RETURNING id`,
+		displayName, email, passwordHash).Scan(&personID); err != nil {
+		if constraintViolated(err, "people_email_key") {
+			return 0, "", ErrEmailTaken
+		}
 		return 0, "", err
 	}
 
@@ -515,11 +608,11 @@ func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token 
 	if err != nil {
 		return 0, "", err
 	}
-	status, err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID)
+	status, roleID, err := st.claimSlotTx(ctx, tx, gi.ID, slotID, personID)
 	if err != nil {
 		return 0, "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, status)
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, status, roleID)
 	if err != nil {
 		return 0, "", err
 	}
@@ -528,7 +621,7 @@ func (st *Store) CreatePersonAndClaimGroupInviteSlot(ctx context.Context, token 
 
 // CreatePersonAndClaimGroupInviteUnlisted is ClaimGroupInviteUnlisted's
 // counterpart for a brand-new visitor joining as "someone else".
-func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, token, username, displayName, email, passwordHash string) (personID int64, dest string, err error) {
+func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, token, displayName, email, passwordHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -536,8 +629,11 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 	defer tx.Rollback(ctx)
 
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, nullif($4, '')) RETURNING id`,
-		username, displayName, email, passwordHash).Scan(&personID); err != nil {
+		`INSERT INTO people (display_name, email, password_hash) VALUES ($1, $2, nullif($3, '')) RETURNING id`,
+		displayName, email, passwordHash).Scan(&personID); err != nil {
+		if constraintViolated(err, "people_email_key") {
+			return 0, "", ErrEmailTaken
+		}
 		return 0, "", err
 	}
 
@@ -545,7 +641,7 @@ func (st *Store) CreatePersonAndClaimGroupInviteUnlisted(ctx context.Context, to
 	if err != nil {
 		return 0, "", err
 	}
-	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "guest")
+	dest, err = st.grantGroupInviteMembershipTx(ctx, tx, gi, personID, "", 0)
 	if err != nil {
 		return 0, "", err
 	}
@@ -584,39 +680,46 @@ func (st *Store) AddGroupInviteSlot(ctx context.Context, groupInviteID int64, ta
 	}
 	var instrument *string
 	status := "guest"
+	var roleID int64
 	if targetKind == "band" {
 		if v := strings.TrimSpace(in.Instrument); v != "" {
 			instrument = &v
 		}
-		status = normalizeSlotStatus(in.Status)
+		if roleID, status, err = bandSlotRole(ctx, st.db, targetID, in); err != nil {
+			return 0, err
+		}
 	}
 	err = st.db.QueryRow(ctx, `
-		INSERT INTO group_invite_slots (group_invite_id, display_name, instrument, status)
-		VALUES ($1, $2, $3, $4) RETURNING id`, groupInviteID, name, instrument, status).Scan(&slotID)
+		INSERT INTO group_invite_slots (group_invite_id, display_name, instrument, status, band_role_id)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`, groupInviteID, name, instrument, status, nullableID(roleID)).Scan(&slotID)
 	return slotID, err
 }
 
 // UpdateGroupInviteSlot edits an unclaimed roster slot's name/instrument/
-// status in place — the "fix a name, change someone's role before they
+// role (roleID, else status's built-in: bandSlotRole) in place — the "fix a name, change someone's role before they
 // join" action. ErrConflict if the slot has already been claimed (the
 // roster UI never lets an editable row get this far, but a concurrent
 // claim is still possible), ErrNotFound if the slot/invite doesn't
 // resolve to this exact band.
-func (st *Store) UpdateGroupInviteSlot(ctx context.Context, groupInviteID, slotID, bandID int64, displayName, instrument, status string) error {
+func (st *Store) UpdateGroupInviteSlot(ctx context.Context, groupInviteID, slotID, bandID int64, displayName, instrument, status string, roleID int64) error {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
 		return fmt.Errorf("a name is required")
+	}
+	roleID, status, err := bandSlotRole(ctx, st.db, bandID, GroupInviteSlotInput{Status: status, RoleID: roleID})
+	if err != nil {
+		return err
 	}
 	var instrumentArg *string
 	if v := strings.TrimSpace(instrument); v != "" {
 		instrumentArg = &v
 	}
 	tag, err := st.db.Exec(ctx, `
-		UPDATE group_invite_slots s SET display_name = $1, instrument = $2, status = $3
+		UPDATE group_invite_slots s SET display_name = $1, instrument = $2, status = $3, band_role_id = $7
 		FROM group_invites gi
 		WHERE s.id = $4 AND s.group_invite_id = $5 AND s.claimed_by_person_id IS NULL
 		  AND gi.id = s.group_invite_id AND gi.target_kind = 'band' AND gi.band_id = $6`,
-		name, instrumentArg, normalizeSlotStatus(status), slotID, groupInviteID, bandID)
+		name, instrumentArg, status, slotID, groupInviteID, bandID, roleID)
 	if err != nil {
 		return err
 	}

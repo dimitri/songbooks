@@ -27,6 +27,7 @@ const ICONS = {
 
   const sheet = document.getElementById('sheet');
   let bars = [];
+  let barsByPlayed = new Map(); // played bar -> its bar elements (refreshBarsCache)
   let sections = [];
 
   // ---- Chart reflow: real per-viewport line wrapping ------------------
@@ -57,41 +58,80 @@ const ICONS = {
   // e.g. a phone rotation) never compound drift or lose bars, and always
   // converge on the same layout a fresh load at that width would produce.
   let staffLineOriginals = null;
+  const staffRunMarker = 'staff-run';
   function captureStaffLineOriginals() {
-    // A TabOnly grid's real content is an .alphatab-row, not a
-    // .staff-line — this system has no model of alphaTab's own live SVG
-    // and nothing useful to reflow it into. Excluding it here (not just
-    // giving it an empty `lines` array) keeps reflowStaffLines()'s loop
-    // below from ever reaching it, so it never calls replaceChildren()
-    // on this grid and never wipes the real alphaTab row — confirmed
-    // live as the cause of both the Jazz-chart-empty regression and the
-    // disconnected-duplicate-grid bug: every reflow (any mode switch or
-    // resize) rebuilt this grid's children from whatever it had
-    // captured as `.staff-line`, which never included the alphaTab row
-    // itself. CSS alone handles showing/hiding .alphatab-row vs
+    // A riff-covered row is an .alphatab-row, not a .staff-line of bars —
+    // this system has no model of alphaTab's own live SVG and nothing
+    // useful to reflow it into, and a reflow must never wipe it: the
+    // Jazz-chart-empty regression and the disconnected-duplicate-grid
+    // bug both came from rebuilding a grid's children around one. CSS
+    // alone handles showing/hiding .alphatab-row vs
     // .tab-only-chords-fallback per mode, and the fallback's own
-    // flex-wrap handles its jazz-mode wrapping — neither needs this JS
-    // reflow pass at all.
-    staffLineOriginals = [...sheet.querySelectorAll('.grid.spans-full')]
-      .filter(grid => !grid.querySelector(':scope > .alphatab-row'))
-      .map(grid => ({
-      grid,
-      lines: [...grid.querySelectorAll(':scope > .staff-line')].map(line => {
-        const barEls = [...line.querySelectorAll(':scope > .bar')];
-        // The densest bar in this row sets its own needed min-width — see
-        // the matching CSS comment on .bar's min-width formula, which this
-        // mirrors exactly (max(2.6em, slots * 0.9em)) so a busier bar (more
-        // mid-bar chord changes, more --slots) never gets squeezed by a
-        // budget sized for a plainer one.
-        const maxSlots = barEls.reduce((m, b) => Math.max(m, parseInt(b.style.getPropertyValue('--slots'), 10) || 3), 3);
-        return {
-          cap: parseInt(line.style.getPropertyValue('--cap'), 10) || 4,
-          hasClef: !!line.querySelector(':scope > .staff-timesig-cell'),
-          maxSlots,
-          template: line,
-        };
-      }),
-    }));
+    // flex-wrap handles its jazz-mode wrapping.
+    //
+    // A grid whose riff covers only some of its bars (a 4-bar riff over a
+    // 12-bar blues: attachTabRiffs cuts its rows at the riff's ends) has
+    // chord-grid rows beside its alphaTab row: each run of them is
+    // reflowed on its own, in place — a comment node marks where it
+    // starts (staffRunMarker), and only the rows after it are replaced
+    // (placeStaffLines), the alphaTab row and its fallback left alone.
+    staffLineOriginals = [];
+    for (const grid of sheet.querySelectorAll('.grid.spans-full')) {
+      const isRow = (el) => el.classList.contains('staff-line') && !el.classList.contains('alphatab-row');
+      if (!grid.querySelector(':scope > .alphatab-row')) {
+        staffLineOriginals.push({ grid, marker: null, lines: [...grid.querySelectorAll(':scope > .staff-line')].map(captureStaffLine) });
+        continue;
+      }
+      let run = null;
+      for (const el of [...grid.children]) {
+        if (!isRow(el)) { run = null; continue; }
+        if (!run) {
+          let marker = el.previousSibling;
+          if (!(marker && marker.nodeType === Node.COMMENT_NODE && marker.data === staffRunMarker)) {
+            marker = document.createComment(staffRunMarker);
+            el.before(marker);
+          }
+          run = { grid, marker, lines: [] };
+          staffLineOriginals.push(run);
+        }
+        run.lines.push(captureStaffLine(el));
+      }
+    }
+  }
+  function captureStaffLine(line) {
+    const barEls = [...line.querySelectorAll(':scope > .bar')];
+    // The densest bar in this row sets its own needed min-width — see
+    // the matching CSS comment on .bar's min-width formula, which this
+    // mirrors exactly (max(2.6em, slots * 0.9em)) so a busier bar (more
+    // mid-bar chord changes, more --slots) never gets squeezed by a
+    // budget sized for a plainer one.
+    const maxSlots = barEls.reduce((m, b) => Math.max(m, parseInt(b.style.getPropertyValue('--slots'), 10) || 3), 3);
+    return {
+      cap: parseInt(line.style.getPropertyValue('--cap'), 10) || 4,
+      hasClef: !!line.querySelector(':scope > .staff-timesig-cell'),
+      maxSlots,
+      template: line,
+    };
+  }
+  // placeStaffLines puts a reflowed run of rows in place: the whole grid,
+  // or, in a grid with an alphaTab row, the rows after its run's marker
+  // up to the next non-row (the alphaTab row, its fallback, the next
+  // run's marker) — whatever rows the last pass, or
+  // resolveLabelCollisions' splits, left there.
+  function placeStaffLines(entry, lines) {
+    if (!entry.marker) { entry.grid.replaceChildren(...lines); return; }
+    let el = entry.marker.nextSibling;
+    while (el) {
+      const next = el.nextSibling;
+      if (el.nodeType === Node.ELEMENT_NODE) {
+        if (!el.classList.contains('staff-line') || el.classList.contains('alphatab-row')) break;
+        el.remove();
+      } else if (el.nodeType === Node.COMMENT_NODE) {
+        break;
+      }
+      el = next;
+    }
+    entry.marker.after(...lines);
   }
   // Song Map's own pristine original — captured the same way as
   // staffLineOriginals, but flattened across every server-rendered
@@ -173,57 +213,6 @@ const ICONS = {
     mapScore.replaceChildren(...newLines);
     resolveLabelCollisions(mapScore);
   }
-  // Greedy, real-width row packing for jazz mode's variable-width bars —
-  // see the call site's own comment in reflowStaffLines() for why a
-  // fixed bar-count-per-row assumption doesn't work here. Measures every
-  // bar's ACTUAL rendered width (can't predict it from a formula — chord
-  // text length varies bar to bar) by laying them all out, once, in one
-  // temporary non-wrapping row attached to the real grid (so real font/
-  // layout metrics apply), reading back each bar's width, then discarding
-  // that scratch row — the real rows below are built fresh from those
-  // numbers, not reused from it.
-  function packJazzLinesByRealWidth(grid, originalLines, availW, clefPx, newLines) {
-    const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
-    if (!allBars.length) return;
-    const hasClefAll = originalLines[0].hasClef;
-    const clefEl = hasClefAll ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
-
-    const measure = document.createElement('div');
-    measure.className = 'staff-line';
-    measure.style.cssText = 'position:absolute; visibility:hidden; flex-wrap:nowrap; width:auto; left:0; top:0;';
-    if (clefEl) measure.appendChild(clefEl.cloneNode(true));
-    const measureBars = allBars.map(b => { const c = b.cloneNode(true); measure.appendChild(c); return c; });
-    grid.appendChild(measure);
-    const clefW = clefEl ? measure.firstElementChild.getBoundingClientRect().width : 0;
-    const widths = measureBars.map(b => b.getBoundingClientRect().width);
-    measure.remove();
-
-    // Greedy pack: keep adding bars to the current row until the next
-    // one would overflow its real budget, then start a new row. Only
-    // the very first row (if this section opens with the song's own
-    // clef/time-sig cell) loses clefW from its budget.
-    let current = [];
-    let currentW = 0;
-    let isFirstRow = true;
-    const flushRow = () => {
-      if (!current.length) return;
-      const line = document.createElement('div');
-      line.className = 'staff-line';
-      if (isFirstRow && clefEl) line.appendChild(clefEl.cloneNode(true));
-      for (const bar of current) line.appendChild(bar.cloneNode(true));
-      newLines.push(line);
-      isFirstRow = false;
-      current = []; currentW = 0;
-    };
-    for (let i = 0; i < allBars.length; i++) {
-      const w = widths[i];
-      const budget = isFirstRow ? availW - clefW : availW;
-      if (current.length && currentW + w > budget) flushRow();
-      current.push(allBars[i]);
-      currentW += w;
-    }
-    flushRow();
-  }
   function reflowStaffLines() {
     if (!staffLineOriginals) return;
     // Resolved from the live em value at #sheet's CURRENT font-size —
@@ -238,204 +227,99 @@ const ICONS = {
     const fontPx = parseFloat(getComputedStyle(sheet).fontSize) || 16;
     const clefPx = 2.5 * fontPx;
     // The server groups every mode's rows at ONE shared target (8 bars/
-    // line — iReal Pro's own continuous, denser convention, picked for
-    // jazz mode specifically) because all four modes render from the same
-    // server-sent Lines: there's no second request to re-group them
-    // server-side when the reader flips the mode dropdown. Jazz mode
-    // wants that 8-bar density; chords+lyrics and lyrics-only are read at
-    // a normal, print-style density instead — the same 4-bar-per-line
-    // convention the PDF/file-format default already uses — so an 8-bar
-    // row there reads as a single, overly dense line with its chord
-    // labels visually crowding past the row's own width, even though the
-    // row's own CSS width still matches the lyric column exactly (a real
-    // user mistook that crowding for the two no longer sharing a width at
-    // all). Capped here, not server-side, so jazz mode keeps its own
-    // density untouched. Song Map no longer goes through this per-section
-    // reflow path at all — it renders its own pre-grouped continuous
-    // score (.map-score, built server-side from .MapLines — see
-    // buildMapLines in handlers_pages.go) instead of the per-section
-    // .grid.spans-full rows this function operates on; that old grid
-    // stays in the DOM for map mode (shared markup, every mode) but
-    // hidden (display:none), so its clientWidth is 0 and the loop below
-    // skips it on its own.
-    const modeCap = sheet.dataset.renderMode === 'jazz' ? 8 : 4;
-    for (const { grid, lines: originalLines } of staffLineOriginals) {
+    // line, iReal Pro's denser convention, for jazz mode) because all
+    // modes render from the same server-sent Lines; each mode regroups
+    // them here, against the real width: jazz by its bars' real widths,
+    // the others in 4-bar phrases (below). Song Map doesn't go through this
+    // per-section pass at all — it renders its own continuous score
+    // (.map-score, reflowMapLines above); the per-section grids stay in
+    // the DOM there but hidden (display:none), so their clientWidth is 0
+    // and the loop below skips them on its own.
+    for (const entry of staffLineOriginals) {
+      const { grid, lines: originalLines } = entry;
       if (!grid.isConnected) continue;
       const availW = grid.clientWidth;
       if (!availW) continue; // hidden in this mode (e.g. a compact section's unused grid) — nothing to reflow
       const newLines = [];
-      // Jazz: real width-based row packing, not a fixed bar-count-per-row
-      // assumption. Jazz bars are intentionally variable width (CSS:
-      // flex:0 0 auto — a plain "G-" bar is narrower than a packed "E7
-      // A7" bar, matching real iReal Pro). The cap-based chunking below
-      // (shared with the other modes) assumes every bar in a row is the
-      // SAME width — it measures the single widest bar anywhere in the
-      // chart, picks one font-size from that, then assigns every row the
-      // same fixed bar count. When a specific row's real bars didn't fit
-      // at that assumed uniform width, CSS flex-wrap silently spilled the
-      // overflow onto new lines, one or two bars at a time, wherever the
-      // cumulative width happened to break — confirmed live: a 5-bar row
-      // rendering as one bar, a wall of blank space, then another lone
-      // bar stranded on its own line, not randomness, just this
-      // assumption failing on a row with mixed narrow/wide bars. Packing
-      // each row by its OWN bars' real measured width removes the
-      // assumption: a row holds exactly as many bars as actually fit,
-      // full stop — flex-wrap is never relied on to bail out mid-row.
-      if (sheet.dataset.renderMode === 'jazz') {
-        packJazzLinesByRealWidth(grid, originalLines, availW, clefPx, newLines);
-        grid.replaceChildren(...newLines);
-        resolveLabelCollisions(grid);
-        continue;
-      }
-      // Jazz: flatten this section's ORIGINAL server-authored rows into
-      // one pool before regrouping. The per-line loop below can only ever
-      // SPLIT an original line that's too big for useCap — it has no way
-      // to MERGE several already-small original lines back together, so
-      // a song authored with "bars: 2" (a print/PDF-export density
-      // choice) stayed stuck at exactly 2 bars/row in jazz mode forever,
-      // no matter how much width or how small a font was available
-      // (confirmed live: useCap correctly computed as 8, but
-      // useCap >= actualBarCount(2) took the "already fits, don't
-      // touch it" branch every time). One synthetic line containing
-      // every bar from every original line lets the existing split-to-
-      // fit logic below do the real regrouping, from scratch, at jazz's
-      // own target density — exactly the "ignore the author's print
-      // density, this is a maximum-density view" intent already decided
-      // for `useCap` itself, just not reachable before because of this
-      // separate per-original-line structure.
-      let lines = originalLines;
-      if (sheet.dataset.renderMode === 'jazz' && originalLines.length > 1) {
-        const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
-        const maxSlotsAll = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
-        const hasClefAll = originalLines[0].hasClef;
-        const clefEl = hasClefAll ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
-        const synthetic = document.createElement('div');
-        synthetic.className = 'staff-line';
-        if (clefEl) synthetic.appendChild(clefEl.cloneNode(true));
-        for (const b of allBars) synthetic.appendChild(b.cloneNode(true));
-        lines = [{ cap: allBars.length, hasClef: hasClefAll, maxSlots: maxSlotsAll, template: synthetic }];
-      }
-      // Jazz mode still stretches bars to 100%/--cap (its own base-rule
-      // behavior, untouched), so its capacity floor stays the old flat
-      // 2.6em readable minimum. The other three modes now give every bar
-      // a flat --bar-w typeset width (CSS, see .bar's own comment) instead
-      // of shrinking to content, so their capacity math has to use that
-      // SAME 7.2em here — using the old 2.6em floor would let more bars
-      // fit per row than the CSS actually has room to draw at their real
-      // (wider) fixed width, overflowing the row again.
-      const flatFloorEm = sheet.dataset.renderMode === 'jazz' ? 2.6 : 7.2;
-      // Chords+lyrics/lyrics-only must never drop below 4 bars/line, even
-      // on a narrow phone where the flat 7.2em bar width would otherwise
-      // only fit 2-3 — on a screen that narrow, bars shrink (a per-row
-      // --bar-w override, below) rather than the row showing fewer of
-      // them. Jazz already targets 8 and has its own narrower 2.6em
-      // floor, so it's never at risk of landing under 4 — left alone.
-      const MIN_BARS_PER_LINE = sheet.dataset.renderMode === 'jazz' ? null : 4;
-      for (const { cap, hasClef, maxSlots, template } of lines) {
-        const minBarPx = Math.max(flatFloorEm * fontPx, maxSlots * 0.9 * fontPx);
-        const budget = hasClef ? availW - clefPx : availW;
-        const effCap = Math.max(1, Math.floor(budget / minBarPx));
-        // Never split a row that already fits — and never grow PAST the
-        // author's own intended capacity even when more would physically
-        // fit, so a wide desktop/tablet screen renders exactly what the
-        // "bars:" hint asked for, same as today. Jazz mode is the one
-        // exception: it drops `cap` from this ceiling entirely. The
-        // author's "bars:" hint is a PRINT/PDF-export density choice —
-        // honoring it here is exactly what silently capped every row at
-        // 2 bars for a song authored with "bars: 2", regardless of
-        // screen size or font-size search below, since cap is the FIRST
-        // term in this min() (confirmed live: effCap/modeCap were both
-        // large, but useCap still came out 2 — the author's own
-        // historical per-line choice, not a real space constraint).
-        // Jazz is an always-maximum-density view by design (the whole
-        // point of matching a real iReal Pro chart); it has no business
-        // reusing a density number chosen for a different output format.
-        let useCap = sheet.dataset.renderMode === 'jazz' ? Math.min(effCap, modeCap) : Math.min(cap, effCap, modeCap);
-        // lineBarWpx stays null (use the flat CSS default) unless the
-        // 4-bar floor above actually had to kick in — most rows, on most
-        // screens, never touch this.
-        let lineBarWpx = null;
-        if (MIN_BARS_PER_LINE && useCap < MIN_BARS_PER_LINE) {
-          useCap = Math.min(cap, modeCap, MIN_BARS_PER_LINE);
-          // Divide the row's real budget evenly across the forced bar
-          // count instead of leaving them at the flat (too-wide-to-fit)
-          // default — floored at the same absolute minimum jazz mode
-          // already uses, so a bar never shrinks past genuine legibility.
-          lineBarWpx = Math.max(2.6 * fontPx, budget / useCap);
+      // Jazz mode draws its own chart (.jazz-chart): these grids are hidden
+      // there (clientWidth 0, skipped above).
+      // Every other mode: rows of 4-bar phrases, decided per SECTION (its
+      // server rows pooled back into one run of bars) by bar-rows.js — the
+      // server's own 8-bars/row chunks are only the page's first shape,
+      // and splitting each of them on its own broke a section's phrasing
+      // wherever its bar count wasn't a multiple of 8 (10 bars → 8 + 2 →
+      // 4 + 4 + 2 was fine, but 9 → 8 + 1 → 4 + 4 + 1, and a 5-bar Intro
+      // came out as 4 bars and then 1 bar stretched across the line). A
+      // section whose author wrote "bars:" (data-bars="author") keeps the
+      // author's rows; bar-rows.js only splits one that holds more than a
+      // screen row. A lone last bar joins the row before it (5 → 5,
+      // 9 → 4 + 5) where that row can still hold it at the bars' legibility
+      // floor; a last row of 2 or 3 stays short, its bars as wide as a full
+      // row's (--cap 4) and its staff ending at its last bar (the staff is
+      // drawn per bar, .bar-body::before, so no blank staff follows it).
+      //
+      // 4 to a row whatever the width (a phone squeezes its bars, a
+      // per-row --bar-w, rather than holding fewer of them): the
+      // lead-sheet phrase, the PDF's own default too. The flat 7.2em is the
+      // typeset bar width lyrics-only mode draws (.bar's --bar-w, app.css):
+      // a row whose bars don't fit at it gets a narrower --bar-w, floored
+      // at 2.6em (.bar's min-width). Whether a lone last bar still fits on
+      // the row before it is decided against what a bar's content really
+      // needs: its beat-slots' 0.9em each plus its own 1em of padding
+      // (.bar's min-width leaves the padding out, so a row squeezed to it
+      // spills its slashes into the next bar); where it doesn't — a phone,
+      // or the first row beside the clef and a pickup — the bar stays a
+      // short row of its own.
+      const PHRASE = 4;
+      const allBars = originalLines.flatMap(l => [...l.template.querySelectorAll(':scope > .bar')]);
+      if (!allBars.length) { placeStaffLines(entry, originalLines.map(l => l.template.cloneNode(true))); continue; }
+      const hasClef = originalLines[0].hasClef;
+      const clefEl = hasClef ? originalLines[0].template.querySelector(':scope > .staff-timesig-cell') : null;
+      const maxSlots = originalLines.reduce((m, l) => Math.max(m, l.maxSlots), 3);
+      // The song's pickup bar, or its "lead:" bars (as many as it has).
+      let pickup = 0;
+      while (pickup < allBars.length && allBars[pickup].classList.contains('bar-pickup')) pickup++;
+      const minBarPx = Math.max(7.2 * fontPx, maxSlots * 0.9 * fontPx);
+      const floorPx = Math.max(2.6, maxSlots * 0.9 + 1) * fontPx;
+      const firstBudget = availW - (hasClef ? clefPx : 0) - pickup * 3.4 * fontPx;
+      const plan = window.SongbooksBarRows.plan(
+        originalLines.map(l => l.template.querySelectorAll(':scope > .bar').length),
+        {
+          perRow: PHRASE,
+          pickup,
+          explicit: grid.dataset.bars === 'author',
+          fit: Math.floor(availW / floorPx),
+          fitFirst: Math.floor(firstBudget / floorPx),
+        },
+      );
+      let i = 0;
+      plan.forEach(({ bars: size, cap }, row) => {
+        const chunk = allBars.slice(i, i + size);
+        i += size;
+        const line = document.createElement('div');
+        line.className = 'staff-line';
+        // --cap counts the row's regular bars: a pickup has its own narrow
+        // width (.bar-pickup, app.css), so the bars next to it stay as wide
+        // as every other row's.
+        // A short first row beside the clef and pickups (bars: 4,5 on a
+        // phone: the pickups + 2 bars) keeps the other rows' bar width when
+        // it has the room, rather than squeezing its bars into what a full
+        // row's would get beside them: its --cap is scaled so that
+        // (row - clef - pickups) / --cap is the line's width / cap.
+        let capCss = cap;
+        const head = availW - firstBudget;
+        if (row === 0 && pickup > 0 && size - pickup < cap && (size - pickup) * (availW / cap) + head <= availW) {
+          capCss = Math.round((cap * (availW - head) / availW) * 1000) / 1000;
         }
-        const cells = [...template.children]; // clef cell (maybe) + .bar elements, in order
-        const actualBarCount = cells.filter(el => el.classList.contains('bar')).length;
-        // A pickup bar (.bar-pickup — an anacrusis or count-in bar the song
-        // opens with, see viewerMeasure.Pickup) rides along in the first row
-        // on top of its usual count, so the grid keeps its phrasing: a
-        // 16-bar blues reads 5 / 4 / 4 / 4.
-        const pickup = cells.find(el => el.classList.contains('bar'))?.classList.contains('bar-pickup') ? 1 : 0;
-        if (useCap + pickup >= actualBarCount) {
-          const line = template.cloneNode(true);
-          if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
-          // The ORIGINAL authored `cap` can itself already be larger than
-          // this particular line's actual bar count (the server's own
-          // short-trailing-row for a section whose bar count doesn't
-          // divide evenly by its bars-per-line — the exact same root
-          // pattern as the chunking loop below, just baked in server-side
-          // instead of produced by a client-side split). Blindly reusing
-          // `cap` here reproduced the unexplained-blank-gap bug even when
-          // no reflow was needed at all — confirmed with a real 7-bar
-          // test section. Only fall back to the line's own bar count when
-          // it's genuinely short; a full line (actualBarCount === cap)
-          // keeps rendering at exactly the declared "bars:" hint, unchanged.
-          line.style.setProperty('--cap', String(Math.max(1, (actualBarCount < cap ? actualBarCount : cap) - pickup)));
-          newLines.push(line);
-          continue;
-        }
-        // Split into chunks of useCap bars each (last chunk may be
-        // shorter — it keeps the SAME --cap as its siblings, not its own
-        // shorter count, so its bars stay the same width as every other
-        // bar in this reflowed group rather than stretching to fill the
-        // row, per the same reasoning the server's own short-trailing-row
-        // convention already uses for --cap). Only the very first chunk
-        // ever carries the clef cell, since it's only ever the first
-        // child of the very first original line.
-        const clefEl = hasClef ? cells.find(el => el.classList.contains('staff-timesig-cell')) : null;
-        const barEls = cells.filter(el => el.classList.contains('bar'));
-        // Prefer a capacity that divides the bar count evenly, within
-        // budget. A short trailing chunk rendered at the SAME --cap as
-        // its full siblings leaves an unexplained blank gap: .bar's width
-        // is 100%/--cap, so fewer bars than --cap don't fill the row, but
-        // .staff-line::before still paints the 5-line staff background
-        // across the row's FULL width — a real user mistook the resulting
-        // empty, staff-lined gap for a rendering bug, not deliberate
-        // "every bar the same width" consistency. Search downward from
-        // useCap for the largest divisor >1; only when none exists (e.g.
-        // a 7-bar section) does the original short-last-row case still
-        // happen — and even then, that lone chunk gets its OWN --cap
-        // (its own bar count) below, so it fills its row instead of
-        // leaving blank staff behind it.
-        const body = barEls.length - pickup;
-        let effUseCap = useCap;
-        if (body % useCap !== 0) {
-          for (let d = useCap - 1; d > 1; d--) {
-            if (body % d === 0) { effUseCap = d; break; }
-          }
-        }
-        for (let i = 0, row = 0; i < barEls.length; row++) {
-          const size = effUseCap + (row === 0 ? pickup : 0);
-          const chunk = barEls.slice(i, i + size);
-          i += size;
-          const line = document.createElement('div');
-          line.className = 'staff-line';
-          // --cap counts the row's regular bars: a pickup has its own
-          // narrow width (.bar-pickup, app.css), so the four bars next to
-          // it stay as wide as every other row's.
-          const regular = chunk.length - (row === 0 ? pickup : 0);
-          line.style.setProperty('--cap', String(regular < effUseCap ? Math.max(1, regular) : effUseCap));
-          if (lineBarWpx) line.style.setProperty('--bar-w', lineBarWpx + 'px');
-          if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
-          for (const bar of chunk) line.appendChild(bar.cloneNode(true));
-          newLines.push(line);
-        }
-      }
-      grid.replaceChildren(...newLines);
+        line.style.setProperty('--cap', String(capCss));
+        if (row === 0 && pickup > 1) line.style.setProperty('--pickups', String(pickup));
+        const budget = row === 0 ? firstBudget : availW;
+        if (capCss * minBarPx > budget) line.style.setProperty('--bar-w', Math.max(2.6 * fontPx, budget / capCss) + 'px');
+        if (row === 0 && clefEl) line.appendChild(clefEl.cloneNode(true));
+        for (const bar of chunk) line.appendChild(bar.cloneNode(true));
+        newLines.push(line);
+      });
+      placeStaffLines(entry, newLines);
       resolveLabelCollisions(grid);
     }
   }
@@ -465,11 +349,15 @@ const ICONS = {
   function resolveLabelCollisions(grid) {
     let guard = 0;
     while (guard++ < 40) {
-      const line = [...grid.querySelectorAll(':scope > .staff-line')].find(lineLabelsCollide);
+      const line = [...grid.querySelectorAll(':scope > .staff-line:not(.alphatab-row)')].find(lineLabelsCollide);
       if (!line) return;
       const barEls = [...line.querySelectorAll(':scope > .bar')];
       const curCap = parseInt(line.style.getPropertyValue('--cap'), 10) || barEls.length;
-      if (barEls.length <= 1) {
+      // A pickup rides on the first half: it has its own narrow width and
+      // isn't counted in --cap.
+      let pickup = 0;
+      while (pickup < barEls.length && barEls[pickup].classList.contains('bar-pickup')) pickup++;
+      if (barEls.length - pickup <= 1) {
         // A lone bar (already the shortest possible row — typically a
         // short trailing/volta row) can't be split further, but it may
         // still be rendered NARROWER than the row it's in: --cap usually
@@ -482,25 +370,32 @@ const ICONS = {
         // there's truly nothing left to try. Only once --cap already
         // matches its own bar count (full width, no narrowing left to
         // undo) is this really the end of the line.
-        if (curCap > barEls.length) { line.style.setProperty('--cap', String(barEls.length)); continue; }
+        const own = barEls.length - pickup;
+        if (curCap > own) { line.style.setProperty('--cap', String(Math.max(1, own))); continue; }
         return;
       }
       const clefEl = line.querySelector(':scope > .staff-timesig-cell');
-      const newCap = barEls.length - 1;
-      const groups = [];
-      for (let i = 0; i < barEls.length; i += newCap) groups.push(barEls.slice(i, i + newCap));
+      // Split in halves (bar-rows.js' split): a 4-bar phrase as 2 + 2, a
+      // 5-bar row as 3 + 2 — taking one bar off the end (3 + 1) left a bar
+      // alone on its row, the very thing the rows avoid elsewhere. Each
+      // half recollides on its own if it still has to.
+      let at = 0;
       // Moves the live bar nodes (not clones) into the replacement rows —
       // `line` itself is discarded right after, so there's no need to
       // leave its children intact.
-      const replacement = groups.map((g, gi) => {
+      const replacement = window.SongbooksBarRows.split(barEls.length - pickup).map(({ bars: size, cap }, gi) => {
+        const n = size + (gi === 0 ? pickup : 0);
+        const g = barEls.slice(at, at + n);
+        at += n;
         const l = document.createElement('div');
         l.className = 'staff-line';
-        // Same fix as reflowStaffLines' own chunking loop: the trailing
-        // group here can be SHORTER than newCap too (e.g. 3 bars split at
-        // newCap=2 gives groups of [2,1]) — give it its own --cap (its
-        // own bar count) rather than newCap, or it leaves the exact same
-        // unexplained blank gap this whole pass exists to get rid of.
-        l.style.setProperty('--cap', String(g.length < newCap ? g.length : newCap));
+        // The shorter half (5 → 3 + 2) keeps the longer one's cap, its
+        // bars as wide as its sibling's, the same as reflowStaffLines' own
+        // short last row — the staff is drawn per bar (.bar-body::before),
+        // so the row simply ends at its last bar instead of stretching
+        // that bar across the line.
+        l.style.setProperty('--cap', String(cap));
+        if (gi === 0 && pickup > 1) l.style.setProperty('--pickups', String(pickup));
         if (gi === 0 && clefEl) l.appendChild(clefEl);
         for (const b of g) l.appendChild(b);
         return l;
@@ -516,7 +411,25 @@ const ICONS = {
   // needs this refreshed, not a full rebindSheet(): `sections` and
   // everything rebindSheet() otherwise rebuilds live outside the bar grid
   // itself (the .sheet-section wrapper, not its contents) and stay valid.
-  function refreshBarsCache() { bars = [...sheet.querySelectorAll('.bar')]; }
+  function refreshBarsCache() {
+    bars = [...sheet.querySelectorAll('.bar, .jz-bar[data-global-bar]')];
+    barsByPlayed = new Map();
+    for (const b of bars) {
+      // A drawn bar is read on every pass through a repeat (or a D.S.,
+      // in the Jazz chart), an ending on the pass that takes it, and on
+      // those of every later section replaying its grid without drawing
+      // it (a bare "Verse 2"); a Map recall cell on each of its section's
+      // bars: data-played lists them (playedbars.go). A bar without one
+      // is read at its own.
+      const list = b.dataset.played ? b.dataset.played.split(' ') : [b.dataset.globalBar];
+      for (const v of list) {
+        const n = parseInt(v, 10);
+        if (Number.isNaN(n)) continue;
+        if (!barsByPlayed.has(n)) barsByPlayed.set(n, []);
+        barsByPlayed.get(n).push(b);
+      }
+    }
+  }
 
   // Rebind DOM references after #sheet's innerHTML changes (live preview
   // while editing, or restoring the saved view when closing the editor) —
@@ -556,6 +469,11 @@ const ICONS = {
     document.querySelectorAll('.structure-seg').forEach(btn => {
       btn.onclick = () => jumpToSection(parseInt(btn.dataset.sectionIndex, 10));
     });
+    // The Jazz chart's rehearsal marks: play from that section's bar.
+    sheet.querySelectorAll('.jz-rm[data-jump-bar]').forEach(btn => {
+      btn.onclick = (e) => { e.stopPropagation(); jumpToBar(parseInt(btn.dataset.jumpBar, 10)); };
+    });
+    fitJazzChords();
     // New DOM from a raw-text save/preview starts back at the untransposed
     // pitch classes the server rendered — reapply whatever transpose was
     // already dialed in (see the Transpose section below, which sets this
@@ -567,14 +485,20 @@ const ICONS = {
   function jumpToSection(i) {
     const sec = sections[i];
     if (!sec || sec.startBar == null) return;
+    jumpToBar(sec.startBar);
+  }
+  function jumpToBar(bar) {
+    if (Number.isNaN(bar)) return;
+    // Going somewhere on purpose: the page follows the music again.
+    followHeld = false;
     // With a reference recording, play it from there (audio-player.js)
     // rather than starting the silent follow-along clock.
-    if (window.songbooksReferenceSeekBar && window.songbooksReferenceSeekBar(sec.startBar)) return;
+    if (window.songbooksReferenceSeekBar && window.songbooksReferenceSeekBar(bar)) return;
     // No count-in, no click — the in-page quick player is always "no
     // click" now (see metronome.enabled = false above), so a reader
     // clicking a section to follow along moves there immediately instead
     // of waiting through an un-asked-for count-in.
-    clock.seekToBar(sec.startBar);
+    clock.seekToBar(bar);
     clock.start();
     metronome.start();
     playPauseBtn.innerHTML = iconPause;
@@ -591,8 +515,104 @@ const ICONS = {
   };
   const keepInView = window.songbooksKeepInView;
 
+  // ---- Follow the music ----------------------------------------------------
+  // While the recording (or the follow-along clock) plays, the chart marks
+  // where it is and scrolls along with it; in Lyrics only, line by line,
+  // karaoke style. That is only as good as the sync behind it: a detected
+  // downbeat that's a bar off, or section markers set by hand a little
+  // early, light the wrong line and pull the page away from where the
+  // singer is. So:
+  // - Lyrics only has a "Follow the music" switch (#follow-bar, play.html),
+  //   remembered per song in this browser: off, no line or section is lit
+  //   and nothing scrolls; the singer scrolls, the recording still plays.
+  // - In every view, scrolling by hand while it plays takes the page back
+  //   (as Apple Music's and Spotify's lyrics do): following holds until
+  //   "Back to the current line" or the next time playback starts.
+  const lyricsFollowKey = `songbooks:lyrics-follow:${sheet.dataset.variantId || pageVariantId}`;
+  let lyricsFollow = true;
+  try { lyricsFollow = localStorage.getItem(lyricsFollowKey) !== 'off'; } catch (e) { /* on */ }
+  let followHeld = false; // the reader scrolled away while it played
+  let wasPlaying = false;
+  let playingNow = false;
+  const followBar = document.getElementById('follow-bar');
+  const followToggle = document.getElementById('follow-toggle');
+  const followLabel = document.getElementById('follow-label');
+  const followHint = document.getElementById('follow-hint');
+  const followBack = document.getElementById('follow-back');
+  const followBackLabel = document.getElementById('follow-back-label');
+  const lyricsMode = () => sheet.dataset.renderMode === 'lyrics';
+  // The chart lights and follows the music: always, except Lyrics only
+  // with its switch off.
+  const chartFollows = () => !(lyricsMode() && !lyricsFollow);
+  function renderFollow() {
+    const on = lyricsFollow;
+    if (followToggle) followToggle.checked = on;
+    if (followLabel) followLabel.textContent = t('Follow the music');
+    if (followHint) {
+      followHint.textContent = on
+        ? t('The line being sung lights up and the page scrolls with the recording.')
+        : t('Off: no line lit, you scroll yourself. The recording still plays.');
+    }
+    followBar?.classList.toggle('is-off', !on);
+  }
+  // The switch is Lyrics only's.
+  function showFollowBar() {
+    if (followBar) followBar.hidden = !lyricsMode();
+    renderFollow();
+  }
+  showFollowBar();
+  new MutationObserver(showFollowBar).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
+  followToggle?.addEventListener('change', () => {
+    const on = followToggle.checked;
+    lyricsFollow = on;
+    followHeld = false;
+    try {
+      if (on) localStorage.removeItem(lyricsFollowKey);
+      else localStorage.setItem(lyricsFollowKey, 'off');
+    } catch (e) { /* this page only */ }
+    renderFollow();
+    // Back on mid-song: go to where the music is now.
+    if (on && playingNow) requestAnimationFrame(() => requestAnimationFrame(scrollToNow));
+  });
+  // Where the music is, brought into view at once.
+  function scrollToNow() {
+    if (currentLineEl) { currentLineEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    const cursor = document.querySelector('.tab-cursor-bar:not([hidden])');
+    if (cursor && cursor.offsetParent) { keepInView(cursor); return; }
+    if (currentBarEl && currentBarEl.offsetParent) { keepInView(currentBarEl); return; }
+    currentSectionEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  function resumeFollow() {
+    followHeld = false;
+    if (followBack) followBack.hidden = true;
+    scrollToNow();
+  }
+  followBack?.addEventListener('click', resumeFollow);
+  // A scroll by hand: the wheel, a finger, or a scrolling key nobody else
+  // took. Not in the player, its sheet or the Mixer (they scroll or drag
+  // themselves), nor in a field.
+  const notThePage = 'input, textarea, select, [contenteditable], .audio-dock, .audio-dock-backdrop, .audio-waveform-wrap, .stack-sheet, .daw-scroll, .edit-drawer, .follow-back';
+  function scrolledByHand(e) {
+    if (!playingNow || followHeld || !chartFollows()) return;
+    if (e.target instanceof Element && e.target.closest(notThePage)) return;
+    if (sheet.dataset.renderMode === 'mixer' || sheet.dataset.renderMode === 'reference') return;
+    followHeld = true;
+  }
+  window.addEventListener('wheel', (e) => { if (!e.ctrlKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) scrolledByHand(e); }, { passive: true });
+  window.addEventListener('touchmove', scrolledByHand, { passive: true });
+  window.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'End'].includes(e.key)) scrolledByHand(e);
+  });
+  // Dragging the page's own scrollbar.
+  window.addEventListener('pointerdown', (e) => {
+    if (e.target === document.documentElement && e.clientX >= document.documentElement.clientWidth) scrolledByHand(e);
+  });
+
   let currentBarEl = null;
-  let currentSectionEl = null;
+  let currentPlayedBar = 0; // the played bar currentBarEl lights (a Jazz chart bar has several)
+  let currentSectionEl = null; // where the music is (↑/↓ step from it), lit or not
+  let litSectionEl = null;
   let currentLineEl = null;
   const structureFillEl = document.getElementById('structure-fill');
   function highlightTick() {
@@ -600,11 +620,25 @@ const ICONS = {
     // highlight; the metronome clock otherwise.
     const ref = !clock.running && window.songbooksReferencePosition ? window.songbooksReferencePosition() : null;
     const position = ref ? ref.bar : clock.currentBeat() / clock.beatsPerBar;
-    const following = clock.running || !!(ref && ref.playing);
+    const playing = clock.running || !!(ref && ref.playing);
+    // Starting to play again takes the page back to the music.
+    if (playing && !wasPlaying) followHeld = false;
+    wasPlaying = playing;
+    playingNow = playing;
+    const lit = chartFollows();
+    // Scroll along only while it plays, the chart follows, and the reader
+    // hasn't scrolled away by hand.
+    const following = playing && lit && !followHeld;
+    if (followBack) {
+      const show = playing && lit && followHeld;
+      const label = lyricsMode() ? t('Back to the current line') : t('Back to where the music is');
+      if (followBack.hidden === show) followBack.hidden = !show;
+      if (show && followBackLabel && followBackLabel.textContent !== label) followBackLabel.textContent = label;
+    }
     const bar = Math.floor(position);
     // Tab rows (alphatab-tab.js) draw their own Guitar Pro style cursor.
-    const started = following || !!ref || clock.currentBeat() > 0;
-    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started ? position : null, following) : false;
+    const started = playing || !!ref || clock.currentBeat() > 0;
+    const tabFollowed = window.songbooksTabCursor ? window.songbooksTabCursor(started && lit ? position : null, following) : false;
     // Recomputed every tick, not cached at load — rebindSheet() (which
     // populates `sections`) can run after this point (e.g. on first
     // load, it's called at the very end of the script), so a one-time
@@ -617,9 +651,13 @@ const ICONS = {
       }
     }
     // A reflowed row keeps its hidden original next to the visible copy:
-    // highlight the copy on screen.
-    const matches = bars.filter(b => parseInt(b.dataset.globalBar, 10) === bar);
-    const barEl = matches.find(b => b.offsetParent) || matches[0] || null;
+    // highlight the copy on screen. Nothing lit when the chart doesn't
+    // follow (Lyrics only, switched off).
+    // A Map recall cell stands for a section replaying an earlier grid:
+    // the grid's bars light rather than the cell, when they're drawn.
+    const matches = lit ? (barsByPlayed.get(bar) || []) : [];
+    const barEl = matches.find(b => b.offsetParent && !b.classList.contains('bar-recall')) || matches.find(b => b.offsetParent) || matches[0] || null;
+    currentPlayedBar = bar;
     if (barEl && started) barEl.style.setProperty('--playhead', String(Math.min(1, position - bar)));
     if (barEl !== currentBarEl) {
       currentBarEl?.classList.remove('current', 'playhead');
@@ -629,8 +667,9 @@ const ICONS = {
       if (barEl && following && !tabFollowed && barEl.offsetParent) keepInView(barEl);
     }
     // Smooth (Guitar Pro style) line only for bars engraved at even
-    // beat spacing: the pickup cell is a compact rest glyph.
-    currentBarEl?.classList.toggle('playhead', started && !currentBarEl.classList.contains('bar-pickup'));
+    // beat spacing: the pickup cell is a compact rest glyph, a Map
+    // recall cell a whole section's rest.
+    currentBarEl?.classList.toggle('playhead', started && !currentBarEl.classList.contains('bar-pickup') && !currentBarEl.classList.contains('bar-recall'));
     // Section lookup no longer rides on barEl existing — a compact/
     // reference section has no .bar of its own (just a chip + multi-rest
     // bar), so deriving "current section" from "current bar's closest
@@ -657,17 +696,22 @@ const ICONS = {
     ));
     const sectionEl = curSec ? curSec.el : null;
     if (sectionEl !== currentSectionEl) {
-      currentSectionEl?.classList.remove('current-section');
-      sectionEl?.classList.add('current-section');
       const idx = sectionEl ? parseInt(sectionEl.dataset.sectionIndex, 10) : -1;
       // Dim sections already played, not just mark the current one — the
       // strip then reads as a progress bar through the song's structure,
-      // not just a static roadmap with one segment lit up.
+      // not just a static roadmap with one segment lit up. (The strip is
+      // the player's progress, so it moves even when the chart doesn't.)
       document.querySelectorAll('.structure-seg').forEach(c => {
         const i = parseInt(c.dataset.sectionIndex, 10);
         c.classList.toggle('current', i === idx);
         c.classList.toggle('done', idx >= 0 && i < idx);
       });
+      currentSectionEl = sectionEl;
+    }
+    const litSection = lit ? sectionEl : null;
+    if (litSection !== litSectionEl) {
+      litSectionEl?.classList.remove('current-section');
+      litSection?.classList.add('current-section');
       // Only auto-scroll while actually following along (clock running) —
       // this same "current section changed" branch also fires once on
       // page load (bar 0 → the Intro section becomes "current" the
@@ -676,8 +720,8 @@ const ICONS = {
       // view before the reader had done anything. Highlighting (above)
       // still updates either way — it's only the forced scroll that's
       // playback-only now.
-      if (sectionEl && following && !tabFollowed && !(barEl && barEl.offsetParent)) sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      currentSectionEl = sectionEl;
+      if (litSection && following && !tabFollowed && !(barEl && barEl.offsetParent)) litSection.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      litSectionEl = litSection;
     }
     // Lyrics mode's own finer-grained position indicator: which LINE
     // within the current section, not just which section. The data model
@@ -693,14 +737,21 @@ const ICONS = {
     // layout one.) Scoped to lyrics mode only: other modes already have
     // their own finer position cue (the current .bar highlight inside the
     // chord grid), so this isn't needed there.
-    if (sheet.dataset.renderMode === 'lyrics' && curSec && sectionEl) {
+    if (lyricsMode() && lit && curSec && sectionEl) {
       const lineEls = sectionEl.querySelectorAll('.lyric-line');
       let lineEl = null;
       if (lineEls.length) {
-        const span = Math.max(1, curSec.barCount);
-        const offset = Math.max(0, bar - curSec.startBar);
-        const fraction = Math.min(0.999, offset / span);
-        lineEl = lineEls[Math.floor(fraction * lineEls.length)] || null;
+        // On the singer's phrases when the recording leads and its voice
+        // is known (lyric-lines.js); else spread evenly over the bars.
+        const voiced = ref && window.songbooksLyricLine ? window.songbooksLyricLine(curSec, lineEls.length) : null;
+        if (voiced !== null) {
+          lineEl = lineEls[voiced] || null;
+        } else {
+          const span = Math.max(1, curSec.barCount);
+          const offset = Math.max(0, bar - curSec.startBar);
+          const fraction = Math.min(0.999, offset / span);
+          lineEl = lineEls[Math.floor(fraction * lineEls.length)] || null;
+        }
       }
       if (lineEl !== currentLineEl) {
         currentLineEl?.classList.remove('current');
@@ -775,6 +826,32 @@ const ICONS = {
     playPauseBtn.classList.add('active');
   }
   playPauseBtn.addEventListener('click', () => setPlaying(!clock.running));
+  // The song player's bar for a song with no recording (audio-player.js
+  // "No recording"): ▶ runs this follow-along clock, the click on; its
+  // readout reads where it is. The player's panel sets that click there
+  // (its Click and Tempo lines): its sound and volume, the tempo, by tap.
+  window.songbooksFollowClock = {
+    toggle(withClick) {
+      setPlaying(!clock.running);
+      if (clock.running && withClick) metronome.enabled = true;
+      return clock.running;
+    },
+    setSound(sound) { if (sound) metronome.sound = sound; },
+    setVolume(v) { metronome.volume = Math.max(0, Number(v) || 0); },
+    setBpm(n) {
+      const v = Math.max(20, Math.min(300, Math.round(Number(n) || clock.bpm)));
+      clock.setBpm(v);
+      updateBpmDisplay();
+      return v;
+    },
+    tap() { document.getElementById('mini-metro-tap')?.click(); return Math.round(clock.bpm); },
+    state: () => ({
+      running: clock.running,
+      bpm: clock.bpm,
+      bar: currentBarEl ? (currentBarEl.dataset.played ? String(currentPlayedBar) : currentBarEl.dataset.globalBar || '') : '',
+      section: currentSectionEl ? currentSectionEl.dataset.label || '' : '',
+    }),
+  };
 
   document.getElementById('mini-metro-fade').addEventListener('click', () => {
     if (clock.running) return; // a one-off cue only makes sense from a stop
@@ -836,16 +913,9 @@ const ICONS = {
     requestAnimationFrame(tickBeatDots);
   }
   requestAnimationFrame(tickBeatDots);
-  // Jazz is the one "must fit, never scroll" reading mode — hands are on an
-  // instrument, not a scrollbar. Rather than shrinking font size forever
-  // (unreadable) or forcing a single column (needless scrolling once a tune
-  // has more sections than one column can hold), this searches column count
-  // 1-3 and, within each, the largest font size that fits — the same move a
-  // real fake book makes for a longer tune: add a column, not a second page.
-  // Lyrics-only is a reading mode, not a performance one: scrolling while
-  // singing is fine, so it gets no page-box/fit search at all — see the
-  // CSS (#sheet[data-render-mode="lyrics"]) for its column-width approach.
-  const A4_RATIO = 210 / 297; // width / height, portrait
+  // Per-mode page sizing. Lyrics-only is a reading mode: one centered
+  // column as wide as its longest line (scrolling while singing is fine).
+  // The Jazz chart sizes itself in CSS, 4 bars a line at any width.
   function applyPageBox() {
     sheet.style.fontSize = '';
     sheet.style.height = '';
@@ -886,168 +956,26 @@ const ICONS = {
     // design, left explicit rather than silently falling through.
     if (mode === 'map') return;
     if (mode !== 'jazz') return;
-
-    // Jazz: a real printed fake-book page, deliberately narrow (A4
-    // portrait proportions) even on a wide monitor — the point is to look
-    // like a page, not to fill the screen — AND it must never need
-    // scrolling, since hands are on an instrument, not a scrollbar. Fit
-    // the largest A4-ratio box inside the available height first, THEN,
-    // only inside that fixed shape, search column count (1-3) and font
-    // size so a longer tune fits without the page itself changing shape.
-    const bottomMargin = 24; // breathing room below the page box, same idea as the other modes
-    const floor = 9;
-    // Shared by both the mobile and desktop paths below — moved up here
-    // (used to live only in the desktop half) after a real bug: mobile's
-    // own safety-net loop called this before its declaration further
-    // down the function, a temporal-dead-zone ReferenceError that
-    // silently aborted applyPageBox mid-way through on every single
-    // mobile/jazz run, BEFORE it reached the re-reflow call that
-    // regroups bars-per-row at the final settled font size — the actual
-    // reason density still looked unfixed on some songs even after the
-    // font-size computation itself was correct (confirmed live via the
-    // console: "Cannot access 'labelsCollide' before initialization",
-    // thrown every time, caught by nothing, breaking silently).
-    // .chord-label is position:absolute (so it can float above the
-    // staff line), which means it never contributes to flex/scrollWidth
-    // sizing at all — bars could get squeezed arbitrarily narrow with no
-    // overflow ever being reported, while the absolutely-positioned
-    // chord text visibly collided with its neighbors. So also check real
-    // label-vs-label collisions directly, left-to-right within each
-    // staff line.
-    const labelsCollide = () => {
-      let prevRight = null, prevLine = null;
-      for (const el of sheet.querySelectorAll('.chord-label')) {
-        const line = el.closest('.staff-line');
-        const r = el.getBoundingClientRect();
-        if (line === prevLine && prevRight != null && r.left < prevRight - 0.5) return true;
-        prevLine = line; prevRight = r.right;
-      }
-      return false;
-    };
-    // Mobile: a DIFFERENT fit strategy entirely, not a narrower version of
-    // desktop's — see the long comment on `overflows()` below for why.
-    // Short version: content-sized bars (flex:0 0 auto, added for real-
-    // iReal-Pro fidelity) wrap on mobile instead of overflowing, and
-    // wrapped content never registers as the kind of overflow a trial-
-    // and-error shrink loop can detect — it just produces more, shorter
-    // rows, invisible to a scrollWidth/scrollHeight check. The genuinely
-    // bad case this caused in practice: 2 real bars per row, each row
-    // ~83px tall from an oversized font the loop never got a signal to
-    // shrink, a 22-bar Intro alone costing 473px of scroll. Rather than
-    // keep trying to coax a width/height-overflow loop into also solving
-    // "how many bars fit per row" (a different question it was never
-    // built to answer), this computes the font size DIRECTLY from a
-    // target bar count — same idea reflowStaffLines() already uses for
-    // the other modes' own mobile floor (MIN_BARS_PER_LINE), just solved
-    // by measurement instead of trial groupings, since jazz bars don't
-    // have a fixed per-mode width to re-group.
-    if (!window.matchMedia('(min-width: 901px)').matches) {
-      sheet.style.height = '';
-      sheet.style.width = availW + 'px';
-      sheet.style.margin = '0 auto';
-      sheet.style.columnCount = '1';
-      const TARGET_BARS_PER_ROW = 4;
-      // Measure at a clean, known reference size — a leftover font-size
-      // from a previous pass (e.g. the old 15px fallback) would make the
-      // scale computation below measure against the WRONG starting
-      // width. Real CSS text width scales close enough to linearly with
-      // font-size over this range for bar widths (driven by chord-label
-      // text, not bar borders/padding, which are themselves em-based and
-      // scale the same way) that a single measure-and-compute pass is
-      // accurate without needing a trial loop at all.
-      const REF_SIZE = 16;
-      sheet.style.fontSize = REF_SIZE + 'px';
-      const bars = [...sheet.querySelectorAll('.bar:not(.bar-recall)')];
-      const widestAtRef = bars.reduce((m, b) => Math.max(m, b.getBoundingClientRect().width), 0);
-      // The REAL per-row width, not availW (the outer page box) — a grid
-      // can be narrower than the page box (padding, the row's own
-      // width:fit-content on some modes' CSS), and using the wrong,
-      // larger number here was the actual reason this still under-
-      // shrank (confirmed live: availW=340 but the real grid was
-      // 269px — the formula targeted 4 bars at 340/4=85px each, which
-      // is genuinely too wide once squeezed into the real 269px row,
-      // landing back at 3 bars, not 4).
-      const realRowW = sheet.querySelector('.grid.spans-full')?.clientWidth || availW;
-      if (widestAtRef > 0) {
-        const targetBarWidth = realRowW / TARGET_BARS_PER_ROW;
-        const scale = targetBarWidth / widestAtRef;
-        let size = Math.max(floor, Math.min(22, REF_SIZE * scale));
-        sheet.style.fontSize = size + 'px';
-        // Safety net: the linear-scale estimate can still slightly
-        // undershoot for an unusually dense bar (many sub-beat chord
-        // changes) — nudge down toward the floor if real labels still
-        // collide at the computed size, same collision check the desktop
-        // path already relies on.
-        let guard = 0;
-        while (size > floor && labelsCollide() && guard++ < 40) {
-          size -= 0.5;
-          sheet.style.fontSize = size + 'px';
-        }
-      }
-      // reflowStaffLines() already ran once before applyPageBox (see the
-      // call order comment on the resize handler below) — but at
-      // whatever font-size was left over from the PREVIOUS render, not
-      // the size just computed above. Its own row-grouping (--cap) is
-      // frozen from that earlier pass, so without re-running it now, the
-      // bars-per-row grouping stays stuck at what an earlier, usually
-      // larger, font implied room for — exactly the "font shrank but the
-      // row still only holds 3 bars" symptom confirmed live. Re-running
-      // it here, after the font has actually settled, lets it regroup at
-      // the real final size.
-      reflowStaffLines();
-      refreshBarsCache();
-      return;
-    }
-    const availH = Math.max(200, window.innerHeight - sheet.getBoundingClientRect().top - bottomMargin);
-    let h = availH, w = h * A4_RATIO;
-    if (w > availW) { w = availW; h = w / A4_RATIO; }
-    sheet.style.height = h + 'px';
-    sheet.style.width = w + 'px';
-    sheet.style.margin = '0 auto';
-    const maxCols = 3;
-    // With an explicit column-count AND a fixed height, CSS multicol does
-    // NOT grow scrollHeight when content doesn't fit — it silently spills
-    // into extra implicit columns off the right edge instead (scrollWidth
-    // grows, scrollHeight doesn't). So "does it fit" has to check width,
-    // not height, once columns are in play.
-    //
-    // scrollWidth alone isn't enough, though: .chord-label is
-    // position:absolute (so it can float above the staff line), which
-    // Desktop only from here down — mobile returns earlier above (see its
-    // own comment: a width/height-overflow loop like this one can't
-    // answer "how many bars fit per row" once rows wrap, which is why
-    // mobile uses a direct computed-font-size pass instead of this trial
-    // search). Desktop jazz never wraps, so this is unchanged.
-    const overflows = () => sheet.scrollWidth > sheet.clientWidth + 1 || labelsCollide();
-    for (let cols = 1; cols <= maxCols; cols++) {
-      sheet.style.columnCount = String(cols);
-      let size = 22;
-      sheet.style.fontSize = size + 'px';
-      let guard = 0;
-      while (size > floor && overflows() && guard++ < 60) {
-        size -= 0.5;
-        sheet.style.fontSize = size + 'px';
-      }
-      if (!overflows() || cols === maxCols) break;
-    }
-    // Even at the font floor and max columns, a long enough tune still
-    // doesn't fit the fixed "one page" box — and forcing it anyway is
-    // exactly the bug this guards against: a fixed-height multicol box
-    // silently grows EXTRA implicit columns to hold the vertical overflow
-    // CSS can't show any other way, squeezing every bar/label far below
-    // readable width (what read as "jazz/lyrics mode is broken, chords
-    // all overlap"). Match the Typst pipeline's own one-page stance —
-    // report, don't paper over — by giving up on one page for this song
-    // and falling back to a normal scrollable single column instead.
-    if (overflows()) {
-      // Give up on fitting ONE page, but keep the page-shaped WIDTH — the
-      // narrow proportion is a deliberate print-page look, not an
-      // accident, so a long tune should scroll a tall page, not snap back
-      // to full browser width and stop looking like sheet music.
-      sheet.style.height = '';
-      sheet.style.columnCount = '1';
-      sheet.style.fontSize = '15px';
-    }
+    // The Jazz chart sizes itself in CSS (jazz.css): 4 bars a line at any
+    // width. All that's left is a copyist's squeeze for a crowded bar.
+    fitJazzChords();
+  }
+  // Squeeze a chord horizontally when it would run into the next one (four
+  // chords in a bar, a long quality), the way a hand-copied chart does.
+  function fitJazzChords() {
+    if (sheet.dataset.renderMode !== 'jazz') return;
+    sheet.querySelectorAll('.jazz-chart .jz-bar').forEach((bar) => {
+      const chs = [...bar.querySelectorAll(':scope > .jz-at')];
+      if (!chs.length) return;
+      chs.forEach((c) => { c.style.transform = ''; });
+      const right = bar.getBoundingClientRect().right;
+      chs.forEach((c, i) => {
+        const r = c.getBoundingClientRect();
+        const limit = (chs[i + 1] ? chs[i + 1].getBoundingClientRect().left : right) - 2;
+        const avail = limit - r.left;
+        if (r.width > avail && avail > 0) c.style.transform = `scaleX(${Math.max(0.55, avail / r.width).toFixed(3)})`;
+      });
+    });
   }
   // Layout (single column vs. the two-page-column spread) is automatic —
   // pure CSS media queries on viewport width, no toggle to get wrong or to
@@ -1055,6 +983,15 @@ const ICONS = {
   // "popup" layout (hidden header/sidebar, a floating exit button) on top
   // of that — removed: jazz is a view mode like song map or lyrics-only,
   // reusing the normal page chrome, not a separate full-screen app state.
+  // The view last picked for this very song in this coaching community
+  // (by a click, not by the restore at load), per device. Only there: a
+  // view picked for the song anywhere else (a band, the library) is the
+  // reader's default elsewhere, never a reason to skip the community's
+  // Lyrics only.
+  const songModeKey = sheet.dataset.coaching
+    ? `songbooks-mode:c${sheet.dataset.coaching}:${sheet.dataset.variantId || pageVariantId}`
+    : '';
+  let restoringMode = false;
   wireSegmented('mode-segmented', v => {
     // "edit" sits in this same segmented control (easiest place to find
     // it, next to the other ways of looking at the song) but it's an
@@ -1095,6 +1032,11 @@ const ICONS = {
     reflowMapLines();
     refreshBarsCache();
     applyPageBox();
+    // The pass above ran at the PREVIOUS mode's page box (jazz's narrow
+    // A4 width until applyPageBox clears it), and whether a lone last bar
+    // fits on the row before it depends on that width: once more at the
+    // real one. Jazz re-runs it inside its own fit search already.
+    if (v !== 'jazz') { reflowStaffLines(); refreshBarsCache(); }
     // Drummer view's own continuous chart (.drum-map — buildDrumMap,
     // handlers_pages.go) is hidden by CSS in every other mode — the same
     // "width=0, invisible" trap a hidden .grid/.map-score row would hit,
@@ -1130,8 +1072,13 @@ const ICONS = {
     // opened next would replace the chart nobody asked to stop seeing.
     // Same reasoning edit's own early return above already applies, and
     // for the Mixer: a workbench opened for a task, not a way of reading.
-    if (v !== 'reference' && v !== 'mixer' && v !== 'score' && !document.body.classList.contains('embed-playlist')) {
+    // Picked, that is: not the view restored at load (a coaching
+    // community's Lyrics only must not become the default elsewhere).
+    if (!restoringMode && v !== 'reference' && v !== 'mixer' && v !== 'score' && v !== 'melody' && !document.body.classList.contains('embed-playlist')) {
       try { localStorage.setItem('songbooks-default-mode', v); } catch (e) { /* ignore */ }
+      // And for this song in this coaching community: the view picked
+      // there wins over its default (Lyrics only, below) next time.
+      if (songModeKey) { try { localStorage.setItem(songModeKey, v); } catch (e) { /* ignore */ } }
     }
   });
   // Reflow before the jazz-mode fit search (applyPageBox): it decides how
@@ -1143,7 +1090,7 @@ const ICONS = {
   // continuously while dragging/rotating, and rebuilding every .staff-line
   // from scratch on every single event is needless churn.
   // Lyrics-only measures its lines: again once the web fonts are in.
-  document.fonts?.ready.then(() => { if (sheet.dataset.renderMode === 'lyrics') applyPageBox(); });
+  document.fonts?.ready.then(() => { if (sheet.dataset.renderMode === 'lyrics' || sheet.dataset.renderMode === 'jazz') applyPageBox(); });
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
@@ -1162,12 +1109,25 @@ const ICONS = {
     // song's Guitar Pro file, the score the lesson is practised on.
     const embedded = document.body.classList.contains('embed-playlist');
     const lesson = document.getElementById('lesson-panel') && sheet.dataset.gpFile;
-    const saved = embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score' : localStorage.getItem('songbooks-default-mode');
+    // Opened in a vocal coaching community (one of its songbooks, its
+    // page, an event or an assignment: data-coaching, handlers_pages.go),
+    // a song opens on its lyrics, in practice mode, following the music
+    // (the "Follow the music" switch is on unless turned off for this
+    // song), unless the reader has picked another view for this song.
+    const coaching = sheet.dataset.coaching && document.querySelector('#mode-segmented button[data-value="lyrics"]');
+    // ?view=melody (a songbook row's lowest or highest bar, row-range.js):
+    // the Melody view, wherever the song is opened from.
+    const askedMelody = new URLSearchParams(location.search).get('view') === 'melody'
+      && document.querySelector('#mode-segmented button[data-value="melody"]');
+    const saved = askedMelody ? 'melody' : embedded ? 'map' : sheet.dataset.gpOnly || lesson ? 'score'
+      : coaching ? (localStorage.getItem(songModeKey) || 'lyrics')
+      : localStorage.getItem('songbooks-default-mode');
     // Drummer view only for a song that has a drum part: on any other it
     // is a page of empty staves, so the song opens as a chart instead.
     const hasDrums = [...document.querySelectorAll('[data-realbars]')].some((e) => !e.dataset.restonly);
     if (saved && saved !== 'normal' && saved !== 'reference' && saved !== 'mixer' && (saved !== 'drummer' || hasDrums)) {
-      document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click();
+      restoringMode = true;
+      try { document.querySelector(`#mode-segmented button[data-value="${saved}"]`)?.click(); } finally { restoringMode = false; }
     }
   } catch (e) { /* ignore */ }
 
@@ -1219,10 +1179,16 @@ const ICONS = {
     const variantId = block.dataset.variantId;
     const embedEl = document.getElementById('reference-embed');
     const linkEl = document.getElementById('reference-link');
-    const editBtn = document.getElementById('reference-edit-btn');
-    const editRow = document.getElementById('reference-edit-row');
-    const urlInput = document.getElementById('reference-url-input');
-    const saveBtn = document.getElementById('reference-save-btn');
+    const currentEl = document.getElementById('reference-current');
+    const whyEl = document.getElementById('reference-why');
+    const moreEl = document.getElementById('reference-more');
+    const changeBtn = document.getElementById('reference-change-btn');
+    const pickBox = document.getElementById('reference-picker-box');
+    const pickEl = document.getElementById('reference-picker');
+    const cancelBtn = document.getElementById('reference-picker-cancel');
+    const changeHint = document.getElementById('reference-url-hint');
+    const removeBtn = document.getElementById('reference-remove-btn');
+    const statusEl = document.getElementById('reference-status');
 
     // Always rendered now (no more show/hide tap) — Reference is its own
     // dedicated page (data-render-mode="reference"), not a cramped drawer
@@ -1245,45 +1211,154 @@ const ICONS = {
       iframe.allowFullscreen = true;
       embedEl.appendChild(iframe);
     }
-    function ensureEmbedBuilt() {
-      if (embedBuilt) return;
-      embedBuilt = true;
-      renderEmbed(block.dataset.url);
-    }
-    if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
-    new MutationObserver(() => {
-      if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
-    }).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
 
-    function setEditOpen(open) {
-      editRow.hidden = !open;
-      editBtn.setAttribute('aria-expanded', String(open));
-      if (open) urlInput.focus();
+    // The YouTube picker (yt-picker.js, the "yt-picker" partial): open
+    // at once while the song has no reference, behind "Change the video"
+    // once it has; its search runs the first time it shows.
+    const picker = pickEl && window.YTPicker ? YTPicker.mount(pickEl, { onUse: (c) => save(c.url) }) : null;
+    let searched = false;
+    function showPicker(open) {
+      if (!pickBox) return;
+      const has = !!block.dataset.url;
+      pickBox.hidden = has && !open;
+      changeBtn?.setAttribute('aria-expanded', String(!pickBox.hidden && has));
+      if (changeBtn) changeBtn.hidden = !pickBox.hidden;
+      if (pickBox.hidden) { picker?.stop(); return; }
+      if (picker && !searched) { searched = true; picker.search(); }
     }
-    editBtn.addEventListener('click', () => setEditOpen(editRow.hidden));
-    // A real <form>: Enter in the field saves, and forms.js checks the
-    // type="url" before this runs.
-    editRow.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const url = urlInput.value.trim();
-      await Forms.run(editRow, saveBtn, async () => {
-        const res = await fetch(`/api/songs/${variantId}/meta`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: 'reference', value: url }),
-        });
-        if (res.status === 403) throw new Error(t("You can't change this song's reference video."));
-        if (res.status === 409) throw new Error(t('This song changed since you opened it. Reload the page, then save the link again.'));
-        if (!res.ok) throw new Error(t("Couldn't save the link. Try again."));
-        block.dataset.url = url;
-        linkEl.href = url;
-        linkEl.hidden = !url;
-        const label = url ? t('Change the reference video') : t('Add a reference video');
-        editBtn.title = label;
-        editBtn.setAttribute('aria-label', label);
-        renderEmbed(url);
-        embedBuilt = true;
-        setEditOpen(false);
-      });
+    function shown() {
+      if (sheet.dataset.renderMode !== 'reference') return;
+      if (!embedBuilt) { embedBuilt = true; renderEmbed(block.dataset.url); }
+      if (!block.dataset.url) showPicker(true);
+    }
+    shown();
+    // Leaving the view: the preview stops.
+    new MutationObserver(() => { if (sheet.dataset.renderMode === 'reference') shown(); else picker?.stop(); })
+      .observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
+    changeBtn?.addEventListener('click', () => { showPicker(true); picker?.focus(); });
+    cancelBtn?.addEventListener('click', () => { showPicker(false); changeBtn?.focus(); });
+    // The video's sound asked for with no video: the picker.
+    document.addEventListener('songbooks:reference-pick', () => {
+      document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+      showPicker(true);
+      picker?.focus();
+    });
+
+    // The reference in the header's third column (play.html
+    // "song-ref-head"): opens this view, the ⋯ menu's Reference;
+    // "+ Reference" opens it on the picker. Kept in step with the link
+    // saved below and with the recordings (a band recording is the
+    // reference when there's no link). Its name is the link's site, as
+    // the server names it (song_ref_head.go refLinkName).
+    const head = document.getElementById('topbar-ref');
+    const headBtn = document.getElementById('topbar-ref-btn');
+    const headName = document.getElementById('topbar-ref-name');
+    let hasBand = head?.dataset.kind === 'band';
+    // The video's or page's title, fetched by the server when the link is
+    // saved (handlePutMeta's referenceTitle, reference_title.go).
+    let refTitle = headName?.dataset.title || '';
+    function refSiteName(url) {
+      try {
+        const host = new URL(url).hostname.toLowerCase().replace(/^(www|m)\./, '');
+        return /^(youtube\.com|youtu\.be|music\.youtube\.com)$/.test(host) ? 'YouTube' : host || url;
+      } catch (e) { return url; }
+    }
+    function renderHead() {
+      if (!head) return;
+      const url = block.dataset.url || '';
+      const vid = url && youtubeId(url);
+      const kind = vid && /^[A-Za-z0-9_-]{6,20}$/.test(vid) ? 'youtube' : url ? 'link' : hasBand ? 'band' : '';
+      head.dataset.kind = kind;
+      head.hidden = !kind && !head.dataset.canEdit;
+      const label = kind ? headBtn.dataset.openLabel : headBtn.dataset.addLabel;
+      headBtn.title = label;
+      headBtn.setAttribute('aria-label', label);
+      if (headName) {
+        headName.textContent = kind === 'band' ? (head.dataset.bandLabel || '') : url ? (refTitle || refSiteName(url.trim())) : '';
+        if (refTitle && kind !== 'band') headName.title = refTitle; else headName.removeAttribute('title');
+      }
+      const thumb = head.querySelector('.topbar-ref-thumb');
+      let img = thumb.querySelector('img');
+      if (kind !== 'youtube') { img?.remove(); return; }
+      const src = `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`;
+      if (img && img.getAttribute('src') === src) return;
+      if (!img) {
+        img = document.createElement('img');
+        img.alt = '';
+        img.width = 96; img.height = 54;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        thumb.prepend(img);
+      }
+      img.src = src;
+    }
+    headBtn?.addEventListener('click', () => {
+      const add = head.dataset.kind === '';
+      document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+      if (add) { showPicker(true); picker?.focus(); }
+    });
+    document.addEventListener('songbooks:audio-categories', (e) => {
+      hasBand = (e.detail?.categories || []).includes('band');
+      renderHead();
+    });
+
+    // Saved as the song's "reference:" line (PUT meta): on The Big
+    // Songbook's song, catalogue-edit.js asks first whether a new video
+    // is a fix or another recording, and says what happened when it
+    // waits for review or makes another song (the page moves on then).
+    async function save(url) {
+      const res = await fetch(`/api/songs/${variantId}/meta`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'reference', value: url }),
+      }).catch(() => null);
+      if (!res) throw new Error(t('Couldn’t reach the server. Check your connection and try again.'));
+      const saved = await res.json().catch(() => ({}));
+      if (res.status === 403) throw new Error(t("You can't change this song's reference video."));
+      if (res.status === 409) throw new Error(t('This song changed since you opened it. Reload the page, then save the link again.'));
+      if (!res.ok) throw new Error(saved.error || t("Couldn't save the link. Try again."));
+      apply(url, (url && saved.referenceTitle) || '', saved.referenceLabel || '');
+      return true;
+    }
+    function apply(url, title, label) {
+      refTitle = title;
+      block.dataset.url = url;
+      linkEl.href = url;
+      linkEl.textContent = (refTitle || linkEl.dataset.defaultLabel || '') + ' \u2197';
+      currentEl.hidden = !url;
+      if (whyEl) whyEl.hidden = !!url;
+      if (moreEl) moreEl.hidden = !url;
+      if (changeHint) changeHint.hidden = !url;
+      if (cancelBtn) cancelBtn.hidden = !url;
+      renderEmbed(url);
+      embedBuilt = true;
+      renderHead();
+      picker?.setCurrent(url);
+      // The reference label (The Big Songbook's), filled from the video's
+      // title while it had none (#180).
+      const labelIn = document.getElementById('catalogue-label-input');
+      if (label && labelIn && !labelIn.value.trim()) labelIn.value = label;
+      const artist = document.querySelector('.topbar-artist');
+      if (label && artist && !artist.querySelector('.topbar-label')) {
+        const span = document.createElement('span');
+        span.className = 'topbar-label';
+        span.textContent = ' · ' + label;
+        artist.appendChild(span);
+      }
+      showPicker(false);
+      if (url) changeBtn?.focus({ preventScroll: true });
+    }
+    removeBtn?.addEventListener('click', async () => {
+      if (!confirm(t('Remove the reference video from this song?'))) return;
+      Forms.busy(removeBtn, true);
+      Forms.status(statusEl, '');
+      try {
+        await save('');
+      } catch (e) {
+        Forms.status(statusEl, e.message, 'error');
+      } finally {
+        Forms.busy(removeBtn, false);
+      }
     });
   })();
 
@@ -1313,6 +1388,17 @@ const ICONS = {
       const arr = flats ? FLAT_NAMES : SHARP_NAMES;
       return arr[((pc % 12) + 12) % 12];
     }
+    // The server's spelling table (chordsym.TransposedSpellings): every
+    // pitch class as the key the song is moved to reads it — flats in F
+    // or in C for a bIII/bVI/bVII, sharps in E. Without a key, spell().
+    let spellTable = null;
+    try { spellTable = sheet.dataset.spell ? JSON.parse(sheet.dataset.spell) : null; } catch (e) { spellTable = null; }
+    const glyphs = (n) => n[0] + n.slice(1).replace('b', '♭').replace('#', '♯');
+    function spellIn(pc) {
+      const o = ((shownOffset() % 12) + 12) % 12;
+      if (!spellTable) return spell(pc);
+      return glyphs(spellTable.names[o][((pc % 12) + 12) % 12]);
+    }
     function rootPitchClass(root) {
       if (!root) return -1;
       let pc = PC[root[0]];
@@ -1335,15 +1421,19 @@ const ICONS = {
     // row shows at its written key (or a whole octave away), another key's
     // row when the song has one for the displayed key, otherwise a short
     // note rather than shapes that no longer match the chords.
+    // The editor shows the song in its own key: it changes the song
+    // itself, for everyone who has it, not the key this page plays it in
+    // (a songbook's, or tonight's −/+). Back in it when the editor closes.
+    const shownOffset = () => (document.body.classList.contains('drawer-open') ? 0 : offset);
     function applyDiagrams(displayedKey) {
       sheet.querySelectorAll('.chord-legend-other, .chord-legend-note').forEach(el => el.remove());
       const own = sheet.querySelector('.chord-legend-own');
-      const shifted = ((offset % 12) + 12) % 12 !== 0;
+      const shifted = ((shownOffset() % 12) + 12) % 12 !== 0;
       if (own) own.hidden = shifted;
       if (!shifted || sheet.dataset.hasDiagrams !== '1') return;
       let node = null;
       if (origKeyParts && diagramSets) {
-        const pc = ((rootPitchClass(origKeyParts[1]) + offset) % 12 + 12) % 12;
+        const pc = ((rootPitchClass(origKeyParts[1]) + shownOffset()) % 12 + 12) % 12;
         const minor = /^(m|mi|min|minor|-)$/i.test(origKeyParts[2] || '');
         const set = [...diagramSets.content.querySelectorAll('.chord-legend-other')]
           .find(el => parseInt(el.dataset.keyPc, 10) === pc && (el.dataset.keyMinor === '1') === minor);
@@ -1357,14 +1447,65 @@ const ICONS = {
       if (own) own.after(node); else sheet.prepend(node);
     }
 
+    // The Jazz chart's chords are music-font glyphs: each says its name
+    // (aria-label, built by the server: root, quality, bass) and shows it
+    // as its tooltip. A transpose moves the root and the bass, so both are
+    // put back together around them, as is the spoken key.
+    function relabelJazzChart() {
+      const chart = sheet.querySelector('.jazz-chart');
+      if (!chart) return;
+      const flatW = chart.dataset.sayFlat || 'flat';
+      const sharpW = chart.dataset.saySharp || 'sharp';
+      const overW = chart.dataset.sayOver || 'over';
+      const say = (n) => (n ? n[0] + (n[1] === '♭' ? ' ' + flatW : n[1] === '♯' ? ' ' + sharpW : '') : '');
+      chart.querySelectorAll('.jz-at').forEach((at) => {
+        const rootEl = at.querySelector('.jz-root[data-name]:not(.jz-broot)');
+        if (!rootEl) return;
+        const bassEl = at.querySelector('.jz-broot[data-name]');
+        const root = rootEl.dataset.name;
+        const bass = bassEl ? bassEl.dataset.name : '';
+        const q = at.dataset.sayQ || '';
+        at.setAttribute('aria-label', say(root) + (q ? ' ' + q : '') + (bass ? ` ${overW} ${say(bass)}` : ''));
+        at.title = root + (at.dataset.q || '') + (bass ? '/' + bass : '');
+      });
+      const keySay = chart.querySelector('.jz-key-say');
+      const keyRoot = chart.querySelector('.jz-keyroot[data-name]');
+      if (keySay && keyRoot) {
+        const rest = keySay.dataset.sayRest || '';
+        keySay.textContent = say(keyRoot.dataset.name) + (rest ? ' ' + rest : '');
+      }
+    }
     function applyTranspose() {
       if (transposeAmount) transposeAmount.textContent = (offset > 0 ? '+' : '') + offset;
+      const shown = shownOffset();
+      // The Melody view (melody-view.js) writes its notes in this key too.
+      document.dispatchEvent(new CustomEvent('songbooks:transpose', { detail: { offset: shown } }));
       sheet.querySelectorAll('[data-pc]').forEach(el => {
         const pc = parseInt(el.dataset.pc, 10);
         if (pc < 0 || Number.isNaN(pc)) return;
-        el.textContent = spell(pc + offset);
+        // Untransposed, chords read as the song writes them.
+        if (el.dataset.orig === undefined) el.dataset.orig = el.innerHTML;
+        if (el.dataset.jz && el.dataset.name0 === undefined) el.dataset.name0 = el.dataset.name || '';
+        if (((shown % 12) + 12) % 12 === 0) {
+          el.innerHTML = el.dataset.orig;
+          if (el.dataset.jz) el.dataset.name = el.dataset.name0;
+          return;
+        }
+        const name = spellIn(pc + shown);
+        if (el.dataset.jz) {
+          el.dataset.name = name;
+          // The Jazz chart: a letter and a music-font accidental.
+          const acc = name[1] === '♭' ? '\uE260' : name[1] === '♯' ? '\uE262' : '';
+          el.innerHTML = `<span class="jz-l">${name[0]}</span>` + (acc ? `<span class="jz-acc">${acc}</span>` : '');
+          return;
+        }
+        el.textContent = name;
       });
-      if (offset === 0 || !origKey || !keyTransposed) {
+      relabelJazzChart();
+      // A moved chord can be wider than the one it replaced (C → D♭):
+      // squeeze the Jazz chart's crowded bars again.
+      fitJazzChords();
+      if (shown === 0 || !origKey || !keyTransposed) {
         if (keyTransposed) keyTransposed.hidden = true;
         if (keyTransposed) keyTransposed.textContent = '';
         applyDiagrams('');
@@ -1377,7 +1518,7 @@ const ICONS = {
       if (!m) { keyTransposed.hidden = true; applyDiagrams(''); return; }
       const pc = rootPitchClass(m[1]);
       if (pc < 0) { keyTransposed.hidden = true; applyDiagrams(''); return; }
-      keyTransposed.textContent = spell(pc + offset) + m[2];
+      keyTransposed.textContent = spellTable ? glyphs(spellTable.keys[((shown % 12) + 12) % 12]) : spell(pc + shown) + m[2];
       keyTransposed.hidden = false;
       applyDiagrams(keyTransposed.textContent);
     }
@@ -1388,12 +1529,14 @@ const ICONS = {
     // The practice player's Key moves the chords with the recording
     // (audio-player.js), −/+ or not.
     window.songbooksShiftChords = (d) => { offset += d; applyTranspose(); };
+    window.songbooksChordOffset = () => shownOffset();
     // The Mixer's chord row (mixer.js) names its chords as the page does.
+    // Spelled for the key the song is moved to, as the chart is (spellIn).
     window.songbooksChordInView = (name) => {
       if (!offset || !name) return name;
       const m = name.match(/^([A-G][b#]?)(.*?)(?:\/([A-G][b#]?))?$/);
       if (!m || rootPitchClass(m[1]) < 0) return name;
-      return spell(rootPitchClass(m[1]) + offset) + m[2] + (m[3] ? '/' + spell(rootPitchClass(m[3]) + offset) : '');
+      return spellIn(rootPitchClass(m[1]) + offset) + m[2] + (m[3] ? '/' + spellIn(rootPitchClass(m[3]) + offset) : '');
     };
   }
 
@@ -1455,6 +1598,11 @@ const ICONS = {
     if (dirtyIndicator) dirtyIndicator.hidden = true;
     if (discardBtn) discardBtn.disabled = true;
   }
+  // The Sync sheet saves chart fixes as a revision: not over unsaved edits.
+  window.songbooksEditorDirty = () => isDirty;
+  // A catalogue edit sent for review, or made another recording's version
+  // (catalogue-edit.js): nothing left unsaved before the page moves on.
+  window.songbooksEditorClean = clearDirty;
   // A native confirm() is the same idiom this file already uses for other
   // destructive choices (redo-song-btn) — OK means "discard and proceed",
   // Cancel means "stay, let me hit Save instead." Every exit path funnels
@@ -1488,6 +1636,7 @@ const ICONS = {
     drawer.hidden = !opening;
     drawerBackdrop.hidden = !opening;
     document.body.classList.toggle('drawer-open', opening);
+    reapplyTranspose(); // the editor's chart in the song's own key (Transpose below)
     // Phase 46: editToggle moved out of the mode-segmented pill into its
     // own sidebar row, so its .active state is toggled on its own element
     // directly now, separately from the view-mode tabs' own active-button
@@ -1524,6 +1673,7 @@ const ICONS = {
   window.addEventListener('popstate', () => {
     const wantOpen = new URLSearchParams(location.search).get('edit') === '1';
     if (wantOpen === !drawer.hidden) return;
+    if (wantOpen && (editOffer || !pageCanEdit)) return;
     if (!setDrawerOpen(wantOpen, { suppressHistory: true })) {
       // User cancelled closing — the URL already changed out from under us
       // (that's how popstate fired at all); push it back to ?edit=1 so the
@@ -1531,25 +1681,155 @@ const ICONS = {
       history.pushState({ songbooksEdit: true }, '', editURL(true));
     }
   });
-  // Implicit fork: a viewer without edit rights on this variant never sees
-  // a separate "fork" button/step (the old explicit fork-variant-btn is
-  // gone — see play.html) — tapping Edit silently forks it for them first,
-  // then lands them on the fork's own page with the drawer already open.
-  // CanEdit viewers (the common case) skip straight to setDrawerOpen.
-  editToggle.addEventListener('click', async () => {
-    if (drawer.hidden && !pageCanEdit && pageVariantId) {
-      editToggle.disabled = true;
-      try {
-        const res = await fetch(`/api/variants/${pageVariantId}/fork`, {method: 'POST'});
-        const data = await res.json().catch(() => ({}));
-        // Not a form: nowhere on the page to show this but a dialog.
-        if (!res.ok) { alert(t("Couldn't make your own copy of this song to edit. Try again.")); return; }
-        location.href = `/song/${data.variantId}?edit=1`;
-        return;
-      } finally {
-        editToggle.disabled = false;
-      }
+  // Edit on a song this viewer can't, or shouldn't, change here never
+  // copies anything on its own (it used to: a silent personal copy, and
+  // people kept working on "their" copy of a band's song). The editor's
+  // data-edit-offer says what Edit offers instead, in #edit-offer-dialog
+  // (play.html, handleSong): "band", make the song the band's own and edit
+  // that (a member opening the catalogue's song from the band's songbook or
+  // set list); "copy", the person's own copy, asked for explicitly. Either
+  // lands on the new song with the editor open, the page's context (?band,
+  // ?setlist, ?songbook) kept.
+  const editOffer = editorElForFork?.dataset.editOffer || '';
+  const offerDialog = document.getElementById('edit-offer-dialog');
+  function openEditOffer() {
+    if (!offerDialog || offerDialog.open) return;
+    Forms.status(document.getElementById('edit-offer-status'), '');
+    offerDialog.showModal();
+  }
+  // The native dialog gives focus back to what had it, except when that was
+  // a row of the phone's View sheet, closed by then: back to Edit, then.
+  offerDialog?.addEventListener('close', () => {
+    const at = document.activeElement;
+    if ((!at || at === document.body || offerDialog.contains(at)) && editToggle.offsetParent) editToggle.focus();
+  });
+  // A coaching community's link to The Big Songbook's song (play.html's
+  // CatalogueFix): "Fix the catalogue's song" opens the editor on it, in
+  // place, under the catalogue's rules; the editor's note offers the
+  // community's arrangement again.
+  document.querySelector('[data-edit-offer-fix]')?.addEventListener('click', () => {
+    offerDialog?.close();
+    setDrawerOpen(true);
+  });
+  document.querySelector('[data-edit-offer-open]')?.addEventListener('click', openEditOffer);
+  // "Make Mercy's version", "Make the community's version", "Make my
+  // version" (docs/ownership-model.md §5): the version takes the link's
+  // place in the songbook the page was opened from (data-songbook-id),
+  // else in every songbook of its owner's that links the song.
+  document.getElementById('edit-offer-go')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = document.getElementById('edit-offer-status');
+    const action = btn.dataset.action;
+    const url = action === 'band'
+      ? `/api/bands/${btn.dataset.bandId}/catalog/fork/${pageVariantId}`
+      : action === 'community'
+        ? `/api/communities/${btn.dataset.communityId}/catalog/fork/${pageVariantId}`
+        : `/api/variants/${pageVariantId}/fork`;
+    const body = btn.dataset.songbookId ? {songbookId: Number(btn.dataset.songbookId)} : {};
+    Forms.status(status, '');
+    Forms.busy(btn, true);
+    const res = await fetch(url, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : null;
+    if (!res || !res.ok || !data || !data.variantId) {
+      Forms.busy(btn, false);
+      Forms.status(status, (data && data.message) || (action === 'band'
+        ? t("Couldn't make the band's arrangement of this song. Try again.")
+        : action === 'community'
+          ? t("Couldn't make the community's arrangement of this song. Try again.")
+          : t("Couldn't make your own arrangement of this song. Try again.")), 'error');
+      return;
     }
+    const params = new URLSearchParams(location.search);
+    params.set('edit', '1');
+    location.href = `/song/${data.variantId}?${params.toString()}`;
+  });
+  // New version from this (the More menu): named, beside this one in the
+  // songbook; it opens in the editor.
+  const versionDialog = document.getElementById('new-version-dialog');
+  // The ⋯ menu's item, and the phone's Song sheet's row (song-controls.js
+  // closes the sheet).
+  document.querySelectorAll('[data-new-version-open]').forEach((el) => el.addEventListener('click', () => {
+    if (!versionDialog || versionDialog.open) return;
+    Forms.status(document.getElementById('new-version-status'), '');
+    versionDialog.showModal();
+    document.getElementById('new-version-name')?.focus();
+  }));
+  document.getElementById('new-version-form')?.addEventListener('submit', (e) => {
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    document.getElementById('new-version-go')?.click();
+  });
+  document.getElementById('new-version-go')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = document.getElementById('new-version-status');
+    const input = document.getElementById('new-version-name');
+    const name = (input?.value || '').trim();
+    if (!name) {
+      Forms.status(status, t('Name the new arrangement.'), 'error');
+      input?.focus();
+      return;
+    }
+    const body = {name};
+    if (btn.dataset.songbookId) body.songbookId = Number(btn.dataset.songbookId);
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/variants/${pageVariantId}/versions`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : null;
+    if (!res || !res.ok || !data || !data.variantId) {
+      Forms.busy(btn, false);
+      Forms.status(status, (data && (data.message || data.error)) || t("Couldn't make the new arrangement. Try again."), 'error');
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    params.set('edit', '1');
+    location.href = `/song/${data.variantId}?${params.toString()}`;
+  });
+  // Make public / Make private (docs/ownership-model.md §2): everything
+  // goes with the song — its chart, reference, recordings, stems, Guitar
+  // Pro file.
+  document.querySelectorAll('[data-song-publish]').forEach((el) => el.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const makePublic = btn.dataset.songPublish !== 'true';
+    if (makePublic && !confirm(t('Make this song public? Everyone signed in will see it — its chart, reference, recordings, stems and Guitar Pro file — and can link it or make their own arrangement.'))) return;
+    // Private again: who links it keeps a frozen copy; said first.
+    if (!makePublic && !confirm(await songUses('private'))) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/variants/${pageVariantId}/public`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({public: makePublic}),
+    }).catch(() => null);
+    if (!res || !res.ok) {
+      Forms.busy(btn, false);
+      alert(t("Couldn't change who sees this song. Try again."));
+      return;
+    }
+    location.reload();
+  }));
+  // Delete this song… (docs/ownership-model.md §5): the confirmation says
+  // who links it (each keeps a frozen copy) and who has their own version.
+  async function songUses(what) {
+    const res = await fetch(`/api/variants/${pageVariantId}/uses?for=${what}`).catch(() => null);
+    const data = res && res.ok ? await res.json().catch(() => null) : null;
+    if (data && data.message) return data.message;
+    return what === 'delete' ? t('Delete this song? This can’t be undone.') : t('Make this song private?');
+  }
+  document.querySelectorAll('[data-song-delete]').forEach((el) => el.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (!confirm(await songUses('delete'))) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/songs/${pageVariantId}`, {method: 'DELETE'}).catch(() => null);
+    if (!res || !res.ok) {
+      Forms.busy(btn, false);
+      alert(t("Couldn't delete this song. Try again."));
+      return;
+    }
+    const back = document.querySelector('a.song-back[href]');
+    location.href = back ? back.getAttribute('href') : '/';
+  }));
+  editToggle.addEventListener('click', () => {
+    if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }
     setDrawerOpen(drawer.hidden);
   });
   closeEditBtn.addEventListener('click', () => setDrawerOpen(false));
@@ -1577,7 +1857,14 @@ const ICONS = {
   // bookmarkable: reloading or sharing the link always dropped you back on
   // the read-only chart.
   if (new URLSearchParams(location.search).get('edit') === '1') {
-    setDrawerOpen(true, { suppressHistory: true });
+    if (editOffer || !pageCanEdit) {
+      // Not this viewer's to edit here: the address loses ?edit=1, and Edit
+      // says why (and what it can do instead), when it can do something.
+      history.replaceState(history.state, '', editURL(false));
+      if (editOffer) openEditOffer();
+    } else {
+      setDrawerOpen(true, { suppressHistory: true });
+    }
   }
 
   // No off-canvas controls sheet any more — #mini-metro-settings is a
@@ -1643,7 +1930,7 @@ const ICONS = {
     if ((m = line.match(/^(\[.*?\])(.*)$/))) {
       return `<span class="tok-section">${escapeHTML(m[1])}</span>${escapeHTML(m[2])}`;
     }
-    if ((m = line.match(/^(grid|bars|time|score|chord):/))) {
+    if ((m = line.match(/^(grid|bars|time|score|chord|lead):/))) {
       l = l.replace(/^([a-z]+:)/, '<span class="tok-keyword">$1</span>');
     } else if ((m = line.match(/^([a-z][a-z0-9_-]*):\s/i))) {
       l = l.replace(/^([a-z][a-z0-9_-]*:)/i, '<span class="tok-header-key">$1</span>');
@@ -1791,6 +2078,12 @@ const ICONS = {
     await renderPreview();
     savedSheetHTML = sheet.innerHTML; // this is now the saved state
     clearDirty();
+    // A tempo saved here is the player's at once, as Tap tempo's is
+    // (audio-player.js listens): the bars it estimates on the recording
+    // start from it.
+    const tm = /^\s*tempo:\s*([\d.]+)\s*$/m.exec(rawTextarea.value);
+    const playerBpm = parseFloat(document.getElementById('transport')?.dataset.bpm || '0');
+    if (tm && +tm[1] > 0 && +tm[1] !== playerBpm) document.dispatchEvent(new CustomEvent('songbooks:tempo-saved', { detail: { tempo: +tm[1], version: rawVersion, from: 'source' } }));
     return true;
   }
   document.getElementById('save-btn').addEventListener('click', saveRaw);
@@ -2395,7 +2688,7 @@ const ICONS = {
       if (k.ireal) out.push(t('iReal Pro: %s', k.ireal) + (k.irealAgrees ? ' ✓' : ' ✗'));
       if (k.audio) out.push(t('Recording: %s (%s% sure)', k.audio, Math.round((k.audioConfidence || 0) * 100)) + (k.audioAgrees ? ' ✓' : ' ✗'));
       if (k.shiftToAudio) out.push(t('Transpose the chart %s semitones to match the recording (Chart tab, Transpose).', (k.shiftToAudio > 0 ? '+' : '') + k.shiftToAudio));
-      (k.notes || []).forEach(n => out.push(n));
+      (k.notes || []).forEach(n => out.push(t(n)));
       return out;
     }
     $id('import-key-btn').addEventListener('click', async () => {
@@ -2481,12 +2774,12 @@ const ICONS = {
     }
 
     // ---- 4. Recording: YouTube's candidates, listened to, starred -------
-    const ytStatus = $id('import-yt-status');
+    // The YouTube picker (yt-picker.js), as on the Reference view: the
+    // chart's title and artist searched, each result previewed in place;
+    // the stars beside each are the wizard's own.
     const ytCurrent = $id('import-yt-current');
-    const ytList = $id('import-yt-candidates');
     const ytSort = $id('import-yt-sort');
     const stemWords = { queued: () => t('waiting to be split into voice and backing'), running: () => t('being split into voice and backing'), done: () => t('split into voice and backing'), failed: () => t("couldn't be split into voice and backing") };
-    let candidates = null; // this opening's search results
     let currentURL = '';
     let stemTimer = null;
     // Stars are this browser's notes while choosing (localStorage, per
@@ -2495,9 +2788,39 @@ const ICONS = {
     function loadStars() { try { return JSON.parse(localStorage.getItem(starsKey) || '{}'); } catch (e) { return {}; } }
     function saveStars(st) { try { localStorage.setItem(starsKey, JSON.stringify(st)); } catch (e) { /* stars just don't stick */ } }
     let stars = loadStars();
+    function starsFor(c) {
+      const rate = document.createElement('span');
+      rate.className = 'import-stars';
+      rate.setAttribute('role', 'group');
+      rate.setAttribute('aria-label', t('Stars'));
+      for (let n = 1; n <= 3; n++) {
+        const s = document.createElement('button');
+        s.type = 'button';
+        s.className = 'import-star' + ((stars[c.id] || 0) >= n ? ' on' : '');
+        s.textContent = (stars[c.id] || 0) >= n ? '★' : '☆';
+        s.setAttribute('aria-label', tn(n, '%d star', '%d stars'));
+        s.setAttribute('aria-pressed', (stars[c.id] || 0) >= n);
+        s.addEventListener('click', () => {
+          stars[c.id] = stars[c.id] === n ? 0 : n;
+          if (!stars[c.id]) delete stars[c.id];
+          saveStars(stars);
+          ytPicker.render(); refreshNav();
+        });
+        rate.appendChild(s);
+      }
+      return rate;
+    }
+    const ytPicker = YTPicker.mount($id('import-yt-picker'), {
+      onUse: async (c) => { if (!(await useRecording(c))) return false; return true; },
+      extras: starsFor,
+      order: (list) => (ytSort.checked ? list.sort((a, b) => (stars[b.id] || 0) - (stars[a.id] || 0)) : list),
+      // Next may now use a starred one.
+      onResults: () => { if (current === 'recording') refreshNav(); },
+    });
     function bestUnused() {
-      if (!candidates) return null;
-      const best = candidates.filter(c => stars[c.id]).sort((a, b) => stars[b.id] - stars[a.id])[0];
+      const list = ytPicker.candidates;
+      if (!list) return null;
+      const best = list.filter(c => stars[c.id]).sort((a, b) => stars[b.id] - stars[a.id])[0];
       return best && best.url !== currentURL ? best : null;
     }
     async function showRecording() {
@@ -2508,6 +2831,7 @@ const ICONS = {
         const yt = (data.categories || []).find(c => c.category === 'youtube');
         if (!yt) { currentURL = ''; ytCurrent.textContent = t('No reference recording yet.'); return; }
         currentURL = yt.sourceUrl || '';
+        ytPicker.setCurrent(currentURL);
         ytCurrent.textContent = t('Current recording: %s, %s.', yt.sourceUrl || t('uploaded'), (stemWords[yt.stemStatus] || (() => yt.stemStatus || ''))());
         if (yt.stemStatus === 'queued' || yt.stemStatus === 'running') stemTimer = setTimeout(showRecording, 15000);
       } catch (e) { /* the list still works */ }
@@ -2515,84 +2839,15 @@ const ICONS = {
     }
     function enterRecording() {
       showRecording();
-      if (!candidates) findRecordings();
+      if (!ytPicker.candidates) findRecordings();
     }
-    async function findRecordings() {
+    function findRecordings() {
       const { title, artist } = titleArtist();
-      if (!title) { ytStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); ytStatus.className = 'err'; return; }
-      ytStatus.textContent = t('Searching YouTube…'); ytStatus.className = 'hint';
-      ytList.innerHTML = '';
-      try {
-        const res = await fetch(`/api/import/youtube/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error();
-        candidates = data.candidates || [];
-        ytStatus.textContent = candidates.length ? '' : t('Nothing found on YouTube.');
-        renderCandidates();
-        if (current === 'recording') refreshNav(); // Next may now use a starred one
-      } catch (err) {
-        ytStatus.textContent = t("Couldn't search YouTube just now."); ytStatus.className = 'err';
-      }
+      if (!title) { Forms.status(ytCurrent, t('Give the song a title first (in the Chart tab), then search.'), 'error'); return; }
+      ytPicker.setQuery(title, artist);
+      ytPicker.search();
     }
-    $id('import-yt-find-btn').addEventListener('click', findRecordings);
-    ytSort.addEventListener('change', renderCandidates);
-    function renderCandidates() {
-      ytList.innerHTML = '';
-      const list = (candidates || []).slice();
-      if (ytSort.checked) list.sort((a, b) => (stars[b.id] || 0) - (stars[a.id] || 0));
-      list.forEach(c => {
-        const li = document.createElement('li');
-        li.className = 'import-yt-candidate' + (c.official ? ' is-official' : '') + (c.url === currentURL ? ' is-current' : '');
-        const title = document.createElement('a');
-        title.href = c.url; title.target = '_blank'; title.rel = 'noopener'; title.className = 'import-yt-title';
-        title.textContent = c.title;
-        const meta = document.createElement('div');
-        meta.className = 'hint';
-        meta.textContent = [c.channel + (c.official ? ' — ' + t("the artist's channel") : ''), fmtTime(c.duration), c.note ? t(c.note) : '', c.url === currentURL ? t('in use') : ''].filter(Boolean).join(' · ');
-        const actions = document.createElement('div');
-        actions.className = 'import-yt-actions';
-        const listen = document.createElement('button');
-        listen.type = 'button'; listen.textContent = '▶ ' + t('Listen');
-        const embed = document.createElement('div');
-        embed.className = 'reference-embed import-yt-embed';
-        listen.addEventListener('click', () => {
-          if (embed.firstChild) { embed.innerHTML = ''; listen.textContent = '▶ ' + t('Listen'); return; }
-          const iframe = document.createElement('iframe');
-          iframe.src = `https://www.youtube-nocookie.com/embed/${c.id}?autoplay=1`;
-          iframe.title = c.title;
-          iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
-          iframe.allowFullscreen = true;
-          embed.appendChild(iframe);
-          listen.textContent = '■ ' + t('Stop');
-        });
-        const rate = document.createElement('span');
-        rate.className = 'import-stars';
-        rate.setAttribute('role', 'group');
-        rate.setAttribute('aria-label', t('Stars'));
-        for (let n = 1; n <= 3; n++) {
-          const s = document.createElement('button');
-          s.type = 'button';
-          s.className = 'import-star' + ((stars[c.id] || 0) >= n ? ' on' : '');
-          s.textContent = (stars[c.id] || 0) >= n ? '★' : '☆';
-          s.setAttribute('aria-label', tn(n, '%d star', '%d stars'));
-          s.setAttribute('aria-pressed', (stars[c.id] || 0) >= n);
-          s.addEventListener('click', () => {
-            stars[c.id] = stars[c.id] === n ? 0 : n;
-            if (!stars[c.id]) delete stars[c.id];
-            saveStars(stars);
-            renderCandidates(); refreshNav();
-          });
-          rate.appendChild(s);
-        }
-        const use = document.createElement('button');
-        use.type = 'button'; use.textContent = t('Use this one');
-        use.disabled = c.url === currentURL;
-        use.addEventListener('click', () => useRecording(c, use));
-        actions.append(listen, rate, use);
-        li.append(title, meta, actions, embed);
-        ytList.appendChild(li);
-      });
-    }
+    ytSort.addEventListener('change', () => ytPicker.render());
     async function useRecording(c, btn) {
       if (btn) Forms.busy(btn, true);
       busy(true, t('Downloading the sound… (up to a minute)'));
@@ -2602,9 +2857,11 @@ const ICONS = {
         const m = rawTextarea.value.match(/^reference:.*$/m);
         setText(rawTextarea, m ? rawTextarea.value.replace(/^reference:.*$/m, `reference: ${c.url}`) : rawTextarea.value.replace(/^(title:.*\n(?:[a-z][\w-]*:.*\n)*)/, `$1reference: ${c.url}\n`));
         currentURL = c.url;
+        ytPicker.setCurrent(currentURL);
+        // The player picks the new recording up (the Sync sheet opens on it).
+        document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
         busy(false, t('Downloaded: its voice and backing are being split, then the sync can place the sections.'));
         await showRecording();
-        renderCandidates();
         return true;
       } catch (err) {
         busy(false);
@@ -2643,7 +2900,8 @@ const ICONS = {
       }
       syncStatus.textContent = t('Listening to the recording… (a few seconds)'); syncStatus.className = 'hint';
       try {
-        const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze`, {});
+        // In the page's language: its notes are said on the server.
+        const p = await postJSON(`/api/songs/${pageVariantId}/audio/youtube/analyze?lang=${encodeURIComponent(document.documentElement.lang || '')}`, {});
         proposal = p;
         syncStatus.textContent = '';
         const lines = [
@@ -2659,10 +2917,23 @@ const ICONS = {
         const head = table.createTHead().insertRow();
         [t('Section'), t('Starts at'), ''].forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
         const tbody = table.createTBody();
+        // "Verse ×10" says nothing: number a repeated name that has none.
+        const count = {}, seen = {};
+        (p.sections || []).forEach(s => { count[s.label] = (count[s.label] || 0) + 1; });
         (p.sections || []).forEach(s => {
           const tr = tbody.insertRow();
-          tr.insertCell().textContent = s.label;
-          tr.insertCell().textContent = `${fmtTime(s.time)} (${s.time.toFixed(2)}s)`;
+          seen[s.label] = (seen[s.label] || 0) + 1;
+          tr.insertCell().textContent = count[s.label] > 1 && !/\d\s*$/.test(s.label) ? `${s.label} ${seen[s.label]}` : s.label;
+          const when = tr.insertCell();
+          when.textContent = `${fmtTime(s.time)} (${s.time.toFixed(2)}s)`;
+          // The chart's bars don't fit here (songimport.ProposeSync): say
+          // how many the recording plays.
+          if (s.recordingBars) {
+            const warn = document.createElement('div');
+            warn.className = 'import-sync-bars';
+            warn.textContent = t('%d bars in the chart, about %d in the recording', s.chartBars, s.recordingBars);
+            when.appendChild(warn);
+          }
           const play = document.createElement('button');
           play.type = 'button'; play.className = 'icon-btn import-sync-play'; play.textContent = '▶';
           play.setAttribute('aria-label', t('Play %s from its start', s.label));
@@ -2670,6 +2941,20 @@ const ICONS = {
           tr.insertCell().appendChild(play);
         });
         syncResult.append(ul, table);
+        // Or place them by ear, starting from this proposal (sync-sheet.js).
+        if (window.songbooksSyncSheet && (p.sections || []).length) {
+          const byEar = document.createElement('button');
+          byEar.type = 'button';
+          byEar.className = 'audio-pill-btn import-sync-by-ear';
+          byEar.textContent = t('Adjust by ear…');
+          byEar.title = t('open the Sync sheet with this proposal, to accept or correct section by section');
+          byEar.addEventListener('click', () => {
+            const proposal = p.sections.map(s => ({ sectionIndex: s.index, timeSeconds: s.time }));
+            wizard.close();
+            window.songbooksSyncSheet.open({ category: 'youtube', proposal, source: 'voice', notes: p.notes || [] });
+          });
+          syncResult.appendChild(byEar);
+        }
         syncOverwriteLabel.hidden = false;
       } catch (err) {
         syncStatus.textContent = t("Couldn't analyse the recording: %s", err.message); syncStatus.className = 'err';
@@ -2686,7 +2971,10 @@ const ICONS = {
         busy(false, '');
         passed.add('sync');
         wizard.close();
-        Forms.status?.(document.getElementById('save-status'), t('Saved. Reload the page to play along with the synced chart.'), 'ok');
+        // The player picks the new sync up as it is (an estimate until
+        // checked by ear: its badge offers to correct it).
+        document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
+        Forms.status?.(document.getElementById('save-status'), t('Saved: the player follows the new sync. Check it by ear from its “Sync estimated” badge.'), 'ok');
       } catch (err) {
         busy(false);
         fail(t("Couldn't save: %s", err.message));
@@ -2734,8 +3022,8 @@ const ICONS = {
     // hasn't already).
     wizard.addEventListener('close', () => {
       clearTimeout(stemTimer); clearTimeout(auditionTimer); audio.pause();
-      wizard.querySelectorAll('.import-yt-embed').forEach(e => { e.innerHTML = ''; });
-      passed.clear(); hasDraft = false; candidates = null; proposal = null;
+      ytPicker.reset();
+      passed.clear(); hasDraft = false; proposal = null;
       if (isDirty) showInSource();
     });
     // The Import tab's buttons open the wizard at their step.
@@ -2780,6 +3068,9 @@ const ICONS = {
   // Diagrams entered for other keys ("chord[A]:" lines): carried through
   // the same way, or a Chart save would lose them.
   let structOtherChords = [];
+  // The song's "lead:" line ({lead, leadMeasures}): carried through the
+  // same way, so the preview draws it and a Chart save keeps it.
+  let structLead = {};
 
   // ---- Undo/redo — a bounded-depth snapshot stack over structMeta/
   // structSections, the same in-memory state Save/Discard already work
@@ -3016,6 +3307,30 @@ const ICONS = {
     tempoInput.title = t('beats per minute, saved to the song header');
     tempoInput.addEventListener('input', () => { markDirty(); metaSet('tempo', tempoInput.value.trim()); });
     tempoField.append(tempoInput, ' bpm');
+    // Tap: the beat tapped fills the field (tap-tempo.js, the ⋯ menu's
+    // Tap tempo's arithmetic), from the second tap; saved with the rest.
+    // Outside the label, so a tap doesn't also focus the field.
+    let tempoTap = null;
+    if (window.SongbooksTapTempo) {
+      const tapper = window.SongbooksTapTempo.create();
+      tempoTap = document.createElement('button');
+      tempoTap.type = 'button';
+      tempoTap.className = 'ghost-btn header-field-tap';
+      tempoTap.textContent = t('Tap');
+      tempoTap.title = t('tap the beat to fill in the tempo');
+      let tappedAt = -Infinity;
+      const tapOnce = () => {
+        tappedAt = performance.now();
+        const bpm = tapper.tap(tappedAt);
+        if (bpm == null || !window.SongbooksTapTempo.usable(bpm)) return;
+        tempoInput.value = String(bpm);
+        markDirty();
+        metaSet('tempo', String(bpm));
+      };
+      tempoTap.addEventListener('pointerdown', (e) => { if (e.button === 0) { e.preventDefault(); tapOnce(); } });
+      // Space or Enter on the button (a pointer's tap was already counted).
+      tempoTap.addEventListener('click', () => { if (performance.now() - tappedAt > 400) tapOnce(); });
+    }
 
     // Swing: written straight notes played as a shuffle — the song
     // header's "swing:" (8 or 16; see the song format docs).
@@ -3071,7 +3386,7 @@ const ICONS = {
 
     const chipsRow = document.createElement('div');
     chipsRow.className = 'song-meta-chips-row';
-    chipsRow.append(timeField, tempoField, swingField, genreField, genreStatus);
+    chipsRow.append(timeField, tempoField, ...(tempoTap ? [tempoTap] : []), swingField, genreField, genreStatus);
 
     host.append(titleArtistRow, chipsRow);
 
@@ -4072,7 +4387,7 @@ const ICONS = {
     try {
       const res = await fetch('/api/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ song: { meta: structMeta, chords: structChords, sections: sectionsForPreview } }),
+        body: JSON.stringify({ song: { meta: structMeta, chords: structChords, sections: sectionsForPreview, ...structLead } }),
       });
       html = await res.text();
     } catch (e) {
@@ -4843,7 +5158,7 @@ const ICONS = {
     const sectionsForSave = structSections.map(sec => ({ ...sec, measures: joinVoltaGroups(sec), endings: undefined }));
     const res = await fetch(`/api/songs/${pageVariantId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, otherChords: structOtherChords, sections: sectionsForSave } }),
+      body: JSON.stringify({ version: structVersion, song: { meta: structMeta, chords: structChords, otherChords: structOtherChords, sections: sectionsForSave, ...structLead } }),
     });
     if (res.status === 409) { status.className = 'err'; status.textContent = t('Not saved: this song changed since you opened it. Reload the page, then make your changes again.'); return; }
     if (!res.ok) { status.className = 'err'; status.textContent = t("Couldn't save. Your changes are still here; try again."); return; }
@@ -4872,6 +5187,7 @@ const ICONS = {
     // for exactly this "editing a song that's never been touched" case —
     // reported directly as "can't edit the title," caught here instead.
     structVersion = data.version; structMeta = data.song.meta || []; structChords = data.song.chords || []; structOtherChords = data.song.otherChords || [];
+    structLead = { lead: data.song.lead, leadMeasures: data.song.leadMeasures };
     // Split each section's flat measures into {common, endings} once, up
     // front — see splitVoltaGroups. Every editing function from here on
     // (renderMatrix, the Alternatives panel) only ever deals with that
@@ -4885,6 +5201,19 @@ const ICONS = {
   }
   loadStructure();
   window.SongStructure = { reload: loadStructure };
+  // The ⋯ menu's Tap tempo saved the song's tempo (tap-tempo.js): the
+  // editor takes the saved song, unless it holds changes of its own (their
+  // Save then says the song changed since).
+  document.addEventListener('songbooks:tempo-saved', async () => {
+    if (isDirty) return;
+    loadStructure();
+    const res = await fetch(`/api/songs/${pageVariantId}/raw`).catch(() => null);
+    if (!res || !res.ok || isDirty) return;
+    const data = await res.json();
+    rawTextarea.value = data.text;
+    rawVersion = data.version;
+    renderHighlight();
+  });
 
   // ---- Keyboard & handheld-pedal navigation ---------------------------------
   // Space = play/pause; Up/Down = previous/next section in this song;

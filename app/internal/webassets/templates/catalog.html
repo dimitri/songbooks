@@ -1,10 +1,22 @@
+{{/* The Library's three segments (menu PR 8): its songs, the songbooks
+     and the set lists you can open — one destination for "every
+     collection of songs", where Songbooks and Set lists used to be pages
+     of their own (/songbooks and /setlists redirect here). Called with
+     the current one: "songs", "songbooks" or "setlists". */}}
+{{define "library-segments"}}
+<nav class="segmented library-segments" aria-label="{{t "Library"}}">
+  <a href="/catalog"{{if eq . "songs"}} class="active" aria-current="page"{{end}}>{{t "Songs"}}</a>
+  <a href="/catalog?view=songbooks"{{if eq . "songbooks"}} class="active" aria-current="page"{{end}}>{{t "Songbooks"}}</a>
+  <a href="/catalog?view=setlists"{{if eq . "setlists"}} class="active" aria-current="page"{{end}}>{{t "Set lists"}}</a>
+</nav>
+{{end}}
 {{define "catalog"}}
 <!doctype html>
 <html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "Library"}} — Songbooks</title>
+<title>{{docTitle (t "Library")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -14,32 +26,30 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Library"}}</h1>
-  <nav class="song-nav">
-    <a href="/songbooks">{{t "songbooks"}}</a>
-    {{template "notif-bell"}}
-  </nav>
 </header>
 <main class="index">
-  <p class="catalog-intro">{{t "Every public song, plus your own. A band's or community's private songs are in its own songbooks."}}</p>
+  {{template "library-segments" "songs"}}
+  <p class="catalog-intro">{{t "Every song you can open: yours, your bands’ and communities’, and every public one. Each says whose it is and who sees it."}} <a href="/big-songbook">{{t "The Big Songbook"}} &rarr;</a></p>
 
   {{/* Songs first on a phone: one search field, the rest folded into
        Filters (open when one of them is in use). */}}
   <form class="card catalog-filters" method="get" action="/catalog" role="search">
-    <div class="catalog-search">
+    {{with .Filter.Scope}}<input type="hidden" name="scope" value="{{.}}">{{end}}
+    <div class="catalog-search form-inline">
       <input type="search" name="q" value="{{.Filter.Query}}" placeholder="{{t "Title, artist or words from the song"}}" aria-label="{{t "Search songs"}}" enterkeyhint="search" autocomplete="off">
       <button type="submit">{{t "Search"}}</button>
     </div>
     <details class="catalog-more"{{if or .Filter.Artist .Filter.Genre (eq .Filter.Sort "artist")}} open{{end}}>
       <summary>{{t "Filters"}}{{if or .Filter.Artist .Filter.Genre}} &middot; {{t "on"}}{{end}}</summary>
-      <div class="catalog-more-fields">
-        <label>{{t "Artist"}} <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="{{t "e.g. Nina Simone"}}" autocomplete="off" enterkeyhint="search"></label>
-        <label>{{t "Genre"}}
+      <div class="catalog-more-fields form-grid">
+        <label class="field">{{t "Artist"}} <input type="text" name="artist" value="{{.Filter.Artist}}" placeholder="{{t "e.g. Nina Simone"}}" autocomplete="off" enterkeyhint="search"></label>
+        <label class="field">{{t "Genre"}}
           <select name="genre">
             <option value="" {{if eq .Filter.Genre ""}}selected{{end}}>{{t "All genres"}}</option>
             {{range .Genres}}<option value="{{.}}" {{if eq $.Filter.Genre .}}selected{{end}}>{{.}}</option>{{end}}
           </select>
         </label>
-        <label>{{t "Sort by"}}
+        <label class="field">{{t "Sort by"}}
           <select name="sort">
             <option value="" {{if ne .Filter.Sort "artist"}}selected{{end}}>{{t "Title"}}</option>
             <option value="artist" {{if eq .Filter.Sort "artist"}}selected{{end}}>{{t "Artist"}}</option>
@@ -48,20 +58,42 @@
       </div>
     </details>
   </form>
+  {{/* Whose songs: everything, the person's own, their bands', their
+       communities', the public ones. */}}
+  <nav class="space-views find-scopes" aria-label="{{t "Whose songs"}}">
+    {{range .Scopes}}<a href="{{.Href}}" class="space-view{{if .Active}} active{{end}}"{{if .Active}} aria-current="page"{{end}}>{{t .Label}}</a>{{end}}
+  </nav>
 
-  {{if .Variants}}
+  {{if .Works}}
   <div class="catalog-cards">
-  {{range .Variants}}
-    <div class="catalog-card" data-variant-id="{{.VariantID}}">
-      <a class="catalog-card-main" href="/song/{{.VariantID}}">
-        <div class="catalog-card-title">{{.Title}}</div>
-        <div class="catalog-card-meta">{{.Artist}}{{if .Genre}} &middot; {{.Genre}}{{end}}</div>
-        {{template "song-badges" (index $.Badges .VariantID)}}
+  {{range .Works}}
+    {{$first := index .Songs 0}}
+    <div class="catalog-card find-work" data-work-id="{{.WorkID}}" data-variant-id="{{$first.ID}}">
+      <a class="catalog-card-main" href="/song/{{$first.ID}}">
+        <div class="catalog-card-title">{{$first.Title}}{{with $first.VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</div>
+        <div class="catalog-card-meta">{{$first.Artist}}{{with $first.Genre}} &middot; {{.}}{{end}}</div>
+        <span class="owner-badge{{if $first.Public}} is-public{{end}}{{if $first.Closed}} is-closed{{end}}">{{index $.Owners $first.ID}}</span>
+        {{template "song-badges" (index $.Badges $first.ID)}}
+        {{with index $.PlayedBy $first.ID}}<div class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}{{$b.BandName}} ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</div>{{end}}
       </a>
+      {{if gt (len .Songs) 1}}
+      <details class="find-versions">
+        <summary>{{tn (len .Songs) "%d recording or arrangement" "%d recordings and arrangements"}}</summary>
+        <ul>
+        {{range .Songs}}
+          <li>
+            <a href="/song/{{.ID}}">{{.Artist}}{{with .VersionName}} — {{.}}{{end}}</a>
+            <span class="owner-badge{{if .Public}} is-public{{end}}{{if .Closed}} is-closed{{end}}">{{index $.Owners .ID}}</span>
+            {{if not .Closed}}<button type="button" class="link-button" data-add-to="{{.ID}}" data-title="{{.Title}} — {{.Artist}}" data-badge="{{index $.Owners .ID}}">{{t "Add to…"}}</button>{{end}}
+          </li>
+        {{end}}
+        </ul>
+      </details>
+      {{end}}
       <div class="catalog-card-actions">
-        <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
-        <button type="button" class="add-catalog-btn" data-variant-id="{{.VariantID}}">{{t "Add to my songbook"}}</button>
-        <button type="button" class="fork-btn" data-variant-id="{{.VariantID}}">{{t "Make my own copy"}}</button>
+        <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
+        {{if index $.PlayedBy $first.ID}}<a href="/song/{{$first.ID}}/recordings">{{t "Listen"}}</a>{{end}}
+        {{if not $first.Closed}}<button type="button" data-add-to="{{$first.ID}}" data-title="{{$first.Title}} — {{$first.Artist}}" data-badge="{{index $.Owners $first.ID}}">{{t "Add to…"}}</button>{{end}}
       </div>
     </div>
   {{end}}
@@ -70,39 +102,9 @@
   <p class="hint">{{t "No songs match this filter."}}</p>
   {{end}}
 </main>
-<script>
-const defaultSongbookId = {{.DefaultSongbookID}};
-document.querySelectorAll('.add-catalog-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const variantId = Number(btn.dataset.variantId);
-    Forms.busy(btn, true);
-    const res = await fetch(`/api/songbooks/${defaultSongbookId}/entries`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({variantId}),
-    }).catch(() => null);
-    Forms.busy(btn, false);
-    // Added stays disabled so it can't be added twice.
-    if (res && res.ok) { btn.textContent = t('Added'); btn.disabled = true; }
-    else btn.textContent = t('Couldn’t add — try again');
-  });
-});
-document.querySelectorAll('.fork-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const variantId = Number(btn.dataset.variantId);
-    Forms.busy(btn, true);
-    const res = await fetch(`/api/variants/${variantId}/fork`, {method: 'POST'}).catch(() => null);
-    const data = res ? await res.json().catch(() => ({})) : {};
-    if (res && res.ok) {
-      location.href = `/song/${data.variantId}`;
-    } else {
-      Forms.busy(btn, false);
-      btn.textContent = t('Couldn’t copy — try again');
-    }
-  });
-});
-</script>
+<script src="/static/js/add-song.js?v={{staticVersion}}"></script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -67,6 +67,9 @@ type bandCardView struct {
 	NextGigDate    time.Time
 	NextGigVenue   string
 	NextGigSetlist int64
+
+	// MemberList is its current members, for My bands' faces.
+	MemberList []store.BandMember
 }
 
 // homeGroup is a community or a band on the home page, in its own look.
@@ -480,20 +483,16 @@ func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 
-	// Resume step for the group-invite "log in to claim this slot"
-	// sub-flow (see join.go's pendingJoinCookie doc comment): a visitor
-	// who wasn't logged in picked a slot, got redirected through
-	// /login, and has just landed back here, now authenticated. One-shot
-	// — the cookie is cleared regardless of outcome, so a failed claim
-	// (slot already taken, invite closed meanwhile) just falls through
-	// to the ordinary dashboard rather than retrying forever.
+	// Resume step for "log in to join" (see join.go's pendingJoinCookie):
+	// a visitor who wasn't logged in followed a link, logged in, and has
+	// just landed back here. One-shot — the cookie is cleared regardless
+	// of outcome, so a failed join (link used or closed meanwhile) just
+	// falls through to the ordinary dashboard rather than retrying forever.
 	if cookie, err := r.Cookie(pendingJoinCookie); err == nil {
 		http.SetCookie(w, &http.Cookie{Name: pendingJoinCookie, Value: "", Path: "/", MaxAge: -1})
-		if token, slotParam, ok := strings.Cut(cookie.Value, ":"); ok {
-			if dest, err := s.claimGroupInviteForPerson(r.Context(), token, slotParam, person.ID, person.DisplayName); err == nil {
-				http.Redirect(w, r, dest, http.StatusFound)
-				return
-			}
+		if dest, ok := s.resumePendingJoin(r.Context(), cookie.Value, person); ok {
+			http.Redirect(w, r, dest, http.StatusFound)
+			return
 		}
 	}
 
@@ -544,46 +543,43 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	upcoming := upcomingList(soon, now, 6)
-
-	// Each community and band in its own look (colours, mark, logo).
-	var communities []homeGroup
-	for _, c := range communityCards {
-		g := homeGroup{Community: c}
-		g.Look, _, _ = s.store.GetBrand(r.Context(), "community", c.ID)
-		communities = append(communities, g)
-	}
-	var bandsWithLook []homeGroup
-	for _, b := range bandCards {
-		g := homeGroup{Band: b}
-		g.Look, _, _ = s.store.GetBrand(r.Context(), "band", b.ID)
-		bandsWithLook = append(bandsWithLook, g)
-	}
-	songbooks, err := s.buildBookStats(r.Context(), person.ID)
+	todayCards, err := s.todayCards(r.Context(), lang, person, soon, now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	recent, err := s.store.ListRecentSongs(r.Context(), person.ID, 6)
+	// The top row: the person's own songbooks beside "This week"; then
+	// their bands and their communities, two rows of equal cards
+	// (home.go).
+	week := comingUpWeek(soon, now)
+	mySongbook, err := s.mySongbook(r.Context(), lang, person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// "Recently": each song in the place it was opened from, when the
+	// person may still open it (song_context.go).
+	for i := range mySongbook.Recent {
+		mySongbook.Recent[i].Query = s.openableSongQuery(r.Context(), person, mySongbook.Recent[i].Query)
+	}
+	bandGroups, communityGroups, err := s.homeGroupCards(r.Context(), lang, person.ID, bandCards, communityCards, soon, now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// "New in your bands": only the bands with something new.
-	var bandNews []bandCardView
-	for _, b := range bandCards {
-		if b.Digest != "" {
-			bandNews = append(bandNews, b)
-		}
+	// Changes in your songs (song_news.go): news, not notifications.
+	songNews, err := s.songNews(r.Context(), lang, person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	s.render(w, "index", map[string]any{
-		"Me": person, "Greeting": homeGreeting(),
-		"Upcoming": upcoming, "Communities": communities, "Bands": bandsWithLook,
-		"Songbooks": songbooks, "Attention": attention,
-		"Recent": recent, "BandNews": bandNews,
+		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
+		"Week": week, "MySongbook": mySongbook, "Bands": bandGroups, "Communities": communityGroups,
+		"Attention": attention, "SongNews": songNews,
 	})
 }
 
@@ -665,7 +661,7 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 			digest = i18n.T(lang, "you haven't visited yet")
 		}
 
-		proposals, err := s.store.ListProposals(ctx, b.ID, store.ProposalFilter{Status: "open"})
+		proposals, err := s.store.ListProposals(ctx, b.ID, store.ProposalFilter{Status: "open", Viewer: personID})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -682,6 +678,7 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 		card := bandCardView{
 			ID: b.ID, Name: b.Name, Members: len(members), Digest: digest, OpenVotes: len(proposals),
 			SetlistCount: len(setlists), FirstSetlistID: firstSetlistID,
+			MemberList: members,
 		}
 		if g, ok := nextGigByBand[b.ID]; ok {
 			card.HasNextGig = true
@@ -691,13 +688,13 @@ func (s *Server) buildBandCards(ctx context.Context, lang string, personID int64
 		}
 		bandCards = append(bandCards, card)
 		for _, p := range proposals {
-			title := i18n.T(lang, "Vote: add %q to %s's repertoire", p.TargetTitle, b.Name)
+			title := i18n.T(lang, "Vote: add %q to %s's songbook", p.TargetTitle, b.Name)
 			if p.Kind == "new_reference" {
 				title = i18n.T(lang, "Vote: new reference for %q", p.TargetTitle)
 			}
 			attention = append(attention, attentionItem{
 				Kind: "votes", Title: title,
-				Subtitle: i18n.T(lang, "Proposed by %s · %d yes, %d veto so far", p.ProposerUsername, p.YesVotes, p.VetoVotes),
+				Subtitle: proposalSubtitle(lang, p),
 				When:     timeAgo(lang, p.CreatedAt),
 				Link:     fmt.Sprintf("/bands/%d/proposals/%d", b.ID, p.ID),
 			})
@@ -781,7 +778,13 @@ type viewerMeasure struct {
 	// (songStartsWithPickup). The chart puts it in the first row ON TOP of
 	// that row's usual bar count, so the rest keeps its natural phrasing:
 	// a 16-bar blues reads 5 / 4 / 4 / 4, not ? B E B / . . . F# / ….
+	// The song's "lead:" bars are pickups too, as many as it has.
 	Pickup bool
+	// Lead marks one of the song's "lead:" bars (song.LeadMeasures),
+	// drawn on its first grid's first row ahead of bar 1, lighter, with a
+	// small "lead" tag under the first. It belongs to no section: its
+	// Index is negative, its GlobalBar before the first section's.
+	Lead bool
 	// MapAnnotate/MapMark/MapLabel are set ONLY by buildMapLines, on
 	// whichever measure is the first bar of its section in Song Map's
 	// flattened continuous score — every other mode's per-section
@@ -792,13 +795,11 @@ type viewerMeasure struct {
 	MapAnnotate       bool
 	MapMark, MapLabel string
 
-	// Tab is this bar's note-level tab notation, from the section's
-	// "score:" field (internal/tab) — nil for the common case of a bar
-	// with no such data, which renders exactly as before. Set by
-	// attachTabRiffs after buildSections, not by buildSections itself:
-	// it needs a separate, optional store lookup buildSections' own
-	// signature (sg *song.Song only, no variant id/ctx) doesn't have.
-	Tab *viewerTabBar
+	// Played: the played bars this drawn bar is read from — each pass
+	// through a repeat, the pass that takes an ending, each "times:"
+	// (assignPlayedBars, playedbars.go); data-played.
+	Played []int
+
 	// TabOnly mirrors this bar's display row's own viewerLine.TabOnly —
 	// copied onto each bar rather than looked up from the parent row so
 	// the "chart-bar" template (which only ever sees one viewerMeasure,
@@ -806,80 +807,6 @@ type viewerMeasure struct {
 	TabOnly bool
 }
 
-// viewerTabBar is one bar's worth of tab notation. When every bar in its
-// display row has one (see viewerLine.TabOnly), the row renders tab-only
-// — a real string/fret staff with rhythm marks in place of the normal
-// 5-line staff, chord names kept in the same position above it (see
-// play.html's "chart-bar" template) — matching how a real tab chart
-// looks (fret numbers ARE the notation, not an annotation on top of
-// one). When only SOME bars in a row have one, those bars instead get it
-// as a smaller overlay above their own normal chord/slash content — "not
-// every bar needs one."
-type viewerTabBar struct {
-	Strings int // how many string lines to draw (len(Riff.Tuning))
-	Beats   []viewerTabBeat
-	// GridCols is a CSS grid-template-columns value, one "<weight>fr"
-	// term per beat — real engraving spaces notes proportionally to
-	// duration (a half note gets twice a quarter's horizontal room), not
-	// in equal-width slots; reviewed against real LilyPond tab output.
-	GridCols string
-	// Beams are runs of 2+ consecutive eighth-or-shorter notes joined by
-	// a horizontal beam bar instead of each drawing its own hooked flag
-	// — standard notation (and real LilyPond \tabFullNotation) practice.
-	// A lone flagged note with no flagged neighbor still falls back to
-	// an individual hooked flag (see viewerTabBeat.Flags), same as
-	// real engraving.
-	Beams []viewerTabBeam
-}
-
-// viewerTabBeam is one beamed run within a bar — StartCol/EndCol are
-// 1-based CSS grid-column line numbers (so "span StartCol to EndCol"
-// reads directly into a grid-column CSS value), Levels is how many beam
-// bars to stack (1 for an eighth-note run, 2 if the run's shortest
-// member is a sixteenth, matching DurationGlyph's flag count).
-type viewerTabBeam struct {
-	StartCol, EndCol int
-	Levels           int
-}
-
-type viewerTabBeat struct {
-	Notes []viewerTabNote
-	Rest  bool
-	// Flags/Dotted are the rhythm mark under this beat's fret numbers —
-	// real tab/Guitar-Pro/LilyPond \tabFullNotation convention: a bare
-	// stem for a quarter note or longer, one flag per eighth-note
-	// halving (8th=1, 16th=2, ...), a dot for a dotted duration. This is
-	// the "how long does this note last" information a bare fret number
-	// can't carry on its own — see internal/tab.DurationGlyph. Only
-	// drawn as an individual hooked flag when NOT part of a beam group
-	// (see viewerTabBar.Beams) — a beamed note still carries these so
-	// the stem itself still draws, just without its own flag hooks.
-	Flags  int
-	Dotted bool
-	// Beamed is true when this beat is part of a viewerTabBar.Beams run
-	// — the template skips drawing individual hook flags for it (the
-	// beam bar already shows the rhythm), drawing only its stem.
-	Beamed bool
-}
-
-type viewerTabNote struct {
-	String int // 1-based, top line = string 1
-	Fret   int
-}
-
-// attachTabRiffs attaches each riff's bars onto the matching section's
-// measures, bar index to bar index — a section's "score:" riff is
-// expected to cover the SAME bars as its "grid:" (that's the whole
-// point: the chord chart and the note-level riff describe the same
-// passage), so riff.Bars[j] overlays sections[i].Measures[j]. A riff
-// with more bars than the section has grid measures is truncated rather
-// than erroring; a shorter riff just leaves the remaining bars plain —
-// "optionally we have scores content for some of the bars" is exactly
-// this: not every bar needs one. A display row whose every bar got one
-// is additionally flagged TabOnly, switching that row's own rendering
-// from the normal chord/slash staff to a tab staff (see viewerTabBar's
-// doc comment) — computed per actual display row (not per section),
-// since a line break can fall mid-riff.
 // atoiOr parses s as an int, returning fallback on any parse failure or
 // an empty string — timeSigParts's own return values are raw, unvalidated
 // source text ("4", "6", possibly "" if time: was absent/malformed).
@@ -1413,18 +1340,34 @@ func buildDrumMap(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff,
 	return rows
 }
 
+// attachTabRiffs lays each section's riff onto its bars, bar index to
+// bar index — a section's "score:" riff covers the same bars as its
+// "grid:" (the chord chart and the note-level riff describe the same
+// passage), so riff.Bars[j] goes with sections[i].Measures[j]. A riff
+// with more bars than the section has is truncated; a shorter one covers
+// the section's first bars only. Every display row the riff covers whole
+// is flagged TabOnly and drawn by alphaTab as tab (AlphaTex), the grid's
+// chord names on top; a row it covers in part is first cut at the riff's
+// ends (splitRiffRows), so no row mixes tab and grid bars.
+//
 // instrument, when non-empty, is the #instrument-picker's own selection
 // (play.html) — see pickRiff's own doc comment for how it overrides
 // firstMelodicRiff's default ambiguous-skip behavior.
 func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRiff, timeNum, timeDen int, swing, instrument string) {
-	// A song opening with a pickup numbers it 0 (see viewerMeasure.Pickup).
-	songPickup := false
+	// A song opening with a pickup numbers it 0 (see viewerMeasure.Pickup),
+	// a lead-in of several bars -1, 0.
+	songPickup := 0
 	for _, sec := range sections {
 		if len(sec.Measures) > 0 {
-			songPickup = sec.Measures[0].Pickup
+			for songPickup < len(sec.Measures) && sec.Measures[songPickup].Pickup {
+				songPickup++
+			}
 			break
 		}
 	}
+	// The song's last section: its last row ends the song, where a riff
+	// row keeps alphaTab's final barline.
+	lastGrid := len(sections) - 1
 	for si := range sections {
 		tracks, ok := scoreTracks[sections[si].Index]
 		if !ok {
@@ -1435,45 +1378,19 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 			continue
 		}
 		numStrings := len(riff.Tuning)
-		byBarIndex := make(map[int]*viewerTabBar, len(riff.Bars))
 		rawBarByIndex := make(map[int]tab.Bar, len(riff.Bars))
 		for bi, bar := range riff.Bars {
 			rawBarByIndex[bi] = bar
-			vb := make([]viewerTabBeat, 0, len(bar.Beats))
-			weights := make([]float64, 0, len(bar.Beats))
-			for _, beat := range bar.Beats {
-				var notes []viewerTabNote
-				for _, n := range beat.Notes {
-					notes = append(notes, viewerTabNote{String: n.String, Fret: n.Fret})
-				}
-				flags, dotted := tab.DurationGlyph(beat.Duration)
-				vb = append(vb, viewerTabBeat{Notes: notes, Rest: beat.Rest, Flags: flags, Dotted: dotted})
-				w := beat.Beats()
-				if w <= 0 {
-					w = 1
-				}
-				weights = append(weights, w)
-			}
-			var beams []viewerTabBeam
-			for _, bg := range tab.GroupBeams(bar.Beats, timeNum, timeDen) {
-				for i := bg.StartIdx; i <= bg.EndIdx; i++ {
-					vb[i].Beamed = true
-				}
-				// CSS grid-column uses LINE numbers, not track indices:
-				// track i (0-based) starts at line i+1, and spanning
-				// through track j ends at line j+2.
-				beams = append(beams, viewerTabBeam{StartCol: bg.StartIdx + 1, EndCol: bg.EndIdx + 2, Levels: bg.MinFlags})
-			}
-			byBarIndex[bi] = &viewerTabBar{Strings: numStrings, Beats: vb, GridCols: gridColsCSS(weights), Beams: beams}
 		}
-		// Set on both the flat Measures list AND each grouped display
-		// row's own copy (groupMeasures may re-slice or copy — matching
-		// by Index rather than assuming which keeps this correct either
-		// way, since Index uniquely identifies a bar within its section).
+		covered := func(m viewerMeasure) bool {
+			_, ok := rawBarByIndex[m.Index]
+			return ok
+		}
 		fullyCovered := len(sections[si].Measures) > 0
-		for bi := range sections[si].Measures {
-			if tb, ok := byBarIndex[sections[si].Measures[bi].Index]; ok {
-				sections[si].Measures[bi].Tab = tb
+		anyCovered := false
+		for _, m := range sections[si].Measures {
+			if covered(m) {
+				anyCovered = true
 			} else {
 				fullyCovered = false
 			}
@@ -1491,14 +1408,18 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 		// this riff would want.
 		if fullyCovered && !sections[si].ExplicitBarsPerLine && len(sections[si].Lyrics) == 0 {
 			sections[si].Lines = groupMeasures(sections[si].Measures, []int{len(sections[si].Measures)})
+		} else if anyCovered && !fullyCovered && len(sections[si].Lines) > 0 {
+			// A riff over part of the section's bars (a 4-bar intro riff
+			// over a 12-bar blues grid): its rows are cut where the riff
+			// starts and ends, so the covered bars make whole rows drawn
+			// as tab like any riff-only row, and the rest stay chord-grid
+			// rows (splitRiffRows).
+			sections[si].Lines = splitRiffRows(sections[si].Measures, sections[si].Lines, covered, sections[si].ExplicitBarsPerLine)
 		}
 		for li := range sections[si].Lines {
 			allCovered := len(sections[si].Lines[li].Measures) > 0
-			for bi := range sections[si].Lines[li].Measures {
-				tb, ok := byBarIndex[sections[si].Lines[li].Measures[bi].Index]
-				if ok {
-					sections[si].Lines[li].Measures[bi].Tab = tb
-				} else {
+			for _, m := range sections[si].Lines[li].Measures {
+				if !covered(m) {
 					allCovered = false
 				}
 			}
@@ -1506,8 +1427,10 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 				sections[si].Lines[li].TabOnly = true
 				var rowBars []tab.Bar
 				var chordLabels []string
-				for bi := range sections[si].Lines[li].Measures {
-					m := &sections[si].Lines[li].Measures[bi]
+				lineBars := sections[si].Lines[li].Measures
+				barMeta := make([]string, len(lineBars))
+				for bi := range lineBars {
+					m := &lineBars[bi]
 					m.TabOnly = true
 					if rb, ok := rawBarByIndex[m.Index]; ok {
 						rowBars = append(rowBars, rb)
@@ -1517,23 +1440,21 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 						label = chordsym.Glyphs(m.Beats[0].Text)
 					}
 					chordLabels = append(chordLabels, label)
+					barMeta[bi] = riffBarMeta(*m, bi == len(lineBars)-1 && !(si == lastGrid && li == len(sections[si].Lines)-1))
 				}
 				rowRiff := &tab.Riff{Tuning: riff.Tuning, MinimumFret: riff.MinimumFret, Bars: rowBars}
 				clef := ""
 				if numStrings <= 4 {
 					clef = "F4"
 				}
-				tex := tab.ToAlphaTex(rowRiff, clef, chordLabels)
+				tex := tab.ToAlphaTexBars(rowRiff, clef, chordLabels, barMeta)
 				// alphaTab assumes straight 4/4: a 12/8 shuffle drawn without
 				// its own time signature reads as overfull 4/4 bars.
 				if meta := tab.FirstBarMeta(timeNum, timeDen, swing); meta != "" {
 					tex = strings.Replace(tex, ".\n", ".\n"+meta, 1)
 				}
 				if line := &sections[si].Lines[li]; len(line.Measures) > 0 {
-					line.BarShift = line.Measures[0].GlobalBar
-					if songPickup {
-						line.BarShift--
-					}
+					line.BarShift = line.Measures[0].GlobalBar - songPickup
 				}
 				// Fixed rows of 4 bars, like the chord chart (a 12-bar blues
 				// reads as three rows of four), a pickup riding along in the
@@ -1561,6 +1482,33 @@ func attachTabRiffs(sections []viewerSection, scoreTracks map[int][]tab.NamedRif
 			}
 		}
 	}
+}
+
+// riffBarMeta is the alphaTeX bar metadata (tab.ToAlphaTexBars) that
+// draws a riff row's bar with what the chord chart shows on it: the
+// song's tempo mark, its repeat signs, and — goesOn, the row's last bar
+// when the song goes on after it — a plain barline instead of the final
+// one alphaTab ends every score with (each riff row is its own score).
+func riffBarMeta(m viewerMeasure, goesOn bool) string {
+	var meta []string
+	// The song's first bar carries its tempo mark (viewerMeasure.Clef),
+	// printed above it as the chord chart's first row does.
+	if t, err := strconv.Atoi(strings.TrimSpace(m.Tempo)); m.Clef && err == nil && t > 0 {
+		meta = append(meta, `\tempo `+strconv.Itoa(t))
+	}
+	if m.Open {
+		meta = append(meta, `\ro`)
+	}
+	if m.Close {
+		n := m.BracketRepeatCount
+		if n < 2 {
+			n = 2
+		}
+		meta = append(meta, `\rc `+strconv.Itoa(n))
+	} else if goesOn {
+		meta = append(meta, `\barlineright regular`)
+	}
+	return strings.Join(meta, " ")
 }
 
 // withRiffOnlyBars gives a section that has a score but no chord bars
@@ -1631,20 +1579,6 @@ func anySectionHasLyrics(sections []viewerSection) bool {
 	return false
 }
 
-// gridColsCSS renders a CSS grid-template-columns value, one "<w>fr"
-// term per beat's duration weight — real engraving spaces notes
-// proportionally to how long they last (reviewed against real LilyPond
-// tab output), not in uniform equal-width slots.
-func gridColsCSS(weights []float64) string {
-	var b strings.Builder
-	for i, w := range weights {
-		if i > 0 {
-			b.WriteByte(' ')
-		}
-		fmt.Fprintf(&b, "%.3ffr", w)
-	}
-	return b.String()
-}
 
 // expandBeats maps a bar's raw tokens onto beatsPerBar rhythm-slash slots.
 // Two authoring styles both appear in real .song files, and both need to
@@ -1871,26 +1805,20 @@ type viewerSection struct {
 	// it: iReal's single-letter convention plus this app's real section
 	// names, rather than picking one over the other.
 	Mark string
-	// JazzSegno/JazzDSAlCoda/JazzCoda/JazzHidden drive jazz-mode-ONLY
-	// Segno/Dal Segno al Coda/Coda navigation signs (see
-	// detectSegnoRepeat) — modeled on LilyPond's own \repeat segno
-	// semantics (checked against the LilyPond Notation Reference's
-	// "Segno repeat structure" section, not approximated from the iReal
-	// Pro PDF images alone): Segno marks the jump-BACK target, D.S. al
-	// Coda marks the jump-FROM point (where a later, genuinely
-	// multi-section repeated run gets collapsed into one marker instead
-	// of being re-rendered section by section), and Coda marks where
-	// play resumes afterward. This is deliberately a DIFFERENT, bigger
-	// structure than \repeat volta — the bracket-repeat convention this
-	// app already uses (GridDuplicateOf/IsReference) for a single
-	// repeated section, which stays exactly as it is. Every other view
-	// mode ignores these fields and renders each section's own content
-	// normally; only jazz mode's CSS/template branch (data-render-
-	// mode="jazz") acts on them.
-	JazzSegno    bool
-	JazzDSAlCoda bool // this section's own content is replaced by a "D.S. al Coda" marker
-	JazzCoda     bool // a Coda (𝄌, U+1D10C) mark renders before this section
-	JazzHidden   bool // part of the collapsed repeated run (after its first section) — fully hidden in jazz mode
+	// GridFrom is the section whose grid this one plays: itself when it
+	// writes one, the earlier section a bare repeat, a "chords continue"
+	// section or an inferred Solo borrows its bars from; -1 for none.
+	GridFrom int
+	// LeadBars is how many of Measures are the song's "lead:" bars drawn
+	// ahead of this section's (its first grid): not its bars, in no
+	// BarCount — the song plays them before StartBar.
+	LeadBars int
+	// PlayOrder and GridSame (assignPlayedBars, playedbars.go): the
+	// written bar of its grid each of its played bars is read from, and
+	// the first section writing the same grid (-1 for none) — what a view
+	// needs to light the drawn bar a played bar is read from.
+	PlayOrder []int
+	GridSame  int
 }
 
 // viewerLine is one chart "system" (row) within a section's grid: its bars,
@@ -1903,9 +1831,9 @@ type viewerSection struct {
 type viewerLine struct {
 	Measures []viewerMeasure
 	Capacity int
-	// TabOnly is set by attachTabRiffs when every bar in this display row
-	// has note-level tab data — see viewerTabBar's doc comment for what
-	// that switches in the template.
+	// TabOnly is set by attachTabRiffs when the section's riff covers
+	// every bar of this display row: the row is drawn as tab by alphaTab
+	// (AlphaTex), not as a chord grid.
 	TabOnly bool
 	// AlphaTex is this row's note-level riff, re-encoded as alphaTeX
 	// source for the vendored alphaTab JS renderer to draw (real
@@ -1927,6 +1855,19 @@ type viewerLine struct {
 	// draws it the way the viewer reads that instrument (tab, staff or both,
 	// store.NotationPrefs).
 	Instrument string
+}
+
+// Pickups is how many of the row's bars are pickups (the song's
+// lead-in, viewerMeasure.Pickup): the row's regular bars share what their
+// narrow cells leave (--pickups, app.css).
+func (l viewerLine) Pickups() int {
+	n := 0
+	for _, m := range l.Measures {
+		if m.Pickup {
+			n++
+		}
+	}
+	return n
 }
 
 // groupMeasures chunks a section's measures into display rows — "systems",
@@ -1971,6 +1912,91 @@ func groupMeasures(measures []viewerMeasure, barsPerLine []int) []viewerLine {
 	return lines
 }
 
+// splitRiffRows regroups a section's display rows when a "score:" riff
+// covers only some of its bars (attachTabRiffs): the rows are cut where
+// the riff's coverage starts and ends, so that every row is either all
+// riff — drawn as tab by alphaTab, the riff's chord names on top — or no
+// riff at all, a plain chord-grid row. A 4-bar riff over a 12-bar blues
+// written as one 12-bar line reads as one tab row and two grid rows,
+// as the legacy LilyPond books printed it, instead of a row of bars
+// half tab, half grid.
+//
+// Without "bars:" a covered run of bars is one row (alphaTab breaks it
+// into systems of 4 itself, see viewerLine.Systems) and an uncovered run
+// rows of 4-bar phrases (riffPhraseRows), a pickup riding on the first;
+// with "bars:" the author's rows are kept, only cut at the riff's ends.
+// bars are the section's Measures, lines its rows (groupMeasures): the
+// new rows slice the same bars, so what is set on them (Played, TabOnly)
+// is shared with the section's Measures, as groupMeasures' rows are.
+func splitRiffRows(bars []viewerMeasure, lines []viewerLine, covered func(viewerMeasure) bool, explicit bool) []viewerLine {
+	var authorCuts []int
+	n := 0
+	for _, l := range lines {
+		n += len(l.Measures)
+		authorCuts = append(authorCuts, n)
+	}
+	if n != len(bars) {
+		return lines // not the section's bars: leave them be
+	}
+	row := func(from, to int) viewerLine {
+		return viewerLine{Measures: bars[from:to], Capacity: to - from}
+	}
+	var out []viewerLine
+	for start := 0; start < len(bars); {
+		cov := covered(bars[start])
+		end := start + 1
+		for end < len(bars) && covered(bars[end]) == cov {
+			end++
+		}
+		switch {
+		case explicit:
+			from := start
+			for _, cut := range authorCuts {
+				if cut > from && cut < end {
+					out = append(out, row(from, cut))
+					from = cut
+				}
+			}
+			out = append(out, row(from, end))
+		case cov:
+			out = append(out, row(start, end))
+		default:
+			from := start
+			for _, size := range riffPhraseRows(bars[start:end]) {
+				out = append(out, row(from, from+size))
+				from += size
+			}
+		}
+		start = end
+	}
+	return out
+}
+
+// riffPhraseRows is the bar count of each row for a run of chord-grid
+// bars beside a riff: 4-bar phrases, the run's opening pickups riding on
+// the first, a lone last bar joining the row before it (5 → 5, 9 → 4 +
+// 5) — the Song view's own rows (bar-rows.js' plan, which re-plans them
+// for the screen's width).
+func riffPhraseRows(bars []viewerMeasure) []int {
+	pickups := 0
+	for pickups < len(bars) && bars[pickups].Pickup {
+		pickups++
+	}
+	var sizes []int
+	for rest := len(bars) - pickups; rest > 0; rest -= 4 {
+		sizes = append(sizes, min(4, rest))
+	}
+	if k := len(sizes); k > 1 && sizes[k-1] == 1 {
+		sizes[k-2]++
+		sizes = sizes[:k-1]
+	}
+	if len(sizes) == 0 {
+		return []int{pickups}
+	}
+	sizes[0] += pickups
+	return sizes
+}
+
 // mapCell is one rendered unit of Song Map's continuous score: either a
 // real measure (with MapAnnotate/MapMark/MapLabel set on it when it's the
 // first bar of its section — see viewerMeasure's doc comment) or a single
@@ -1986,10 +2012,29 @@ type mapCell struct {
 	Mark, Label  string
 	RecallBars   int
 	RecallOf     string // "" unless GridDuplicateOf named a differently-labeled source section
+	// RecallStart and RecallPlayed: the section's first played bar and
+	// all of them (data-global-bar, data-played) — the cell stands for
+	// every bar the section plays: a click plays from there, the cycle
+	// tints it. While it plays, the bars of the grid it replays light
+	// (lightedBars); the cell only when the Map draws no such bars.
+	RecallStart  int
+	RecallPlayed string
 }
 
 type mapLine struct {
 	Cells []mapCell
+}
+
+// Pickups is how many of the row's bars are the song's lead-in (see
+// viewerLine.Pickups).
+func (l mapLine) Pickups() int {
+	n := 0
+	for _, c := range l.Cells {
+		if !c.IsRecall && c.Measure.Pickup {
+			n++
+		}
+	}
+	return n
 }
 
 // buildMapLines flattens every section's bars into ONE continuous bar
@@ -2008,27 +2053,48 @@ type mapLine struct {
 // exact same predicate the old per-section view's "is-compact" styling
 // used (see play.html's sheet-body template), just evaluated here instead
 // of left to CSS.
+// recalled: sec states nothing new of its own (a bare repeat, "same as
+// …", a "(repeat)", chords continuing, an inferred Solo): the Map draws it
+// as one recall cell, the Song view as a chip (is-compact, its grid if
+// any hidden), not its bars.
+func recalled(sec viewerSection) bool {
+	return sec.GridDuplicateOf != "" || sec.Repeat || sec.IsReference || sec.Compact || sec.InferredNote != ""
+}
+
 func buildMapLines(sections []viewerSection) []mapLine {
+	// The played bars each drawn bar lights: its section's, and those of
+	// the sections the Map recalls in a cell, on the bars of the grid
+	// they replay (lightedBars).
+	lit := lightedBars(sections, func(i int) bool { return !recalled(sections[i]) && len(sections[i].Measures) > 0 })
 	var cells []mapCell
-	for _, sec := range sections {
+	for si, sec := range sections {
 		label := sec.Label
 		if sec.LabelNumber != 0 {
 			label = fmt.Sprintf("%s %d", label, sec.LabelNumber)
 		}
-		isRecall := sec.GridDuplicateOf != "" || sec.Repeat || sec.IsReference || sec.Compact || sec.InferredNote != ""
-		if isRecall {
+		if recalled(sec) {
 			if sec.BarCount <= 0 {
 				continue // nothing to show at all (an unresolved reference)
 			}
 			cells = append(cells, mapCell{
 				IsRecall: true, SectionStart: true, Mark: sec.Mark, Label: label,
 				RecallBars: sec.BarCount, RecallOf: sec.GridDuplicateOf,
+				RecallStart: sec.StartBar, RecallPlayed: joinBars(spanBars(sec.StartBar, sec.BarCount)),
 			})
 			continue
 		}
-		for mi, m := range sec.Measures {
-			if mi == 0 {
+		badge := false
+		w := 0
+		for _, m := range sec.Measures {
+			setPlayed(&m, lit[si], w)
+			if !m.Lead {
+				w++
+			}
+			// The section starts after the song's lead bars drawn ahead
+			// of it: its name rides on its own bar 1.
+			if !badge && !m.Lead {
 				m.MapAnnotate, m.MapMark, m.MapLabel = true, sec.Mark, label
+				badge = true
 			}
 			cells = append(cells, mapCell{Measure: m})
 		}
@@ -2083,41 +2149,7 @@ func groupMapCells(cells []mapCell, perLine int) []mapLine {
 //     time to play through, and the metronome needs to wait that long
 //     before moving on to the next section, not just 8.
 func realBarCount(measures []song.Measure) int {
-	n := 0
-	firstVoltaLabel := ""
-	inRepeat := false
-	repeatMult := 1
-	for _, m := range measures {
-		counts := true
-		if m.Volta != "" {
-			if firstVoltaLabel == "" {
-				firstVoltaLabel = m.Volta
-			} else if m.Volta != firstVoltaLabel {
-				counts = false
-			}
-		} else {
-			firstVoltaLabel = ""
-		}
-		if m.Open {
-			inRepeat = true
-			repeatMult = m.RepeatCount
-			if repeatMult <= 0 {
-				repeatMult = 2
-			}
-		}
-		mult := 1
-		if inRepeat {
-			mult = repeatMult
-		}
-		if counts {
-			n += mult
-		}
-		if m.Close {
-			inRepeat = false
-			repeatMult = 1
-		}
-	}
-	return n
+	return len(jzExpand(measures))
 }
 
 // simpleRepeatSpan reports whether measures is wholly one "|: ... :|"
@@ -2234,7 +2266,7 @@ func measureIRsEqual(a, b measureIR) bool {
 // splitting, and identical Open/Close/Volta repeat-barline flags; this
 // drove every "is this section the same as an earlier one" decision in
 // the app (Song Map's compact recall chip, Chords+lyrics' "same as X"
-// note, Jazz mode's repeat brackets and Segno/D.S. detection below), so
+// note, the Jazz chart's form, jazzchart.go), so
 // two sections voiced identically but typed or repeat-bracketed
 // differently used to wrongly compare unequal. beatsPerBarA/B are each
 // section's OWN beats-per-bar (its "time:" override, or the song's
@@ -2249,102 +2281,6 @@ func measuresEqual(a, b []song.Measure, beatsPerBarA, beatsPerBarB int) bool {
 		}
 	}
 	return true
-}
-
-// sectionsEqual reports whether two RAW song sections (not the built
-// viewerSection) are the same musical content, for Segno/D.S. detection.
-// Same label (the song author's own structural claim — "Verse" recurring
-// IS the author saying "this is the Verse again") and, when both wrote a
-// grid of their own, semantically equal measures (measuresEqual). A
-// section with no grid (an explicit repeat marker, or an empty
-// placeholder) is taken at the label's word: two same-labeled sections
-// where at least one has no grid to check content against are treated as
-// the same section recurring — the same label+emptiness inference this
-// file's IsReference/Compact detection already leans on elsewhere.
-func sectionsEqual(a, b song.Section, beatsA, beatsB int) bool {
-	if a.Label != b.Label {
-		return false
-	}
-	if len(a.Measures) > 0 && len(b.Measures) > 0 {
-		return measuresEqual(a.Measures, b.Measures, beatsA, beatsB)
-	}
-	return true
-}
-
-// segnoMatch is a detected Segno/D.S. al Coda structure: the earlier run
-// of sections [SegnoAt, SegnoAt+Len) is verbatim-repeated (sectionsEqual,
-// pairwise, in order) by the later run [DSAt, DSAt+Len).
-type segnoMatch struct {
-	SegnoAt, DSAt, Len int
-}
-
-// detectSegnoRepeat looks for the real-notation Segno/D.S. al Coda
-// pattern in a song's section ordering — modeled on LilyPond's own
-// \repeat segno (checked against the LilyPond Notation Reference's
-// "Segno repeat structure" documentation, not approximated from the
-// iReal Pro PDF images alone): Segno marks an earlier point to jump BACK
-// to, D.S. (dal segno) marks the jump-FROM point, and whatever follows
-// the repeated material is the Coda, reached after the second pass. This
-// is a genuinely different, BIGGER structure than \repeat volta (a
-// bracket repeat of ONE section, already handled by
-// GridDuplicateOf/IsReference — untouched by this function).
-//
-// Deliberately conservative:
-//   - requires a real gap between the two runs (j > i+k) — an
-//     IMMEDIATELY adjacent repeat is \repeat volta territory (the
-//     existing bracket treatment), not Segno; Segno exists specifically
-//     for a long-distance callback, not "play this twice in a row".
-//   - requires an exact, unambiguous match of at least 2 sections —
-//     returns ok=false rather than guessing at a partial/fuzzy one.
-//   - prefers the LONGEST such match, and among equal lengths the one
-//     whose later run reaches closest to the song's end, so what remains
-//     after it reads as a real Coda tail, not most of the song.
-//
-// O(n^4) worst case in the section count, which is always tiny (a real
-// song's section count is in the tens, not hundreds).
-func detectSegnoRepeat(sg *song.Song, globalBeats int) (segnoMatch, bool) {
-	n := len(sg.Sections)
-	if n < 4 { // need room for a 2-section run twice, with a gap between
-		return segnoMatch{}, false
-	}
-	beats := make([]int, n)
-	for i, sec := range sg.Sections {
-		beats[i] = sectionBeatsPerBar(sec, globalBeats)
-	}
-	var best segnoMatch
-	found := false
-	for k := n / 2; k >= 2; k-- {
-		for i := 0; i+k <= n; i++ {
-			for j := i + k + 1; j+k <= n; j++ { // j > i+k: a real gap, not back-to-back
-				match := true
-				for d := 0; d < k; d++ {
-					if !sectionsEqual(sg.Sections[i+d], sg.Sections[j+d], beats[i+d], beats[j+d]) {
-						match = false
-						break
-					}
-				}
-				if !match {
-					continue
-				}
-				cand := segnoMatch{SegnoAt: i, DSAt: j, Len: k}
-				if !found || segnoMatchBetter(cand, best, n) {
-					best, found = cand, true
-				}
-			}
-		}
-	}
-	return best, found
-}
-
-// segnoMatchBetter reports whether a is a better Segno/D.S. candidate
-// than b: longer wins outright; among equal lengths, the one whose later
-// (D.S.) run ends closer to the song's end wins, leaving a shorter, more
-// plausible Coda tail rather than most of the song past the repeat.
-func segnoMatchBetter(a, b segnoMatch, n int) bool {
-	if a.Len != b.Len {
-		return a.Len > b.Len
-	}
-	return (n - (a.DSAt + a.Len)) < (n - (b.DSAt + b.Len))
 }
 
 func buildSections(sg *song.Song) []viewerSection {
@@ -2363,8 +2299,23 @@ func buildSections(sg *song.Song) []viewerSection {
 	// re-render that label WITH its number ("Verse 1", not bare "Verse")
 	// once numbering is known, without re-running the comparison.
 	var dupSrc []int
+	// The song's "lead:" bars, in no section: drawn ahead of its first
+	// grid's bar 1, on its first row, played before it starts.
+	leadMs := sg.LeadMeasures()
+	leadSec := -1
+	if len(leadMs) > 0 {
+		leadSec = tab.FirstGridSection(sg)
+	}
 	for si, sec := range sg.Sections {
-		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times}
+		vs := viewerSection{Index: si, Label: sec.Label, Repeat: sec.Repeat, Notes: sec.Notes, Times: sec.Times, GridFrom: -1}
+		ms, lead := sec.Measures, 0
+		if si == leadSec {
+			ms, lead = append(append([]song.Measure(nil), leadMs...), sec.Measures...), len(leadMs)
+		}
+		vs.LeadBars = lead
+		if len(sec.Measures) > 0 {
+			vs.GridFrom = si
+		}
 		beatsPerBar := sectionBeatsPerBar(sec, globalBeats)
 		// A stated repeat count ("|:4 ...") is recorded on the OPEN
 		// measure (see song.Measure.RepeatCount's doc comment — that's
@@ -2375,7 +2326,7 @@ func buildSections(sg *song.Song) []viewerSection {
 		// marks where to jump back to, the closing one is where the
 		// player needs telling "...and do that N times total."
 		pendingBracketRepeatCount := 0
-		for mi, m := range sec.Measures {
+		for mi, m := range ms {
 			if m.Open && m.RepeatCount > 0 {
 				pendingBracketRepeatCount = m.RepeatCount
 			}
@@ -2389,7 +2340,7 @@ func buildSections(sg *song.Song) []viewerSection {
 			// however many bars share it, not a separate bracket per bar —
 			// so only the first bar of a run gets the "1." label (see the
 			// matching border-left suppression in app.css).
-			voltaFirst := m.Volta != "" && (mi == 0 || sec.Measures[mi-1].Volta != m.Volta)
+			voltaFirst := m.Volta != "" && (mi == 0 || ms[mi-1].Volta != m.Volta)
 			vm := viewerMeasure{
 				// GlobalBar is a placeholder here — real sequential numbers
 				// are assigned afterward, in the dedicated pass below, once
@@ -2397,8 +2348,13 @@ func buildSections(sg *song.Song) []viewerSection {
 				// reference section's inherited one) is known. See that
 				// pass's own comment for why this can't just be a running
 				// counter incremented in this loop.
-				Index: mi, Beats: expandBeats(m.Tokens, beatsPerBar), IsRepeat: isRepeat, RepeatCount: repeatCount, IsRest: isRest,
+				Index: mi - lead, Beats: expandBeats(m.Tokens, beatsPerBar), IsRepeat: isRepeat, RepeatCount: repeatCount, IsRest: isRest,
 				Volta: m.Volta, VoltaFirst: voltaFirst, Meter: m.Meter, Open: m.Open, Close: m.Close,
+			}
+			if m.Lead {
+				// A chordless lead bar reads as a whole-bar rest.
+				vm.Lead = true
+				vm.IsRest = vm.IsRest || isSilentBar(m.Tokens)
 			}
 			if m.Close && pendingBracketRepeatCount > 0 {
 				vm.BracketRepeatCount = pendingBracketRepeatCount
@@ -2465,6 +2421,23 @@ func buildSections(sg *song.Song) []viewerSection {
 			}
 		}
 		barsPerLine := sec.BarsPerLine
+		if lead > 0 {
+			// The song's lead-in: pickups, as many as the "lead:" line
+			// has, riding on the first row on top of its "bars:" count.
+			pickupSeen = true
+			for k := 0; k < lead; k++ {
+				vs.Measures[k].Pickup = true
+			}
+			if len(barsPerLine) == 0 {
+				barsPerLine = []int{8 + lead, 8}
+			} else {
+				rest := barsPerLine[1:]
+				if len(rest) == 0 {
+					rest = barsPerLine // "bars: 4": 4 + the lead, then 4s
+				}
+				barsPerLine = append([]int{barsPerLine[0] + lead}, rest...)
+			}
+		}
 		if !pickupSeen && len(vs.Measures) > 0 {
 			pickupSeen = true
 			if songStartsWithPickup(sg, si) {
@@ -2536,29 +2509,29 @@ func buildSections(sg *song.Song) []viewerSection {
 	// above and the copied-from-elsewhere values placeholderLines set for
 	// an inferred Solo — both were wrong in exactly the cases this pass
 	// exists to fix.
-	globalBar := 0
+	//
+	// The song's lead bars come first, in no section: bars 0…K-1, drawn
+	// on the first grid's row; the first section starts at bar K.
+	globalBar := len(leadMs)
 	for i := range sections {
 		sec := &sections[i]
 		sec.StartBar = globalBar
-		n := 0
+		n, k := 0, 0
 		for li := range sec.Lines {
 			for mi := range sec.Lines[li].Measures {
-				sec.Lines[li].Measures[mi].GlobalBar = globalBar + n
+				m := &sec.Lines[li].Measures[mi]
+				if m.Lead {
+					m.GlobalBar = k
+					k++
+					continue
+				}
+				m.GlobalBar = globalBar + n
 				n++
 			}
 		}
 		globalBar += sec.BarCount
 	}
-	if m, ok := detectSegnoRepeat(sg, globalBeats); ok {
-		sections[m.SegnoAt].JazzSegno = true
-		sections[m.DSAt].JazzDSAlCoda = true
-		for d := 1; d < m.Len; d++ {
-			sections[m.DSAt+d].JazzHidden = true
-		}
-		if codaAt := m.DSAt + m.Len; codaAt < len(sections) {
-			sections[codaAt].JazzCoda = true
-		}
-	}
+	assignPlayedBars(sg, sections)
 	return sections
 }
 
@@ -2650,6 +2623,7 @@ func annotateStructure(sections []viewerSection) {
 					}
 					sec.InferredNote = note
 					sec.SoloBars, sec.SoloOf, sec.SoloTimes = bars*times, sections[j].Label, times
+					sec.GridFrom = sections[j].GridFrom
 					// Give the solo real (placeholder) bars, not just a text
 					// note — otherwise it reads as a quick aside instead of
 					// the chunk of the song it actually is, and a long solo
@@ -2685,6 +2659,7 @@ func annotateStructure(sections []viewerSection) {
 			for j := i - 1; j >= 0; j-- {
 				if strings.EqualFold(strings.TrimSpace(sections[j].Label), label) && (len(sections[j].Measures) != 0 || len(sections[j].Lyrics) != 0) {
 					sec.IsReference = true
+					sec.GridFrom = sections[j].GridFrom
 					times := sec.Times
 					if times < 1 {
 						times = 1
@@ -2729,6 +2704,7 @@ func annotateStructure(sections []viewerSection) {
 		if len(sec.Measures) == 0 {
 			if j := nearestDefiningSection(sections, i); j >= 0 {
 				sec.Compact = true
+				sec.GridFrom = sections[j].GridFrom
 				times := sec.Times
 				if times < 1 {
 					times = 1
@@ -2751,17 +2727,24 @@ func annotateStructure(sections []viewerSection) {
 // belong to the section being quoted, not this stand-in for it); every beat
 // is a tie so it renders as dimmed rhythm slashes only.
 func placeholderLines(lines []viewerLine) []viewerLine {
-	out := make([]viewerLine, len(lines))
-	for li, line := range lines {
-		pl := viewerLine{Capacity: line.Capacity, Measures: make([]viewerMeasure, len(line.Measures))}
-		for mi, m := range line.Measures {
+	out := make([]viewerLine, 0, len(lines))
+	for _, line := range lines {
+		pl := viewerLine{Capacity: line.Capacity}
+		for _, m := range line.Measures {
+			if m.Lead {
+				// The quoted section's lead isn't played over again.
+				pl.Capacity--
+				continue
+			}
 			beats := make([]viewerBeat, len(m.Beats))
 			for bi := range beats {
 				beats[bi] = viewerBeat{IsTie: true}
 			}
-			pl.Measures[mi] = viewerMeasure{Index: mi, GlobalBar: m.GlobalBar, Beats: beats, Placeholder: true}
+			pl.Measures = append(pl.Measures, viewerMeasure{Index: len(pl.Measures), GlobalBar: m.GlobalBar, Beats: beats, Placeholder: true})
 		}
-		out[li] = pl
+		if len(pl.Measures) > 0 {
+			out = append(out, pl)
+		}
 	}
 	return out
 }
@@ -2807,6 +2790,20 @@ func nearestDefiningSectionLabeled(sections []viewerSection, before int, wantLab
 	return nearestDefiningSection(sections, before)
 }
 
+// transposeSpellJSON is the page's spelling table for the view-only
+// transpose (chordsym.TransposedSpellings), "" for a song with no key.
+func transposeSpellJSON(sg *song.Song) string {
+	names, keys, ok := chordsym.TransposedSpellings(sg.Get("key"), sg.Get("flats") == "yes")
+	if !ok {
+		return ""
+	}
+	b, err := json.Marshal(map[string]any{"names": names, "keys": keys})
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // handleSongRedirect keeps old /play and /prep links working — both modes
 // now live on one page (an Edit toggle switches between them), so there's
 // nothing separate left to route to.
@@ -2841,6 +2838,11 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	// The place the song was opened from counts only when the viewer may
+	// open it (song_context.go): else it's as if the address didn't say.
+	r = s.withOpenableSongContext(r)
+	// A lesson opened from anywhere is opened in its course (lessonview.go).
+	r = s.withCourseContext(r, variantID)
 	sg, _, err := s.store.LoadVariant(variantID)
 	if err != nil {
 		http.NotFound(w, r)
@@ -2853,6 +2855,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	gp := s.loadSongGP(r.Context(), variantID)
 	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
+	jazz := buildJazzChart(withGPOnlyBars(sg, gp.Facts), sections)
 	attachGPRefs(sections, sg, gp)
 	for i := range sections {
 		sections[i].ChordBars = sectionChordBars(&sections[i])
@@ -2893,17 +2896,88 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// Me: the desktop sidebar needs it for the admin-only Admin link and
 	// the account row, same as every other top-level page.
 	person := personFromContext(r)
-	// CanEdit drives the client-side implicit-fork-on-edit flow (see
-	// song.js's editToggle handler): a viewer without edit rights on this
-	// variant never sees a separate "fork" step — tapping Edit silently
-	// forks it for them first.
-	// CanCopy: whether that fork is allowed at all — not out of a private
-	// songbook (store.CanCopyVariant); without either, there's no Edit.
-	var canEdit, canCopy bool
+	// What Edit does (song.js's editToggle handler), never a silent copy
+	// (docs/ownership-model.md §5; store.SongRightsFor decides):
+	//   - CanEdit: opens the editor on this song, saved in place (the
+	//     person's own, a band's for its members, a community's for who
+	//     edits its repertoire, The Big Songbook's for the site's admins).
+	//   - BandOffer: a song a band of the viewer's links (in its songbook
+	//     or set list, opened from there; a public song): Edit offers
+	//     "Make Mercy's version" (POST /api/bands/{id}/catalog/fork/{song}),
+	//     which takes the link's place, then edits that.
+	//   - CommunityOffer: the same from a community's songbook, for who
+	//     edits its repertoire ("Make the community's version"); in a
+	//     coaching community, its coach and the students the song is
+	//     given to, from its songbooks or from none (communityEditOffer).
+	//   - CanCopy without CanEdit: Edit says whose song it is and offers
+	//     "Make my arrangement" (POST /api/variants/{id}/fork). Never a closed
+	//     songbook's song; without any of these, there's no Edit.
+	// CanNewVersion (the song is the viewer's to edit, not the
+	// catalogue's): "New arrangement from this", named, beside it. CanPublish:
+	// make it public or private.
+	var canEdit, canCopy, canNewVersion, canPublish, canDelete bool
+	// canEditChart: the editor opens on this song's chart — who edits it,
+	// or anyone signed in on The Big Songbook's (catalogue_edits.go: the
+	// edit is weighed against its recording; the recordings, the Guitar
+	// Pro file and deleting stay CanEdit's).
+	var canEditChart bool
+	var bandOffer *store.BandHold
+	var communityOffer *songCommunityOffer
+	var editOwner *store.VariantOwner
+	var bandVersion *store.BandVersion
+	var basedOn *songBasedOn
 	if person != nil {
-		canEdit, _ = s.store.CanEditVariant(r.Context(), person.ID, variantID)
-		if !canEdit {
-			canCopy, _ = s.store.CanCopyVariant(r.Context(), person.ID, variantID, "user", 0)
+		rights, _ := s.store.SongRightsFor(r.Context(), person.ID, variantID)
+		if rights != nil {
+			canEdit = rights.Edit
+			canEditChart = rights.Edit || rights.Contribute
+			canPublish = rights.Publish
+			// In a coaching community, New version from this is the
+			// coach's: a student edits the song they're given, in place.
+			canNewVersion = rights.Edit && !rights.Catalogue && !rights.Closed && !(rights.Coaching && !rights.Publish)
+			// Delete this song… (the More menu): who edits and publishes
+			// it, never the catalogue's from here; a confirmation says who
+			// links it first (versions_sync.go).
+			canDelete = rights.Edit && rights.Publish && !rights.Catalogue
+		}
+		if variant != nil && rights != nil {
+			// The page's own songbook first: a community's songbook
+			// offers the community's version, not a band's.
+			communityOffer = s.communityEditOffer(r, person.ID, variant, rights)
+			if communityOffer == nil {
+				bandOffer = s.bandEditOffer(r, person.ID, variant, rights)
+			}
+		}
+		if bandOffer != nil || communityOffer != nil {
+			canEdit, canEditChart, canCopy = false, false, true
+			// A coaching community's link to the catalogue's song: its
+			// arrangement, or the catalogue's song fixed in place under
+			// the catalogue's rules (communityOffer.CatalogueFix).
+			if communityOffer != nil && communityOffer.CatalogueFix {
+				canEditChart = true
+			}
+		} else if !canEdit && rights != nil {
+			canCopy = rights.CanVersionFor(store.PersonOwner(person.ID))
+			if canCopy {
+				editOwner, _ = s.store.VariantOwnerOf(r.Context(), variantID)
+			}
+		}
+		// A copy of one's own of a band's song: the band has its version.
+		if variant != nil && variant.Visibility == "user" {
+			bandVersion, _ = s.store.BandVersionOf(r.Context(), person.ID, variantID)
+		}
+		// A band's song made from another (its version of a song it linked, a fork into the
+		// band): where it came from, when the viewer can open that.
+		// A catalogue song made for another recording of one (catalogue_edits.go): that one.
+		if variant != nil && (variant.Visibility == "band" || variant.Visibility == "global") && variant.ForkedFromID != nil {
+			if ok, _ := s.store.CanViewVariant(r.Context(), person.ID, *variant.ForkedFromID); ok {
+				if orig, err := s.store.GetVariant(r.Context(), *variant.ForkedFromID); err == nil {
+					basedOn = &songBasedOn{VariantID: orig.VariantID, Title: orig.Title, Artist: orig.Artist}
+					if o, err := s.store.VariantOwnerOf(r.Context(), orig.VariantID); err == nil {
+						basedOn.Kind, basedOn.Owner = o.Kind, o.Name
+					}
+				}
+			}
 		}
 		// Home's "Continue" list; a failure here mustn't cost the page. A
 		// playlist showing the song beside its player isn't a visit.
@@ -2919,15 +2993,20 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Me":        person,
-		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanCopy": canCopy, "Genre": genre,
+		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanEditChart": canEditChart, "CanCopy": canCopy, "Genre": genre,
+		"BandOffer": bandOffer, "CommunityOffer": communityOffer, "EditOwner": editOwner, "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
+		"CanNewVersion": canNewVersion, "CanPublish": canPublish, "SongPublic": variant != nil && variant.Public, "VersionName": variantVersionName(variant),
+		"CanDelete": canDelete,
 		"Embed": r.URL.Query().Get("embed") == "playlist",
 		"Title": orDefault(sg.Get("title"), "untitled"), "Artist": sg.Get("artist"),
-		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
+		"Key": sg.Get("key"), "Flats": sg.Get("flats") == "yes", "SpellJSON": transposeSpellJSON(sg), "Tempo": orDefault(sg.Get("tempo"), "120"), "Time": orDefault(sg.Get("time"), "4/4"),
 		"TimeNum": num, "TimeDen": den,
 		"Capo": sg.Get("capo"), "Reference": sg.Get("reference"), "GPSource": sg.Get("gp_source"),
 		"TimeBeats":          timeSigBeats(sg.Get("time")),
 		"Sections":           sections,
+		"LeadIn":             sg.LeadIn(),
 		"MapLines":           buildMapLines(sections),
+		"Jazz":               jazz,
 		"DrumMap":            drumMap,
 		"Instruments":        collectInstrumentNames(riffs),
 		"SelectedInstrument": instrument,
@@ -2945,10 +3024,56 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
+	// Tap tempo (play.html #tap-tempo-dialog) compares with the song's own
+	// tempo, not with .Tempo's 120 for a song that has none.
+	data["SongTempo"] = sg.Get("tempo")
+	// The reference in the header (song_ref_head.go): without a link, a
+	// band recording is the song's reference.
+	hasBand := false
+	if sg.Get("reference") == "" {
+		if list, err := s.store.ListSongAudio(r.Context(), variantID); err == nil {
+			for _, a := range list {
+				hasBand = hasBand || a.Category == store.AudioBand
+			}
+		}
+	}
+	refHead := songRefHeadFor(sg.Get("reference"), hasBand, canEditChart)
+	// The Big Songbook's song: open edits (catalogue_edits.go).
+	s.addCatalogueEditing(r, person, variantID, data)
+	// A student's song, proposed to their coach (coach_proposals.go).
+	s.addProposeTargets(r, person, variantID, data)
+	// Its title, when fetched for this link; else fetched in the
+	// background for the next time (reference_title.go).
+	if ref := strings.TrimSpace(sg.Get("reference")); ref != "" {
+		if rt, err := s.store.ReferenceTitle(r.Context(), variantID); err == nil {
+			refHead.Title = rt.For(ref)
+			if rt.Due(ref, refTitleRetry, time.Now()) {
+				s.fillRefTitle(variantID, ref)
+			}
+		}
+	}
+	data["RefHead"] = refHead
+	// The Melody view (melody_sheet.go, melody_status.go): always there;
+	// until the melody can be drawn, disabled, saying why and how far
+	// along it is (its script asks again while it can change).
+	if variantID != 0 {
+		data["HasMelody"] = true
+		if ms, err := s.melodyStatus(r.Context(), variantID, false); err == nil {
+			s.finishMelodyStatus(r, variantID, &ms)
+			if b, err := json.Marshal(ms); err == nil {
+				data["MelodyStatus"] = string(b)
+				data["MelodyUnready"] = ms.State != "ready"
+				data["MelodyMessage"] = ms.Message
+			}
+		}
+	}
+	data["RefTitle"] = refHead.Title
+	s.songOwnershipData(r, data, variantID, variant)
 	if gp.Meta != nil {
 		data["GPFileName"] = gp.Meta.Filename
 		data["GPFileSHA"] = gp.Meta.SHA256
 		data["GPFactsMissing"] = gp.Facts == nil
+		data["GPInstruments"] = string(gpTrackProgramsJSON(gp.Meta))
 		data["GPOnly"] = isGPOnly(sg)
 		data["HasGPView"] = isGPOnly(sg) || anyGPRef(sections)
 		if canEdit {
@@ -2982,9 +3107,10 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		if id, err := strconv.ParseInt(setlistRef, 10, 64); err == nil {
 			if _, meta, _, err := s.store.LoadSetlistByID(r.Context(), id); err == nil {
 				data["SetlistURL"] = setlistPath(meta)
+				data["SetlistName"] = meta.Title
 			}
 		}
-		data["Prev"], data["Next"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
+		data["Prev"], data["Next"], data["Place"] = s.setlistNeighbors(r.Context(), setlistRef, variantID)
 		// Arrived from the gig view (not the editable setlist page): keep the
 		// back link and prev/next pointed at that read-only list instead of
 		// a songbook page, so a reader never loses their way back to it.
@@ -2994,11 +3120,14 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		// from that songbook's own order.
 		if songbookID, err := strconv.ParseInt(songbookParam, 10, 64); err == nil {
 			data["SongbookRef"] = songbookID
-			data["Prev"], data["Next"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			data["Prev"], data["Next"], data["Place"] = s.songbookNeighbors(r.Context(), songbookID, variantID)
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil {
+				data["SongbookName"] = sb.Name
+			}
 			// A student's or a group's songbook (coaching.go): the song
 			// opens in the key the coach gave it there — the chart, the
 			// recording — for the coach as for the student, and says whose.
-			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && (sb.IsStudent() || sb.Kind == store.SongbookKindGroup) {
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && (sb.IsStudent() || sb.Kind == store.SongbookKindGroup) && r.URL.Query().Get("key") != "original" {
 				if ok, _ := s.store.CanAccessSongbook(r.Context(), personFromContext(r).ID, songbookID); ok || personFromContext(r).IsAdmin {
 					if n, err := s.store.EntrySemitones(r.Context(), songbookID, variantID); err == nil {
 						data["StudentKey"] = n
@@ -3008,12 +3137,33 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 							if p, err := s.store.GetPersonByID(r.Context(), sb.StudentPersonID); err == nil {
 								data["KeyContext"] = p.DisplayName
 							}
+							// The student, in their own songbook: their key.
+							data["KeyMine"] = sb.StudentPersonID == personFromContext(r).ID
+						}
+						// Moved: the same line as any songbook's key (whose
+						// version, the key, back to the song's own), and the
+						// editor's note that it edits the song in its key.
+						if n != 0 {
+							mine, _ := data["KeyMine"].(bool)
+							data["SongbookKey"] = s.newSongbookKeyLine(r, s.langOf(w), variant, person.ID, songKeyName(sg), n, mine, sb.Name)
 						}
 					}
 				}
 			}
+			// Any other songbook the person can open that keeps the song in
+			// another key (songbook_keys.go): the song opens in that key,
+			// unless asked for its own (?key=original).
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && !sb.IsStudent() && sb.Kind != store.SongbookKindGroup && r.URL.Query().Get("key") != "original" {
+				if ok, _ := s.store.CanAccessSongbook(r.Context(), person.ID, songbookID); ok {
+					if n, in, err := s.store.SongbookEntryKey(r.Context(), songbookID, variantID); err == nil && in && n != 0 {
+						mine := sb.OwnerKind == "person" && sb.OwnerPersonID == person.ID && sb.IsDefault
+						data["StudentKey"], data["StudentKeySet"] = n, true
+						data["SongbookKey"] = s.newSongbookKeyLine(r, s.langOf(w), variant, person.ID, songKeyName(sg), n, mine, sb.Name)
+					}
+				}
+			}
 			// In a course, back is to the song's lesson.
-			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() {
+			if sb, err := s.store.GetSongbook(r.Context(), songbookID); err == nil && sb.IsCourse() && s.mayOpenSongbook(r, sb.ID) {
 				if l, err := s.store.LessonOfSong(r.Context(), songbookID, variantID); err == nil && l != nil {
 					// Back is to the lesson's own page (?view=lesson: it
 					// would bring the song back), and the lesson comes
@@ -3040,13 +3190,12 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 					data["EventRef"] = ev.ID
 					data["StudentKey"], data["StudentKeySet"], data["KeyContext"] = n, true, ev.Name
 					data["LessonHref"], data["LessonLabel"] = fmt.Sprintf("/communities/%d/events/%d/program", ev.OwnerCommunityID, ev.ID), ev.Name
-					if prev, next, err := s.store.ProgramNeighbors(r.Context(), ev.ID, variantID); err == nil {
-						if prev != 0 {
-							data["Prev"] = s.loadSongNeighbor(prev)
+					if prog, err := s.store.ListEventProgram(r.Context(), ev.ID); err == nil {
+						order := make([]int64, len(prog))
+						for i, p := range prog {
+							order[i] = p.VariantID
 						}
-						if next != 0 {
-							data["Next"] = s.loadSongNeighbor(next)
-						}
+						data["Prev"], data["Next"], data["Place"] = s.neighborsAt(listPlace(order, variantID))
 					}
 				}
 			}
@@ -3080,19 +3229,263 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// A student opening one of their songs from anywhere else (home, the
-	// library, a group's list) gets it in their own key too: the key the
-	// coach gave it them follows the song, not the page it was opened from.
-	if data["StudentKeySet"] == nil && data["SetlistRef"] == nil {
-		if _, n, ok, err := s.store.StudentKeyOf(r.Context(), person.ID, variantID); err == nil && ok {
+	// The coaching community the song was opened in (its songbooks, its
+	// page, an event of its), 0 for none: a student's key ("Your key") and
+	// the coach's key per student are for the songs practised there, not
+	// for those played in a band, a set list or anywhere else.
+	coachCtx := s.songCoachingContext(r, data)
+	// There a song opens on its lyrics, following the music (song.js),
+	// unless the reader picked another view for it.
+	if coachCtx != 0 {
+		data["CoachingContext"] = coachCtx
+	}
+	// A student opening one of their songs from elsewhere in that
+	// community (its repertoire, a group's list, an assignment) gets it in
+	// their own key too.
+	if data["StudentKeySet"] == nil && coachCtx != 0 && r.URL.Query().Get("key") != "original" {
+		if _, n, ok, err := s.store.StudentKeyIn(r.Context(), person.ID, coachCtx, variantID); err == nil && ok {
 			data["StudentKey"], data["StudentKeySet"], data["KeyContext"], data["KeyMine"] = n, true, person.DisplayName, true
+		}
+	}
+	// Opened from nowhere in particular (home, a search, the catalogue),
+	// not from a band's, a community's, a set list's or another songbook:
+	// the key the song has in the person's own songbook.
+	if data["StudentKeySet"] == nil && data["SetlistRef"] == nil && data["SongbookRef"] == nil && data["EventRef"] == nil &&
+		data["BandRef"] == nil && data["CommunityRef"] == nil && r.URL.Query().Get("key") != "original" {
+		if n, ok, err := s.store.MySongbookKey(r.Context(), person.ID, variantID); err == nil && ok && n != 0 {
+			data["StudentKey"], data["StudentKeySet"] = n, true
+			data["SongbookKey"] = s.newSongbookKeyLine(r, s.langOf(w), variant, person.ID, songKeyName(sg), n, true, "")
 		}
 	}
 	if n, ok := data["StudentKey"].(int); ok {
 		data["StudentKeyName"] = chordsym.KeyIn(songKeyName(sg), n)
 	}
 	data["BrandKind"], data["BrandID"] = s.songBrandContext(r, data, variant)
+	// A band's place (its song, or opened from its songbook or set list):
+	// the reference's words say "the band" — the header's uploaded
+	// recording, the Reference view's (play.html); anyone else's are plain.
+	if rh, ok := data["RefHead"].(songRefHead); ok {
+		rh.Band = data["BrandKind"] == "band"
+		data["RefHead"] = rh
+	}
+	// A coaching community's key per student (store/vocal_slider.go), in
+	// the key's panel: that community's students, the coming week's
+	// lessons first, when the song was opened in that community. (The
+	// voice's slider is no longer a community's option: everyone has a
+	// level per part they play, "Je joue", player_parts.go.)
+	if coachCtx != 0 {
+		if o, err := s.store.CommunityPlayerOptions(r.Context(), coachCtx); err == nil && o.CoachStudentKeys {
+			data["CoachStudentKeys"] = coachCtx
+			data["SingPanel"] = true
+		}
+	}
+	// A lesson, or a song all in its Guitar Pro file: the lesson view
+	// (lessonview.go), its video first.
+	lessonViewData(data, sg, s.songLessonFor(r, variantID, data))
+	// The key's chip in the dock names the key: "Ton −1 · C#m".
+	data["SongKeyName"] = songKeyName(sg)
+	// "Je joue": the reader's parts here, a level each (player_parts.go).
+	data["PlayerParts"] = s.playerPartsData(r, data, variantID)
+	// Where the song's "‹" goes, on the desktop header and the phone's bar.
+	back := songBackFor(data, s.langOf(w))
+	data["Back"] = back
+	// The line above the header: that place again, the song's position
+	// in it; else the song's owner. Previous and next keep the place.
+	place, _ := data["Place"].(songPlace)
+	var owner songOwnerPlace
+	if back.Kind == "catalog" {
+		owner = s.songOwnerPlace(r, variant, s.langOf(w))
+	}
+	data["Crumb"] = songCrumbFor(back, place, owner, s.langOf(w))
+	data["NavQuery"] = songNavQuery(data)
+	// "Accorder": the tuner, in place, the song's own tunings first (the
+	// /tuner page's, tuner.go).
+	data["SongTunings"] = songTunings(gp.Facts, s.langOf(w))
+	data["SongTitle"] = data["Title"]
+	data["SongCapo"] = songCapo(sg.Get("capo"))
 	s.render(w, "song", data)
+}
+
+// songCoachingContext is the coaching community a song page was opened in,
+// 0 for none: one of its songbooks (a student's, a group's, its
+// repertoire), its own page (?community=), or one of its events (a
+// program). A band, a set list, or nowhere in particular is none.
+func (s *Server) songCoachingContext(r *http.Request, data map[string]any) int64 {
+	ctx := r.Context()
+	coaching := func(id int64) int64 {
+		if c, err := s.store.GetCommunity(ctx, id); err == nil && c.IsCoaching() {
+			return id
+		}
+		return 0
+	}
+	if id, ok := data["EventRef"].(int64); ok {
+		if ev, err := s.store.GetEvent(ctx, id); err == nil && ev.OwnerKind == "community" {
+			return coaching(ev.OwnerCommunityID)
+		}
+		return 0
+	}
+	if data["SetlistRef"] != nil || data["BandRef"] != nil {
+		return 0
+	}
+	if kind, id := s.songBrandContext(r, data, nil); kind == "community" {
+		return coaching(id)
+	}
+	return 0
+}
+
+// bandEditOffer is the band whose version Edit offers on this song page
+// (handleSong's BandOffer), or nil: a band personID is a current member of
+// that links the song (store.BandsHolding) and may make its version of it
+// (SongRights.CanVersionFor: a public song). The band the page was opened
+// from (?band=, a band's ?setlist= or ?songbook=) when it's one of those;
+// with no band in the address, the first of them for a public song only
+// (opened from home or a search, say) — a person's own song opened from
+// their own songbook is theirs to edit.
+func (s *Server) bandEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *store.BandHold {
+	holds, err := s.store.BandsHolding(r.Context(), personID, variant.VariantID)
+	if err != nil || len(holds) == 0 {
+		return nil
+	}
+	var offer *store.BandHold
+	if bandID := s.songPageBand(r); bandID != 0 {
+		for i := range holds {
+			if holds[i].BandID == bandID {
+				offer = &holds[i]
+			}
+		}
+	} else if variant.Public {
+		offer = &holds[0]
+	}
+	if offer == nil || !rights.CanVersionFor(store.BandOwner(offer.BandID)) {
+		return nil
+	}
+	return offer
+}
+
+// songCommunityOffer is the community whose version Edit offers on a song
+// its songbook links (handleSong's CommunityOffer).
+type songCommunityOffer struct {
+	CommunityID int64
+	Name        string
+	SongbookID  int64
+	// Coaching: a coaching community's, whose version every songbook of
+	// its takes (the repertoire, each student's and group's), the coach
+	// and the students and groups it's given to editing it
+	// (docs/coaching.md).
+	Coaching bool
+	// CatalogueFix: a coaching community's link to The Big Songbook's
+	// song, which the viewer may fix in place (SongRights.Contribute):
+	// beside the community's arrangement, Edit offers "Fix the
+	// catalogue's song", an open edit under the catalogue's rules
+	// (applied at once or held for review), for everyone who has it, the
+	// community included (docs/coaching.md, "A group works on one song").
+	CatalogueFix bool
+}
+
+// communityEditOffer is that offer, or nil: the page was opened from a
+// community's songbook (?songbook=) that links the song (not the
+// community's own), personID may make the community's version
+// (store.MayMakeVersion: who edits its repertoire; in a coaching
+// community, the coach, and a student the song is given to), and the
+// community may (a public song). Opened from elsewhere, a song a
+// coaching community links that personID can't edit in place offers that
+// community's version when they may make it (coachingEditOffer).
+func (s *Server) communityEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *songCommunityOffer {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.URL.Query().Get("songbook"), 10, 64)
+	if err != nil || id <= 0 {
+		if rights.Edit {
+			return nil
+		}
+		return s.coachingEditOffer(r, personID, variant, rights)
+	}
+	sb, err := s.store.GetSongbook(ctx, id)
+	if err != nil || sb.OwnerKind != "community" {
+		return nil
+	}
+	owner := sb.Owner()
+	if rights.Owner == owner || !rights.CanVersionFor(owner) {
+		return nil
+	}
+	if _, in, err := s.store.SongbookEntryKey(ctx, sb.ID, variant.VariantID); err != nil || !in {
+		return nil
+	}
+	if ok, err := s.store.MayMakeVersion(ctx, personID, variant.VariantID, owner, false); err != nil || !ok {
+		return nil
+	}
+	c, err := s.store.GetCommunity(ctx, sb.OwnerCommunityID)
+	if err != nil {
+		return nil
+	}
+	return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, SongbookID: sb.ID, Coaching: c.IsCoaching(),
+		CatalogueFix: c.IsCoaching() && rights.Catalogue && rights.Contribute}
+}
+
+// coachingEditOffer is the community's version offered on a song opened
+// from no songbook (search, home, a link): the first coaching community
+// whose songbooks link it and whose version personID may make — its
+// coach, or a student it's given to.
+func (s *Server) coachingEditOffer(r *http.Request, personID int64, variant *store.CatalogVariant, rights *store.SongRights) *songCommunityOffer {
+	ctx := r.Context()
+	communities, err := s.store.CoachingCommunitiesOfSong(ctx, variant.VariantID)
+	if err != nil {
+		return nil
+	}
+	for _, c := range communities {
+		owner := store.CommunityOwner(c.ID)
+		if rights.Owner == owner || !rights.CanVersionFor(owner) {
+			continue
+		}
+		if ok, err := s.store.MayMakeVersion(ctx, personID, variant.VariantID, owner, false); err != nil || !ok {
+			continue
+		}
+		return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, Coaching: true, CatalogueFix: rights.Catalogue && rights.Contribute}
+	}
+	return nil
+}
+
+func variantVersionName(v *store.CatalogVariant) string {
+	if v == nil {
+		return ""
+	}
+	return v.VersionName
+}
+
+// songPageBand is the band a song page was opened from: ?band=N, a band's
+// set list (?setlist=N) or a band's songbook (?songbook=N); 0 for none.
+func (s *Server) songPageBand(r *http.Request) int64 {
+	q := r.URL.Query()
+	if id, err := strconv.ParseInt(q.Get("band"), 10, 64); err == nil && id > 0 {
+		return id
+	}
+	if id, err := strconv.ParseInt(q.Get("setlist"), 10, 64); err == nil && id > 0 {
+		if meta, err := s.store.GetSetlistMeta(r.Context(), id); err == nil && meta.Scope == "band" && meta.OwnerBandID != nil {
+			return *meta.OwnerBandID
+		}
+		return 0
+	}
+	if id, err := strconv.ParseInt(q.Get("songbook"), 10, 64); err == nil && id > 0 {
+		if sb, err := s.store.GetSongbook(r.Context(), id); err == nil && sb.OwnerKind == "band" {
+			return sb.OwnerBandID
+		}
+	}
+	return 0
+}
+
+// songBasedOn is the song a band's song was made from (play.html's
+// "Based on" line): its title and artist, and whose it is (Kind is its
+// visibility, Owner its band's, community's or person's name).
+type songBasedOn struct {
+	VariantID     int64
+	Title, Artist string
+	Kind, Owner   string
+}
+
+func variantVisibility(v *store.CatalogVariant) string {
+	if v == nil {
+		return ""
+	}
+	return v.Visibility
 }
 
 // songBrandContext is whose look a song page takes (internal/brand): the
@@ -3129,7 +3522,8 @@ func (s *Server) songBrandContext(r *http.Request, data map[string]any, variant 
 		switch {
 		case variant.OwnerBandID != nil:
 			return "band", *variant.OwnerBandID
-		case variant.OwnerCommunityID != nil:
+		case variant.OwnerCommunityID != nil && variant.Visibility != "global":
+			// The Big Songbook's (the catalogue's) has no look of its own.
 			return "community", *variant.OwnerCommunityID
 		}
 	}
@@ -3147,8 +3541,9 @@ func setlistOwner(meta *store.SetlistMeta) (string, int64) {
 	return "", 0
 }
 
-// songNeighbor is the prev/next-in-setlist card: just enough to glance at
-// before switching — title, tempo, key — without loading the whole chart.
+// songNeighbor is the previous or next song's card in the header: its
+// title, without loading the whole chart (the tempo and key stay for the
+// cards' other readers).
 type songNeighbor struct {
 	VariantID         int64
 	Title, Tempo, Key string
@@ -3162,72 +3557,104 @@ func (s *Server) loadSongNeighbor(variantID int64) *songNeighbor {
 	return &songNeighbor{VariantID: variantID, Title: orDefault(sg.Get("title"), "untitled"), Tempo: sg.Get("tempo"), Key: sg.Get("key")}
 }
 
+// neighborsAt loads the songs either side of a place in a list.
+func (s *Server) neighborsAt(at songPlace) (prev, next *songNeighbor, _ songPlace) {
+	if at.PrevID != 0 {
+		prev = s.loadSongNeighbor(at.PrevID)
+	}
+	if at.NextID != 0 {
+		next = s.loadSongNeighbor(at.NextID)
+	}
+	return prev, next, at
+}
+
 // songbookNeighbors returns the entries immediately before/after
-// variantID in songbookID's own order, so every song page offers SOME
-// way to flip to the next one, not only when it was opened via a
-// setlist.
-func (s *Server) songbookNeighbors(ctx context.Context, songbookID, variantID int64) (prev, next *songNeighbor) {
+// variantID in songbookID's own order, and its position there, so every
+// song page offers SOME way to flip to the next one, not only when it was
+// opened via a setlist.
+func (s *Server) songbookNeighbors(ctx context.Context, songbookID, variantID int64) (prev, next *songNeighbor, at songPlace) {
 	groups, err := s.store.ListSongsOrdered(ctx, songbookID)
 	if err != nil {
-		return nil, nil
+		return nil, nil, songPlace{}
 	}
 	var flat []int64
-	at := -1
 	for _, g := range groups {
-		for _, vid := range g.VariantIDs {
-			if vid == variantID && at < 0 {
-				at = len(flat)
-			}
-			flat = append(flat, vid)
-		}
+		flat = append(flat, g.VariantIDs...)
 	}
-	if at < 0 {
-		return nil, nil
-	}
-	if at > 0 {
-		prev = s.loadSongNeighbor(flat[at-1])
-	}
-	if at < len(flat)-1 {
-		next = s.loadSongNeighbor(flat[at+1])
-	}
-	return prev, next
+	return s.neighborsAt(listPlace(flat, variantID))
 }
 
 // setlistNeighbors flattens every set's entries into one running order (a
 // setlist is a single gig, sets back to back) and returns the entries
-// immediately before/after variantID in it.
-func (s *Server) setlistNeighbors(ctx context.Context, setlistRef string, variantID int64) (prev, next *songNeighbor) {
+// immediately before/after variantID in it, and its position.
+func (s *Server) setlistNeighbors(ctx context.Context, setlistRef string, variantID int64) (prev, next *songNeighbor, at songPlace) {
 	id, err := strconv.ParseInt(setlistRef, 10, 64)
 	if err != nil {
-		return nil, nil
+		return nil, nil, songPlace{}
 	}
 	l, _, _, err := s.store.LoadSetlistByID(ctx, id)
 	if err != nil {
-		return nil, nil
+		return nil, nil, songPlace{}
 	}
 	var flat []int64
-	at := -1
 	for _, set := range l.Sets {
 		for _, e := range set.Entries {
-			if !e.IsVariant() {
-				continue
+			if e.IsVariant() {
+				flat = append(flat, e.VariantID)
 			}
-			if e.VariantID == variantID && at < 0 {
-				at = len(flat)
-			}
-			flat = append(flat, e.VariantID)
 		}
 	}
-	if at < 0 {
-		return nil, nil
+	return s.neighborsAt(listPlace(flat, variantID))
+}
+
+// songOwnerPlace is the page of the song's owner, for the line above the
+// header of a song opened from nowhere in particular: its band's
+// repertoire, its community's songbook, or the reader's own songbook;
+// none for a catalogue song, or a band's or community's the reader isn't
+// in.
+func (s *Server) songOwnerPlace(r *http.Request, v *store.CatalogVariant, lang string) songOwnerPlace {
+	ctx := r.Context()
+	person := personFromContext(r)
+	if v == nil || person == nil {
+		return songOwnerPlace{}
 	}
-	if at > 0 {
-		prev = s.loadSongNeighbor(flat[at-1])
+	switch {
+	case v.OwnerBandID != nil:
+		if ok, _ := s.store.IsCurrentBandMember(ctx, *v.OwnerBandID, person.ID); !ok && !person.IsAdmin {
+			return songOwnerPlace{}
+		}
+		if b, err := s.store.GetBand(ctx, *v.OwnerBandID); err == nil {
+			return songOwnerPlace{Href: fmt.Sprintf("/bands/%d/catalog", b.ID), Name: b.Name}
+		}
+	case v.OwnerCommunityID != nil && v.Visibility != "global":
+		if ok, _ := s.store.IsCurrentCommunityMember(ctx, *v.OwnerCommunityID, person.ID); !ok && !person.IsAdmin {
+			return songOwnerPlace{}
+		}
+		c, err := s.store.GetCommunity(ctx, *v.OwnerCommunityID)
+		if err != nil {
+			return songOwnerPlace{}
+		}
+		o := songOwnerPlace{Href: fmt.Sprintf("/communities/%d/songbooks/default", c.ID), Name: c.Name}
+		if books, err := s.store.ListSongbooks(ctx, "community", c.ID); err == nil {
+			for _, sb := range books {
+				if sb.IsDefault && sb.Name != "" {
+					o.Name = sb.Name
+				}
+			}
+		}
+		return o
+	case v.Visibility == "user" && v.OwnerID != nil && *v.OwnerID == person.ID:
+		o := songOwnerPlace{Href: "/songbooks/mine", Name: i18n.T(lang, "My songbook")}
+		if books, err := s.store.ListSongbooks(ctx, "person", person.ID); err == nil {
+			for _, sb := range books {
+				if sb.IsDefault {
+					o.Href = fmt.Sprintf("/songbooks/%d", sb.ID)
+				}
+			}
+		}
+		return o
 	}
-	if at < len(flat)-1 {
-		next = s.loadSongNeighbor(flat[at+1])
-	}
-	return prev, next
+	return songOwnerPlace{}
 }
 
 func orDefault(v, def string) string {
@@ -3334,6 +3761,7 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, "sheet-body", map[string]any{
 		"Sections":  sections,
 		"MapLines":  buildMapLines(sections),
+		"Jazz":      buildJazzChart(sg, sections),
 		"DrumMap":   drumMap,
 		"VariantID": int64(0), // unsaved preview — no real variant to re-fetch drummer-rows against; alphatab-tab.js skips the re-fetch when this is absent/zero
 	}); err != nil {
@@ -3342,6 +3770,10 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
+	s.addMembersTab(w, data)
+	s.addUnreadCount(w, data)
+	s.addNav(w, name, data)
+	s.addSpaceNav(w, name, data)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := webassets.TemplatesFor(s.langOf(w)).ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render %s: %v", name, err)
@@ -3349,84 +3781,10 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 }
 
 // songStartsWithPickup reports whether sg.Sections[si] — the song's first
-// section with a grid — opens with a pickup bar: its score writes a first
-// bar shorter than the time signature (an anacrusis, as a Guitar Pro
-// import keeps it), or its grid's first bar carries no chord at all ("?",
-// "." or "R": a count-in bar).
-func songStartsWithPickup(sg *song.Song, si int) bool {
-	sec := sg.Sections[si]
-	if len(sec.Measures) == 0 {
-		return false
-	}
-	timeSig := orDefault(sec.Time, orDefault(sg.Get("time"), "4/4"))
-	num, den := timeSigParts(timeSig)
-	full := float64(atoiOr(num, 4)) * 4 / float64(atoiOr(den, 4))
-	// The score decides when there is one. A track playing from the first
-	// beat of a full bar makes it bar 1; one whose notes only come in late
-	// (a first bar shorter than a full one, or opening with rests over at
-	// least half of it — an anacrusis padded to a full bar) makes it a
-	// pickup, as does a first bar silent in every track under a silent
-	// grid bar (a count-in).
-	scored, late, fromStart := false, false, false
-	for _, sv := range sec.Scores {
-		riff, err := tab.ParseVoice(sv.Label, sv.Body)
-		if err != nil || len(riff.Bars) == 0 {
-			continue
-		}
-		scored = true
-		bar := riff.Bars[0]
-		lead, notes := 0.0, false
-		for _, b := range bar.Beats {
-			if !b.Rest {
-				notes = true
-				break
-			}
-			lead += b.Beats()
-		}
-		if !notes {
-			continue
-		}
-		if tab.BarBeats(bar) < full-1e-9 || lead >= full/2-1e-9 {
-			late = true
-		} else {
-			fromStart = true
-		}
-	}
-	if scored {
-		// A first bar silent in every track is a count-in only under a
-		// silent grid bar too: silence under a chord is an intro bar.
-		return !fromStart && (late || isSilentBar(sec.Measures[0].Tokens))
-	}
-	// No score: a silent first grid bar ("?", "R", N.C.) — but only in a
-	// grid that names chords somewhere; one that names none ("R" in every
-	// bar, e.g. a Guitar Pro import without chord diagrams) says nothing.
-	return isSilentBar(sec.Measures[0].Tokens) && gridNamesChords(sg)
-}
-
-// gridNamesChords: some bar of the song's chord grid names a chord.
-func gridNamesChords(sg *song.Song) bool {
-	for _, sec := range sg.Sections {
-		for _, m := range sec.Measures {
-			if len(m.Tokens) > 0 && !isSilentBar(m.Tokens) && !allSimile(m.Tokens) {
-				return true
-			}
-		}
-	}
-	return false
-}
+// section with a grid — opens with a pickup bar (tab.StartsWithPickup, which
+// the PDF asks too).
+func songStartsWithPickup(sg *song.Song, si int) bool { return tab.StartsWithPickup(sg, si) }
 
 // isSilentBar: a grid bar that names no chord at all — "?" (unknown), "."
 // (nothing new), "R" (rest) or N.C.
-func isSilentBar(tokens []string) bool {
-	if len(tokens) == 0 {
-		return false
-	}
-	for _, t := range tokens {
-		switch strings.TrimSpace(t) {
-		case "?", ".", "R", "N.C.", "NC":
-		default:
-			return false
-		}
-	}
-	return true
-}
+func isSilentBar(tokens []string) bool { return tab.SilentBar(tokens) }

@@ -11,7 +11,7 @@ import (
 func TestWebAuthnCredentialNaming(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	personID, err := st.CreatePerson(ctx, "keys", "Keys", "keys@example.com")
+	personID, err := st.CreatePerson(ctx, "Keys", "keys@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}

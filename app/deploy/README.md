@@ -161,8 +161,9 @@ next infra follow-up once someone besides the admin needs to log in.
 
 ## `--dev-auto-login` / `SONGBOOKS_DEV_AUTO_LOGIN` — NEVER set this here
 
-The app binary supports a dev-only flag/env var, `--dev-auto-login <username>`
-/ `SONGBOOKS_DEV_AUTO_LOGIN=<username>`, that makes **every** request
+The app binary supports a dev-only flag/env var, `--dev-auto-login <person>`
+/ `SONGBOOKS_DEV_AUTO_LOGIN=<person>` (an email or a numeric person id;
+there are no usernames, see `docs/accounts.md`), that makes **every** request
 automatically authenticated as that person — no cookie, no session, `/login`
 skipped entirely. It exists purely for fast local iteration against
 `songbooks_dev` on a dev machine.

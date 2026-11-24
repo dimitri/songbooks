@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — sharing and access" .Songbook.Name}} — Songbooks</title>
+<title>{{docTitle (t "%s — sharing and access" .Songbook.Name)}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -16,7 +16,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/songbooks">{{template "icon-back"}} {{t "Songbooks"}}</a>
   <h1>{{t "%s — sharing and access" .Songbook.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
@@ -28,11 +27,11 @@
   </div>
 
   <div class="card">
-    <h3>{{t "Shared or private"}}</h3>
-    <p class="hint" id="shared-hint">{{t "Shared, whoever can open a song can also copy it into their own songbook, a band’s or another community’s. Private, the songs can be opened, played and downloaded but not copied — an author’s lessons stay theirs. Either way the songbook can be sold separately, below."}}</p>
-    <label class="check"><input type="radio" name="shared" value="true" aria-describedby="shared-hint" {{if .Songbook.Shared}}checked{{end}}> {{t "Shared"}}</label>
-    <label class="check"><input type="radio" name="shared" value="false" aria-describedby="shared-hint" {{if not .Songbook.Shared}}checked{{end}}> {{t "Private"}}</label>
-    <p id="shared-result" class="form-status" role="status"></p>
+    <h3>{{t "Open or closed"}}</h3>
+    <p class="hint" id="closed-hint">{{t "Open, the community’s songs in it can be linked from other songbooks, and made into someone’s own arrangement. Closed, for a songbook sold outside the app: its songs stay in it — never public, never linked, copied or made into an arrangement anywhere else; a student can still keep their own key. Either way, who can open it is set below."}}</p>
+    <label class="check"><input type="radio" name="closed" value="false" aria-describedby="closed-hint" {{if not .Songbook.Closed}}checked{{end}}> {{t "songbook|Open"}}</label>
+    <label class="check"><input type="radio" name="closed" value="true" aria-describedby="closed-hint" {{if .Songbook.Closed}}checked{{end}}> {{t "songbook|Closed"}}</label>
+    <p id="closed-result" class="form-status" role="status"></p>
   </div>
 
   <div class="card">
@@ -47,10 +46,10 @@
     <tbody>
     {{range .Members}}
       <tr data-person-id="{{.PersonID}}">
-        <td data-label="{{t "Member"}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
+        <td data-label="{{t "Member"}}">{{.DisplayName}}</td>
         <td data-label="{{t "Role"}}">{{t .Role}}</td>
         <td data-label="{{t "Access"}}">
-          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{t "%s has access" (or .DisplayName .Username)}}" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> {{t "Has access"}}</label>
+          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{t "%s has access" .DisplayName}}" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> {{t "Has access"}}</label>
           {{with index $.Granted .PersonID}}<span class="hint">{{if .Expired}}{{t "ended %s" (date .ExpiresAt "2 Jan 2006")}}{{else}}{{if eq .Source "purchase"}}{{t "bought %s" (date .GrantedAt "2 Jan 2006")}}{{else if eq .Source "bundle"}}{{t "in a bundle %s" (date .GrantedAt "2 Jan 2006")}}{{else}}{{t "given %s" (date .GrantedAt "2 Jan 2006")}}{{end}}{{with .ExpiresAt}}{{t ", until %s" (date . "2 Jan 2006")}}{{end}}{{with .Reference}} · {{.}}{{end}}{{end}}</span>{{end}}
         </td>
       </tr>
@@ -85,16 +84,16 @@ document.querySelectorAll('input[name=kind]').forEach(radio => radio.addEventLis
   }
 }));
 
-document.querySelectorAll('input[name=shared]').forEach(radio => radio.addEventListener('change', async () => {
-  const out = document.getElementById('shared-result');
+document.querySelectorAll('input[name=closed]').forEach(radio => radio.addEventListener('change', async () => {
+  const out = document.getElementById('closed-result');
   Forms.status(out, t('Saving…'), '');
-  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/shared`, {
+  const res = await fetch(`/api/communities/${communityId}/songbooks/${songbookId}/closed`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({shared: radio.value === 'true'}),
+    body: JSON.stringify({closed: radio.value === 'true'}),
   }).catch(() => null);
   if (!res || !res.ok) {
-    Forms.status(out, t('Couldn’t save that. Try again.'), 'error');
-    document.querySelector(`input[name=shared][value="${radio.value !== 'true'}"]`).checked = true;
+    Forms.status(out, res && res.status === 409 ? t('A public songbook, or one with public songs, can’t be closed: make them private first.') : t('Couldn’t save that. Try again.'), 'error');
+    document.querySelector(`input[name=closed][value="${radio.value !== 'true'}"]`).checked = true;
   } else {
     Forms.status(out, t('Saved.'), 'ok');
   }
@@ -135,7 +134,7 @@ document.querySelectorAll('.grant-checkbox').forEach(cb => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

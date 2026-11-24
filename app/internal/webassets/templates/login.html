@@ -10,43 +10,23 @@
 </head>
 <body>
 <main class="index auth-page">
+  {{/* No mailer that reaches people (mailer.Delivers: the console
+       mailer, no SMTP yet): an emailed link isn't a way back in, so the
+       password comes first. With one, the passkey does, as before. The
+       emailed link keeps working either way. */}}
   <div class="hero">
     <div>
       <h2>{{t "Log in"}}</h2>
+      {{if .LoginEmails}}
       <p>{{t "Three ways in: a passkey, a password, or a one-time emailed link — whichever you've got set up."}}</p>
+      {{else}}
+      <p>{{t "Log in with your email and password, or with a passkey if you’ve added one."}}</p>
+      {{end}}
     </div>
   </div>
 
-  <section class="card" id="passkey-login">
-    <h3>{{t "Log in with a passkey"}}</h3>
-    <p class="hint">{{t "Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for."}}</p>
-    <button type="button" id="webauthn-login-btn" class="primary">{{t "Log in with a passkey"}}</button>
-    <p class="form-status" id="webauthn-login-status" role="status"></p>
-    <p class="hint" id="webauthn-unsupported" hidden>{{t "This browser can't use passkeys — use your password or a login link below instead."}}</p>
-  </section>
-
-  <section class="card">
-    <h3>{{t "Log in with a password"}}</h3>
-    {{/* Deliberately one message for every failure (no such account, no
-         password set, wrong password) — see handlePasswordLogin. */}}
-    <form method="post" action="/login" class="form-stack" id="password-login-form">
-      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">{{t "That username or email and password don't match. Check both and try again."}}</p>{{end}}
-      <input type="hidden" name="mode" value="password">
-      <div class="field">
-        <label for="login-identifier">{{t "Username or email"}}</label>
-        <input id="login-identifier" type="text" name="identifier" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required {{if not .InvalidCredentials}}autofocus{{end}}>
-      </div>
-      <div class="field">
-        <label for="login-password">{{t "Password"}}</label>
-        <div class="pw-field">
-          <input id="login-password" type="password" name="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" required>
-          <button type="button" class="pw-toggle" aria-controls="login-password" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "password"}}</span></button>
-        </div>
-      </div>
-      <div class="form-actions"><button type="submit" class="primary">{{t "Log in"}}</button></div>
-    </form>
-    <p class="hint"><a href="#email-link">{{t "Forgot your password?"}}</a> {{t "Get a login link by email below, then set a new password from your profile page."}}</p>
-  </section>
+  {{if .LoginEmails}}{{template "login-passkey-card" .}}{{template "login-password-card" .}}
+  {{else}}{{template "login-password-card" .}}{{template "login-passkey-card" .}}{{end}}
 
   <section class="card" id="email-link">
     <h3>{{t "Email me a login link"}}</h3>
@@ -65,7 +45,7 @@
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
 // A failed password login is a redirect to /login?badlogin=1 (the server
-// keeps nothing), so the username or email typed is stashed for this tab
+// keeps nothing), so the email typed is stashed for this tab
 // and put back, and focus goes to the password, the field to retype.
 // Never the password itself.
 (function() {
@@ -145,4 +125,43 @@
 </script>
 </body>
 </html>
+{{end}}
+
+{{define "login-passkey-card"}}
+  <section class="card" id="passkey-login">
+    <h3>{{t "Log in with a passkey"}}</h3>
+    <p class="hint">{{t "Touch ID, Face ID, Windows Hello, or a security key — no password to remember or email to wait for."}}</p>
+    <button type="button" id="webauthn-login-btn"{{if .LoginEmails}} class="primary"{{end}}>{{t "Log in with a passkey"}}</button>
+    <p class="form-status" id="webauthn-login-status" role="status"></p>
+    <p class="hint" id="webauthn-unsupported" hidden>{{if .LoginEmails}}{{t "This browser can't use passkeys — use your password or a login link below instead."}}{{else}}{{t "This browser can’t use passkeys: use your password instead."}}{{end}}</p>
+  </section>
+{{end}}
+
+{{define "login-password-card"}}
+  <section class="card">
+    <h3>{{t "Log in with a password"}}</h3>
+    {{/* Deliberately one message for every failure (no such account, no
+         password set, wrong password) — see handlePasswordLogin. */}}
+    <form method="post" action="/login" class="form-stack" id="password-login-form">
+      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">{{t "That email and password don't match. Check both and try again."}}</p>{{end}}
+      <input type="hidden" name="mode" value="password">
+      <div class="field">
+        <label for="login-identifier">{{t "Email"}}</label>
+        <input id="login-identifier" type="email" name="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required {{if not .InvalidCredentials}}autofocus{{end}}>
+      </div>
+      <div class="field">
+        <label for="login-password">{{t "Password"}}</label>
+        <div class="pw-field">
+          <input id="login-password" type="password" name="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" required>
+          <button type="button" class="pw-toggle" aria-controls="login-password" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "password"}}</span></button>
+        </div>
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Log in"}}</button></div>
+    </form>
+    {{if .LoginEmails}}
+    <p class="hint"><a href="#email-link">{{t "Forgot your password?"}}</a> {{t "Get a login link by email below, then set a new password from your profile page."}}</p>
+    {{else}}
+    <p class="hint">{{t "Forgot your password? Ask a site admin for a login link, then set a new password from your profile page."}}</p>
+    {{end}}
+  </section>
 {{end}}

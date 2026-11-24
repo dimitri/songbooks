@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
+	"app/internal/i18n"
 	"app/internal/songdiff"
 	"app/internal/store"
 )
@@ -18,15 +20,32 @@ import (
 // song.MetaKeys in internal/song/song.go), so there's nothing to group or
 // filter by; "by project" is the closest grouping concept that actually
 // exists in the data.
+//
+// It is the Library (menu PR 8): its Songs segment, and ?view=songbooks
+// or ?view=setlists for the other two (the old /songbooks and /setlists
+// pages, which redirect here).
 func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Query().Get("view") {
+	case libraryViewSongbooks:
+		s.handleSongbooksIndexPage(w, r)
+		return
+	case libraryViewSetlists:
+		s.handleSetlistsPage(w, r)
+		return
+	}
 	person := personFromContext(r)
-	filter := store.CatalogFilter{
+	lang := s.langOf(w)
+	// Everything the person sees (docs/ownership-model.md §1): their own
+	// songs, their bands' and communities', every public one, each with
+	// whose it is and who sees it, the versions of a work together.
+	filter := store.FindFilter{
 		Query:  r.URL.Query().Get("q"),
+		Scope:  validFindScope(r.URL.Query().Get("scope")),
 		Artist: r.URL.Query().Get("artist"),
 		Genre:  r.URL.Query().Get("genre"),
 		Sort:   r.URL.Query().Get("sort"),
 	}
-	variants, err := s.store.ListCatalog(r.Context(), person.ID, filter)
+	works, err := s.store.FindSongs(r.Context(), person.ID, filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -36,19 +55,41 @@ func (s *Server) handleCatalogPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defaultSongbookID, err := s.store.GetDefaultSongbook(r.Context(), "person", person.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	var ids []int64
+	owners := map[int64]string{}
+	for _, wk := range works {
+		for _, sg := range wk.Songs {
+			ids = append(ids, sg.ID)
+			owners[sg.ID] = ownerBadge(lang, sg)
+		}
 	}
-
-	ids := make([]int64, len(variants))
-	for i, v := range variants {
-		ids[i] = v.VariantID
+	type scopeView struct {
+		Label, Href string
+		Active      bool
 	}
+	var scopes []scopeView
+	for _, f := range findScopes {
+		v := url.Values{}
+		for _, k := range []string{"q", "artist", "genre", "sort"} {
+			if x := r.URL.Query().Get(k); x != "" {
+				v.Set(k, x)
+			}
+		}
+		if f.Scope != "" {
+			v.Set("scope", f.Scope)
+		}
+		href := "/catalog"
+		if len(v) > 0 {
+			href += "?" + v.Encode()
+		}
+		scopes = append(scopes, scopeView{Label: f.Label, Href: href, Active: f.Scope == filter.Scope})
+	}
+	// The bands whose recordings of a song everyone hears
+	// (docs/ownership-model.md §8): "played by: Mercy (2 recordings)".
+	playedBy, _ := s.store.PlayedByFor(r.Context(), ids)
 	s.render(w, "catalog", map[string]any{
-		"Me": person, "Variants": variants, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
-		"DefaultSongbookID": defaultSongbookID,
+		"Me": person, "Works": works, "Filter": filter, "Genres": genres, "Badges": s.songBadgesFor(r.Context(), ids),
+		"Owners": owners, "Scopes": scopes, "PlayedBy": playedBy,
 	})
 }
 
@@ -60,6 +101,9 @@ type catalogSearchHit struct {
 	Title      string `json:"title"`
 	Artist     string `json:"artist"`
 	Visibility string `json:"visibility"`
+	// Band: the band's name, for a band's version shown in place of the
+	// catalogue's song (store.PreferBandVersions).
+	Band string `json:"band,omitempty"`
 }
 
 // handleCatalogSearch is GET /api/catalog/search?q=... — a JSON type-
@@ -80,6 +124,12 @@ func (s *Server) handleCatalogSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	variants, err := s.store.ListCatalog(r.Context(), person.ID, store.CatalogFilter{Query: q})
+	if err == nil {
+		// ?band=N: a band's add dialog — its own version, never another
+		// band's (a band doesn't take another band's song).
+		onlyBand, _ := strconv.ParseInt(r.URL.Query().Get("band"), 10, 64)
+		variants, err = s.store.PreferBandVersionsFor(r.Context(), person.ID, variants, onlyBand)
+	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -89,7 +139,7 @@ func (s *Server) handleCatalogSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	hits := make([]catalogSearchHit, len(variants))
 	for i, v := range variants {
-		hits[i] = catalogSearchHit{VariantID: v.VariantID, Title: v.Title, Artist: v.Artist, Visibility: v.Visibility}
+		hits[i] = catalogSearchHit{VariantID: v.VariantID, Title: v.Title, Artist: v.Artist, Visibility: v.Visibility, Band: v.BandName}
 	}
 	writeJSON(w, http.StatusOK, hits)
 }
@@ -145,7 +195,7 @@ func (s *Server) handleSongbooksIndexPage(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleWorkVersionsPage is a work's "all versions of this song" page:
+// handleWorkVersionsPage is a work's "this song’s recordings and arrangements" page:
 // every variant the viewer may see (every global one, plus their own
 // private ones), with a free-text annotation box/list underneath.
 func (s *Server) handleWorkVersionsPage(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +247,10 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 	person := personFromContext(r)
 	variant, err := s.store.GetVariant(r.Context(), variantID)
 	if err != nil {
-		http.NotFound(w, r)
+		// A song merged into another (§7): its history is on that one's.
+		if !s.mergedRedirect(w, r, variantID) {
+			http.NotFound(w, r)
+		}
 		return
 	}
 	revisions, err := s.store.ListRevisions(r.Context(), "variant", strconv.FormatInt(variantID, 10))
@@ -205,46 +258,137 @@ func (s *Server) handleVariantHistoryPage(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	rights, err := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	canEdit := rights.Edit
+	// Which edits the viewer may revert: any, for who edits the song; on
+	// The Big Songbook's, per catalogueRevertable.
+	revertable := map[int64]bool{}
+	if rights.Catalogue {
+		revertable = s.catalogueRevertable(r.Context(), person.ID, revisions)
+	} else if canEdit {
+		for _, rv := range revisions {
+			revertable[rv.ID] = true
+		}
 	}
 	// The Guitar Pro files the song was imported from, current and earlier
 	// (best effort: a failure just leaves the section out).
 	gpCurrent, _ := s.store.GetSongGPSourceFileMeta(r.Context(), variantID)
 	gpVersions, _ := s.store.ListSongGPSourceFileVersions(r.Context(), variantID)
+	// The songs merged into this one (§7), each with its own history.
+	type mergedHistory struct {
+		store.SongMerge
+		Revisions []store.Revision
+	}
+	var merged []mergedHistory
+	if ms, err := s.store.MergedInto(r.Context(), variantID); err == nil {
+		for _, m := range ms {
+			revs, _ := s.store.ListRevisions(r.Context(), "variant", strconv.FormatInt(m.MergedSongID, 10))
+			merged = append(merged, mergedHistory{SongMerge: m, Revisions: revs})
+		}
+	}
 	s.render(w, "variant_history", map[string]any{
-		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit,
+		"Me": person, "Variant": variant, "Revisions": revisions, "CanEdit": canEdit, "Merged": merged,
+		"Revertable": revertable, "Catalogue": rights.Catalogue, "CanContribute": rights.Contribute,
 		"GPFile": gpCurrent, "GPVersions": gpVersions,
 		"Edits": s.describeEdits(variantID, revisions),
 	})
 }
 
-// handleForkVariant creates a personal copy of a variant (global or
-// someone else's) in the caller's own catalog, with lineage back to the
-// original — a normal HTTP action, not a special "promote" flow.
+// handleForkVariant is "Make my arrangement" (docs/ownership-model.md §5):
+// the person's own version of a song they see (never a closed songbook's),
+// in its place in their songbooks ({"songbookId"}, else every one of
+// theirs linking it; their default songbook when none does).
 func (s *Server) handleForkVariant(w http.ResponseWriter, r *http.Request) {
 	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "invalid variant id")
 		return
 	}
+	var req struct {
+		SongbookID int64 `json:"songbookId"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
 	person := personFromContext(r)
-	newID, err := s.store.ForkVariant(r.Context(), variantID, person.ID, "user", 0)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	if errors.Is(err, store.ErrForbidden) {
-		httpError(w, http.StatusForbidden, "this song can't be copied")
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	newID, err := s.store.MakeVersion(r.Context(), person.ID, variantID, store.PersonOwner(person.ID), req.SongbookID, "")
+	if !s.writeLinkErr(w, r, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
+}
+
+// handleNewVersion is POST /api/variants/{id}/versions {name, songbookId}:
+// "New arrangement from this" (docs/ownership-model.md §5) — another version
+// of a song the caller edits, owned by the same owner, named ("Bad Spell —
+// psychedelic"), as a new row beside it in {songbookId} (else in each of
+// the owner's songbooks holding it). Answers its id.
+func (s *Server) handleNewVersion(w http.ResponseWriter, r *http.Request) {
+	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+	var req struct {
+		Name       string `json:"name"`
+		SongbookID int64  `json:"songbookId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		httpError(w, http.StatusBadRequest, i18n.T(s.langOfRequest(r), "A new version needs a name."))
+		return
+	}
+	ctx := r.Context()
+	person := personFromContext(r)
+	rights, err := s.store.SongRightsFor(ctx, person.ID, variantID)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, err.Error())
+		return
+	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !rights.Edit || rights.Catalogue {
+		httpError(w, http.StatusForbidden, "you can't make a version of this song here")
+		return
+	}
+	newID, err := s.store.MakeVersion(ctx, person.ID, variantID, rights.Owner, req.SongbookID, req.Name)
+	if !s.writeLinkErr(w, r, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"variantId": newID})
+}
+
+// handleSetSongPublic is POST /api/variants/{id}/public {public}: the song
+// made public (everyone signed in sees it, links it, makes their own
+// version of it; everything goes with it: its chart, reference,
+// recordings, stems, Guitar Pro file) or private. A person their own; a
+// band's core members; a community's staff; the site's admins for The Big
+// Songbook's (store.SongRights.Publish). Never a closed songbook's song.
+func (s *Server) handleSetSongPublic(w http.ResponseWriter, r *http.Request) {
+	variantID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+	var req struct {
+		Public bool `json:"public"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	switch err := s.store.SetSongPublic(r.Context(), personFromContext(r).ID, variantID, req.Public); {
+	case errors.Is(err, store.ErrNotFound):
+		httpError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, store.ErrForbidden):
+		httpError(w, http.StatusForbidden, "you can't publish this song")
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, map[string]bool{"public": req.Public})
+	}
 }
 
 // handleCreateAnnotation leaves a free-text note on a variant — not an
@@ -319,10 +463,19 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, "revision has a non-numeric variant entity_id")
 			return
 		}
-		canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+		rights, err := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+		canEdit := rights.Edit
+		// The Big Songbook's song: its staff and trusted editors revert
+		// any edit; its author their own while it is the latest.
+		if rights.Catalogue {
+			if canEdit, err = s.store.MayRevertCatalogue(r.Context(), person.ID, revisionID); err != nil {
+				httpError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		}
 		if !canEdit {
 			httpError(w, http.StatusForbidden, "no edit rights on this variant")
@@ -337,13 +490,16 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		isMember, err := s.store.IsCurrentBandMember(r.Context(), bandID, person.ID)
+		// Undoing a membership change (an add, a removal, a role) is
+		// giving roles: manage_roles (a guest reverting their own
+		// demotion was a way round the core-only switch).
+		may, err := s.bandPrivilege(r, bandID, store.BandPrivManageRoles)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if !isMember {
-			httpError(w, http.StatusForbidden, "must be a current member of this band")
+		if !may {
+			httpError(w, http.StatusForbidden, "your role in this band doesn't let you change its members' roles")
 			return
 		}
 	case "setlist":
@@ -367,13 +523,13 @@ func (s *Server) handleRevertRevision(w http.ResponseWriter, r *http.Request) {
 				httpError(w, http.StatusNotFound, err.Error())
 				return
 			}
-			isMember, memErr := s.store.IsCurrentBandMember(r.Context(), bandID, person.ID)
+			may, memErr := s.bandPrivilege(r, bandID, store.BandPrivManageSetlists)
 			if memErr != nil {
 				httpError(w, http.StatusInternalServerError, memErr.Error())
 				return
 			}
-			if !isMember {
-				httpError(w, http.StatusForbidden, "must be a current member of this band")
+			if !may {
+				httpError(w, http.StatusForbidden, "your role in this band doesn't let you change its set lists")
 				return
 			}
 		} else if err != nil {
@@ -409,7 +565,7 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	person := personFromContext(r)
-	canEdit, err := s.store.CanEditVariant(r.Context(), person.ID, variantID)
+	rights, err := s.store.SongRightsFor(r.Context(), person.ID, variantID)
 	actorPersonID := person.ID
 	if errors.Is(err, store.ErrNotFound) {
 		httpError(w, http.StatusNotFound, err.Error())
@@ -419,7 +575,7 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if !canEdit {
+	if !rights.Edit && !rights.Contribute {
 		httpError(w, http.StatusForbidden, "no edit rights on this variant")
 		return
 	}
@@ -436,6 +592,10 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The Big Songbook's song: weighed against its recording first.
+	if s.catalogueSave(w, r, variantID, req.Title, req.Artist, req.ReferenceURL, req.Body, req.ExpectVersion) {
+		return
+	}
 	newVersion, err := s.store.SaveVariantByID(r.Context(), variantID, req.Title, req.Artist, req.ReferenceURL, req.Body, req.ExpectVersion, actorPersonID)
 	if errors.Is(err, store.ErrConflict) {
 		httpError(w, http.StatusConflict, err.Error())

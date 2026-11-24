@@ -116,6 +116,10 @@ func Parse(src string) *Song {
 			if line == "" {
 				continue
 			}
+			if strings.HasPrefix(line, "lead:") && validLead(line[5:]) {
+				song.Lead, song.LeadGrid = parseLead(line[5:])
+				continue
+			}
 			if key, rest, ok := splitChordLine(line); ok {
 				if ref, ok := parseChordRef(rest); ok {
 					ref.Key = key
@@ -187,6 +191,11 @@ func Parse(src string) *Song {
 			}
 		case strings.HasPrefix(line, "note:"):
 			cur.notes = append(cur.notes, strings.TrimSpace(line[5:]))
+		case strings.HasPrefix(line, "lead:") && len(song.Sections) == 0 && validLead(line[5:]):
+			// The song's lead written inside its first section (the form
+			// "lead:" first had): the song's all the same. On a later
+			// section it's no field at all (a lyric line, as it reads).
+			song.Lead, song.LeadGrid = parseLead(line[5:])
 		case strings.HasPrefix(line, "score:"):
 			// The old single-line "score: <label>" form (a Postgres-
 			// stored-content pointer) — retired in favor of
@@ -278,7 +287,7 @@ func scoreContinues(line string) bool {
 	if line == "" || sectionHeaderRE.MatchString(line) {
 		return false
 	}
-	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "score:", "score[", "gp:", "gp["} {
+	for _, p := range [...]string{"time:", "grid:", "bars:", "times:", "note:", "lead:", "score:", "score[", "gp:", "gp["} {
 		if strings.HasPrefix(line, p) {
 			return false
 		}
@@ -304,6 +313,37 @@ func parseChordRef(v string) (ChordRef, bool) {
 		return ChordRef{}, false
 	}
 	return ChordRef{Name: name, Spec: spec}, true
+}
+
+// validLead reports whether v (what follows "lead:") is a lead: a bar
+// count ("1") or bars written as a grid ("| G |"). Anything else leaves
+// the line to be read as a lyric, as before "lead:" existed.
+func validLead(v string) bool {
+	n, ms := parseLead(v)
+	return n > 0 || (len(ms) == 0 && strings.TrimSpace(v) == "0")
+}
+
+// parseLead reads a "lead:" value: "N" (N bars of rest; 0 is none) or a
+// grid ("| G | D7 |", as many bars as it writes). The bars are played
+// once, straight: repeat signs and endings are dropped, a bar's meter
+// kept.
+func parseLead(v string) (int, []Measure) {
+	v = strings.TrimSpace(v)
+	if strings.HasPrefix(v, "|") {
+		ms := parseGrid(v)
+		if len(ms) > maxLead {
+			ms = ms[:maxLead]
+		}
+		for i := range ms {
+			ms[i] = Measure{Tokens: ms[i].Tokens, Meter: ms[i].Meter}
+		}
+		return len(ms), ms
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0, nil
+	}
+	return min(n, maxLead), nil
 }
 
 func parseBars(v string) []int {

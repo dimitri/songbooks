@@ -1,0 +1,70 @@
+{{/* The Big Songbook's review queue (docs/ownership-model.md, "The
+     catalogue: open edits"), for its staff and trusted editors: the edits
+     waiting (what each changes, the recording's verdict before and after,
+     Approve / Reject with a note), the songs reported; for the staff, who
+     is kept from editing. catalogue-review.js sends the decisions. */}}
+{{define "catalogue_review"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{docTitle (t "Review The Big Songbook")}}</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  <a class="back-link" href="/big-songbook">{{template "icon-back"}} {{t "The Big Songbook"}}</a>
+  <h1>{{t "Review"}}</h1>
+</header>
+<main class="index catalogue-review">
+  <p class="catalog-intro">{{t "Anyone signed in edits The Big Songbook’s songs. An edit that keeps a song following its recording is applied at once; the others wait here: one that changes the structure without an analysis of the recording to check it, the lead-in, the Guitar Pro sync or the key, removes the recording, or makes the song follow its recording less well. Another recording is another song, never held."}}
+    {{t "A newcomer’s first %d edits wait too. %d accepted edits make a trusted editor, who reviews here." .NewcomerEdits .TrustedEdits}}</p>
+
+  <h2>{{tn (len .Edits) "%d edit waiting" "%d edits waiting"}}</h2>
+  {{range .Edits}}
+  <section class="catalogue-review-item">
+    {{template "catalogue-edit-card" .}}
+    <p class="catalogue-review-links"><a href="/big-songbook/edits/{{.ID}}">{{t "Open this edit"}}</a></p>
+    {{if not .Mine}}{{template "catalogue-edit-decide" (dict "Edit" . "IsStaff" $.IsStaff)}}{{else}}<p class="hint">{{t "Your own edit: another reviewer decides it."}}</p>{{end}}
+  </section>
+  {{else}}
+  <p class="hint">{{t "No edits waiting."}}</p>
+  {{end}}
+
+  <h2>{{tn (len .Reports) "%d song reported" "%d songs reported"}}</h2>
+  {{if .Reports}}
+  <ul class="catalogue-reports">
+    {{range .Reports}}
+    <li class="card catalogue-report" data-report-id="{{.ID}}">
+      <p><a href="/song/{{.SongID}}">{{.SongTitle}}{{with .SongArtist}} — {{.}}{{end}}</a> &middot; <span class="hint">{{if .PersonName}}{{.PersonName}}{{else}}&mdash;{{end}}, {{date .CreatedAt "2 Jan 15:04"}}</span></p>
+      <p class="catalogue-report-reason">{{.Reason}}</p>
+      <p><a href="/variants/{{.SongID}}/history">{{t "History"}}</a> &middot; <button type="button" data-report-handled="{{.ID}}">{{t "Done"}}</button> <span class="form-status" role="status"></span></p>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="hint">{{t "No songs reported."}}</p>
+  {{end}}
+
+  {{if .IsStaff}}
+  <h2>{{t "Kept from editing"}}</h2>
+  {{if .Banned}}
+  <ul class="catalogue-banned">
+    {{range .Banned}}<li>{{.Name}} <span class="hint">{{t "since %s" (date .Since "2 Jan 2006")}}</span> <button type="button" data-unban="{{.ID}}">{{t "Let them edit again"}}</button> <span class="form-status" role="status"></span></li>{{end}}
+  </ul>
+  {{else}}
+  <p class="hint">{{t "Nobody."}}</p>
+  {{end}}
+  {{end}}
+</main>
+<script src="/static/js/catalogue-review.js?v={{staticVersion}}" defer></script>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}

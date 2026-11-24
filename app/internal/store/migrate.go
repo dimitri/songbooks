@@ -92,3 +92,37 @@ func migrationVersion(filename string) (int, error) {
 	}
 	return n, nil
 }
+
+// OpenCurrent connects to a database whose schema is already this
+// binary's, without migrating it: for an administrator's command that must
+// not change a database's schema as a side effect (cmd/ownership's dry
+// run, on staging, say). A database with a migration this binary has that
+// it hasn't, or none at all, is refused.
+func OpenCurrent(ctx context.Context, connString string) (*Store, error) {
+	pool, err := pgxpool.New(ctx, connString)
+	if err != nil {
+		return nil, fmt.Errorf("connecting: %w", err)
+	}
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
+	for _, e := range entries {
+		version, err := migrationVersion(e.Name())
+		if err != nil {
+			pool.Close()
+			return nil, err
+		}
+		var applied bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&applied); err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("reading schema_migrations: %w", err)
+		}
+		if !applied {
+			pool.Close()
+			return nil, fmt.Errorf("the database lacks migration %s: run this with the app's own version", e.Name())
+		}
+	}
+	return &Store{db: pool}, nil
+}

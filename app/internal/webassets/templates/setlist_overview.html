@@ -15,10 +15,17 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.BackURL}}">{{template "icon-back"}} {{if eq .BackLabel "Set lists"}}{{t "Set lists"}}{{else}}{{.BackLabel}}{{end}}</a>
+  {{if .CanEdit}}
+  {{/* Renaming the set list: its title, or the pencil beside it. */}}
+  <span class="band-name-row setlist-name-row">
+    <h1 id="setlist-name-display">{{.Title}}</h1>
+    <input type="text" id="setlist-name-input" class="band-name-input" value="{{.Title}}" aria-label="{{t "Name of the set list"}}" autocomplete="off" enterkeyhint="done" hidden>
+    <button type="button" class="icon-btn setlist-rename-btn" id="setlist-rename" title="{{t "Rename"}}" aria-label="{{t "Rename the set list"}}">{{template "icon-edit"}}</button>
+  </span>
+  <span id="setlist-name-status" class="form-status" role="status"></span>
+  {{else}}
   <h1>{{.Title}}</h1>
-  <nav class="song-nav">
-    {{template "notif-bell"}}
-  </nav>
+  {{end}}
 </header>
 
 {{if or .Date .Venue}}
@@ -29,19 +36,22 @@
 {{end}}
 
 <main class="index">
-  <nav class="band-tabs band-tabs-row setlist-tabs">
-    <a href="{{.Path}}" class="band-tab active">{{template "icon-setlists"}} {{t "Running order"}}</a>
-    <a href="{{.Path}}/clicktrack" class="band-tab">{{template "icon-metronome"}} {{t "Metronome"}}</a>
-    {{if .Playable}}<button type="button" class="band-tab" data-play-all>{{template "icon-play"}} {{t "Play all"}}</button>{{end}}
-    <details class="band-tab-menu">
-      <summary title="{{t "export PDF"}}">{{template "icon-download"}} PDF</summary>
-      <div class="row-menu-panel">
-        <a href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download>{{t "One-pager setlist"}}</a>
-        <a href="/setlists/{{.SetlistID}}/export.pdf" download>{{t "Full setlist songbook"}}</a>
-      </div>
-    </details>
-    {{if .CanEdit}}<button type="button" id="reorder-toggle" class="band-tab">{{template "icon-edit"}} <span id="reorder-toggle-label">{{t "Reorder"}}</span></button>{{end}}
-  </nav>
+  {{/* The set list's toolbar: its views (how to look at it) apart from
+       its actions (what to do to it), menu proposal §3.6. Écouter plays
+       the whole list in the player, so it is a view of this page rather
+       than a page of its own. */}}
+  <div class="setlist-toolbar">
+    {{template "setlist-views" (dict "Path" .Path "Current" "order" "Playable" .Playable)}}
+    <div class="setlist-actions">
+      {{if .CanEdit}}<button type="button" id="reorder-toggle" class="setlist-action" aria-pressed="false">{{template "icon-edit"}} <span id="reorder-toggle-label">{{t "Reorder"}}</span></button>{{end}}
+      {{/* Two PDFs: the set list itself, on one page, straight away; and
+           its songbook (a cover, the list, every song), whose layout and
+           notes are chosen first. */}}
+      <a class="setlist-action" href="/setlists/{{.SetlistID}}/export-setlist-page.pdf" download title="{{t "the set list on one page (PDF)"}}">{{template "icon-download"}} {{t "Set list"}}</a>
+      <button type="button" class="setlist-action" data-pdf-open="setlist-songbook-pdf" aria-haspopup="dialog" title="{{t "every song of the set list (PDF)"}}">{{template "icon-download"}} {{t "Songbook"}}</button>
+    </div>
+  </div>
+  {{template "pdf-export-dialog" (dict "ID" "setlist-songbook-pdf" "Href" (printf "/setlists/%d/export.pdf" .SetlistID) "Title" "Songbook PDF" "Hint" "A cover, the set list, then every song in its order.")}}
   {{if .Choice}}
   <div class="pl-prefer setlist-prefer" role="group" aria-label="{{t "Play first"}}">
     <button type="button" data-prefer="rec" aria-pressed="true">{{t "Our recordings"}}</button>
@@ -49,6 +59,7 @@
   </div>
   {{end}}
 
+  {{if .CanEdit}}<p class="form-status" id="setlist-version-status" role="status"></p>{{end}}
   {{if .IsEmpty}}
   <p class="attention-empty">{{t "No songs yet."}}{{if .CanEdit}} {{t "Add the ones to play below."}}{{end}}</p>
   {{end}}
@@ -57,11 +68,21 @@
     <h2>{{$set.Label}}</h2>
     <div class="gig-table" data-reorder-list>
       {{range $rowIdx, $row := $set.Rows}}
-      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{with .Rec}}{{if .Src}} data-rec-src="{{.Src}}"{{else}} data-rec-file="{{.File}}" data-rec-host="{{.Host}}" data-rec-code="{{.Code}}"{{end}} data-rec-label="{{t .Label}}"{{end}}{{with .Ref}} data-ref-src="{{.Src}}" data-ref-label="{{t .Label}}"{{end}} data-rp-src="" data-title="{{$row.Title}}" data-set="{{$set.Label}}" data-tile="{{t "Song %s" (printf "%v" $row.Num)}}"{{end}}>
+      <div class="gig-row setlist-overview-row{{if $row.Sound}} has-sound{{end}}" data-set-index="{{$setIdx}}" data-row-index="{{$rowIdx}}"{{with $row.Sound}}{{with .Rec}} data-rec-src="{{.Src}}" data-rec-label="{{t .Label}}"{{end}}{{with .Ref}} data-ref-src="{{.Src}}" data-ref-label="{{t .Label}}"{{end}} data-rp-src="" data-title="{{$row.Title}}" data-set="{{$set.Label}}" data-tile="{{t "Song %s" (printf "%v" $row.Num)}}"{{end}}>
         <span class="gig-num">{{$row.Num}}</span>
-        <a class="gig-title" href="/song/{{$row.VariantID}}?setlist={{$.SetlistID}}">
-          {{$row.Title}}{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
-        </a>
+        {{/* The version this set list plays, and, when the band's
+             songbook has several of the song, the others to pick from
+             (docs/ownership-model.md §5). */}}
+        <div class="setlist-title-cell">
+          <a class="gig-title" href="/song/{{$row.VariantID}}?setlist={{$.SetlistID}}">
+            <span>{{$row.Title}}{{with $row.VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</span>{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
+          </a>
+          {{if and $.CanEdit $row.Versions}}
+          <select class="setlist-version" data-item="{{$row.ItemID}}" aria-label="{{t "Arrangement of %s for this set list" $row.Title}}" title="{{t "Which arrangement this set list plays"}}">
+            {{range $row.Versions}}<option value="{{.VariantID}}"{{if .Current}} selected{{end}}>{{.Label}}</option>{{end}}
+          </select>
+          {{end}}
+        </div>
         <span class="gig-key">{{$row.Key}}</span>
         <span class="gig-tempo">{{if $row.Tempo}}{{$row.Tempo}}{{end}}</span>
         {{if $row.Sound}}<button type="button" class="rec-play" aria-label="{{t "Play %s" $row.Title}}">{{template "icon-play"}}</button>
@@ -80,12 +101,17 @@
   <div class="card card--md" id="add-songs">
     <h2>{{t "Add songs"}}</h2>
     <form class="form-stack" id="add-songs-form" role="search">
+      {{if .IsBand}}
       <div class="field">
-        <label for="add-songs-q">{{if .IsBand}}{{t "Song from the repertoire"}}{{else}}{{t "Song from the library"}}{{end}}</label>
-        <p class="field-hint" id="add-songs-hint">{{if .IsBand}}{{t "Type part of a title or artist."}}{{else}}{{t "Type a title or an artist, then search."}}{{end}}</p>
+        <label for="add-songs-q">{{t "Song from the songbook"}}</label>
+        <p class="field-hint" id="add-songs-hint">{{t "Type part of a title or artist."}}</p>
         <input type="search" id="add-songs-q" aria-describedby="add-songs-hint" autocomplete="off" enterkeyhint="search">
       </div>
-      {{if not .IsBand}}<div class="form-actions"><button type="submit" id="add-songs-search" class="primary">{{t "Search"}}</button></div>{{end}}
+      {{end}}
+      {{/* Anything else the owner may hold, or a new song: the one Add /
+           Create dialog (add-song.js), linking it in the owner's songbook
+           first (§4). */}}
+      {{if .OwnerSongbookID}}<div class="form-actions"><button type="button" id="add-songs-find" class="{{if not .IsBand}}primary{{end}}">{{template "icon-plus"}} {{if .IsBand}}{{t "Another song, or a new one…"}}{{else}}{{t "Find or create a song…"}}{{end}}</button></div>{{end}}
       <p class="form-status" role="status"></p>
     </form>
     <ul class="add-songs-results" id="add-songs-results" aria-label="{{t "Songs to add"}}"></ul>
@@ -123,12 +149,78 @@
 })();
 </script>
 {{template "rec-player" .}}
+<script>
+// Listen, from the click track (?play=all): start the whole list.
+(() => {
+  const u = new URL(location.href);
+  if (u.searchParams.get('play') !== 'all') return;
+  u.searchParams.delete('play');
+  history.replaceState(null, '', u.pathname + u.search + u.hash);
+  document.querySelector('[data-play-all]')?.click();
+})();
+</script>
 {{end}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<script src="/static/js/add-song.js?v={{staticVersion}}"></script>
 {{if .CanEdit}}
+<script>
+// Rename: the pencil (or the title) swaps the title for a field; Enter
+// or leaving it saves, Escape gives up. The name is the set list's title,
+// and its body's own "title:" line when it has one (what the page shows).
+(function () {
+  const setlistID = {{.SetlistID}};
+  const display = document.getElementById('setlist-name-display');
+  const input = document.getElementById('setlist-name-input');
+  const pencil = document.getElementById('setlist-rename');
+  const status = document.getElementById('setlist-name-status');
+  let saving = false;
+  function startEdit() {
+    display.hidden = true; pencil.hidden = true;
+    input.hidden = false; input.value = display.textContent;
+    input.focus(); input.select();
+  }
+  function stopEdit() {
+    input.hidden = true; display.hidden = false; pencil.hidden = false;
+  }
+  async function save() {
+    if (saving || input.hidden) return;
+    const name = input.value.trim();
+    if (!name || name === display.textContent) { stopEdit(); Forms.status(status, '', ''); return; }
+    saving = true;
+    const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
+    const data = res && res.ok ? await res.json().catch(() => null) : null;
+    let put = null;
+    if (data) {
+      for (const f of data.setlist.meta || []) if (f.key === 'title') f.value = name;
+      put = await fetch(`/api/setlists/${setlistID}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({version: data.meta.version, title: name, notes: data.meta.notes, setlist: data.setlist}),
+      }).catch(() => null);
+    }
+    saving = false;
+    if (!put || !put.ok) {
+      // Keep the field open with what they typed; Escape gives up.
+      Forms.status(status, t('Couldn’t rename the set list. Press Enter to try again.'), 'error');
+      return;
+    }
+    display.textContent = name;
+    document.title = name + ' — Songbooks';
+    Forms.status(status, '', '');
+    stopEdit();
+    pencil.focus();
+  }
+  pencil.addEventListener('click', startEdit);
+  display.addEventListener('click', startEdit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    else if (e.key === 'Escape') { e.preventDefault(); stopEdit(); Forms.status(status, '', ''); pencil.focus(); }
+  });
+  input.addEventListener('blur', save);
+})();
+</script>
 <script>
 (function () {
   const setlistID = {{.SetlistID}};
@@ -145,6 +237,7 @@
     reordering = !reordering;
     toggleLabel.textContent = reordering ? t('Done') : t('Reorder');
     toggleBtn.classList.toggle('active', reordering);
+    toggleBtn.setAttribute('aria-pressed', reordering);
     setRowButtonsVisible(reordering);
   });
 
@@ -185,7 +278,7 @@
     });
     const put = await fetch(`/api/setlists/${setlistID}`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
+      body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
     });
     if (put.ok) {
       const putData = await put.json();
@@ -208,7 +301,7 @@
       const text = document.createElement('div');
       const ti = document.createElement('div'); ti.className = 'attention-title'; ti.textContent = song.title;
       text.appendChild(ti);
-      if (song.artist) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = song.artist; text.appendChild(a); }
+      if (song.artist || song.band) { const a = document.createElement('div'); a.className = 'attention-subtitle'; a.textContent = [song.artist, song.band ? t('sentence|%s’s arrangement', song.band) : ''].filter(Boolean).join(' · '); text.appendChild(a); }
       const btn = document.createElement('button');
       btn.type = 'button'; btn.textContent = t('Add');
       btn.setAttribute('aria-label', t('Add %s', song.title));
@@ -217,7 +310,7 @@
       results.appendChild(li);
     }
   }
-  async function addSong(song, btn) {
+  async function addSong(song, btn, variantId = song.variantId) {
     Forms.busy(btn, true);
     const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
     const data = res && res.ok ? await res.json() : null;
@@ -225,37 +318,81 @@
       const sets = data.setlist.sets || (data.setlist.sets = []);
       if (!sets.length) sets.push({label: 'Set 1', entries: []});
       const last = sets[sets.length - 1];
-      (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: song.variantId, note: ''});
+      (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: variantId, note: ''});
       const put = await fetch(`/api/setlists/${setlistID}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
       }).catch(() => null);
       if (put && put.ok) { location.reload(); return; }
+      // A band's set list: another band's song is never taken; its
+      // catalogue version, if asked.
+      if (put && put.status === 409) {
+        const r = await Forms.bandRefusal(put);
+        if (r.retryId) return addSong(song, btn, r.retryId);
+        Forms.busy(btn, false);
+        if (r.message) Forms.status(addForm, r.message, 'error');
+        return;
+      }
     }
     Forms.busy(btn, false);
     Forms.status(addForm, t('Couldn’t add “%s”. Try again.', song.title), 'error');
   }
+  addForm.addEventListener('submit', (e) => e.preventDefault());
   if (isBand) {
     q.addEventListener('input', () => {
       const term = q.value.trim().toLowerCase();
       show(term ? repertoire.filter(s => (s.title + ' ' + s.artist).toLowerCase().includes(term)) : repertoire);
     });
-    addForm.addEventListener('submit', (e) => e.preventDefault());
     show(repertoire);
-  } else {
-    addForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const term = q.value.trim();
-      if (!term) { Forms.fieldError(q, t('Type a title or an artist.')); return; }
-      Forms.run(addForm, document.getElementById('add-songs-search'), async () => {
-        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(term)}`);
-        if (!res.ok) throw new Error(t('Couldn’t search the library. Try again.'));
-        const hits = await res.json();
-        if (!hits.length) Forms.status(addForm, t('No songs match that.'), '');
-        show(hits);
-      });
-    });
   }
+  // The one Add / Create dialog: the song is linked in the owner's
+  // songbook (add-song.js does it), then joins the set list's last set.
+  const appendToSetlist = async (variantId) => {
+    const res = await fetch(`/api/setlists/${setlistID}`).catch(() => null);
+    const data = res && res.ok ? await res.json() : null;
+    if (!data) throw new Error(t('Couldn’t add it to the set list. Try again.'));
+    const sets = data.setlist.sets || (data.setlist.sets = []);
+    if (!sets.length) sets.push({label: 'Set 1', entries: []});
+    const last = sets[sets.length - 1];
+    (last.entries || (last.entries = [])).push({book: '', stem: '', variant_id: variantId, note: ''});
+    const put = await fetch(`/api/setlists/${setlistID}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({version: data.meta.version, title: data.meta.title, notes: data.meta.notes, setlist: data.setlist}),
+    }).catch(() => null);
+    if (!put || !put.ok) {
+      const d = put ? await put.json().catch(() => ({})) : {};
+      throw new Error(d.message || t('Couldn’t add it to the set list. Try again.'));
+    }
+  };
+  document.getElementById('add-songs-find')?.addEventListener('click', () => {
+    window.AddSong?.open({
+      songbookId: {{.OwnerSongbookID}},
+      heading: t('Add to the set list'),
+      addInSongbook: true,
+      onAdded: (id) => appendToSetlist(id),
+      onCreated: async (id) => { await appendToSetlist(id); location.href = `/song/${id}?edit=1`; },
+    });
+  });
+
+  // A row's version for this set list: the others the songbook has of
+  // the song (docs/ownership-model.md §5), saved as soon as picked.
+  const versionStatus = document.getElementById('setlist-version-status');
+  document.querySelectorAll('select.setlist-version').forEach(sel => {
+    const was = sel.value;
+    sel.addEventListener('change', async () => {
+      sel.disabled = true;
+      const put = await fetch(`/api/setlists/${setlistID}/items/${sel.dataset.item}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({variant_id: parseInt(sel.value, 10), version: String(version)}),
+      }).catch(() => null);
+      if (put && put.ok) { location.reload(); return; }
+      sel.value = was;
+      sel.disabled = false;
+      Forms.status(versionStatus, put && put.status === 409
+        ? t('The set list changed meanwhile. Reload the page and pick again.')
+        : t('Couldn’t change the arrangement. Try again.'), 'error');
+    });
+  });
 
   document.querySelectorAll('.setlist-overview-row').forEach(row => {
     row.querySelectorAll('[data-move]').forEach(btn => {

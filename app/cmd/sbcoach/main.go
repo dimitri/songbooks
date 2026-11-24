@@ -1,18 +1,23 @@
 // sbcoach sets up a coaching community (docs/coaching.md) from the
 // command line, while its pages are the coach's to use:
 //
-//	sbcoach community --db URL --name "Chloé Paul" --coach chloepaul [--student tapoueh] [--look look.json]
-//	sbcoach songs --db URL --community 21 --student tapoueh --songs 206,215,228 [--clips clips.tsv]
-//	sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale fr
+//	sbcoach community --db URL --name "Chloé Paul" --coach chloe@example.com [--student 12] [--look look.json]
+//	sbcoach songs --db URL --community 21 --student 12 --songs 206,215,228 [--clips clips.tsv]
+//	sbcoach locale --db URL (--community ID | --band ID | --person PERSON) --locale fr
+//
+// A person (--coach, --student, --person, --actor) is named by their
+// email or their numeric id: there are no usernames (docs/accounts.md).
 //
 // community makes a coaching community, its coach its first member (an
-// account made for them when there's none yet: no password, no email,
-// theirs once they're invited), a student with it, and a look (a
-// brand.Brand as JSON). songs copies songs into the
-// community (its songbook, the coach's reference) and puts them in the
-// student's songbook; with --clips (lines "songID<TAB>YouTube URL"), it
-// sets each song's reference video and downloads its sound, which the
-// stems worker then splits (voice and backing).
+// account made for them with that email when there's none yet: no
+// password, they log in with a link sent to it), a student with it, and a look (a
+// brand.Brand as JSON). songs puts songs in the community's songbook
+// (the coach's reference) and the student's — linked, or the community's
+// own song or arrangement, never a copy per student (communitySong); with
+// --clips (lines "songID<TAB>YouTube URL"), it sets each song's reference
+// video and downloads its sound, which the stems worker then splits
+// (voice and backing): another recording than a linked song's makes the
+// community's arrangement of it.
 //
 // add, sync, lyrics, ireal and key (songcmds.go) are the import wizard's
 // steps for one song: a new song with its reference recording, chart,
@@ -31,6 +36,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -45,9 +51,10 @@ import (
 )
 
 const usage = `usage:
-  sbcoach community --db URL --name NAME --coach USER [--student USER] [--look FILE]
-  sbcoach songs --db URL --community ID --student USER --songs ID,ID,... [--actor USER] [--clips FILE]
-  sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale LANG`
+  sbcoach community --db URL --name NAME --coach EMAIL [--student PERSON] [--look FILE]
+  sbcoach songs --db URL --community ID --student PERSON --songs ID,ID,... [--actor PERSON] [--clips FILE]
+  sbcoach locale --db URL (--community ID | --band ID | --person PERSON) --locale LANG
+  (PERSON: an email or a numeric id)`
 
 func main() {
 	if len(os.Args) >= 2 && songCommands[os.Args[1]] {
@@ -61,15 +68,15 @@ func main() {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	dbURL := fs.String("db", os.Getenv("DATABASE_URL"), "database connection string")
 	name := fs.String("name", "", "the community's name")
-	actor := fs.String("actor", "", "username doing it")
-	coach := fs.String("coach", "", "community: the coach's username (made when there's none)")
+	actor := fs.String("actor", "", "who's doing it: an email or a person id")
+	coach := fs.String("coach", "", "community: the coach's email (an account made with it when there's none), or a person id")
 	look := fs.String("look", "", "community: a JSON file with its look (brand.Brand)")
 	communityID := fs.Int64("community", 0, "songs: the coaching community")
-	student := fs.String("student", "", "a student's username")
+	student := fs.String("student", "", "a student: an email or a person id")
 	songs := fs.String("songs", "", "songs: song ids, comma separated")
 	clips := fs.String("clips", "", "songs: a file of songID<TAB>YouTube URL lines")
 	bandID := fs.Int64("band", 0, "locale: a band")
-	personName := fs.String("person", "", "locale: a person's username")
+	personName := fs.String("person", "", "locale: a person, by email or id")
 	locale := fs.String("locale", "", "locale: the language, en or fr (\"\" for automatic); community: the community's and its coach's")
 	fs.Parse(os.Args[2:])
 	ctx := context.Background()
@@ -85,12 +92,14 @@ func main() {
 			log.Fatal(usage)
 		}
 		coachID := int64(0)
-		if p, err := st.GetPersonByUsername(ctx, *coach); err == nil {
+		if p, err := st.FindPerson(ctx, *coach); err == nil {
 			coachID = p.ID
-		} else if coachID, err = st.CreatePerson(ctx, *coach, *name, ""); err != nil {
+		} else if !errors.Is(err, store.ErrNotFound) || !strings.Contains(*coach, "@") {
+			log.Fatalf("%s: %v", *coach, err)
+		} else if coachID, err = st.CreatePerson(ctx, *name, strings.ToLower(strings.TrimSpace(*coach))); err != nil {
 			log.Fatalf("making %s: %v", *coach, err)
 		} else {
-			fmt.Printf("account %s (%s) made for the coach: invite them to it\n", *coach, *name)
+			fmt.Printf("account %s (%s) made for the coach: they log in with a link sent to it\n", *coach, *name)
 		}
 		id, err := st.CreateCommunity(ctx, *name, coachID)
 		if err != nil {
@@ -106,7 +115,7 @@ func main() {
 			}
 		}
 		if *student != "" {
-			p, err := st.GetPersonByUsername(ctx, *student)
+			p, err := st.FindPerson(ctx, *student)
 			if err != nil {
 				log.Fatalf("%s: %v", *student, err)
 			}
@@ -146,7 +155,7 @@ func main() {
 			err = st.SetBandLocale(ctx, *bandID, *locale)
 		case *personName != "":
 			var p *store.Person
-			if p, err = st.GetPersonByUsername(ctx, *personName); err == nil {
+			if p, err = st.FindPerson(ctx, *personName); err == nil {
 				err = st.SetPersonLocale(ctx, p.ID, *locale)
 			}
 		default:
@@ -161,13 +170,13 @@ func main() {
 		if *communityID == 0 || *student == "" || *songs == "" {
 			log.Fatal(usage)
 		}
-		sp, err := st.GetPersonByUsername(ctx, *student)
+		sp, err := st.FindPerson(ctx, *student)
 		if err != nil {
 			log.Fatalf("%s: %v", *student, err)
 		}
 		by := sp
 		if *actor != "" {
-			if by, err = st.GetPersonByUsername(ctx, *actor); err != nil {
+			if by, err = st.FindPerson(ctx, *actor); err != nil {
 				log.Fatalf("%s: %v", *actor, err)
 			}
 		}
@@ -190,26 +199,31 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		repertoire, err := st.GetDefaultSongbook(ctx, "community", *communityID)
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, field := range strings.Split(*songs, ",") {
 			src, err := strconv.ParseInt(strings.TrimSpace(field), 10, 64)
 			if err != nil {
 				log.Fatalf("song %q: %v", field, err)
 			}
-			// The community's own copy: its members (the coach) may open it.
-			copyID, err := st.ForkVariant(ctx, src, by.ID, "community", *communityID)
-			if err != nil {
-				log.Fatalf("copying song %d: %v", src, err)
-			}
-			if err := st.AddToSongbook(ctx, sbID, copyID, by.ID); err != nil {
-				log.Fatal(err)
-			}
-			title, artist, _, body, err := st.VariantContent(ctx, copyID)
-			if err != nil {
-				log.Fatal(err)
-			}
 			url := urls[src]
-			if url == "" {
-				fmt.Printf("%d → %d %s (no clip)\n", src, copyID, title)
+			copyID, how, err := communitySong(ctx, st, *communityID, src, url, by.ID)
+			if err != nil {
+				log.Fatalf("song %d: %v", src, err)
+			}
+			for _, book := range []int64{repertoire, sbID} {
+				if err := st.AddToSongbook(ctx, book, copyID, by.ID); err != nil {
+					log.Fatal(err)
+				}
+			}
+			title, artist, ref, body, err := st.VariantContent(ctx, copyID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if url == "" || (how == "linked" && url == ref) {
+				fmt.Printf("%d → %d %s (%s, no clip)\n", src, copyID, title, how)
 				continue
 			}
 			// Its reference: the "reference:" line of the song's header.
@@ -231,6 +245,38 @@ func main() {
 		}
 		fmt.Printf("student songbook %d\n", sbID)
 	}
+}
+
+// communitySong is the song a coaching community's songbooks get for
+// src (docs/coaching.md, "A group works on one song"): one song the coach
+// and the students share, never a copy per student or per run. The
+// community's own song, or its arrangement of src when it has one; else
+// src itself, linked, when clip doesn't change its recording; else
+// (another recording of it) the community's arrangement made from it,
+// once. Someone else's private song is refused (store.LinkRefusal). how
+// says which: "own", "linked" or "arrangement".
+func communitySong(ctx context.Context, st *store.Store, communityID, src int64, clip string, actor int64) (int64, string, error) {
+	owner := store.CommunityOwner(communityID)
+	id, err := st.CommunityVersionOf(ctx, communityID, src)
+	if err != nil {
+		return 0, "", err
+	}
+	r, err := st.SongRightsFor(ctx, actor, id)
+	if err != nil {
+		return 0, "", err
+	}
+	if r.Owner == owner {
+		return id, "own", nil
+	}
+	_, _, ref, _, err := st.VariantContent(ctx, id)
+	if err != nil {
+		return 0, "", err
+	}
+	if r.CanLinkFrom(owner) && (clip == "" || clip == ref) {
+		return id, "linked", nil
+	}
+	id, err = st.ForkVariant(ctx, id, actor, "community", communityID)
+	return id, "arrangement", err
 }
 
 // withReference sets the "reference:" line of a song's header (the lines

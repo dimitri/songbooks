@@ -1,0 +1,20 @@
+{
+  "Melody: this song has no reference recording to find it in. Add one (YouTube or the band’s).": "Mélodie : ce morceau n’a pas d’enregistrement de référence où la trouver. Ajoutez-en un (YouTube ou celui du groupe).",
+  "Melody: voice separation isn’t available on this server, so the melody can’t be found here.": "Mélodie : la séparation de la voix n’est pas disponible sur ce serveur, la mélodie ne peut donc pas y être trouvée.",
+  "Melody: voice separation queued, %d recordings before this one.": "Mélodie : séparation de la voix en attente, %d enregistrements avant celui-ci.",
+  "Melody: voice separation queued, next in line.": "Mélodie : séparation de la voix en attente, la prochaine à passer.",
+  "Melody: separating the voice from the recording, %d%%.": "Mélodie : séparation de la voix de l’enregistrement, %d %%.",
+  "Melody: separating the voice from the recording.": "Mélodie : séparation de la voix de l’enregistrement.",
+  "Melody: voice separation failed for this recording.": "Mélodie : la séparation de la voix a échoué pour cet enregistrement.",
+  "Melody: finding the melody in the voice.": "Mélodie : recherche de la mélodie dans la voix.",
+  "Melody: finding the recording’s beats and bars.": "Mélodie : recherche des temps et des mesures de l’enregistrement.",
+  "Melody: available once the recording is synced with the chart.": "Mélodie : disponible une fois l’enregistrement synchronisé avec la grille.",
+  "Less than a minute left.": "Encore moins d’une minute.",
+  "Less than a minute left (estimated).": "Encore moins d’une minute (estimation).",
+  "About %d min left.": "Encore environ %d min.",
+  "About %d min left (estimated).": "Encore environ %d min (estimation).",
+  "About %d h left.": "Encore environ %d h.",
+  "About %d h left (estimated).": "Encore environ %d h (estimation).",
+  "Split the recording again": "Relancer la séparation",
+  "Melody: voice separation queued, %d recording before this one.": "Mélodie : séparation de la voix en attente, %d enregistrement avant celui-ci."
+}

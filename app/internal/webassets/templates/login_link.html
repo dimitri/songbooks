@@ -1,0 +1,14 @@
+{{/* A site admin's "Login link" for one member (admin_login_link.go,
+     static/js/login-link.js). Two pieces, so a members page adds one
+     line per row and one line per page:
+
+       in a member's row:  {{template "login-link-btn" (dict "Me" $.Me "Person" . "Shell" .IsShell)}}
+       once, at the end:   {{template "login-link-script" .Me}}
+
+     Person needs PersonID and DisplayName; Shell is whether they haven't
+     joined yet (no account to log in to: their invite link is what they
+     need). Both print nothing unless the viewer is a site admin. The server
+     checks all of it again. */}}
+{{define "login-link-btn"}}{{if and .Me .Me.IsAdmin (not .Shell)}}<button type="button" class="login-link-btn" data-person-id="{{.Person.PersonID}}" data-name="{{.Person.DisplayName}}" aria-haspopup="dialog">{{t "Login link"}}</button>{{end}}{{end}}
+{{define "login-link-script"}}{{if and . .IsAdmin}}<link rel="stylesheet" href="/static/css/login-link.css?v={{staticVersion}}">
+<script src="/static/js/login-link.js?v={{staticVersion}}"></script>{{end}}{{end}}

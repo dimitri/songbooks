@@ -1,7 +1,7 @@
 // importmysongs is a one-shot bulk importer for the legacy LaTeX
 // "songs"-package tree under MySongs/ (one \beginsong per <slug>/<slug>.tex,
 // see internal/latexsong) into the modern database: every song lands as a
-// visibility='global' catalogue entry (publicly reusable, same as any other
+// catalogue song (The Big Songbook's, public, same as any other
 // catalogue song), with a songbook_entries pointer added into --songbook-id
 // so it also shows up in that songbook's listing.
 //
@@ -101,8 +101,8 @@ func main() {
 
 		var variantID int64
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, body, work_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+			INSERT INTO songs (title, artist, body, work_id, created_by_person_id, owner_community_id, public)
+			VALUES ($1, $2, $3, $4, $5, big_songbook_id(), true) RETURNING id`,
 			title, artist, j.body, workID, *personID).Scan(&variantID); err != nil {
 			log.Fatalf("%s: inserting song: %v", j.dir, err)
 		}

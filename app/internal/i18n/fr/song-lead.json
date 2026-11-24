@@ -1,0 +1,22 @@
+{
+  "lead-in: played before bar 1, not counted": "amorce : jouée avant la mesure 1, non comptée",
+  "lead": "amorce",
+  "Lead-in": "Amorce",
+  "Bars played before the song starts — a count-in, an instrument's lead-in — in no section:": "Des mesures jouées avant le début du morceau — un décompte, l’entrée d’un instrument — dans aucune partie :",
+  "(a bar of rest), or bars with chords:": "(une mesure de silence), ou des mesures avec leurs accords :",
+  "The lead is the song's, not a section's: the song starts with it, then its first section starts at bar 1. Its bars are drawn on the first section's first row, before its bar 1, lighter and tagged “lead”, and played — the recording's time before bar 1, a count-in when playing from the start — but in no section: not in the bar numbers (the lead bar is bar 0; with": "L’amorce est celle du morceau, pas d’une partie : le morceau commence par elle, puis sa première partie commence à la mesure 1. Ses mesures sont dessinées sur la première ligne de la première partie, avant sa mesure 1, plus claires et marquées « amorce », et jouées — le temps de l’enregistrement avant la mesure 1, un décompte quand on joue depuis le début — mais dans aucune partie : pas dans la numérotation (la mesure d’amorce est la mesure 0 ; avec",
+  ", bars -1 and 0), not in any section's bars, never in a section's loop. The set list's click track counts them in before bar 1.": ", les mesures -1 et 0), dans les mesures d’aucune partie, jamais dans la boucle d’une partie. Le clic de la set list les compte avant la mesure 1.",
+  "is N bars of rest;": "donne N mesures de silence ;",
+  "writes them as a grid, one bar per": "les écrit comme une grille, une mesure par",
+  ", played once (repeat signs are ignored).": ", jouées une fois (les signes de reprise sont ignorés).",
+  "The first section's": "La ligne",
+  "line counts its own bars only: the lead rides on its first row on top of them. A": "de la première partie ne compte que ses propres mesures : l’amorce s’ajoute à sa première ligne. Une ligne",
+  "line written inside the first section is read as the song's.": "écrite dans la première partie est lue comme celle du morceau.",
+  "Synced recordings: the first section's marker stays at its bar 1, so adding a lead moves nothing; the lead takes the recording's time before that marker, squeezed into it when it is shorter than the lead, counted in before the recording when the first section starts right at 0:00.": "Enregistrements synchronisés : le repère de la première partie reste sur sa mesure 1, ajouter une amorce ne déplace donc rien ; l’amorce prend le temps de l’enregistrement avant ce repère, resserrée quand il est plus court qu’elle, comptée avant l’enregistrement quand la première partie commence à 0:00.",
+  "Next to a Guitar Pro file,": "À côté d’un fichier Guitar Pro,",
+  "names the file's bar the chart's first played bar falls on — the lead's, when there is one: a file opening with a count-in bar and a chart with": "désigne la mesure du fichier où tombe la première mesure jouée de la grille — celle de l’amorce s’il y en a une : un fichier qui commence par une mesure de décompte et une grille avec",
+  "need no": "n’ont pas besoin de",
+  "%d lead bar, before bar 1": "%d mesure d’amorce, avant la mesure 1",
+  "%d lead bars, before bar 1": "%d mesures d’amorce, avant la mesure 1",
+  "The recording's time before the lead is no bar: nothing is numbered or clicked there. Changing the lead moves what is synced bar by bar (a Guitar Pro file's sync, the Mixer's flags) with the bars.": "Le temps de l’enregistrement avant l’amorce n’est aucune mesure : rien n’y est numéroté ni cliqué. Changer l’amorce déplace avec les mesures ce qui est synchronisé mesure par mesure (la synchro d’un fichier Guitar Pro, les drapeaux du Mixeur)."
+}

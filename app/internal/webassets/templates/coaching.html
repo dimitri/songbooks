@@ -2,35 +2,6 @@
      docs/coaching.md): its students — each one's voice, teaching notes,
      songs in their key, groups, lessons — its groups and its lessons. */}}
 
-{{/* The community's tabs: a coaching community adds Students (the coach)
-     or My voice (a student), Groups and Lessons. Needs .Community,
-     .IsStaff, .Person, .Tab. */}}
-{{define "community-tabs"}}
-  <nav class="band-tabs band-tabs-row">
-    <a href="/communities/{{.Community.ID}}" class="band-tab{{if eq .Tab "overview"}} active{{end}}">{{t "Overview"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/songbooks">{{t (shelfLabel "community" .Community.ID)}}</a>
-    {{if .Community.IsCoaching}}
-      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "students"}} active{{end}}" href="/communities/{{.Community.ID}}/students">{{t "Students"}}</a>
-      {{else}}<a class="band-tab{{if eq .Tab "voice"}} active{{end}}" href="/communities/{{.Community.ID}}/students/{{.Person.ID}}">{{t "My voice"}}</a>{{end}}
-      {{if .IsStaff}}<a class="band-tab{{if eq .Tab "repertoire"}} active{{end}}" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
-      <a class="band-tab{{if eq .Tab "groups"}} active{{end}}" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
-      <a class="band-tab{{if eq .Tab "warmups"}} active{{end}}" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
-      <a class="band-tab{{if eq .Tab "lessons"}} active{{end}}" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>
-    {{end}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/downloads">{{t "Downloads"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/events">{{t "Events"}}</a>
-    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/admin">{{t "Admin"}}</a>{{end}}
-  </nav>
-{{end}}
-
-{{/* The coaching tabs alone, for the community pages with their own tab
-     bar. Needs .Community, .IsStaff. */}}
-{{define "coaching-tab-links"}}{{if .Community.IsCoaching}}<a class="band-tab" href="/communities/{{.Community.ID}}/students">{{if .IsStaff}}{{t "Students"}}{{else}}{{t "My voice"}}{{end}}</a>
-    {{if .IsStaff}}<a class="band-tab" href="/communities/{{.Community.ID}}/student-songs">{{t "Students’ songs"}}</a>{{end}}
-    <a class="band-tab" href="/communities/{{.Community.ID}}/groups">{{template "coach-groups-label"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/warmups">{{t "Warm-ups"}}</a>
-    <a class="band-tab" href="/communities/{{.Community.ID}}/lessons">{{t "Lessons"}}</a>{{end}}{{end}}
-
 {{define "coach-groups-label"}}{{t "coaching|Groups"}}{{end}}
 
 {{define "coaching-head"}}
@@ -82,7 +53,7 @@
   {{end}}
 </div>
 {{if and .IsCoach .AddSongs}}
-<form class="coach-add-song">
+<form class="coach-add-song form-inline">
   <select class="coach-add-variant" aria-label="{{t "A song to add"}}">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
   <button type="submit" class="primary">{{t "Add"}}</button>
 </form>
@@ -140,29 +111,27 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Students"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Students"}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   <section class="home-section">
     <p class="coach-subscribe"><a href="/communities/{{.Community.ID}}/checking">{{t "Checking singing: your levels and your words"}} →</a></p>
     <div class="home-section-head"><h3>{{t "Your students"}}</h3><span class="count">{{len .Students}}</span>
-      {{if .Students}}<span class="seg students-view" role="group" aria-label="{{t "Show as"}}"><button type="button" data-view="cards">{{t "Cards"}}</button><button type="button" data-view="table">{{t "Table"}}</button></span>{{end}}</div>
+</div>
     {{if .Students}}
     {{/* The table: one row a student, every column sortable (a click on
          its head): range, songs and their keys, lessons so far by kind,
          the last and the next, the last note, parts in coming events. */}}
-    <div class="students-table-wrap" hidden>
+    <div class="students-table-wrap"{{if ne .StudentsView "table"}} hidden{{end}}>
     <table class="students-table">
       <thead><tr>
         <th><button type="button" data-col="0">{{t "Student"}}</button></th>
@@ -194,7 +163,7 @@
       </tbody>
     </table>
     </div>
-    <div class="coach-students">
+    <div class="coach-students"{{if eq .StudentsView "table"}} hidden{{end}}>
       {{range .Students}}
       <a class="coach-student" href="/communities/{{$.Community.ID}}/students/{{.PersonID}}">
         <div class="coach-student-head">
@@ -237,8 +206,8 @@
     <div class="coach-invite-way">
       <h4>{{t "A link for one student"}}</h4>
       <p class="hint">{{t "Type their name: they appear in your students right away, and finish their account from the link."}}</p>
-      <form class="coach-invite-one" autocomplete="off">
-        <input type="text" name="name" placeholder="{{t "Their name"}}" required autocomplete="off">
+      <form class="coach-invite-one form-inline" autocomplete="off">
+        <div class="field"><label for="coach-invite-name">{{t "Their name"}}</label><input type="text" id="coach-invite-name" name="name" required autocomplete="off" autocapitalize="words"></div>
         <button type="submit">{{t "Make their link"}}</button>
       </form>
       <div class="coach-invite-link" hidden>
@@ -250,30 +219,31 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {
-  // Cards or the table, remembered in this browser; the table first on a
-  // wide screen.
+  // Cards or the table: the Students views (?view=), the one picked last
+  // remembered in this browser for the Students tab's plain address.
   const wrap = document.querySelector('.students-table-wrap');
   const cards = document.querySelector('.coach-students');
-  const seg = document.querySelector('.students-view');
-  if (!wrap || !cards || !seg) return;
-  let view = null;
-  try { view = localStorage.getItem('songbooks:students-view'); } catch (e) { /* none */ }
-  const show = (v) => {
-    wrap.hidden = v !== 'table';
-    cards.hidden = v === 'table';
-    seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
-  };
-  show(view || (matchMedia('(min-width: 900px)').matches ? 'table' : 'cards'));
-  seg.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-view]');
-    if (!b) return;
-    show(b.dataset.view);
-    try { localStorage.setItem('songbooks:students-view', b.dataset.view); } catch (err) { /* ignore */ }
-  });
+  if (!wrap || !cards) return;
+  const key = 'songbooks:students-view';
+  let view = new URLSearchParams(location.search).get('view');
+  if (view === 'cards' || view === 'table') {
+    try { localStorage.setItem(key, view); } catch (e) { /* ignore */ }
+  } else {
+    try { view = localStorage.getItem(key); } catch (e) { /* none */ }
+    if (view === 'table') {
+      wrap.hidden = false;
+      cards.hidden = true;
+      document.querySelectorAll('.space-filters a').forEach((a) => {
+        const on = a.getAttribute('href').endsWith('view=table');
+        a.classList.toggle('active', on);
+        if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      });
+    }
+  }
   // A click on a column's head sorts by it; another, the other way.
   const body = wrap.querySelector('tbody');
   let by = 0, dir = 1;
@@ -352,7 +322,7 @@
   {{range .Assignments}}{{if not .DoneAt}}
     <div class="practice-item{{if .Overdue $.Now}} is-overdue{{end}}" data-assignment="{{.ID}}">
       <div class="practice-item-head">
-        <strong>{{if .ExerciseID}}<a href="/communities/{{$.Community.ID}}/warmups/{{.ExerciseID}}">{{.Label}}</a>{{else if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
+        <strong>{{if .ExerciseID}}<a href="/communities/{{$.Community.ID}}/warmups/{{.ExerciseID}}">{{.Label}}</a>{{else if .VariantID}}<a href="/song/{{.VariantID}}{{if .SongbookID}}?songbook={{.SongbookID}}{{else}}?community={{$.Community.ID}}{{end}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</strong>
         {{with .GroupName}}<span class="voice-tag">{{.}}</span>{{end}}
         {{if .PerWeek}}{{if $.PracticeGroupID}}<span class="practice-week">{{tn .PerWeek "%d day a week" "%d days a week"}}</span>{{else}}<span class="practice-week{{if ge .DaysThisWeek .PerWeek}} is-met{{end}}" title="{{t "days practised this week"}}">{{.DaysThisWeek}}/{{.PerWeek}} {{t "this week"}}</span>{{end}}{{end}}
       </div>
@@ -385,28 +355,28 @@
   {{if .IsCoach}}
   <details class="practice-assign">
     <summary>{{template "icon-plus"}} {{t "Something to practise"}}</summary>
-    <form class="practice-assign-form" autocomplete="off">
-      <label>{{t "A song or a warm-up"}} <select name="variantId">
+    <form class="practice-assign-form form-stack" autocomplete="off">
+      <label class="field">{{t "A song or a warm-up"}} <select name="variantId">
         <option value="0">{{t "none: what I write below"}}</option>
         {{if .Songs}}<optgroup label="{{if .PracticeGroupID}}{{t "The group’s songs"}}{{else}}{{t "Their songs"}}{{end}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}
         {{range .Groups}}{{if .Songs}}<optgroup label="{{.Group.Name}}">{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</optgroup>{{end}}{{end}}
         {{if .Exercises}}<optgroup label="{{t "Warm-ups"}}">{{range .Exercises}}<option value="x{{.ID}}">{{.Name}}</option>{{end}}</optgroup>{{end}}
       </select></label>
-      <label>{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
-      <label>{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
-      <fieldset class="practice-assign-goal">
+      <label class="field">{{t "Or in words"}} <input type="text" name="title" placeholder="{{t "Lip trills, 5 minutes a day"}}"></label>
+      <label class="field">{{t "What to work on"}} <textarea name="notes" rows="2" placeholder="{{t "the bridge, breathe before the long note…"}}"></textarea></label>
+      <fieldset class="practice-assign-goal form-group">
         <legend>{{t "A goal to reach, checking their singing (a song only)"}} · <a href="/communities/{{.Community.ID}}/checking">{{t "levels and your words"}} →</a></legend>
-        <div class="practice-assign-row">
-          <label>{{t "Level"}} <select name="level">{{range .CheckLevels}}<option value="{{.Key}}" title="{{t "in tune within %d cents, on time within %d ms" .Cents .Ms}}">{{.Label}}</option>{{end}}</select></label>
-          <label>{{t "In tune, %"}} <input type="number" name="pitchTarget" min="1" max="100" placeholder="70"></label>
-          <label>{{t "On time, %"}} <input type="number" name="rhythmTarget" min="1" max="100" placeholder="60"></label>
+        <div class="field-row">
+          <label class="field">{{t "Level"}} <select name="level">{{range .CheckLevels}}<option value="{{.Key}}" title="{{t "in tune within %d cents, on time within %d ms" .Cents .Ms}}">{{.Label}}</option>{{end}}</select></label>
+          <label class="field">{{t "In tune, %"}} <input type="number" name="pitchTarget" min="1" max="100" placeholder="70"></label>
+          <label class="field">{{t "On time, %"}} <input type="number" name="rhythmTarget" min="1" max="100" placeholder="60"></label>
         </div>
       </fieldset>
-      <div class="practice-assign-row">
-        <label>{{t "Days a week"}} <select name="perWeek"><option value="0">—</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
-        <label>{{t "Until"}} <input type="date" name="dueOn"></label>
+      <div class="field-row">
+        <label class="field">{{t "Days a week"}} <select name="perWeek"><option value="0">—</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <label class="field">{{t "Until"}} <input type="date" name="dueOn"></label>
       </div>
-      <button type="submit" class="primary">{{t "Give it"}}</button>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Give it"}}</button></div>
     </form>
   </details>
   {{end}}
@@ -415,14 +385,14 @@
   <details class="practice-log"{{if and (not .IsCoach) .PracticeLogs}} open{{end}}>
     <summary>{{if .IsCoach}}{{t "Their practice, last four weeks"}}{{else}}{{t "My practice, last four weeks"}}{{end}} <span class="count">{{len .PracticeLogs}}</span></summary>
     {{if not .IsCoach}}
-    <form class="practice-log-form" autocomplete="off">
-      <label>{{t "What"}} <select name="assignmentId">{{range .Assignments}}{{if not .DoneAt}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}<option value="0">{{t "Something else"}}</option></select></label>
-      <div class="practice-assign-row">
-        <label>{{t "Minutes"}} <input type="number" name="minutes" min="1" max="600" value="15" required></label>
-        <label>{{t "Day"}} <input type="date" name="day"></label>
+    <form class="practice-log-form form-stack" autocomplete="off">
+      <label class="field">{{t "What"}} <select name="assignmentId">{{range .Assignments}}{{if not .DoneAt}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}<option value="0">{{t "Something else"}}</option></select></label>
+      <div class="field-row">
+        <label class="field">{{t "Minutes"}} <input type="number" name="minutes" min="1" max="600" value="15" required></label>
+        <label class="field">{{t "Day"}} <input type="date" name="day"></label>
       </div>
-      <label>{{t "How it went"}} <input type="text" name="note" placeholder="{{t "optional"}}"></label>
-      <button type="submit" class="primary">{{t "Log it"}}</button>
+      <label class="field">{{t "How it went"}} <span class="field-optional">{{t "(optional)"}}</span> <input type="text" name="note"></label>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Log it"}}</button></div>
     </form>
     {{end}}
     <div class="practice-log-list">
@@ -499,7 +469,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Checking singing"}} — {{.Community.Name}}</title>
+<title>{{docTitle (t "Checking singing") .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -508,7 +478,6 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/students">{{template "icon-back"}} {{t "Students"}}</a>
   <h1>{{t "Checking singing"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index check-settings" data-community="{{.Community.ID}}">
   {{template "brand-banner" $brand}}
@@ -521,9 +490,9 @@
     {{range .Levels}}
       <fieldset class="check-level" data-key="{{.Key}}">
         <legend>{{.Label}}</legend>
-        <label>{{t "Name"}} <input type="text" name="name" value="{{.Name}}" placeholder="{{.Label}}" maxlength="30"></label>
-        <label>{{t "In tune within"}} <span class="check-range"><input type="range" name="cents" min="5" max="100" step="1" value="{{.Cents}}"><output>{{.Cents}}</output> {{t "cents"}}</span></label>
-        <label>{{t "On time within"}} <span class="check-range"><input type="range" name="ms" min="30" max="400" step="10" value="{{.Ms}}"><output>{{.Ms}}</output> ms</span></label>
+        <label class="field">{{t "Name"}} <input type="text" name="name" value="{{.Name}}" placeholder="{{.Label}}" maxlength="30"></label>
+        <label class="field">{{t "In tune within"}} <span class="check-range"><input type="range" name="cents" min="5" max="100" step="1" value="{{.Cents}}"><output>{{.Cents}}</output> {{t "cents"}}</span></label>
+        <label class="field">{{t "On time within"}} <span class="check-range"><input type="range" name="ms" min="30" max="400" step="10" value="{{.Ms}}"><output>{{.Ms}}</output> ms</span></label>
         <button type="button" class="link-btn check-level-reset" data-cents="{{.Default.Cents}}" data-ms="{{.Default.Ms}}">{{t "Back to the app’s (%d cents, %d ms)" .Default.Cents .Default.Ms}}</button>
       </fieldset>
     {{end}}
@@ -535,7 +504,7 @@
     <p class="hint">{{t "Here are the app’s, as examples: rewrite them as you would say them in a lesson. In braces, what the app fills in: {name} the student’s first name, {cents} how far from the notes, {ms} how uneven the entries, {pitch} and {rhythm} the scores."}}</p>
     <div class="check-messages">
     {{range .Messages}}
-      <label class="check-message{{if .Custom}} is-custom{{end}}" data-key="{{.Key}}" data-default="{{.Default}}">
+      <label class="field check-message{{if .Custom}} is-custom{{end}}" data-key="{{.Key}}" data-default="{{.Default}}">
         <span class="check-message-when">{{.When}} {{if .Custom}}<span class="voice-tag">{{t "yours"}}</span>{{end}}</span>
         <textarea rows="2" name="{{.Key}}">{{.Text}}</textarea>
         <span class="hint">{{.Vars}} · <button type="button" class="link-btn check-message-reset">{{t "the app’s words"}}</button></span>
@@ -544,10 +513,10 @@
     </div>
   </section>
 
-  <div class="check-save"><button type="button" class="primary check-save-btn">{{t "Save"}}</button> <span class="hint check-saved" aria-live="polite"></span></div>
+  <div class="check-save form-actions form-actions--start"><button type="button" class="primary check-save-btn">{{t "Save"}}</button> <span class="hint check-saved" aria-live="polite"></span></div>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {
@@ -587,24 +556,27 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Student.DisplayName}} — {{.Community.Name}}</title>
+<title>{{if .IsCoach}}{{.Student.DisplayName}} — {{.Community.Name}} — Songbooks{{else}}{{template "space-title" .Space}}{{end}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}{{if .IsCoach}}/students{{end}}">{{template "icon-back"}} {{if .IsCoach}}{{t "Students"}}{{else}}{{.Community.Name}}{{end}}</a>
-  <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}{{t "My voice"}}{{end}}</h1>
-  {{template "notif-bell"}}
+  {{if .IsCoach}}<a class="back-link" href="/communities/{{.Community.ID}}/students">{{template "icon-back"}} {{t "Students"}}</a>{{else}}{{template "space-back" .Space}}{{end}}
+  <h1>{{if .IsCoach}}{{.Student.DisplayName}}{{else}}{{t "My progress"}}{{end}}</h1>
 </header>
-<main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+<main class="index coach-student-page" data-community="{{.Community.ID}}" data-student="{{.Student.PersonID}}" data-student-name="{{.Student.DisplayName}}">
+  {{template "space-nav" .Space}}
 
-  <section class="home-section">
+  <section class="home-section" id="voice">
     <div class="home-section-head"><h3>{{t "Voice"}}</h3><span class="hint">{{t "ranges overlap: the mixed voice bridges chest and head"}}</span></div>
-    {{template "voice-chart" .Ranges}}
+    {{/* The range and the comfortable zone (the tessitura, a striped bar
+         under the registers) lead; the type is the coach's working label,
+         dated, optional, with a few words beside it. */}}
+    <p class="voice-range-line"><strong class="voice-span">{{with .VoiceSpan}}{{t "Range %s" .}}{{else}}{{t "Range not noted yet"}}{{end}}</strong>{{with .Tessitura}}<span class="voice-comfort">{{t "comfortable %s" (printf "%s–%s" .LowName .HighName)}}</span>{{end}}</p>
+    <p class="voice-label-line"><span class="voice-label-kind">{{t "Working label"}}</span>{{with .VoiceLabel}}<strong class="voice-type-name">{{.}}</strong>{{with $.VoiceLabelDate}}<span>{{.}}</span>{{end}}{{else}}<span>{{t "not classified yet"}}</span>{{end}}{{with .TimbreLabel}}<span>{{t .}}</span>{{end}}{{with .Passaggi}}<span>{{.}}</span>{{end}}</p>
+    {{template "voice-chart" .ChartRanges}}
     <div class="voice-ranges">
       {{range .Ranges}}
       <div class="voice-range" data-register="{{.Register}}">
@@ -621,34 +593,104 @@
       </div>
       {{end}}
     </div>
+    {{if .IsCoach}}
+    {{/* The coach's assessment: a type (or none yet), the tessitura, a
+         few words; each change kept in the history below. */}}
+    <form class="voice-assess form-stack">
+      <div class="voice-assess-row">
+        <div class="field"><label for="voice-tess-low">{{t "Comfortable from"}}</label>
+          <select id="voice-tess-low" name="tessLow"><option value="">—</option>{{$tl := .TessLow}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $tl}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        <div class="field"><label for="voice-tess-high">{{t "to"}}</label>
+          <select id="voice-tess-high" name="tessHigh"><option value="">—</option>{{$th := .TessHigh}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $th}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+      </div>
+      <div class="voice-assess-row">
+        <div class="field"><label for="voice-type">{{t "Working label"}}</label>
+          <select id="voice-type" name="voiceType">{{$vt := .Voice.VoiceType}}{{range .VoiceTypes}}<option value="{{.Value}}"{{if eq .Value $vt}} selected{{end}}>{{t .Label}}</option>{{end}}</select>
+          <label class="check"><input type="checkbox" name="leaning"{{if or .Voice.Leaning (not .Voice.VoiceType)}} checked{{end}}> {{t "leaning: a working opinion"}}</label></div>
+        <div class="field"><label for="voice-timbre">{{t "Timbre"}}</label>
+          <select id="voice-timbre" name="timbre"><option value="">—</option>{{$tb := .Voice.Timbre}}{{range .Timbres}}<option value="{{.}}"{{if eq . $tb}} selected{{end}}>{{t (printf "%s timbre" .)}}</option>{{end}}</select></div>
+      </div>
+      <div class="voice-assess-row">
+        <div class="field"><label for="voice-pass-low">{{t "First passage"}}</label>
+          <select id="voice-pass-low" name="passLow"><option value="">—</option>{{$pl := .PassLow}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $pl}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        <div class="field"><label for="voice-pass-high">{{t "Second passage"}}</label>
+          <select id="voice-pass-high" name="passHigh"><option value="">—</option>{{$ph := .PassHigh}}{{range $.NoteOptions}}<option value="{{.Midi}}"{{if eq .Midi $ph}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+      </div>
+      <div class="field"><label for="voice-note">{{t "Your assessment"}}</label>
+        <textarea id="voice-note" name="note" rows="2" placeholder="{{t "What you hear: range, timbre, where the voice changes register, what to work on…"}}">{{.Voice.Assessment}}</textarea></div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Save the assessment"}}</button><p class="form-status" role="status"></p></div>
+      <p class="hint">{{t "%s reads the assessment and its history too." .Student.DisplayName}}</p>
+    </form>
+    {{else if .Voice.Assessment}}
+    <blockquote class="voice-assessment">{{.Voice.Assessment}}</blockquote>
+    {{end}}
+    {{if .VoiceHistory}}
+    <details class="voice-history"{{if .IsCoach}} open{{end}}>
+      <summary>{{t "History"}} <span class="hint">{{len .VoiceHistory}}</span></summary>
+      <ol>
+      {{range .VoiceHistory}}
+        <li><span class="hint">{{date .At "2 Jan 2006"}}{{with .By}} · {{.}}{{end}}</span>
+          {{if .IsNoteOnly}}<strong>{{t .Field}}</strong>{{else}}<strong>{{t .Field}}</strong>{{t "voice-history|:"}} {{with .Old}}{{.}}{{else}}—{{end}} → {{with .New}}{{.}}{{else}}—{{end}}{{end}}
+          {{with .Note}}<div class="voice-history-note">{{.}}</div>{{end}}</li>
+      {{end}}
+      </ol>
+    </details>
+    {{end}}
   </section>
 
   {{template "practice-section" .}}
 
-  <section class="home-section">
+  <section class="home-section" id="songs">
     <div class="home-section-head"><h3>{{if .IsCoach}}{{t "Songs, in %s’s key" .Student.DisplayName}}{{else}}{{t "My songs"}}{{end}}</h3><span class="count">{{len .Songs}}</span></div>
     {{template "coach-song-list" .}}
   </section>
 
   {{if .IsCoach}}
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "only the coach sees them"}}</span></div>
-    <label class="coach-notes">{{t "About %s" .Student.DisplayName}}
+    <div class="home-section-head"><h3>{{t "Teaching notes"}}</h3><span class="hint">{{t "private ones only you and the staff see; shared ones %s reads" .Student.DisplayName}}</span></div>
+    <label class="field coach-notes">{{t "About %s" .Student.DisplayName}} <span class="note-kind">{{t "note|Private"}}</span>
       <textarea id="coach-notes" rows="3" placeholder="{{t "who they are as a singer, goals, what to watch"}}">{{.Notes}}</textarea></label>
-    <form class="teaching-note-form">
-      <textarea name="body" rows="3" placeholder="{{t "What you worked on, what to practise next…"}}" required></textarea>
-      <div class="teaching-note-row">
-        <select name="eventId" aria-label="{{t "About a lesson"}}"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select>
-        <button type="submit" class="primary">{{t "Add the note"}}</button>
+    <form class="teaching-note-form form-stack">
+      <div class="field"><label for="teaching-note-body">{{t "A new note"}}</label>
+      <textarea id="teaching-note-body" name="body" rows="3" placeholder="{{t "What you worked on, what to practise next…"}}" required></textarea></div>
+      <fieldset class="field-group note-kind-pick">
+        <legend>{{t "Who reads it"}}</legend>
+        <label class="check"><input type="radio" name="shared" value="0" checked> {{t "Private: you and the staff"}}</label>
+        <label class="check"><input type="radio" name="shared" value="1"> {{t "Shared: %s reads it too (and is told)" .Student.DisplayName}}</label>
+      </fieldset>
+      <div class="note-about">
+        <div class="field"><label for="teaching-note-event">{{t "About a lesson"}}</label>
+          <select id="teaching-note-event" name="eventId"><option value="0">{{t "No lesson in particular"}}</option>{{range .NoteLessons}}<option value="{{.Event.ID}}">{{date .Event.StartsAt "Mon 2 Jan, 15:04"}} · {{.Event.Name}}</option>{{end}}</select></div>
+        <div class="field"><label for="teaching-note-song">{{t "About a song"}}</label>
+          <select id="teaching-note-song" name="variantId"><option value="0">{{t "No song in particular"}}</option>{{range .Songs}}<option value="{{.VariantID}}">{{.Title}}</option>{{end}}</select></div>
       </div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Add the note"}}</button></div>
     </form>
     <div class="teaching-notes">
       {{range .TeachingNotes}}
-      <article class="teaching-note" data-note="{{.ID}}">
-        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}
-          <button type="button" class="link-btn teaching-note-edit">{{t "Edit"}}</button></div>
+      <article class="teaching-note{{if .Shared}} is-shared{{end}}" data-note="{{.ID}}">
+        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}{{with .SongTitle}} <span class="hint">· {{.}}</span>{{end}}
+          <span class="note-kind{{if .Shared}} is-shared{{end}}">{{if .Shared}}{{t "note|Shared"}}{{else}}{{t "note|Private"}}{{end}}</span>
+          <button type="button" class="link-btn teaching-note-edit">{{t "Edit"}}</button>
+          {{if not .Shared}}<button type="button" class="link-btn teaching-note-share">{{t "Share with %s" $.Student.DisplayName}}</button>{{end}}</div>
         <p class="teaching-note-body">{{.Body}}</p>
       </article>
+      {{end}}
+    </div>
+  </section>
+  {{else}}
+  {{/* The student: the notes the coach shared with them, the latest
+       first (the private ones never reach this page). */}}
+  <section class="home-section" id="notes">
+    <div class="home-section-head"><h3>{{t "Notes from %s" (ofName .CoachFirstName)}}</h3><span class="count">{{len .SharedNotes}}</span></div>
+    <div class="teaching-notes">
+      {{range .SharedNotes}}
+      <article class="teaching-note is-shared">
+        <div class="teaching-note-head"><strong>{{with .EventStart}}{{date . "Mon 2 Jan 2006"}}{{else}}{{date .CreatedAt "Mon 2 Jan 2006"}}{{end}}</strong>{{with .EventName}} <span class="hint">· {{.}}</span>{{end}}{{if .VariantID}} <span class="hint">· <a href="/song/{{.VariantID}}">{{.SongTitle}}</a></span>{{end}}</div>
+        <p class="teaching-note-body">{{.Body}}</p>
+      </article>
+      {{else}}
+      <p class="hint">{{t "No notes yet: %s writes them here, after a lesson for instance." .CoachFirstName}}</p>
       {{end}}
     </div>
   </section>
@@ -683,7 +725,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{template "practice-script"}}
 {{if .IsCoach}}
@@ -707,14 +749,35 @@
     row.querySelectorAll('select').forEach((s) => s.addEventListener('change', save));
     row.querySelector('.voice-note').addEventListener('change', save);
   });
+  // The assessment: type, tessitura, words; whether the student reads it.
+  const assess = document.querySelector('.voice-assess');
+  assess?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const num = (v) => (v === '' ? null : Number(v));
+    Forms.run(assess, assess.querySelector('button[type="submit"]'), async () => {
+      await send(`${api}/voice`, 'PUT', {
+        voiceType: assess.voiceType.value, leaning: assess.leaning.checked,
+        tessituraLow: num(assess.tessLow.value), tessituraHigh: num(assess.tessHigh.value),
+        timbre: assess.timbre.value, passaggioLow: num(assess.passLow.value), passaggioHigh: num(assess.passHigh.value),
+        note: assess.note.value,
+      }).catch(() => { throw new Error(t('Couldn’t save the assessment.')); });
+      location.reload();
+    });
+  });
   const notes = document.getElementById('coach-notes');
   notes?.addEventListener('change', () => send(`${api}/notes`, 'PUT', { notes: notes.value }).catch(() => alert(t('Couldn’t save the notes.'))));
   document.querySelector('.teaching-note-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    send(`${api}/teaching-notes`, 'POST', { body: f.get('body'), eventId: Number(f.get('eventId')) })
+    send(`${api}/teaching-notes`, 'POST', { body: f.get('body'), eventId: Number(f.get('eventId')), variantId: Number(f.get('variantId')), shared: f.get('shared') === '1' })
       .then(() => location.reload()).catch(() => alert(t('Couldn’t add the note.')));
   });
+  // A private note shared with the student: one way, asked first.
+  document.querySelectorAll('.teaching-note-share').forEach((b) => b.addEventListener('click', () => {
+    const note = b.closest('.teaching-note');
+    if (!confirm(t('Share this note with %s? They will read it, and it can’t be made private again.', page.dataset.studentName))) return;
+    send(`${api}/teaching-notes/${note.dataset.note}/share`, 'POST').then(() => location.reload()).catch(() => alert(t('Couldn’t share the note.')));
+  }));
   // A note edited in place: emptied, it goes.
   document.querySelectorAll('.teaching-note').forEach((note) => {
     note.querySelector('.teaching-note-edit').addEventListener('click', () => {
@@ -741,38 +804,36 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{template "coach-groups-label"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{template "coach-groups-label"}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{if .IsCoach}}{{template "space-section-name" .Space}}{{else}}{{template "coach-groups-label"}}{{end}}</h1>
 </header>
 <main class="index coach-groups-page" data-community="{{.Community.ID}}">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
 
   {{if .IsCoach}}
   <section class="home-section">
     <details class="coach-new-lesson"{{if not .Groups}} open{{end}}>
       <summary>{{template "icon-plus"}} {{t "A group"}}</summary>
-      <form id="coach-group-form" class="coach-lesson-form">
-        <label>{{t "Name"}} <input type="text" name="name" required placeholder="{{t "Tuesday group, summer stage…"}}"></label>
-        <label>{{t "For"}} <select name="kind">
+      <form id="coach-group-form" class="coach-lesson-form form-grid">
+        <label class="field">{{t "Name"}} <input type="text" name="name" required placeholder="{{t "Tuesday group, summer stage…"}}"></label>
+        <label class="field">{{t "For"}} <select name="kind">
           <option value="year">{{t "the year"}}</option>
           <option value="oneoff">{{t "a master class, a stage"}}</option>
         </select></label>
-        <label class="coach-group-dates">{{t "From"}} <input type="date" name="startsOn" value="{{.SeasonStart}}"></label>
-        <label class="coach-group-dates">{{t "to"}} <input type="date" name="endsOn" value="{{.SeasonEnd}}"></label>
-        {{if .Masterclasses}}<label class="coach-group-event" hidden>{{t "The event"}} <select name="eventId"><option value="0">{{t "none"}}</option>{{range .Masterclasses}}<option value="{{.ID}}">{{.Name}} · {{date .StartsAt "2 Jan"}}</option>{{end}}</select></label>{{end}}
-        <fieldset class="coach-lesson-students"><legend>{{t "Students"}}</legend>
-          {{range .Students}}<label><input type="checkbox" name="members" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}
+        <label class="field coach-group-dates">{{t "From"}} <input type="date" name="startsOn" value="{{.SeasonStart}}"></label>
+        <label class="field coach-group-dates">{{t "to"}} <input type="date" name="endsOn" value="{{.SeasonEnd}}"></label>
+        {{if .Masterclasses}}<label class="field coach-group-event" hidden>{{t "The event"}} <select name="eventId"><option value="0">{{t "none"}}</option>{{range .Masterclasses}}<option value="{{.ID}}">{{.Name}} · {{date .StartsAt "2 Jan"}}</option>{{end}}</select></label>{{end}}
+        <fieldset class="coach-lesson-students field-group"><legend>{{t "Students"}}</legend><div class="check-grid">
+          {{range .Students}}<label class="check"><input type="checkbox" name="members" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}</div>
         </fieldset>
-        <button type="submit" class="primary">{{t "Make the group"}}</button>
+        <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Make the group"}}</button></div>
       </form>
     </details>
   </section>
@@ -793,7 +854,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}
 <script>
@@ -832,7 +893,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Group.Name}} — {{.Community.Name}}</title>
+<title>{{docTitle .Group.Name .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -841,18 +902,16 @@
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/groups">{{template "icon-back"}} {{template "coach-groups-label"}}</a>
   <h1>{{.Group.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index coach-group-page" data-community="{{.Community.ID}}" data-group="{{.Group.ID}}">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{if .Group.IsYear}}{{t "A year group"}}{{else}}{{t "A one-off group"}}{{end}}</h3>
       <span class="hint">{{with .Group.StartsOn}}{{date . "2 January 2006"}}{{end}}{{with .Group.EndsOn}} – {{date . "2 January 2006"}}{{end}}</span></div>
     {{with .Event}}<p>{{t "For"}} <a href="/events/{{.ID}}">{{.Name}}</a>, {{date .StartsAt "Monday 2 January"}}.</p>{{end}}
     {{if .IsCoach}}
-    <div class="coach-lesson-students coach-group-members">{{$g := .Group}}{{range .Students}}<label><input type="checkbox" value="{{.PersonID}}"{{if $g.HasMember .PersonID}} checked{{end}}> {{.DisplayName}}</label>{{end}}</div>
-    <div class="coach-lesson-actions"><button type="button" id="coach-group-save">{{t "Save the members"}}</button><button type="button" id="coach-group-delete" class="danger">{{t "Delete the group"}}</button></div>
+    <div class="coach-lesson-students coach-group-members check-grid">{{$g := .Group}}{{range .Students}}<label class="check"><input type="checkbox" value="{{.PersonID}}"{{if $g.HasMember .PersonID}} checked{{end}}> {{.DisplayName}}</label>{{end}}</div>
+    <div class="coach-lesson-actions form-actions"><button type="button" id="coach-group-save" class="primary">{{t "Save the members"}}</button><button type="button" id="coach-group-delete" class="danger">{{t "Delete the group"}}</button></div>
     {{else}}
     <div class="coach-lesson-who">{{range .Group.Members}}<span class="voice-tag">{{.DisplayName}}</span>{{end}}</div>
     {{end}}
@@ -860,6 +919,10 @@
 
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Songs, in the group’s key"}}</h3><span class="count">{{len .Songs}}</span></div>
+    {{/* One song for the whole group, the coach's too: every member
+         edits it in place (store.SongRights.GroupMember), only the key
+         is the group's (docs/coaching.md, "A group works on one song"). */}}
+    {{if .Songs}}<p class="hint coach-group-shared">{{if .IsCoach}}{{t "Every member of the group changes these songs with you — the chart, the lyrics, a Guitar Pro file: one song for all of you, the community’s. Only the key is the group’s."}}{{else}}{{t "Everyone in the group changes these songs, and so does the coach — the chart, the lyrics, a Guitar Pro file: one song for all of you. Only the key is the group’s."}}{{end}}</p>{{end}}
     {{template "coach-song-list" .}}
   </section>
 
@@ -880,7 +943,7 @@
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{template "practice-script"}}
 {{if .IsCoach}}
@@ -912,23 +975,21 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Lessons"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Lessons"}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index coach-lessons-page" data-community="{{.Community.ID}}">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   <p class="coach-subscribe"><a href="/calendar/subscribe">{{template "icon-calendar"}} {{t "Your calendar in your calendar app"}}</a></p>
   {{if .HasOnline}}
-  <label class="live-headphones" title="{{t "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers."}}">
+  <label class="check live-headphones" title="{{t "With headphones, your microphone isn’t cleaned up and sends high-quality audio: your voice as it is, for singing. Without, it removes echo and noise, right for laptop speakers."}}">
     <input type="checkbox" id="live-headphones"{{if .Headphones}} checked{{end}}> {{t "I join online lessons with headphones (my voice as it is, for singing)"}}
   </label>
   {{end}}
@@ -937,17 +998,17 @@
   <section class="home-section">
     <details class="coach-new-lesson"{{if not .Days}} open{{end}}>
       <summary>{{template "icon-plus"}} {{t "A lesson"}}</summary>
-      <form id="coach-lesson-form" class="coach-lesson-form">
-        <label>{{t "When"}} <input type="datetime-local" name="startsAt" value="{{.DefaultStart}}" required></label>
-        <label>{{t "For"}} <select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>{{t "1 hour"}}</option><option value="90">1 h 30</option><option value="120">{{t "2 hours"}}</option><option value="180">{{t "3 hours"}}</option></select></label>
-        <label>{{t "How"}} <select name="mode"><option value="in_person">{{t "In the room"}}</option><option value="online">{{t "Online"}}</option></select></label>
-        <label>{{t "Where"}} <input type="text" name="location" placeholder="{{t "Studio, address…"}}"></label>
-        <label>{{t "Name"}} <input type="text" name="name" placeholder="{{t "Lesson"}}"></label>
-        {{if .Groups}}<label>{{t "A group"}} <select name="groupId"><option value="0">{{t "no, students one by one"}}</option>{{range .Groups}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
-        <fieldset class="coach-lesson-students"><legend>{{t "Students"}}</legend>
-          {{range .Students}}<label><input type="checkbox" name="students" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}
+      <form id="coach-lesson-form" class="coach-lesson-form form-grid">
+        <label class="field">{{t "When"}} <input type="datetime-local" name="startsAt" value="{{.DefaultStart}}" required></label>
+        <label class="field">{{t "For"}} <select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>{{t "1 hour"}}</option><option value="90">1 h 30</option><option value="120">{{t "2 hours"}}</option><option value="180">{{t "3 hours"}}</option></select></label>
+        <label class="field">{{t "How"}} <select name="mode"><option value="in_person">{{t "In the room"}}</option><option value="online">{{t "Online"}}</option></select></label>
+        <label class="field">{{t "Where"}} <input type="text" name="location" placeholder="{{t "Studio, address…"}}"></label>
+        <label class="field">{{t "Name"}} <input type="text" name="name" placeholder="{{t "Lesson"}}"></label>
+        {{if .Groups}}<label class="field">{{t "A group"}} <select name="groupId"><option value="0">{{t "no, students one by one"}}</option>{{range .Groups}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+        <fieldset class="coach-lesson-students field-group"><legend>{{t "Students"}}</legend><div class="check-grid">
+          {{range .Students}}<label class="check"><input type="checkbox" name="students" value="{{.PersonID}}"> {{.DisplayName}}</label>{{else}}<span class="hint">{{t "No students yet."}}</span>{{end}}</div>
         </fieldset>
-        <button type="submit" class="primary">{{t "Put it on the calendar"}}</button>
+        <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Put it on the calendar"}}</button></div>
       </form>
     </details>
   </section>
@@ -972,9 +1033,9 @@
         <details class="coach-lesson-edit">
           <summary>{{t "Edit"}}</summary>
           {{$regs := .Students}}
-          <label class="coach-lesson-mode">{{t "How"}} <select data-was="{{.Event.LessonMode}}"><option value="in_person"{{if ne .Event.LessonMode "online"}} selected{{end}}>{{t "In the room"}}</option><option value="online"{{if eq .Event.LessonMode "online"}} selected{{end}}>{{t "Online"}}</option></select></label>
-          <div class="coach-lesson-students">{{range $.Students}}{{$id := .PersonID}}<label><input type="checkbox" value="{{.PersonID}}"{{range $regs}}{{if eq .PersonID $id}} checked{{end}}{{end}}> {{.DisplayName}}</label>{{end}}</div>
-          <div class="coach-lesson-actions"><button type="button" class="coach-lesson-save">{{t "Save"}}</button><button type="button" class="coach-lesson-delete danger">{{t "Cancel the lesson"}}</button></div>
+          <label class="field coach-lesson-mode">{{t "How"}} <select data-was="{{.Event.LessonMode}}"><option value="in_person"{{if ne .Event.LessonMode "online"}} selected{{end}}>{{t "In the room"}}</option><option value="online"{{if eq .Event.LessonMode "online"}} selected{{end}}>{{t "Online"}}</option></select></label>
+          <div class="coach-lesson-students check-grid">{{range $.Students}}{{$id := .PersonID}}<label class="check"><input type="checkbox" value="{{.PersonID}}"{{range $regs}}{{if eq .PersonID $id}} checked{{end}}{{end}}> {{.DisplayName}}</label>{{end}}</div>
+          <div class="coach-lesson-actions form-actions"><button type="button" class="coach-lesson-save primary">{{t "Save"}}</button><button type="button" class="coach-lesson-delete danger">{{t "Cancel the lesson"}}</button></div>
         </details>
         {{end}}
       </div>
@@ -986,7 +1047,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 document.getElementById('live-headphones')?.addEventListener('change', (e) => {
@@ -1037,7 +1098,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Event.Name}} — {{.Community.Name}}</title>
+<title>{{docTitle .Event.Name .Community.Name}}</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -1045,7 +1106,6 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <header class="app-header">
   <a class="back-link" href="{{.Back}}">{{template "icon-back"}} {{t "Lessons"}}</a>
   <h1>{{.Event.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index live-join-page">
   <section class="home-section">
@@ -1058,7 +1118,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
@@ -1069,7 +1129,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Your calendar"}} — Songbooks</title>
+<title>{{docTitle (t "Your calendar")}}</title>
 </head>
 <body>
 {{template "desktop-sidebar" .}}
@@ -1077,7 +1137,6 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
 <header class="app-header">
   <a class="back-link" href="/home">{{template "icon-back"}} {{t "Home"}}</a>
   <h1>{{t "Your calendar"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index calendar-subscribe">
   <section class="home-section">
@@ -1093,7 +1152,7 @@ document.getElementById('live-headphones')?.addEventListener('change', (e) => {
   </section>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {

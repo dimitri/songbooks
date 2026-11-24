@@ -82,7 +82,7 @@ invented ones, no reference link, no real community name, no logo.
 
 | Table | What happens |
 |---|---|
-| people | invented display names (French and English, from a fixed list, by id), usernames `demo-<id>`, emails `<username>@example.invalid` (none when there was none), no nickname, photo, phone, Gravatar or password. `tapoueh` (the local auto-login) keeps its username and password and becomes **Lucas Mercier**; Studio Lumen's coach becomes **Inès Marchal**. |
+| people | invented display names (French and English, from a fixed list, by id), emails `demo-<id>@example.invalid` (none when there was none), no nickname, photo, phone, Gravatar or password. Person 1, the bootstrap account (the local auto-login, `SONGBOOKS_DEV_AUTO_LOGIN=1`), keeps its password, gets the email `tapoueh@example.invalid` to sign in with and becomes **Lucas Mercier**; Studio Lumen's coach becomes **Inès Marchal**. |
 | communities | Bands Camp → **Jam du Canal**, Florent Passamonti → **Atelier Blues Rive Gauche**, Chloé Paul → **Studio Lumen**, JamSpace → **Salle Bleue Jam**, any other an invented name; a new look each (`SetBrand`: colours, fonts, a two-letter mark, a French tagline, no logo, no website). Custom role names → "Rôle N". |
 | bands | invented names (The Paper Lanterns, Velvet Hour, Nord Express…) and looks; their cloud recording sources (and so their recordings' list), recording fixes, album covers and proposals removed. |
 | works, songs | every variant an invented title ("Night Train to Arles", "Cobalt Morning", "Lanterns at Low Tide") and artist (a band of the app by its new name, or one of the invented bands); the body's `title:`/`artist:` lines rewritten, every lyric line, comment and `note:` line removed (`importer.WithoutLyrics`), `reference:` and `cover:` lines removed, section labels carrying words renamed after their kind; chords, grids, sections, tempo, key, time and Guitar Pro references stay. `songs.reference_url` and `song_audio.source_url` cleared (the recordings, their parts and markers stay). Album names and found covers removed. Eight songs (five of Studio Lumen's, three of Jam du Canal's) get invented lyrics. |
@@ -91,7 +91,7 @@ invented ones, no reference link, no real community name, no logo.
 | songbook_files | PDFs removed (a course's book carries its author's name on every page); Guitar Pro files rewritten as above; every file named after its song or lesson, folders after their lesson. |
 | setlists, setlist_gigs, events | invented titles, venues and names; notes and descriptions cleared. |
 | coaching | teaching notes and student notes invented, range notes cleared, group names "Groupe N". |
-| private | sessions (but tapoueh's), sign-in tokens, passkeys, calendar feed secrets, the outbox, notifications, revisions (old bodies, lyrics included), search queries, annotations' text. |
+| private | sessions (but person 1's), sign-in tokens, passkeys, calendar feed secrets, the outbox, notifications, revisions (old bodies, lyrics included), search queries, annotations' text. |
 
 Not changed: the iReal Pro library (`ireal_*`, a public catalogue used by
 the import wizard), the recordings' audio and the files' audio (a
@@ -99,13 +99,13 @@ recording can be recognised by ear; its tags are kept), instrument lists.
 
 ## What fixtures makes
 
-All invented, found again before being made (a person by username, a
+All invented, found again before being made (a person by email, a
 group by name, an event by owner, kind, name and start, a set list by
 band and title, a note by its text): a second run only adds what's
 missing, the coming weeks for instance.
 
-- **Studio Lumen** (coaching): thirteen students (`demo-student-NN`, no
-  email, no password), each with a voice (chest, mixed and head ranges:
+- **Studio Lumen** (coaching): thirteen students (emails
+  `demo-student-NN@example.invalid`, no password), each with a voice (chest, mixed and head ranges:
   sopranos, mezzos, altos, tenors, baritones, overlapping), a songbook of
   3 to 5 of the community's songs each in their own key, a profile and a
   teaching note or two. Groups: **Mardi soir** and **Jeudi midi** (the

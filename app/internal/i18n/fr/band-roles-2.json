@@ -1,0 +1,16 @@
+{
+  "Remove anyone’s songs from them (whoever added one can always remove it).": "Retirer les morceaux de n’importe qui (celui qui en a ajouté un peut toujours le retirer).",
+  "Their votes count: in the average, the counts and who hasn’t voted. Without it, a member’s votes are listed apart, with the guests’.": "Leurs votes comptent : dans la moyenne, les décomptes et qui n’a pas voté. Sans ce droit, les votes d’un membre sont listés à part, avec ceux des invités.",
+  "Tidy Discover and Influences": "Faire le tri dans Découvrir et Influences",
+  "Only who shared it, or a member whose role lets them remove anyone’s, removes it.": "Seul qui l’a partagé, ou un membre dont le rôle permet de retirer ceux des autres, peut le retirer.",
+  "Get a link": "Obtenir un lien",
+  "Leave the band": "Quitter le groupe",
+  "“%s” link": "Lien « %s »",
+  "Your role in the band doesn’t count in the votes: yours are listed apart, with the guests’.": "Votre rôle dans le groupe ne compte pas dans les votes : les vôtres sont listés à part, avec ceux des invités.",
+  "Guests may vote too: their votes are listed apart, and don’t count.": "Les invités peuvent voter aussi : leurs votes sont listés à part, et ne comptent pas.",
+  "Archive %s?": "Archiver %s ?",
+  "Its invite links were closed when it was archived; unarchiving doesn’t reopen them: make new ones from Members.": "Ses liens d’invitation ont été fermés à l’archivage ; désarchiver ne les rouvre pas : créez-en de nouveaux depuis Membres.",
+  "Out of the menus and off every member’s home page; they still find it in All my groups.": "Hors des menus et de la page d’accueil de chaque membre ; ils le retrouvent dans Tous mes groupes.",
+  "Read only for every member: no song, set list, event, vote or role changes; members can’t leave it either.": "En lecture seule pour tous les membres : plus de changement de morceau, set list, événement, vote ou rôle ; les membres ne peuvent pas non plus le quitter.",
+  "You can unarchive it here at any time.": "Vous pouvez le désarchiver ici à tout moment."
+}

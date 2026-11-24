@@ -574,7 +574,7 @@ func (s *Server) handleBrowseSongbookFiles(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	crumbs[len(crumbs)-1].Current = true
-	up := fmt.Sprintf("/communities/%d/downloads#songbook-%d", communityID, sb.ID)
+	up := fmt.Sprintf("/communities/%d/resources#songbook-%d", communityID, sb.ID)
 	if len(crumbs) > 1 {
 		up = crumbs[len(crumbs)-2].Href
 	}

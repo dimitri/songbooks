@@ -10,11 +10,10 @@ import (
 )
 
 // Band is a lightweight group of people who collaborate on shared
-// ("band"-visibility) catalog material. No band "owner"/"admin" role
-// exists: any current member may add/remove another member and delete
-// the whole band. The one privilege asymmetry is promote/demote
-// (core/guest status) itself — core-only, see requireBandCore in
-// internal/httpapi/bands.go.
+// ("band"-visibility) catalog material. What a member may change is
+// their role's (band_roles.go, docs/band-roles.md): the built-in "core"
+// and "guest" roles grant what those statuses always did, and a band
+// may change them or make its own.
 type Band struct {
 	ID        int64
 	Name      string
@@ -25,7 +24,13 @@ type Band struct {
 	// group naturally by the record they're from; a covers band has no
 	// such concept).
 	MusicType string
+	// ArchivedAt: when the band was archived (read only, out of the
+	// menus; docs/band-roles.md), nil if it isn't.
+	ArchivedAt *time.Time
 }
+
+// Archived reports whether b is archived.
+func (b Band) Archived() bool { return b.ArchivedAt != nil }
 
 // BandMember is one row of band_members — one person's one stint of
 // membership in one band. History = every row ever inserted (see
@@ -35,14 +40,16 @@ type BandMember struct {
 	ID                int64
 	BandID            int64
 	PersonID          int64
-	Username          string
 	DisplayName       string
-	Status            string
+	Status            string // core or guest: follows the role (guest for the guest role, core for any other)
+	RoleID            int64  // band_roles.id: what the member may do (band_roles.go)
+	Votes             bool   // their role grants vote: counted in the proposals' tallies
 	JoinedAt          time.Time
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
-	InvitedByUsername string
+	InvitedByName     string   // the inviter's display name
 	Instruments       []string // p.instruments — see migration 0018
+	IsShell           bool     // p.is_shell: a placeholder who hasn't joined yet (see CreateShellPerson)
 }
 
 // IsCurrent reports whether m is an active (not left) membership row.
@@ -59,6 +66,7 @@ type BandMemberSnapshot struct {
 	BandID            int64      `json:"band_id"`
 	PersonID          int64      `json:"person_id"`
 	Status            string     `json:"status"`
+	RoleID            int64      `json:"role_id,omitempty"` // band_roles.id (migration 0130); 0 in older revisions
 	JoinedAt          time.Time  `json:"joined_at"`
 	LeftAt            *time.Time `json:"left_at"`
 	InvitedByPersonID *int64     `json:"invited_by_person_id"`
@@ -148,9 +156,9 @@ func (st *Store) SetBandMusicType(ctx context.Context, bandID int64, musicType s
 func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 	var b Band
 	err := st.db.QueryRow(ctx, `
-		SELECT b.id, b.name, b.created_at, coalesce(b.music_type, '')
+		SELECT b.id, b.name, b.created_at, coalesce(b.music_type, ''), b.archived_at
 		FROM bands b WHERE b.id = $1`, bandID).
-		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.MusicType)
+		Scan(&b.ID, &b.Name, &b.CreatedAt, &b.MusicType, &b.ArchivedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}
@@ -161,13 +169,23 @@ func (st *Store) GetBand(ctx context.Context, bandID int64) (*Band, error) {
 }
 
 // ListBandsForPerson lists every band personID is currently a member of,
-// alphabetically by name.
+// alphabetically by name — but the archived ones (ListArchivedBandsForPerson).
 func (st *Store) ListBandsForPerson(ctx context.Context, personID int64) ([]Band, error) {
+	return st.listBandsForPerson(ctx, personID, false)
+}
+
+// ListArchivedBandsForPerson lists personID's archived bands, by name:
+// "All my groups" keeps them reachable.
+func (st *Store) ListArchivedBandsForPerson(ctx context.Context, personID int64) ([]Band, error) {
+	return st.listBandsForPerson(ctx, personID, true)
+}
+
+func (st *Store) listBandsForPerson(ctx context.Context, personID int64, archived bool) ([]Band, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT DISTINCT b.id, b.name, b.created_at
 		FROM bands b JOIN band_members m ON m.band_id = b.id
-		WHERE m.person_id = $1 AND upper_inf(m.validity)
-		ORDER BY b.name`, personID)
+		WHERE m.person_id = $1 AND upper_inf(m.validity) AND (b.archived_at IS NOT NULL) = $2
+		ORDER BY b.name`, personID, archived)
 	if err != nil {
 		return nil, err
 	}
@@ -234,28 +252,15 @@ func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (b
 	return ok, err
 }
 
-// IsCurrentBandCore reports whether personID is currently a CORE member
-// of bandID specifically — the one privilege asymmetry bands have:
-// core/guest are otherwise fully symmetric (see requireBandMember's doc
-// comment), but only a core member may assign another member's core/
-// guest status (see handleSetBandMemberStatus).
-func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) (bool, error) {
-	var ok bool
-	err := st.db.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM band_members
-		              WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity) AND status = 'core')`,
-		bandID, personID).Scan(&ok)
-	return ok, err
-}
-
 // ListBandMembers lists bandID's membership rows: every row ever inserted
 // if includePast, otherwise only current (left_at IS NULL) ones. Newest
 // first.
 func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast bool) ([]BandMember, error) {
 	q := `
-		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text,
+		SELECT m.id, m.band_id, m.person_id, p.display_name, m.status::text, m.role_id,
+		       EXISTS (SELECT 1 FROM band_role_privileges brp WHERE brp.role_id = m.role_id AND brp.privilege = 'vote'),
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
-		       m.invited_by_person_id, coalesce(ip.username, ''), p.instruments
+		       m.invited_by_person_id, coalesce(ip.display_name, ''), p.instruments, p.is_shell
 		FROM band_members m
 		JOIN people p ON p.id = m.person_id
 		LEFT JOIN people ip ON ip.id = m.invited_by_person_id
@@ -272,8 +277,8 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 	var out []BandMember
 	for rows.Next() {
 		var m BandMember
-		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.Username, &m.DisplayName, &m.Status,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.Instruments); err != nil {
+		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.DisplayName, &m.Status, &m.RoleID, &m.Votes,
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByName, &m.Instruments, &m.IsShell); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -297,6 +302,21 @@ func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, stat
 	if status != "core" && status != "guest" {
 		return 0, fmt.Errorf("invalid band member status %q", status)
 	}
+	return st.addBandMember(ctx, bandID, personID, status, 0, invitedByPersonID)
+}
+
+// AddBandMemberWithRole is AddBandMember giving roleID, one of bandID's
+// roles (ResolveBandInviteRole), a band's own included.
+func (st *Store) AddBandMemberWithRole(ctx context.Context, bandID, personID, roleID, invitedByPersonID int64) (int64, error) {
+	status, err := bandInviteStatus(ctx, st.db, bandID, roleID)
+	if err != nil {
+		return 0, err
+	}
+	return st.addBandMember(ctx, bandID, personID, status, roleID, invitedByPersonID)
+}
+
+// addBandMember is AddBandMember with a role (roleID; 0: status's).
+func (st *Store) addBandMember(ctx context.Context, bandID, personID int64, status string, roleID, invitedByPersonID int64) (int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -317,9 +337,9 @@ func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, stat
 	}
 	var memberID int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
-		VALUES ($1, $2, $3, $4) RETURNING id`,
-		bandID, personID, status, invitedBy).Scan(&memberID); err != nil {
+		INSERT INTO band_members (band_id, person_id, status, role_id, invited_by_person_id)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		bandID, personID, status, nullableID(roleID), invitedBy).Scan(&memberID); err != nil {
 		return 0, err
 	}
 
@@ -394,8 +414,10 @@ func (st *Store) RemoveBandMember(ctx context.Context, bandID, personID, actorPe
 }
 
 // SetBandMemberStatus promotes/demotes personID's current membership in
-// bandID between "core" and "guest". actorPersonID is the revision's
-// actor.
+// bandID between "core" and "guest": the built-in role of that name
+// (SetBandMemberRole for any role). Refused (ErrLastKeeper) if it would
+// leave no current member able to manage the roles. actorPersonID is the
+// revision's actor.
 func (st *Store) SetBandMemberStatus(ctx context.Context, bandID, personID int64, status string, actorPersonID int64) error {
 	if status != "core" && status != "guest" {
 		return fmt.Errorf("invalid band member status %q", status)
@@ -406,6 +428,10 @@ func (st *Store) SetBandMemberStatus(ctx context.Context, bandID, personID int64
 	}
 	defer tx.Rollback(ctx)
 
+	before, err := bandRoles.keepers(ctx, tx, bandID)
+	if err != nil {
+		return err
+	}
 	row, err := lockCurrentMembership(ctx, tx, bandID, personID)
 	if err != nil {
 		return err
@@ -416,7 +442,14 @@ func (st *Store) SetBandMemberStatus(ctx context.Context, bandID, personID int64
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE band_members SET status = $1 WHERE id = $2`, status, row.ID); err != nil {
+	// The built-in role of that name (migration 0130's trigger), even
+	// for a member whose own role already counts as core.
+	if _, err := tx.Exec(ctx, `
+		UPDATE band_members SET role_id = (SELECT id FROM band_roles WHERE band_id = $3 AND builtin_key = $1) WHERE id = $2`,
+		status, row.ID, bandID); err != nil {
+		return err
+	}
+	if err := bandRoles.keepKeeper(ctx, tx, bandID, before); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -442,11 +475,11 @@ func (row currentMembershipRow) snapshot() BandMemberSnapshot {
 func lockCurrentMembership(ctx context.Context, tx pgx.Tx, bandID, personID int64) (currentMembershipRow, error) {
 	var row currentMembershipRow
 	err := tx.QueryRow(ctx, `
-		SELECT id, band_id, person_id, status::text, lower(validity),
+		SELECT id, band_id, person_id, status::text, role_id, lower(validity),
 		       CASE WHEN upper_inf(validity) THEN NULL ELSE upper(validity) END, invited_by_person_id
 		FROM band_members WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity)
 		FOR UPDATE`, bandID, personID).
-		Scan(&row.ID, &row.BandID, &row.PersonID, &row.Status, &row.JoinedAt, &row.LeftAt, &row.InvitedByPersonID)
+		Scan(&row.ID, &row.BandID, &row.PersonID, &row.Status, &row.RoleID, &row.JoinedAt, &row.LeftAt, &row.InvitedByPersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return currentMembershipRow{}, fmt.Errorf("no current membership for person %d in band %d: %w", personID, bandID, ErrNotFound)
 	}

@@ -91,3 +91,20 @@ func TestContext(t *testing.T) {
 		t.Errorf("a bar in a sentence: %q", got)
 	}
 }
+
+func TestOf(t *testing.T) {
+	for _, c := range []struct{ lang, name, want string }{
+		{"fr", "Inès", "d’Inès"},
+		{"fr", "Chloé", "de Chloé"},
+		{"fr", "Hugo", "d’Hugo"},
+		{"fr", "Émile", "d’Émile"},
+		{"en", "Inès", "Inès"},
+	} {
+		if got := Of(c.lang, c.name); got != c.want {
+			t.Errorf("Of(%q, %q) = %q, want %q", c.lang, c.name, got, c.want)
+		}
+	}
+	if got := T("fr", "Notes from %s", Of("fr", "Inès")); got != "Notes d’Inès" {
+		t.Errorf("Notes from Inès: %q", got)
+	}
+}

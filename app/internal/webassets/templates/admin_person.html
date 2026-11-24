@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Person.DisplayName}} — {{t "Admin"}} — Songbooks</title>
+<title>{{docTitle .Person.DisplayName (t "Admin")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -14,7 +14,6 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{.Person.DisplayName}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <a href="/admin#people" class="import-back">{{template "icon-back"}} {{t "back to Admin"}}</a>
@@ -22,12 +21,11 @@
   <div class="card">
     <h3>{{t "Identity"}}</h3>
     <table style="width:100%">
-      <tr><td class="hint">{{t "Username"}}</td><td>{{.Person.Username}}</td></tr>
       <tr><td class="hint">{{t "Display name"}}</td><td>{{.Person.DisplayName}}</td></tr>
-      <tr><td class="hint">{{t "Email"}}</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>{{t "none"}}</em>{{end}}</td></tr>
+      <tr><td class="hint">{{t "Email"}}</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>{{t "none"}}</em> <span class="hint">{{t "— can’t log in until it has one"}}</span>{{end}}</td></tr>
       <tr><td class="hint">{{t "Site admin"}}</td><td>
         {{if eq .Person.ID .Me.ID}}<em>{{t "you"}}</em>{{else}}
-        <form method="post" action="/admin/people/{{.Person.ID}}/admin" style="display:inline"{{if .Person.IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Person.Username}}')"{{end}}>
+        <form method="post" action="/admin/people/{{.Person.ID}}/admin" class="button-form"{{if .Person.IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Person.DisplayName}}')"{{end}}>
           <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
           <button type="submit">{{if .Person.IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
         </form>
@@ -168,7 +166,7 @@ addForm.addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

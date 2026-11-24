@@ -1,0 +1,112 @@
+{{/* A band's roles (docs/band-roles.md, httpapi/band_roles.go): the
+     Roles section of the band's Settings, for whoever manages roles.
+     On a wide screen the matrix — the band's roles as columns, what each
+     may do as rows, a tick saves at once; a band's own role is renamed or
+     deleted from ⋯ on its column head, "+ New role" is the last column.
+     On a phone one role at a time: its chip, its privileges as switches.
+     Who has which role is given on Members (each row's select); each
+     role's count links there. band-roles.js; the community's own is in
+     community_admin.html. */}}
+
+{{define "band-role-name"}}{{if eq .BuiltinKey "core"}}{{t "role|Core"}}{{else if eq .BuiltinKey "guest"}}{{t "role|Guest"}}{{else}}{{.Name}}{{end}}{{end}}
+
+{{define "band-roles-editor"}}
+<div class="band-roles" id="band-roles" data-band-id="{{.BandID}}">
+  <p class="hint">{{t "What each role may change. Seeing the band is every member’s; a tick saves at once."}}</p>
+
+  <div class="table-scroll band-roles-scroll" data-roles-view="matrix"><table class="band-roles-table">
+    <thead><tr>
+      <th scope="col" class="band-roles-what">{{t "What they may do"}}</th>
+      {{range .Roles}}<th scope="col" class="band-roles-role">
+        <span class="band-role-head"><span class="band-role-title">{{template "band-role-name" .}}</span>{{if not .IsBuiltin}}
+          <details class="band-role-menu">
+            <summary aria-label="{{t "More for the role %s" .Name}}">⋯</summary>
+            <div class="band-role-menu-panel">
+              <button type="button" class="band-role-rename" data-role-id="{{.ID}}" data-role-name="{{.Name}}" aria-haspopup="dialog">{{t "Rename…"}}</button>
+              <button type="button" class="band-role-delete danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">{{t "Delete"}}</button>
+            </div>
+          </details>{{end}}</span>
+        <a class="band-role-count" href="/bands/{{$.BandID}}/members?role={{.ID}}">{{tn ($.RoleCount .ID) "%d member" "%d members"}} ›</a>
+      </th>{{end}}
+      <th scope="col" class="band-roles-add"><button type="button" class="band-role-new-btn" aria-haspopup="dialog">+ {{t "New role"}}</button></th>
+    </tr></thead>
+    {{range .Groups}}
+    <tbody>
+      <tr class="band-roles-group"><th scope="rowgroup" colspan="{{$.ColSpan}}">{{t .Label}}</th></tr>
+      {{range .Privileges}}{{$priv := .}}
+      <tr>
+        <th scope="row" class="band-roles-what"><span class="band-priv-label">{{t .Label}}</span><small class="band-priv-hint">{{t .Hint}}</small></th>
+        {{range $.Roles}}<td class="band-roles-role"><input type="checkbox" class="band-role-priv" data-role-id="{{.ID}}" data-privilege="{{$priv.Key}}" aria-label="{{template "band-role-name" .}} — {{t $priv.Label}}"{{if .HasPrivilege $priv.Key}} checked{{end}}></td>{{end}}
+        <td class="band-roles-add"></td>
+      </tr>
+      {{end}}
+    </tbody>
+    {{end}}
+  </table></div>
+
+  {{/* The phone's view: one role at a time. Without scripts every role's
+       switches show, one under the other. */}}
+  <div class="band-roles-phone" data-roles-view="phone">
+    <div class="band-role-chips" role="radiogroup" aria-label="{{t "Roles"}}">
+      {{range $i, $r := .Roles}}<label class="band-role-chip"><input type="radio" name="band-role-pick" value="{{.ID}}"{{if not $i}} checked{{end}}> {{template "band-role-name" .}} · {{$.RoleCount .ID}}</label>{{end}}
+      <button type="button" class="band-role-new-btn band-role-chip" aria-haspopup="dialog">+ {{t "New"}}</button>
+    </div>
+    {{range .Roles}}{{$role := .}}
+    <div class="band-role-panel" data-role-id="{{.ID}}">
+      <h3 class="band-role-panel-title">{{template "band-role-name" .}}</h3>
+      <p class="hint band-role-panel-head">{{if .IsBuiltin}}{{t "Built in: what it allows can change, not its name."}}{{else}}<button type="button" class="band-role-rename" data-role-id="{{.ID}}" data-role-name="{{.Name}}" aria-haspopup="dialog">{{t "Rename…"}}</button> <button type="button" class="band-role-delete danger" data-role-id="{{.ID}}" data-role-name="{{.Name}}">{{t "Delete"}}</button>{{end}}
+        <a href="/bands/{{$.BandID}}/members?role={{.ID}}">{{tn ($.RoleCount .ID) "%d member" "%d members"}} ›</a></p>
+      {{range $.Groups}}
+      <div class="band-role-group">
+        <h4>{{t .Label}}</h4>
+        {{range .Privileges}}
+        <label class="band-role-switch"><span>{{t .Label}}<small>{{t .Hint}}</small></span><input type="checkbox" role="switch" class="band-role-priv" data-role-id="{{$role.ID}}" data-privilege="{{.Key}}"{{if $role.HasPrivilege .Key}} checked{{end}}></label>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <p class="form-status" id="band-roles-status" role="status"></p>
+  <p class="settings-callout">{{t "Core and Guest are built in: what they allow can change, not their names. To give someone a role, use the select on their row in"}} <a href="/bands/{{.BandID}}/members">{{t "Members"}} ›</a></p>
+
+  <dialog class="edit-offer-dialog settings-sheet" id="band-role-new-dialog" aria-labelledby="band-role-new-title">
+    <form class="form-stack" id="band-role-new-form" method="dialog">
+      <h2 id="band-role-new-title">{{t "New role"}}</h2>
+      <div class="field">
+        <label for="band-role-new-name">{{t "Name"}}</label>
+        <input type="text" id="band-role-new-name" required maxlength="60" autocomplete="off" placeholder="{{t "e.g. Staff"}}">
+      </div>
+      <div class="field">
+        <label for="band-role-new-from">{{t "Starts with what this role may do"}}</label>
+        <select id="band-role-new-from">
+          <option value="">{{t "Nothing yet"}}</option>
+          {{range .Roles}}<option value="{{.ID}}" data-privileges="{{range $i, $p := .Privileges}}{{if $i}} {{end}}{{$p}}{{end}}">{{template "band-role-name" .}}</option>{{end}}
+        </select>
+      </div>
+      <p class="form-status" role="status"></p>
+      <div class="form-actions">
+        <button type="button" value="cancel" class="band-dialog-cancel">{{t "Cancel"}}</button>
+        <button type="submit" class="primary" id="band-role-new-btn">{{t "Create the role"}}</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="edit-offer-dialog settings-sheet" id="band-role-rename-dialog" aria-labelledby="band-role-rename-title">
+    <form class="form-stack" id="band-role-rename-form" method="dialog">
+      <h2 id="band-role-rename-title">{{t "Rename the role"}}</h2>
+      <div class="field">
+        <label for="band-role-rename-name">{{t "Name"}}</label>
+        <input type="text" id="band-role-rename-name" required maxlength="60" autocomplete="off" enterkeyhint="done">
+      </div>
+      <p class="form-status" role="status"></p>
+      <div class="form-actions">
+        <button type="button" value="cancel" class="band-dialog-cancel">{{t "Cancel"}}</button>
+        <button type="submit" class="primary" id="band-role-rename-btn">{{t "Rename"}}</button>
+      </div>
+    </form>
+  </dialog>
+</div>
+<script src="/static/js/band-roles.js?v={{staticVersion}}"></script>
+{{end}}

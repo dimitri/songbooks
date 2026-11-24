@@ -80,10 +80,17 @@ type jsonSong struct {
 	// so a Chart save doesn't drop them.
 	OtherChords []jsonChordRef `json:"otherChords,omitempty"`
 	Sections    []jsonSection  `json:"sections"`
+	// Lead/LeadMeasures mirror the song's "lead:" line (song.Song.Lead,
+	// LeadGrid), so a Chart save keeps it.
+	Lead         int           `json:"lead,omitempty"`
+	LeadMeasures []jsonMeasure `json:"leadMeasures,omitempty"`
 }
 
 func toJSON(s *song.Song) jsonSong {
-	out := jsonSong{}
+	out := jsonSong{Lead: s.Lead}
+	for _, m := range s.LeadGrid {
+		out.LeadMeasures = append(out.LeadMeasures, jsonMeasure{Tokens: m.Tokens, Meter: m.Meter})
+	}
 	for _, f := range s.Meta {
 		out.Meta = append(out.Meta, jsonMetaField{Key: f.Key, Value: f.Value})
 	}
@@ -127,7 +134,13 @@ func toJSON(s *song.Song) jsonSong {
 }
 
 func fromJSON(in jsonSong) *song.Song {
-	out := &song.Song{}
+	out := &song.Song{Lead: min(max(in.Lead, 0), 16)}
+	for _, m := range in.LeadMeasures {
+		out.LeadGrid = append(out.LeadGrid, song.Measure{Tokens: m.Tokens, Meter: m.Meter})
+	}
+	if len(out.LeadGrid) > 0 {
+		out.Lead = len(out.LeadGrid)
+	}
 	for _, f := range in.Meta {
 		out.Meta = append(out.Meta, song.MetaField{Key: f.Key, Value: f.Value})
 	}

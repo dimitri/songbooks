@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Variant.Title}} — {{t "revision history"}}</title>
+<title>{{docTitle (t "Revision history") .Variant.Title}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -14,19 +14,20 @@
 <header class="app-header">
   <a class="back-link" href="/song/{{.Variant.VariantID}}">{{template "icon-back"}} {{.Variant.Title}}</a>
   <h1>{{t "Revision history"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
-  {{if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}
+  {{if .Catalogue}}<p class="hint">{{t "The Big Songbook’s song: anyone signed in edits it, and nothing is lost. Its staff and trusted editors restore any earlier version; an edit’s author undoes it while it’s the latest."}}</p>
+  {{else if not .CanEdit}}<p class="hint">{{t "You can't edit this song, so you can look at its history but not restore an earlier version."}}</p>{{end}}
   <div class="table-scroll"><table class="card table-stack" style="width:100%">
     <thead><tr><th>{{t "When"}}</th><th>{{t "By"}}</th><th>{{t "What changed"}}</th><th></th></tr></thead>
     <tbody>
     {{range .Revisions}}
       {{$e := index $.Edits .ID}}
-      <tr data-revision-id="{{.ID}}">
+      <tr data-revision-id="{{.ID}}" id="rev-{{.ID}}">
         <td data-label="{{t "When"}}">{{date .CreatedAt "2006-01-02 15:04"}}</td>
         <td data-label="{{t "By"}}">{{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</td>
         <td data-label="{{t "What changed"}}" class="history-changes">
+          {{with .Summary}}<p class="history-summary">“{{.}}”</p>{{end}}
           {{if $e.Changes}}
           <ul>{{range $e.Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}{{if $e.More}}<li class="hint">{{t "and %d more" $e.More}}</li>{{end}}</ul>
           {{else}}<span class="hint">{{t "nothing"}}</span>{{end}}
@@ -36,7 +37,7 @@
           </details>
           {{end}}
         </td>
-        <td>{{if $.CanEdit}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >{{t "Restore the version before this"}}</button>{{end}}</td>
+        <td>{{if index $.Revertable .ID}}<button type="button" class="revert-btn" data-revision-id="{{.ID}}" >{{t "Restore the version before this"}}</button>{{end}}</td>
       </tr>
     {{else}}
       <tr><td colspan="4" class="hint">{{t "No edits recorded yet."}}</td></tr>
@@ -68,6 +69,19 @@
     </tbody>
   </table></div>
   {{end}}
+  {{/* Songs merged into this one (docs/ownership-model.md §7): their
+       own history, kept. */}}
+  {{range .Merged}}
+  <section class="card history-merged">
+    <h2>{{t "Merged from song %d" .MergedSongID}}</h2>
+    <p class="hint">{{.Title}} — {{.Artist}}{{with .VersionName}} — {{.}}{{end}}{{with .OwnerName}} &middot; {{.}}{{end}} &middot; {{t "merged on %s" (date .MergedAt "2 January 2006")}}{{with .MergedBy}} {{t "by %s" .}}{{end}}</p>
+    {{if .Revisions}}
+    <ul class="history-merged-list">
+      {{range .Revisions}}<li>{{date .CreatedAt "2006-01-02 15:04"}} &middot; {{if .ActorName}}{{.ActorName}}{{else}}&mdash;{{end}}</li>{{end}}
+    </ul>
+    {{else}}<p class="hint">{{t "No revisions."}}</p>{{end}}
+  </section>
+  {{end}}
 </main>
 <script>
 document.querySelectorAll('.revert-btn').forEach(btn => {
@@ -87,7 +101,7 @@ document.querySelectorAll('.revert-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

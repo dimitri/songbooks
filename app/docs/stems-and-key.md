@@ -54,14 +54,66 @@ vocals, drums, bass, other, and no_vocals (the three others summed).
   says which parts there are and where the split is (`stems`,
   `stemStatus`).
 
-### Voice, in the practice player
+### My parts ("Je joue"), in the practice player
 
 Shown once the parts are there (the player checks every 20 s while a split
-is queued or running). *Voice* turns the voice off and back on (V); its ▾
-sets the volume: Off, Guide (25%), Soft (60%), Full, or anywhere between.
-Turned down, the player plays no_vocals in place of the recording (same
-length: the position carries over) and the vocals beside it at that
-volume, kept within 80 ms of it. Full, the recording itself.
+is queued or running, with a greyed *Voix · séparation…* chip meanwhile;
+failed, *Voix indisponible* and a retry for editors). The player shows one
+level per part the reader plays in this context — 0 takes it out of the
+recording, 100 leaves it — as chips in its bar (a tap takes the part out
+and back, V for the voice) and in its panel's *Son* group, which also
+picks the instruments.
+
+Which instruments (`store/player_parts.go`, migration 0100
+`player_parts`): the reader's choice for this song in this context (a
+band, a community, or none), else their choice for the context, else
+their profile's instruments (`people.instruments`, normalised by
+`internal/instruments`), else the voice. Saved for the reader only
+(`PUT /api/songs/{id}/parts`). An instrument is heard in one Demucs part:
+voice in vocals, bass and double bass in bass, drums and percussion in
+drums, everything else (guitar, keys, horns…) in other; two in the same
+part share one level, and the panel says the split can't tell them apart.
+
+How it plays: the recording itself when every level is 100; with only the
+voice down, no_vocals in place of the recording (same length: the
+position carries over) and the vocals beside it at their level; with any
+other part down, the four parts side by side, each through its own gain.
+The parts are kept within 80 ms of the one that drives the clock.
+
+### A coaching community's player option
+
+*Key per student* (`communities.coach_student_keys`, migration 0097), its
+staff's to turn on or off on its admin page, for a coaching community
+only, on for Chloé Paul's coaching community only (id 7; Studio Lumen on
+the demo copy). `store/vocal_slider.go`. In the songs opened from the
+community's songbooks (a student's, a group's, its repertoire), its page
+or one of its events (`songCoachingContext`), the coach picks a student
+and saves their key from the panel's Key line. The list is that
+community's students and groups, who has a lesson in the coming 7 days
+first, the soonest first, its date said, then the others folded under
+*Other students* (`/api/songs/{id}/coach-keys?community=N`,
+coach_keys.go). A name picked, the key goes to theirs, *Save for Poppy*
+keeps it; opened from a student's songbook, that student is picked.
+Elsewhere, or with it off, the Key line lists everyone the coach coaches
+for the song, by name.
+
+The voice slider used to be a second option of this kind
+(`communities.player_vocal_slider`, migration 0093); it no longer gates
+anything — everyone has their parts' levels — and the column stays,
+unused.
+
+A student's key (*Your key: C#m*) is for the songs they practise in the
+coaching community: opened from their songbook there, its repertoire, a
+group's list, an assignment, an event. Opened from a band, a set list or
+anywhere else, the song is in its own key and says nothing of theirs. On
+the key's chip they see their key (*la vôtre*), may try others without
+saving (*Back to my key*).
+
+The player's bar and panel (`app/reports/player-proposal.md`) lay these
+out: the tools on the bar's line by priority — those that are off leave
+it from the right into "+N", those that are on never do
+(`PlayerShell.fit`, `player-shell.js`) — and their settings on their
+lines in the panel.
 
 ### Lanes, in the Mixer
 

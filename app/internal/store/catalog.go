@@ -23,7 +23,7 @@ type dbtx interface {
 }
 
 // Work is a lightweight title+artist identity, the catalog's backbone for
-// "browse by artist/alphabetical" and "all versions of this song" views.
+// "browse by artist/alphabetical" and "this song’s recordings and arrangements" views.
 // Not every variant needs a hand-picked work — FindOrCreateWork
 // auto-creates one from a variant's own title/artist when it's created.
 type Work struct {
@@ -201,17 +201,25 @@ func (st *Store) ListGenres(ctx context.Context) ([]string, error) {
 // CatalogVariant is one row of a catalog browse listing: a variant
 // (songs row) plus the work/project context a browse page shows it with.
 type CatalogVariant struct {
-	VariantID       int64
-	WorkID          int64
-	Title           string
-	Artist          string
-	Visibility      string
-	OwnerID         *int64
-	OwnerBandID     *int64
-	OwnerCommunityID   *int64
-	ForkedFromID    *int64
-	Genre           string // from the parent work; "" means unset, not filtered out of an unfiltered listing
-	Album           string // from the parent work; "" means unset (migration 0033)
+	VariantID int64
+	WorkID    int64
+	Title     string
+	Artist    string
+	// Visibility is the song's kind, from its owner (songKindSQL):
+	// "global" (The Big Songbook's, the catalogue), "user", "band",
+	// "community" — a label; SongRightsFor says who may do what.
+	Visibility       string
+	Public           bool
+	VersionName      string // "" for a song's one version (migration 0113)
+	OwnerID          *int64
+	OwnerBandID      *int64
+	OwnerCommunityID *int64
+	ForkedFromID     *int64
+	Genre            string // from the parent work; "" means unset, not filtered out of an unfiltered listing
+	Album            string // from the parent work; "" means unset (migration 0033)
+	// BandName is the band's, for a band's version shown in place of the
+	// catalogue's song (PreferBandVersions); "" otherwise.
+	BandName string
 }
 
 // CatalogFilter narrows ListCatalog's listing. Zero values mean "no
@@ -223,22 +231,20 @@ type CatalogFilter struct {
 	Sort   string // "artist" sorts by artist then title; anything else (including "") sorts alphabetically by title
 }
 
-// ListCatalog lists every global variant plus viewerID's own
-// user-visibility variants — "the whole catalog, as this person can see
-// it" — filtered/sorted per filter. Each variant carries its parent
+// ListCatalog lists every public song plus viewerID's own — "the whole
+// catalog, as this person can see it" — filtered/sorted per filter. Each variant carries its parent
 // work's album (migration 0033) for pages that group by it (an
 // "original"-type band's repertoire); "by album" isn't offered as a
 // CatalogFilter itself, since most variants have no album set.
-//
 func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter CatalogFilter) ([]CatalogVariant, error) {
 	order := "s.title, s.artist"
 	if filter.Sort == "artist" {
 		order = "s.artist, s.title"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
+		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), coalesce(w.album, '')
 		FROM songs s JOIN works w ON w.id = s.work_id
-		WHERE (s.visibility = 'global' OR s.owner_person_id = $1)
+		WHERE (s.public OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
 		  AND ($3 = '' OR w.genre = $3)
 		  AND ($4 = '' OR s.search @@ plainto_tsquery('english', $4))
@@ -249,50 +255,34 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 	return scanCatalogVariants(rows)
 }
 
-// ListVariantsForWork lists every variant of one work that viewerID may
-// see — every global variant, plus the viewer's own private ('user')
-// ones, plus any 'band'-scoped one owned by a band viewerID is CURRENTLY
-// a member of — for the work's "all versions of this song" page.
-//
-// Unlike ListCatalog (which deliberately leaves 'band' rows out entirely
-// — a band's repertoire has its own page, ListBandCatalog, and mixing it
-// into the general browse page isn't what that page is for), THIS page
-// is "every version of this one song, as far as I can see it," so a
-// band's own private arrangement of a song needs to actually show up
-// here for that band's own members — otherwise a band that privately
-// forked (or wrote from scratch) its own arrangement of a work that also
-// has a global variant would never be able to find/open its own version
-// from the work's "all versions" page at all. Before this fix, 'band'
-// rows were excluded unconditionally here too (same filter as
-// ListCatalog), which was never a leak to outsiders (nobody saw them),
-// just an under-inclusion bug for the band's own members.
+// ListVariantsForWork lists every version of one work that viewerID
+// may see (song_visible: the public ones, and the private ones of the
+// person, their bands and their communities), public first — the work's
+// "this song’s recordings and arrangements" page.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, '')
+		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), coalesce(w.album, '')
 		FROM songs s JOIN works w ON w.id = s.work_id
-		WHERE s.work_id = $1 AND (
-		  s.visibility = 'global'
-		  OR (s.visibility = 'user' AND s.owner_person_id = $2)
-		  OR (s.visibility = 'band' AND EXISTS (
-		        SELECT 1 FROM band_members bm
-		        WHERE bm.band_id = s.owner_band_id AND bm.person_id = $2 AND upper_inf(bm.validity)))
-		  OR (s.visibility = 'community' AND EXISTS (
-		        SELECT 1 FROM community_members sm
-		        WHERE sm.community_id = s.owner_community_id AND sm.person_id = $2 AND upper_inf(sm.validity)))
-		)
-		ORDER BY s.visibility, s.id`, workID, viewerID)
+		WHERE s.work_id = $1 AND song_visible(s.id, $2)
+		ORDER BY s.public DESC, s.id`, workID, viewerID)
 	if err != nil {
 		return nil, err
 	}
 	return scanCatalogVariants(rows)
 }
 
+// catalogVariantCols are a CatalogVariant's columns, for songs s (what
+// scanCatalogVariants reads before genre and album).
+var catalogVariantCols = `s.id, s.work_id, s.title, s.artist, ` + songKindSQL("s") + `, s.public, s.version_name,
+	s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id`
+
 func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 	defer rows.Close()
 	var out []CatalogVariant
 	for rows.Next() {
 		var v CatalogVariant
-		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.ForkedFromID, &v.Genre, &v.Album); err != nil {
+		if err := rows.Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.Public, &v.VersionName,
+			&v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.ForkedFromID, &v.Genre, &v.Album); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -300,239 +290,51 @@ func scanCatalogVariants(rows pgx.Rows) ([]CatalogVariant, error) {
 	return out, rows.Err()
 }
 
-// CanEditVariant reports whether personID (a logged-in person) may edit
-// — and revert any revision of — variantID:
-//   - visibility='user': only the owner (owner_person_id match).
-//   - visibility='band': any CURRENT member (core or guest alike — see
-//     IsCurrentBandMember) of the owning band. This is this phase's actual
-//     tightening of the placeholder below: band material is no longer
-//     editable by "any logged-in person," only by the band.
-//   - visibility='community': a CURRENT member whose role grants
-//     edit_repertoire and who can see the song (canViewCommunityVariant:
-//     a sold songbook's song needs its grant too).
-//   - visibility='global': any logged-in person. Still a deliberate,
-//     known-permissive placeholder, same as phase 1 — global variants
-//     have no band/role concept attached to them in THIS phase either;
-//     the brief explicitly defers "who can edit a global variant" to
-//     later phases (plural), so this phase only had to add the band case
-//     above, not solve that one too.
+// CanEditVariant reports whether personID may change variantID in place
+// (and revert its revisions): SongRightsFor's Edit — the person for their
+// own song; a band's current members, core or guest; a community's
+// members with edit_repertoire who see it; the site's admins for The Big
+// Songbook's.
 func (st *Store) CanEditVariant(ctx context.Context, personID, variantID int64) (bool, error) {
-	var visibility string
-	var ownerID, ownerBandID, ownerCommunityID, ownerSetlistID *int64
-	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_person_id, owner_band_id, owner_community_id, owner_setlist_id FROM songs WHERE id = $1`, variantID).
-		Scan(&visibility, &ownerID, &ownerBandID, &ownerCommunityID, &ownerSetlistID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
-	}
+	r, err := st.SongRightsFor(ctx, personID, variantID)
 	if err != nil {
 		return false, err
 	}
-	switch visibility {
-	case "global":
-		return true, nil
-	case "band":
-		if ownerBandID == nil {
-			return false, nil
-		}
-		return st.IsCurrentBandMember(ctx, *ownerBandID, personID)
-	case "community":
-		if ownerCommunityID == nil {
-			return false, nil
-		}
-		// Changing a community's song takes edit_repertoire, as changing
-		// its songbooks does; seeing it isn't enough (a guest, or a buyer
-		// of a sold songbook).
-		if ok, err := st.HasCommunityPrivilege(ctx, *ownerCommunityID, personID, PrivEditRepertoire); err != nil || !ok {
-			return false, err
-		}
-		return st.canViewCommunityVariant(ctx, *ownerCommunityID, variantID, personID)
-	case "setlist":
-		if ownerSetlistID == nil {
-			return false, nil
-		}
-		return st.CanEditSetlistByID(ctx, personID, *ownerSetlistID)
-	default: // "user"
-		return ownerID != nil && *ownerID == personID, nil
-	}
+	return r.Edit, nil
 }
 
-// CanViewVariant is CanEditVariant's read-only counterpart — the same
-// visibility/owner switch, but at the lower "may look at it" bar rather
-// than "may change it": every visibility that CanEditVariant already
-// grants edit access to is trivially viewable too, plus two cases
-// CanEditVariant deliberately keeps narrower for editing:
-//   - visibility='community': any CURRENT member (student or instructor),
-//     not instructor-only — CanEditVariant's own doc comment already
-//     states this as the intended asymmetry ("a current STUDENT may view
-//     the community's material... but never edit it directly"); this is
-//     that view path.
-//   - visibility='user': unchanged from CanEditVariant (owner-only to
-//     view, same as to edit).
-//
-// Added alongside requireSongRole (auth.go) — before this, EVERY song
-// page's HTTP-layer gate (GET /b/{book}/{stem} and its API/export
-// siblings) checked ONLY project-role membership via requireRole, with
-// no awareness of band/community ownership at all. A band- or community-owned
-// song's underlying project (songs.project_id — see ForkVariant's and
-// CreateBandVariant's own doc comments on why a fork/band-variant stays
-// attached to SOME project rather than having one of its own) routinely
-// has zero project_members rows for the very people who should be able
-// to see it: its own band's members. The project-role gate alone made
-// such a song unreachable by anyone — including, in the reported case,
-// the band member who had just created it — a 403 on every click,
-// regardless of real (band-membership-based) access rights that
-// CanEditVariant/CanViewVariant already correctly compute. requireAuth
-// still gates "is anyone logged in" first, as before.
+// CanViewVariant reports whether personID may open variantID:
+// SongRightsFor's See (song_visible).
 func (st *Store) CanViewVariant(ctx context.Context, personID, variantID int64) (bool, error) {
-	var visibility string
-	var ownerID, ownerBandID, ownerCommunityID, ownerSetlistID *int64
-	err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_person_id, owner_band_id, owner_community_id, owner_setlist_id FROM songs WHERE id = $1`, variantID).
-		Scan(&visibility, &ownerID, &ownerBandID, &ownerCommunityID, &ownerSetlistID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
-	}
+	r, err := st.SongRightsFor(ctx, personID, variantID)
 	if err != nil {
 		return false, err
 	}
-	switch visibility {
-	case "global":
-		return true, nil
-	case "band":
-		if ownerBandID == nil {
-			return false, nil
-		}
-		return st.IsCurrentBandMember(ctx, *ownerBandID, personID)
-	case "community":
-		if ownerCommunityID == nil {
-			return false, nil
-		}
-		return st.canViewCommunityVariant(ctx, *ownerCommunityID, variantID, personID)
-	case "setlist":
-		if ownerSetlistID == nil {
-			return false, nil
-		}
-		return st.CanViewSetlistByID(ctx, personID, *ownerSetlistID)
-	default: // "user"
-		return ownerID != nil && *ownerID == personID, nil
-	}
+	return r.See, nil
 }
 
-// canViewCommunityVariant is CanViewVariant/CanEditVariant's shared
-// "community"-visibility case: plain community membership, UNLESS every
-// songbook that actually contains this variant is gated (RequiresGrant —
-// the paywall case), in which case personID also needs a grant on at
-// least one of them (or a manage-type privilege — staff can always see
-// what they administer). A variant with no songbook_entries row at all
-// (shouldn't normally happen, but CreateVariant/ImportVariant don't
-// strictly guarantee one) falls back to plain membership — there's no
-// containing songbook to gate on.
-func (st *Store) canViewCommunityVariant(ctx context.Context, communityID, variantID, personID int64) (bool, error) {
-	isMember, err := st.IsCurrentCommunityMember(ctx, communityID, personID)
-	if err != nil || !isMember {
-		return false, err
-	}
-	rows, err := st.db.Query(ctx, `
-		SELECT sb.id, sb.requires_grant
-		FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
-		WHERE se.variant_id = $1 AND sb.owner_kind = 'community' AND sb.owner_community_id = $2`,
-		variantID, communityID)
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-	var anyGated bool
-	var gatedIDs []int64
-	for rows.Next() {
-		var sbID int64
-		var requiresGrant bool
-		if err := rows.Scan(&sbID, &requiresGrant); err != nil {
-			return false, err
-		}
-		if !requiresGrant {
-			return true, nil // open songbook contains it — access via that one
-		}
-		anyGated = true
-		gatedIDs = append(gatedIDs, sbID)
-	}
-	if err := rows.Err(); err != nil {
-		return false, err
-	}
-	if !anyGated {
-		return true, nil // no containing songbook at all, or none gated
-	}
-	if isStaff, err := st.HasAnyCommunityManagePrivilege(ctx, communityID, personID); err != nil {
-		return false, err
-	} else if isStaff {
-		return true, nil
-	}
-	for _, sbID := range gatedIDs {
-		if granted, err := st.HasSongbookAccessGrant(ctx, sbID, personID); err != nil {
-			return false, err
-		} else if granted {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// CanCopyVariant reports whether personID may copy variantID (ForkVariant)
-// into scope ("user", "band" or "community") targetID: they must be able
-// to open it, and a community's song must come from one of its shared
-// songbooks they can open (migration 0072) — a private songbook's songs,
-// an author's lessons, are opened, not copied. A community may still copy
-// its own songs into itself. A community song in none of its songbooks
-// follows the plain rule.
+// CanCopyVariant reports whether personID may make a version of variantID
+// for scope ("user", "band" or "community") targetID: SongRightsFor's
+// CanVersionFor — what that owner may link (a band or a community, public
+// songs and its own; a person, what they see), never a closed songbook's
+// song.
 func (st *Store) CanCopyVariant(ctx context.Context, personID, variantID int64, scope string, targetID int64) (bool, error) {
-	if ok, err := st.CanViewVariant(ctx, personID, variantID); err != nil || !ok {
-		return false, err
-	}
-	var visibility string
-	var ownerCommunityID *int64
-	if err := st.db.QueryRow(ctx, `SELECT visibility::text, owner_community_id FROM songs WHERE id = $1`, variantID).
-		Scan(&visibility, &ownerCommunityID); err != nil {
-		return false, err
-	}
-	if visibility != "community" || ownerCommunityID == nil {
-		return true, nil
-	}
-	if scope == "community" && targetID == *ownerCommunityID {
-		return true, nil
-	}
-	rows, err := st.db.Query(ctx, `
-		SELECT sb.id, sb.shared
-		FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
-		WHERE se.variant_id = $1 AND sb.owner_kind = 'community' AND sb.owner_community_id = $2`,
-		variantID, *ownerCommunityID)
+	r, err := st.SongRightsFor(ctx, personID, variantID)
 	if err != nil {
 		return false, err
 	}
-	var shared []int64
-	var inAny bool
-	for rows.Next() {
-		var sbID int64
-		var isShared bool
-		if err := rows.Scan(&sbID, &isShared); err != nil {
-			rows.Close()
-			return false, err
-		}
-		inAny = true
-		if isShared {
-			shared = append(shared, sbID)
-		}
+	return r.CanVersionFor(scopeOwner(scope, personID, targetID)), nil
+}
+
+// scopeOwner is ForkVariant's scope as an Owner.
+func scopeOwner(scope string, personID, targetID int64) Owner {
+	switch scope {
+	case "band":
+		return BandOwner(targetID)
+	case "community":
+		return CommunityOwner(targetID)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return false, err
-	}
-	if !inAny {
-		return true, nil
-	}
-	for _, sbID := range shared {
-		if ok, err := st.CanAccessSongbook(ctx, personID, sbID); err != nil || ok {
-			return ok, err
-		}
-	}
-	return false, nil
+	return PersonOwner(personID)
 }
 
 // GetVariant loads one variant's full catalog row by id (not scoped to a
@@ -541,9 +343,10 @@ func (st *Store) CanCopyVariant(ctx context.Context, personID, variantID int64, 
 func (st *Store) GetVariant(ctx context.Context, variantID int64) (*CatalogVariant, error) {
 	var v CatalogVariant
 	err := st.db.QueryRow(ctx, `
-		SELECT s.id, s.work_id, s.title, s.artist, s.visibility::text, s.owner_person_id, s.owner_band_id, s.owner_community_id, s.forked_from_id
+		SELECT `+catalogVariantCols+`
 		FROM songs s WHERE s.id = $1`, variantID).
-		Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.ForkedFromID)
+		Scan(&v.VariantID, &v.WorkID, &v.Title, &v.Artist, &v.Visibility, &v.Public, &v.VersionName,
+			&v.OwnerID, &v.OwnerBandID, &v.OwnerCommunityID, &v.ForkedFromID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
 	}
@@ -567,191 +370,21 @@ func (st *Store) VariantContent(ctx context.Context, variantID int64) (title, ar
 	return title, artist, referenceURL, body, err
 }
 
-// ForkVariant creates a new variant row that's a full copy of src's
-// content at fork time, with forked_from_id lineage back to src, then
-// points the forker's catalog at the fork, replacing their pointer at src
-// if they had one (forking from your own songbook/repertoire swaps the
-// pointer, it doesn't leave both). Returns the new variant's id.
-//
-// scope is "user" (personal fork: visibility='user', owner_person_id =
-// forkerID, personal catalog_entries pointer swapped), "band" (fork into
-// a band's repertoire: visibility='band', owner_band_id = bandID, that
-// band's band_catalog_entries pointer swapped instead), or "community"
-// (fork into a community's repertoire: visibility='community',
-// owner_community_id = bandID, that community's community_catalog_entries
-// pointer swapped instead — any current member, same shape/gating as
-// "band"). forkerID must be a CURRENT member of bandID for a "band" or
-// "community" fork — checked inside this same transaction (returning
-// ErrForbidden if not) rather than left entirely to the HTTP layer, since
-// this call also writes owner_band_id/owner_community_id.
-//
-// bandID doubles as "the band id" (scope="band") or "the community id"
-// (scope="community") — not the cleanest signature, but it keeps this
-// one method's shape instead of adding a parameter only one scope uses.
-//
-// The fork stays attached to src's project (songs.project_id is NOT NULL
-// and FK'd, and forks aren't project material in their own right yet in
-// this phase) under a generated, collision-free stem; later phases that
-// decouple personal/band variants from any one project can revisit this.
+// ForkVariant makes forkerID's version of variantID for scope "user" (the
+// person's own), "band" (bandID's) or "community" (bandID, a community's):
+// MakeVersion, in every songbook of that owner's holding the song as a
+// link, else in its default songbook. Returns the new song's id.
 func (st *Store) ForkVariant(ctx context.Context, variantID, forkerID int64, scope string, bandID int64) (int64, error) {
 	if scope != "user" && scope != "band" && scope != "community" {
 		return 0, fmt.Errorf("invalid fork scope %q", scope)
 	}
-	// Only what forkerID can open, and not out of a private songbook.
-	if ok, err := st.CanCopyVariant(ctx, forkerID, variantID, scope, bandID); err != nil {
-		return 0, err
-	} else if !ok {
-		return 0, fmt.Errorf("person %d may not copy variant %d: %w", forkerID, variantID, ErrForbidden)
-	}
-
-	// Resolved before the transaction (GetDefaultSongbook isn't tx-scoped,
-	// and may itself need to INSERT a songbook — "every person/band gets
-	// a default songbook automatically" doesn't hold for an account that
-	// forks something before ever visiting its own songbook page, e.g.
-	// straight from the catalog browse page or the new-song wizard's
-	// catalog-match step; the raw `... AND is_default` SELECT this used
-	// to run inline hit exactly that gap and 500'd with a bare "no rows
-	// in result set").
-	var defaultSongbookID int64
-	switch scope {
-	case "user":
-		var err error
-		defaultSongbookID, err = st.GetDefaultSongbook(ctx, "person", forkerID)
-		if err != nil {
-			return 0, err
-		}
-	case "band":
-		var err error
-		defaultSongbookID, err = st.GetDefaultSongbook(ctx, "band", bandID)
-		if err != nil {
-			return 0, err
-		}
-	case "community":
-		var err error
-		defaultSongbookID, err = st.GetDefaultSongbook(ctx, "community", bandID)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	tx, err := st.db.Begin(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback(ctx)
-
-	if scope == "band" {
-		// isCurrentBandMember(ctx, tx, ...), not st.IsCurrentBandMember —
-		// tx is already open, so this check must run on that same
-		// connection rather than reach back out to the pool (see
-		// isCurrentBandMember's doc comment in bands.go).
-		isMember, err := isCurrentBandMember(ctx, tx, bandID, forkerID)
-		if err != nil {
-			return 0, err
-		}
-		if !isMember {
-			return 0, fmt.Errorf("person %d is not a current member of band %d: %w", forkerID, bandID, ErrForbidden)
-		}
-	} else if scope == "community" {
-		// Any current member, same as "band" above — not staff-only:
-		// a community's repertoire is member-editable the same way a
-		// band's is, no instructor/student review gate. bandID doubles
-		// as "the community id" for this scope.
-		isMember, err := isCurrentCommunityMember(ctx, tx, bandID, forkerID, "")
-		if err != nil {
-			return 0, err
-		}
-		if !isMember {
-			return 0, fmt.Errorf("person %d is not a current member of community %d: %w", forkerID, bandID, ErrForbidden)
-		}
-	}
-
-	var workID int64
-	var title, artist, referenceURL, body string
-	err = tx.QueryRow(ctx, `
-		SELECT work_id, title, artist, reference_url, body
-		FROM songs WHERE id = $1 FOR UPDATE`, variantID).
-		Scan(&workID, &title, &artist, &referenceURL, &body)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	var newID int64
-	switch scope {
-	case "user":
-		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, reference_url, body, work_id,
-			                    visibility, owner_person_id, forked_from_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5, 'user', $6, $7, $6)
-			RETURNING id`,
-			title, artist, referenceURL, body, workID, forkerID, variantID).Scan(&newID)
-	case "band":
-		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, reference_url, body, work_id,
-			                    visibility, owner_band_id, forked_from_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5, 'band', $6, $7, $8)
-			RETURNING id`,
-			title, artist, referenceURL, body, workID, bandID, variantID, forkerID).Scan(&newID)
-	case "community":
-		err = tx.QueryRow(ctx, `
-			INSERT INTO songs (title, artist, reference_url, body, work_id,
-			                    visibility, owner_community_id, forked_from_id, created_by_person_id)
-			VALUES ($1, $2, $3, $4, $5, 'community', $6, $7, $8)
-			RETURNING id`,
-			title, artist, referenceURL, body, workID, bandID, variantID, forkerID).Scan(&newID)
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	if err := copySongMedia(ctx, tx, variantID, newID); err != nil {
-		return 0, err
-	}
-
-	switch scope {
-	case "user":
-		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)
-			ON CONFLICT (songbook_id, variant_id) DO NOTHING`, defaultSongbookID, newID, forkerID); err != nil {
-			return 0, err
-		}
-	case "band":
-		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
-			defaultSongbookID, newID, forkerID); err != nil {
-			return 0, err
-		}
-	case "community": // same songbook_entries pointer-swap shape as "band" — see migration 0042, which dropped community_catalog_entries in favor of this.
-		if _, err := tx.Exec(ctx, `DELETE FROM songbook_entries WHERE songbook_id = $1 AND variant_id = $2`, defaultSongbookID, variantID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO songbook_entries (songbook_id, variant_id, added_by_person_id) VALUES ($1, $2, $3)`,
-			defaultSongbookID, newID, forkerID); err != nil {
-			return 0, err
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, err
-	}
-	return newID, nil
+	return st.MakeVersion(ctx, forkerID, variantID, scopeOwner(scope, forkerID, bandID), 0, "")
 }
 
 // CreateBandVariant creates a brand-new, from-scratch variant owned by
-// bandID (visibility='band', owner_band_id = bandID) — the band-scoped
+// bandID (owner_band_id = bandID, private) — the band-scoped
 // sibling of store.CreateSong: same creation shape (title/artist header
-// plus one empty [Verse] section to start from), just visibility='band'/
-// owner_band_id instead of 'global'/no owner. Before this method
+// plus one empty [Verse] section to start from), just owned by the band. Before this method
 // existed, the only way a band acquired band-owned material was
 // ForkVariant with scope="band" — which requires an existing source
 // variant to fork from.
@@ -776,14 +409,14 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 	}
 	defer tx.Rollback(ctx)
 
-	// isCurrentBandMember(ctx, tx, ...), not st.IsCurrentBandMember — tx is
+	// hasBandPrivilege(ctx, tx, ...), not st.HasBandPrivilege — tx is
 	// already open (see isCurrentBandMember's doc comment in bands.go).
-	isMember, err := isCurrentBandMember(ctx, tx, bandID, creatorPersonID)
+	may, err := hasBandPrivilege(ctx, tx, bandID, creatorPersonID, BandPrivEditSongbook)
 	if err != nil {
 		return 0, err
 	}
-	if !isMember {
-		return 0, fmt.Errorf("person %d is not a current member of band %d: %w", creatorPersonID, bandID, ErrForbidden)
+	if !may {
+		return 0, fmt.Errorf("person %d may not add songs to band %d: %w", creatorPersonID, bandID, ErrForbidden)
 	}
 
 	workID, err := st.findOrCreateWork(ctx, tx, title, artist)
@@ -804,8 +437,8 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 	}
 	var newID int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO songs (title, artist, body, work_id, visibility, owner_band_id, created_by_person_id)
-		VALUES ($1, $2, $3, $4, 'band', $5, $6)
+		INSERT INTO songs (title, artist, body, work_id, owner_band_id, created_by_person_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id`,
 		title, artist, b.String(), workID, bandID, creator).Scan(&newID); err != nil {
 		return 0, err
@@ -821,7 +454,7 @@ func (st *Store) CreateBandVariant(ctx context.Context, bandID int64, title, art
 }
 
 // CreateCommunityVariant creates a brand-new, from-scratch variant owned by
-// communityID (visibility='community', owner_community_id = communityID) — the
+// communityID (owner_community_id = communityID, private) — the
 // community-scoped sibling of CreateBandVariant, for a member who wants
 // to write a brand-new original straight into the community's repertoire
 // without first finding something to fork. Any current member
@@ -876,8 +509,8 @@ func (st *Store) CreateCommunityVariant(ctx context.Context, communityID int64, 
 	}
 	var newID int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO songs (title, artist, body, work_id, visibility, owner_community_id, created_by_person_id)
-		VALUES ($1, $2, $3, $4, 'community', $5, $6)
+		INSERT INTO songs (title, artist, body, work_id, owner_community_id, created_by_person_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id`,
 		title, artist, b.String(), workID, communityID, creator).Scan(&newID); err != nil {
 		return 0, err
@@ -907,51 +540,96 @@ func (st *Store) CreateCommunityVariant(ctx context.Context, communityID int64, 
 // when the row's current version doesn't match. actorPersonID (0 =
 // unknown) is recorded as the revision's actor.
 func (st *Store) SaveVariantByID(ctx context.Context, variantID int64, title, artist, referenceURL, body, expectVersion string, actorPersonID int64) (string, error) {
+	return st.SaveSongEdit(ctx, SongSave{
+		SongID: variantID, Title: title, Artist: artist, ReferenceURL: referenceURL, Body: body,
+		ExpectVersion: expectVersion, ActorID: actorPersonID,
+	})
+}
+
+// SongSave is one save of a song's chart: its new title, artist,
+// reference and body, at ExpectVersion ("": whatever it is), by ActorID
+// (0: unknown), with the edit's one-line Summary (the revision's).
+type SongSave struct {
+	SongID                            int64
+	Title, Artist, ReferenceURL, Body string
+	ExpectVersion                     string
+	ActorID                           int64
+	Summary                           string
+}
+
+// SaveSongEdit is SaveVariantByID with the edit's summary.
+func (st *Store) SaveSongEdit(ctx context.Context, e SongSave) (string, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback(ctx)
-
-	var curTitle, curArtist, curRef, curBody string
-	var curVersion int
-	err = tx.QueryRow(ctx, `
-		SELECT title, artist, reference_url, body, version FROM songs
-		WHERE id = $1 FOR UPDATE`, variantID).
-		Scan(&curTitle, &curArtist, &curRef, &curBody, &curVersion)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such variant %d: %w", variantID, ErrNotFound)
-	}
+	saved, err := saveSongTx(ctx, tx, e)
 	if err != nil {
 		return "", err
 	}
-	if expectVersion != "" && strconv.Itoa(curVersion) != expectVersion {
-		return "", ErrConflict
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return strconv.Itoa(saved.version), nil
+}
+
+// songSaveResult is what saveSongTx did: the song's new version, its
+// body before, the revision kept.
+type songSaveResult struct {
+	version    int
+	before     string
+	revisionID int64
+}
+
+// saveSongTx writes e in tx: the song's state before is kept as a
+// revision (with e's summary), its version moves on, its lead's sync
+// follows. The caller commits.
+func saveSongTx(ctx context.Context, tx pgx.Tx, e SongSave) (songSaveResult, error) {
+	var out songSaveResult
+	var curTitle, curArtist, curRef, curBody string
+	var curVersion int
+	err := tx.QueryRow(ctx, `
+		SELECT title, artist, reference_url, body, version FROM songs
+		WHERE id = $1 FOR UPDATE`, e.SongID).
+		Scan(&curTitle, &curArtist, &curRef, &curBody, &curVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out, fmt.Errorf("no such variant %d: %w", e.SongID, ErrNotFound)
+	}
+	if err != nil {
+		return out, err
+	}
+	if e.ExpectVersion != "" && strconv.Itoa(curVersion) != e.ExpectVersion {
+		return out, ErrConflict
 	}
 
 	var actor *int64
-	if actorPersonID != 0 {
-		actor = &actorPersonID
+	if e.ActorID != 0 {
+		actor = &e.ActorID
 	}
-	if err := st.RecordRevision(ctx, tx, "variant", strconv.FormatInt(variantID, 10), actor, VariantSnapshot{
+	if out.revisionID, err = recordRevision(ctx, tx, "variant", strconv.FormatInt(e.SongID, 10), actor, VariantSnapshot{
 		Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody,
-	}); err != nil {
-		return "", err
+	}, e.Summary); err != nil {
+		return out, err
 	}
 
-	var newVersion int
 	if err := tx.QueryRow(ctx, `
 		UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1
 		WHERE id = $5
 		RETURNING version`,
-		title, artist, referenceURL, body, variantID).Scan(&newVersion); err != nil {
-		return "", err
+		e.Title, e.Artist, e.ReferenceURL, e.Body, e.SongID).Scan(&out.version); err != nil {
+		return out, err
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
+	// A lead changed: the recordings' bars move with the song's.
+	if _, err := shiftLeadSync(ctx, tx, e.SongID, curBody, e.Body); err != nil {
+		return out, err
 	}
-	return strconv.Itoa(newVersion), nil
+	// Its key moved: the keys songbooks keep it in stay (entry_keys.go).
+	if _, err := keepEntryKeys(ctx, tx, e.SongID, curBody, e.Body); err != nil {
+		return out, err
+	}
+	out.before = curBody
+	return out, nil
 }
 
 // AddToCatalog/RemoveFromCatalog/ListMyCatalog are superseded by
@@ -983,7 +661,7 @@ func (st *Store) AnnotateVariant(ctx context.Context, variantID, personID int64,
 
 // ListAnnotations lists every note left on variantID, oldest first (a
 // simple chronological thread).
-// GlobalVariantStub is just enough of a global-visibility variant to
+// GlobalVariantStub is just enough of a catalogue song to
 // drive a batch re-fetch/redo tool (cmd/bandscampredo) — id/title/
 // artist, nothing else.
 type GlobalVariantStub struct {
@@ -991,7 +669,7 @@ type GlobalVariantStub struct {
 	Title, Artist string
 }
 
-// FindGlobalVariantByWorkID looks for an existing global-visibility
+// FindGlobalVariantByWorkID looks for an existing catalogue
 // song for workID — used by a redo/import tool to update an existing
 // catalog entry in place (preserving its id, so anything already
 // pointing at it stays valid) instead of creating a duplicate.
@@ -1006,7 +684,7 @@ func (st *Store) FindGlobalVariantByWorkID(ctx context.Context, workID int64) (v
 	// BOTH variants into a songbook instead of reusing one — exactly
 	// what happened once before this was added.
 	err = st.db.QueryRow(ctx, `
-		SELECT id FROM songs WHERE work_id = $1 AND visibility = 'global' ORDER BY id LIMIT 1`, workID).Scan(&variantID)
+		SELECT id FROM songs s WHERE s.work_id = $1 AND `+catalogueSQL("s")+` ORDER BY id LIMIT 1`, workID).Scan(&variantID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
 	}
@@ -1016,7 +694,7 @@ func (st *Store) FindGlobalVariantByWorkID(ctx context.Context, workID int64) (v
 	return variantID, true, nil
 }
 
-// ListGlobalVariantsByBatchTimestamp lists every global-visibility
+// ListGlobalVariantsByBatchTimestamp lists every catalogue
 // song whose created_at (truncated to the second) matches batchSecond
 // — a bulk import lands every row in one INSERT within the same
 // second, so this isolates one specific batch from the rest of the
@@ -1024,7 +702,7 @@ func (st *Store) FindGlobalVariantByWorkID(ctx context.Context, workID int64) (v
 func (st *Store) ListGlobalVariantsByBatchTimestamp(ctx context.Context, batchSecond time.Time) ([]GlobalVariantStub, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT id, title, artist FROM songs
-		WHERE visibility = 'global' AND date_trunc('second', created_at) = date_trunc('second', $1::timestamptz)
+		WHERE `+catalogueSQL("songs")+` AND date_trunc('second', created_at) = date_trunc('second', $1::timestamptz)
 		ORDER BY title`, batchSecond)
 	if err != nil {
 		return nil, err

@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — set lists" .Band.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,14 +14,26 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{t "%s — set lists" .Band.Name}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index">
-  {{template "band-tabs" (bandTabs .Band.ID "setlists")}}
+  {{template "space-nav" .Space}}
 
-  <p class="hint">{{t "New set lists are made on the"}} <a href="/setlists">{{t "Set lists"}}</a>{{t "setlists| page."}}</p>
+  {{/* A new set list is made here, in the band, and opens right away. */}}
+  <details class="setlist-new band-setlist-new"{{if not .Setlists}} open{{end}}>
+    <summary>{{template "icon-plus"}} {{t "New set list"}}</summary>
+    <form class="form-stack" id="new-band-setlist-form" data-band-id="{{.Band.ID}}">
+      <div class="field">
+        <label for="band-setlist-title">{{t "Title"}}</label>
+        <input type="text" id="band-setlist-title" placeholder="{{t "e.g. Spring rehearsal"}}" autocomplete="off" enterkeyhint="go" required>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="primary">{{t "Create set list"}}</button>
+      </div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </details>
 
   {{if .Setlists}}
   <ul class="setlist-rows">
@@ -35,10 +47,26 @@
   {{end}}
   </ul>
   {{else}}
-    <a class="attention-empty" href="/setlists">{{t "No set lists yet — create one"}} &rarr;</a>
+    <p class="attention-empty">{{t "No set lists yet."}}</p>
   {{end}}
 </main>
-{{template "global-tabbar"}}
+<script>
+document.getElementById('new-band-setlist-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const title = form.querySelector('input[type="text"]').value.trim();
+  Forms.run(form, form.querySelector('button[type="submit"]'), async () => {
+    const res = await fetch('/api/setlists', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scope: 'band', title, band_id: Number(form.dataset.bandId)}),
+    });
+    if (!res.ok) throw new Error(t('Couldn’t create “%s”. Try again.', title));
+    const {id} = await res.json();
+    location.href = `/bands/${form.dataset.bandId}/setlists/${id}`;
+  });
+});
+</script>
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -3,25 +3,24 @@
      phone: the player, then what's next. On a tablet or a computer: the
      player and the queue beside the song playing, its map following the
      recording (the song page itself, ?embed=playlist). */}}
-{{define "playlist"}}
+{{define "playlist"}}{{$lessons := and .VideoFirst (not .Listens)}}
 {{$brand := brandOwner .Songbook.OwnerKind .Songbook.OwnerBandID .Songbook.OwnerCommunityID}}
 <!doctype html>
 <html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — playlist" .Owner}}</title>
+<title>{{if .Vote}}{{docTitle (t "Listen and vote") .Owner}}{{else if .Listens}}{{docTitle (t .Listens) .Owner}}{{else}}{{docTitle (t "playlist") .Owner}}{{end}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
 </head>
-<body class="playlist-page"{{template "brand-body" $brand}}>
+<body class="playlist-page{{if .Vote}} vote-player{{end}}"{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="{{.Back}}">{{template "icon-back"}} {{.Owner}}</a>
-  <h1>{{.Owner}} <span class="pl-h1-sub">{{t "playlist"}}</span></h1>
-  {{template "notif-bell"}}
+  <h1>{{.Owner}} <span class="pl-h1-sub">{{if .Vote}}{{t "songs to vote on"}}{{else if .Listens}}{{t .Listens}}{{else}}{{t "playlist"}}{{end}}</span></h1>
 </header>
 <main class="pl">
   {{if .Tracks}}
@@ -42,6 +41,8 @@
       </div>
       <span class="pl-source" id="pl-source"></span>
     </div>
+    {{if .Vote}}{{/* The stars for the song playing (band-votes.js player()). */}}
+    <div class="pl-vote" id="pl-vote"></div>{{end}}
     <div class="pl-sections" id="pl-sections" aria-label="{{t "Sections"}}"></div>
     <div class="pl-scrub">
       <span id="pl-pos">0:00</span>
@@ -61,12 +62,12 @@
         <a href="?prefer=reference" class="{{if .PreferReference}}active{{end}}" aria-current="{{if .PreferReference}}true{{else}}false{{end}}">{{t "Reference"}}</a>
       </div>{{end}}
       <button type="button" class="rp-chip" id="pl-restart"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 3.2v4.3h4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> {{t "Restart"}}</button>
-      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .VideoFirst}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
+      <a class="pl-open" id="pl-open" href="{{(index .Tracks 0).Href}}">{{if .Vote}}{{t "Open the proposal"}}{{else if .Listens}}{{t "Watch on YouTube"}}{{else if $lessons}}{{t "Open the lesson"}}{{else}}{{t "Open the song"}}{{end}}</a>
     </div>
   </section>
 
   <section class="pl-queue" aria-label="{{t "Playlist"}}">
-    <h2>{{if .VideoFirst}}{{tn (len .Tracks) "%d lesson" "%d lessons"}}{{else}}{{tn (len .Tracks) "%d song" "%d songs"}}{{end}}</h2>
+    <h2>{{if $lessons}}{{tn (len .Tracks) "%d lesson" "%d lessons"}}{{else}}{{tn (len .Tracks) "%d song" "%d songs"}}{{end}}</h2>
     <ol class="pl-list" id="pl-list">
       {{range $i, $t := .Tracks}}
       <li><button type="button" class="pl-row" data-index="{{$i}}">
@@ -74,37 +75,47 @@
         <span class="pl-row-eq" aria-hidden="true"><i></i><i></i><i></i></span>
         {{with $t.Cover}}<img class="pl-row-cover" src="{{.}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{end}}
         <span class="pl-row-text"><strong>{{$t.Title}}</strong><small>{{$t.Subtitle}}</small></span>
+        {{if $.Vote}}<span class="pl-row-score" data-score="{{$t.ProposalID}}"></span>{{end}}
         <span class="pl-row-kind kind-{{$t.Source}}" title="{{t $t.SourceLabel}}">{{if eq $t.Source "video"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 7.5v5l4.2-2.5z" fill="currentColor"/></svg>{{else if eq $t.Source "band"}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{else}}<svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h1.5M6 7v6M8.5 4.5v11M11 7.5v5M13.5 5.5v9M16 8.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>{{end}}</span>
       </button></li>
       {{end}}
     </ol>
     {{if .Silent}}
     <details class="pl-silent">
-      <summary>{{if .VideoFirst}}{{tn (len .Silent) "%d lesson with nothing to play yet" "%d lessons with nothing to play yet"}}{{else}}{{tn (len .Silent) "%d song with nothing to play yet" "%d songs with nothing to play yet"}}{{end}}</summary>
+      <summary>{{if $lessons}}{{tn (len .Silent) "%d lesson with nothing to play yet" "%d lessons with nothing to play yet"}}{{else}}{{tn (len .Silent) "%d song with nothing to play yet" "%d songs with nothing to play yet"}}{{end}}</summary>
       <ul>{{range .Silent}}<li><a href="{{.Href}}">{{.Title}}</a></li>{{end}}</ul>
-      <p class="hint">{{if .VideoFirst}}{{t "Add the lesson’s video from its page."}}{{else}}{{t "Add a recording, or a YouTube link, from the song’s Reference view."}}{{end}}</p>
+      <p class="hint">{{if $lessons}}{{t "Add the lesson’s video from its page."}}{{else}}{{t "Add a recording, or a YouTube link, from the song’s Reference view."}}{{end}}</p>
     </details>
     {{end}}
   </section>
 
-  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if .VideoFirst}}{{t "The lesson playing"}}{{else}}{{t "The song playing"}}{{end}}">
+  {{if .Vote}}
+  <section class="pl-map vote-panel" aria-label="{{t "Where the vote stands"}}">
+    <h2>{{t "Where the vote stands"}}</h2>
+    <p class="vote-note" id="vote-panel-note" hidden></p>
+    <div class="vote-sum is-full" id="vote-panel-sum"></div>
+    <p class="vote-panel-links" id="vote-panel-links"></p>
+  </section>
+  {{else}}
+  <section class="pl-map{{if .VideoFirst}} pl-stage{{end}}" aria-label="{{if $lessons}}{{t "The lesson playing"}}{{else}}{{t "The song playing"}}{{end}}">
     {{if .VideoFirst}}<div class="pl-stage-video"><div id="pl-stage-frame"></div></div>
-    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#">{{t "Open the lesson"}}</a></p>
+    <p class="pl-stage-caption"><strong id="pl-stage-title"></strong> <a id="pl-stage-open" href="#"{{if .Listens}} target="_blank" rel="noopener"{{end}}>{{if .Listens}}{{t "Watch on YouTube"}}{{else}}{{t "Open the lesson"}}{{end}}</a></p>
     {{else}}<iframe id="pl-map-frame" title="{{t "The song playing"}}" loading="lazy"></iframe>{{end}}
   </section>
+  {{end}}
   {{else}}
   <p class="dl-empty">{{t "Nothing to play yet: add a recording, or a YouTube link, from a song’s Reference view."}}</p>
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .Tracks}}
 <script>
 (() => {
   const tracks = {{.TracksJSON}};
   const album = {{.Owner}};
-  const storeKey = `songbooks:playlist:{{.Songbook.ID}}`;
+  const storeKey = {{.StoreKey}} || `songbooks:playlist:{{.Songbook.ID}}`;
   const $ = (id) => document.getElementById(id);
   const audio = new Audio();
   audio.preload = 'auto';
@@ -114,6 +125,7 @@
   const frame = $('pl-map-frame');
   // A course's videos play big beside the list on a wide screen.
   const videoFirst = {{.VideoFirst}};
+  const lessons = {{$lessons}}; // a course's (a band's pools play videos too)
   const videoHost = () => (videoFirst && wide.matches ? 'pl-stage-frame' : 'pl-video-frame');
   let index = 0, yt = null, ytHost = '', ytReady = null;
 
@@ -205,7 +217,7 @@
     $('pl-artist').textContent = videoFirst ? t.subtitle : t.artist;
     $('pl-source').textContent = window.t(t.sourceLabel);
     $('pl-source').className = `pl-source kind-${t.source}`;
-    $('pl-cover-key').textContent = videoFirst ? (t.num ? window.t('Lesson %s', t.num) : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+    $('pl-cover-key').textContent = videoFirst ? (lessons && t.num ? window.t('Lesson %s', t.num) : '') : [t.key, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     $('pl-open').href = t.href;
     // The song's album cover, sharp over a blur of itself; none: the
     // songbook's own cover.
@@ -217,7 +229,7 @@
     const big = videoFirst && wide.matches;
     $('pl-cover').hidden = isVideo() && !big;
     $('pl-video').hidden = !isVideo() || big;
-    if (big) { $('pl-stage-title').textContent = [t.num && window.t('Lesson %s', t.num), t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
+    if (big) { $('pl-stage-title').textContent = [lessons && t.num && window.t('Lesson %s', t.num), t.title].filter(Boolean).join(' · '); $('pl-stage-open').href = t.href; }
     if (wide.matches && frame) frame.src = `/song/${t.id}?songbook={{.Songbook.ID}}&embed=playlist`;
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -248,7 +260,10 @@
     }
     remember();
     render();
+    // The vote's player (band-votes.js) follows the song playing.
+    document.dispatchEvent(new CustomEvent('playlist:track', {detail: {index, track: t}}));
   }
+  window.SongbooksPlaylist = {track: () => track(), playing: () => playing()};
   const next = () => load(index + 1, true);
   const prev = () => (now() > 3 ? (isVideo() ? yt.seekTo(0) : (audio.currentTime = 0)) : load(index - 1, true));
   function toggle() {
@@ -287,9 +302,38 @@
     try { ms.setActionHandler('seekto', (d) => { if (!isVideo()) audio.currentTime = d.seekTime; }); } catch (e) {}
   }
 
+  // The mini player (mini-player.js): the recording playing here goes on
+  // on the next page; one kept from another page that is in this playlist
+  // is taken over here, from the same place. Not a video: it can't play
+  // in an <audio>.
+  const keyOf = (tr) => (tr.source === 'video' ? '' : tr.remote ? `pcloud:${tr.remote.file}` : tr.audio || '');
+  window.SongbooksNowPlaying?.register({
+    media: audio,
+    info: () => {
+      const tr = track();
+      if (isVideo() || !audio.src) return null;
+      return {
+        key: keyOf(tr), src: tr.remote ? audio.currentSrc : tr.audio,
+        title: tr.title, subtitle: tr.artist || album, page: location.pathname + location.search,
+        resolve: tr.remote ? {kind: 'pcloud', file: tr.remote.file, host: tr.remote.host, code: tr.remote.code} : null,
+      };
+    },
+    owns: (key) => tracks.some((tr) => SongbooksNowPlaying.same(keyOf(tr), key)),
+    resume: (state, from) => {
+      const i = tracks.findIndex((tr) => SongbooksNowPlaying.same(keyOf(tr), state.key));
+      if (i < 0) return false;
+      load(i, from.play, from.at);
+      return true;
+    },
+  });
+
   load(index, false, resume && resume.i === index ? resume.t : 0);
 })();
 </script>
+{{if .Vote}}
+<script src="/static/js/band-votes.js?v={{staticVersion}}"></script>
+<script>BandVotes.player({bandId: {{.Vote.BandID}}, canVote: {{.Vote.CanVote}}, tallies: {{.Vote.TalliesJSON}}});</script>
+{{end}}
 {{end}}
 </body>
 </html>

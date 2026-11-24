@@ -28,7 +28,14 @@ func (s *Server) handleGroupsPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Archived bands: out of the menus and the cards, still here.
+	archived, err := s.store.ListArchivedBandsForPerson(r.Context(), person.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	s.render(w, "groups", map[string]any{
 		"Me": person, "Bands": bandCards, "Communities": communityCards, "Gigs": gigs,
+		"ArchivedBands": archived,
 	})
 }

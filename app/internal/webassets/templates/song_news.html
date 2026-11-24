@@ -1,0 +1,51 @@
+{{/* home-song-news: "Changes in your songs" on the home page
+     (httpapi/song_news.go, store/song_news.go): the latest accepted
+     change to each song the person has — in their songbooks, their
+     bands', the original of their arrangement — with its summary, who,
+     when, the change in the song's history and, for an arrangement's
+     original, the offer to take its changes. News, not notifications:
+     "Mark as seen" empties it until the next change. Its data is a
+     *songNewsView. */}}
+{{define "home-song-news"}}
+  <section class="home-section song-news" id="song-news" aria-labelledby="song-news-title" data-up-to="{{.UpTo}}">
+    <div class="home-section-head">
+      <h3 id="song-news-title">{{t "Changes in your songs"}}</h3>
+      <button type="button" class="song-news-seen" id="song-news-seen">{{t "Mark as seen"}}</button>
+    </div>
+    <ul class="song-news-list">{{range .Rows}}{{template "song-news-row" .}}{{end}}</ul>
+    {{if .More}}
+    <details class="song-news-more">
+      <summary>{{tn (len .More) "%d more song" "%d more songs"}}</summary>
+      <ul class="song-news-list">{{range .More}}{{template "song-news-row" .}}{{end}}</ul>
+    </details>
+    {{end}}
+    <p class="form-status" id="song-news-status" role="status"></p>
+  </section>
+  <script>
+  document.getElementById('song-news-seen')?.addEventListener('click', async (e) => {
+    const section = document.getElementById('song-news');
+    e.currentTarget.disabled = true;
+    const res = await fetch('/api/song-news/seen', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({upTo: section.dataset.upTo}),
+    }).catch(() => null);
+    if (res && res.ok) { section.remove(); return; }
+    e.currentTarget.disabled = false;
+    document.getElementById('song-news-status').textContent = {{t "Not saved: try again."}};
+  });
+  </script>
+{{end}}
+
+{{define "song-news-row"}}
+      <li class="song-news-row">
+        <div class="song-news-text">
+          <p class="song-news-song"><a href="{{.Link}}">{{.Title}}</a>{{with .Artist}}<span class="song-news-artist"> — {{.}}</span>{{end}}{{with .Label}}<span class="song-news-label"> · {{.}}</span>{{end}}</p>
+          <p class="song-news-what">{{if .Quoted}}“{{.What}}”{{else}}{{.What}}{{end}}{{if .More}} <span class="song-news-count">{{tn .More "+%d change" "+%d changes"}}</span>{{end}}</p>
+          <p class="song-news-meta">{{with .By}}{{t "by %s" .}} · {{end}}{{.When}}{{with .Via}} · <span class="song-news-via">{{.}}</span>{{end}}</p>
+        </div>
+        <div class="song-news-actions">
+          {{with .TakeLink}}<a class="chip-link primary" href="{{.}}">{{t "Take its changes"}}</a>{{end}}
+          <a class="chip-link" href="{{.DiffLink}}">{{t "See the change"}}</a>
+        </div>
+      </li>
+{{end}}

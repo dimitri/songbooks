@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Songbooks</title>
+<title>{{docTitle (t "Songbooks") (t "Library")}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -13,14 +13,11 @@
 <div class="app-content">
 <header class="app-header">
   {{template "home-link"}}
-  <h1>Songbooks</h1>
-  <nav class="song-nav">
-    <a href="/catalog">{{t "catalog"}}</a>
-    {{template "notif-bell"}}
-  </nav>
+  <h1>{{t "Library"}}</h1>
 </header>
 <main class="index">
-  <p class="catalog-intro">{{t "Every songbook you can open: your own personal collections, and your bands' shared repertoires."}}</p>
+  {{template "library-segments" "songbooks"}}
+  <p class="catalog-intro">{{t "Every songbook you can open: your own personal collections, and your bands' shared songbooks."}}</p>
 
   <h2 class="catalog-books-heading">{{t "My songbooks"}}</h2>
   {{if .MySongbooks}}
@@ -38,24 +35,24 @@
        — creating an extra personal songbook (beyond the one default
        every profile already has) belongs right here, not behind its
        own top-level destination. */}}
-  <form class="form-stack" id="create-songbook-form" style="margin-top:0.4rem; margin-bottom:1.2rem;">
+  <form class="create-row form-inline" id="create-songbook-form">
     <div class="field"><label for="new-songbook-name">{{t "New songbook name"}}</label><input type="text" id="new-songbook-name" name="name" placeholder="{{t "e.g. Wedding gigs"}}" required autocomplete="off"></div>
-    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button></div>
+    <button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button>
     <p id="create-songbook-result" class="form-status" role="status"></p>
   </form>
 
-  <h2 class="catalog-books-heading">{{t "Band repertoires"}}</h2>
+  <h2 class="catalog-books-heading">{{t "Band songbooks"}}</h2>
   {{if .BandCards}}
   <div class="catalog-book-cards">
   {{range .BandCards}}
     <a class="catalog-book-card" href="/bands/{{.ID}}/catalog">
       <div class="catalog-book-card-title">{{.Name}}</div>
-      <div class="catalog-book-card-meta">{{tn .Members "%d member" "%d members"}} &middot; {{t "repertoire"}}</div>
+      <div class="catalog-book-card-meta">{{tn .Members "%d member" "%d members"}} &middot; {{t "songbook"}}</div>
     </a>
   {{end}}
   </div>
   {{else}}
-  <p class="hint">{{t "You're not in a band yet —"}} <a href="/bands">{{t "start one"}}</a> {{t "to get a shared repertoire."}}</p>
+  <p class="hint">{{t "You're not in a band yet —"}} <a href="/bands">{{t "start one"}}</a> {{t "to get a shared songbook."}}</p>
   {{end}}
 
   <h2 class="catalog-books-heading">{{t "Community songbooks"}}</h2>
@@ -89,7 +86,7 @@ createForm.addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

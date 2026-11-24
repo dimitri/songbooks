@@ -2,6 +2,7 @@ package songimport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -29,6 +30,14 @@ type SectionTime struct {
 	Index int     `json:"index"`
 	Label string  `json:"label"`
 	Time  float64 `json:"time"`
+	// When the recording plays another number of bars here than the
+	// chart has (counted at the recording's own tempo, up to the next
+	// section's start): the chart's count and the recording's, rounded.
+	// 0 when they agree, or when it can't be told.
+	ChartBars     int `json:"chartBars,omitempty"`
+	RecordingBars int `json:"recordingBars,omitempty"`
+	// HasLyrics: sung (the Sync sheet checks it against the voice).
+	HasLyrics bool `json:"hasLyrics,omitempty"`
 }
 
 // SyncProposal is what the recording says about the chart: its tempo,
@@ -47,7 +56,73 @@ type SyncProposal struct {
 	Key          KeyReport     `json:"key"`
 	Sections     []SectionTime `json:"sections"`
 	Score        float64       `json:"score"` // 0..1, how well the sung sections line up with the voice
-	Notes        []string      `json:"notes,omitempty"`
+	// FitTempo: the tempo the placed sections imply (the chart's bars
+	// spread between them); TempoMismatch: it isn't the recording's own
+	// (FitTempo is then not proposed for the chart, and the sections
+	// whose bar counts differ say so).
+	FitTempo      int  `json:"fitTempo,omitempty"`
+	TempoMismatch bool `json:"tempoMismatch,omitempty"`
+	// Downbeats: the sections are placed on the recording's downbeats,
+	// from its own analysis (UseAutoSync), not where the voice comes in.
+	Downbeats bool     `json:"downbeats,omitempty"`
+	Notes     []string `json:"notes,omitempty"`
+	notes     []note
+}
+
+// note is one of a proposal's notes, kept as its English format and
+// values so it can be said in the page's language (Localize).
+type note struct {
+	msg  string
+	args []any
+}
+
+func (p *SyncProposal) note(msg string, args ...any) {
+	p.notes = append(p.notes, note{msg, args})
+	p.Notes = append(p.Notes, fmt.Sprintf(msg, args...))
+}
+
+// Localize says the notes again with tr (i18n.T for the page's
+// language, bound): tr(msg, args...) formats msg's translation.
+func (p *SyncProposal) Localize(tr func(msg string, args ...any) string) {
+	p.Notes = p.Notes[:0]
+	for _, n := range p.notes {
+		p.Notes = append(p.Notes, tr(n.msg, n.args...))
+	}
+}
+
+// recordingTempo is the recording's own tempo, in the chart's beat, in
+// the octave (×2, ×½) nearest want: a beat tracker can't tell 90 from
+// 180. 0 when the recording gave none.
+func recordingTempo(a *audioanalysis.Analysis, want float64) float64 {
+	t := a.Tempo
+	if t <= 0 || want <= 0 {
+		return t
+	}
+	for t*1.5 < want {
+		t *= 2
+	}
+	for t/1.5 > want {
+		t /= 2
+	}
+	return t
+}
+
+// tempoContradicts: the recording's own tempo rec (already in the
+// chart's octave, see recordingTempo) says the chart's tempo is wrong.
+// More than 8% apart, and not 3:2, 2:3, 4:3 or 3:4 (within 4%): a beat
+// tracker can count a compound or shuffled beat in thirds, and a chart
+// another beat than it, without either being wrong. 0 (no estimate)
+// contradicts nothing.
+func tempoContradicts(chart, rec float64) bool {
+	if chart <= 0 || rec <= 0 || math.Abs(chart/rec-1) <= 0.08 {
+		return false
+	}
+	for _, r := range []float64{1.5, 2.0 / 3, 4.0 / 3, 0.75} {
+		if math.Abs(chart/rec/r-1) <= 0.04 {
+			return false
+		}
+	}
+	return true
 }
 
 // beatsPerBar counts a time signature's beats the way the player does
@@ -113,6 +188,44 @@ func Recording(ctx context.Context, st *store.Store, variantID int64, category s
 	return a, ready, nil
 }
 
+var (
+	cuesMu sync.Mutex
+	cues   = map[string]*audioanalysis.VoiceCues{}
+)
+
+// Voice returns when the singer sings in a song's recording, from its
+// vocals part (ErrNoVoice until the recording has been split). Cached by
+// the recording's hash: the lyrics view asks on every visit.
+func Voice(ctx context.Context, st *store.Store, variantID int64, category store.AudioCategory) (*audioanalysis.VoiceCues, error) {
+	meta, err := st.GetSongAudioMeta(ctx, variantID, category)
+	if err != nil {
+		return nil, err
+	}
+	cuesMu.Lock()
+	c := cues[meta.SHA256]
+	cuesMu.Unlock()
+	if c != nil {
+		return c, nil
+	}
+	vocals, _, _, err := st.GetStemData(ctx, meta.ID, "vocals")
+	if err != nil {
+		return nil, ErrNoVoice
+	}
+	if c, err = audioanalysis.AnalyzeVoice(ctx, vocals); err != nil {
+		return nil, err
+	}
+	cuesMu.Lock()
+	if len(cues) > 128 {
+		clear(cues)
+	}
+	cues[meta.SHA256] = c
+	cuesMu.Unlock()
+	return c, nil
+}
+
+// ErrNoVoice: the recording has no vocals part (yet).
+var ErrNoVoice = errors.New("the recording isn't split into its parts yet")
+
 // ProposeSync places body's sections on the song's recording. irealSig
 // is iReal Pro's time signature for the song ("" when unknown); the
 // chart's own time: wins over it, and it wins over the recording's
@@ -141,7 +254,7 @@ func ProposeSync(a *audioanalysis.Analysis, stemsReady bool, body string, sectio
 		hint = 60 / a.Tempo * float64(beatsPerBar(a.TimeSig))
 	}
 	if !stemsReady {
-		p.Notes = append(p.Notes, "the voice isn't separated from the backing yet: sections are placed by tempo only, try again once it is")
+		p.note("the voice isn't separated from the backing yet: sections are placed by tempo only, try again once it is")
 	}
 	var secs []audioanalysis.Section
 	for _, s := range sections {
@@ -159,20 +272,78 @@ func ProposeSync(a *audioanalysis.Analysis, stemsReady bool, body string, sectio
 	}
 	p.Score = fit.Score
 	if fit.SecondsPerBar > 0 {
-		p.Tempo = int(math.Round(60 * float64(beats) / fit.SecondsPerBar))
+		p.FitTempo = int(math.Round(60 * float64(beats) / fit.SecondsPerBar))
+		p.Tempo = p.FitTempo
 	}
 	labels := map[int]string{}
+	bars := map[int]int{}
+	sung := map[int]bool{}
 	for _, s := range sections {
 		labels[s.Index] = s.Label
+		sung[s.Index] = s.HasLyrics
+		bars[s.Index] = s.BarCount
 	}
 	for _, m := range fit.Markers {
-		p.Sections = append(p.Sections, SectionTime{Index: m.SectionIndex, Label: labels[m.SectionIndex], Time: math.Round(m.Time*100) / 100})
+		p.Sections = append(p.Sections, SectionTime{Index: m.SectionIndex, Label: labels[m.SectionIndex], Time: math.Round(m.Time*100) / 100, HasLyrics: sung[m.SectionIndex]})
 	}
-	if t, err := strconv.ParseFloat(sg.Get("tempo"), 64); err == nil && t > 0 && p.Tempo > 0 && math.Abs(float64(p.Tempo)-t)/t > 0.05 {
-		p.Notes = append(p.Notes, fmt.Sprintf("the chart's tempo says %s, its sections fit the recording at %d: kept unless you replace it", sg.Get("tempo"), p.Tempo))
+	chartTempo, _ := strconv.ParseFloat(sg.Get("tempo"), 64)
+	// The sections are placed where the singing starts; the chart's bars
+	// are then spread between them. When that asks for a tempo the
+	// recording doesn't play at (or for one past the edge of what was
+	// searched), the chart's bar counts are what's wrong, not the fitted
+	// tempo: spreading 23 written bars over 16 played ones makes the
+	// bar.beat counter run a third fast. Say so, section by section, and
+	// don't propose the fitted tempo.
+	//
+	// The chart's own tempo can be wrong too: song 334's "tempo: 104" was
+	// an earlier wizard's fit, stopped at the edge of its ±15% search
+	// around the recording's 90. Kept, it would be proposed again on
+	// every sync. The recording's own tempo replaces it when it
+	// contradicts it (tempoContradicts).
+	ref := chartTempo
+	if ref <= 0 {
+		ref = float64(p.FitTempo)
+	}
+	rec := recordingTempo(a, ref)
+	if p.FitTempo > 0 && len(a.VocalOnsets) > 0 && (fit.Clamped || (rec > 0 && math.Abs(float64(p.FitTempo)/rec-1) > 0.08)) {
+		p.TempoMismatch = true
+		chartWrong := false
+		switch {
+		case chartTempo > 0 && !tempoContradicts(chartTempo, rec):
+			p.Tempo = int(math.Round(chartTempo))
+		case rec > 0:
+			p.Tempo = int(math.Round(rec))
+			chartWrong = chartTempo > 0
+		default:
+			p.Tempo = int(math.Round(chartTempo))
+		}
+		if rec > 0 {
+			recBar := 60 / rec * float64(beats)
+			wrong := 0
+			for i := range p.Sections {
+				if i+1 >= len(p.Sections) {
+					break // the last section runs to a fade or an ending: can't be counted
+				}
+				s := &p.Sections[i]
+				played := (p.Sections[i+1].Time - s.Time) / recBar
+				chart := bars[s.Index]
+				if math.Abs(played-float64(chart)) >= math.Max(1.5, 0.12*float64(chart)) {
+					s.ChartBars, s.RecordingBars = chart, int(math.Round(played))
+					wrong++
+				}
+			}
+			p.note("the chart's sections fit the singing only at %d bpm, while the recording plays at about %d bpm: in %d of its sections the chart has more or fewer bars than the recording plays, so the bar counter would run too fast or too slow there. Fix those sections' bars in the chart, then sync again", p.FitTempo, int(math.Round(rec)), wrong)
+		} else {
+			p.note("the chart's sections fit the singing only at %d bpm, far from the chart's tempo: check the sections' bar counts", p.FitTempo)
+		}
+		if chartWrong {
+			p.note("the chart's tempo says %s, but the recording plays at about %d bpm: %d is proposed instead", sg.Get("tempo"), p.Tempo, p.Tempo)
+		}
+	} else if chartTempo > 0 && p.Tempo > 0 && math.Abs(float64(p.Tempo)-chartTempo)/chartTempo > 0.05 {
+		p.note("the chart's tempo says %s, its sections fit the recording at %d: kept unless you replace it", sg.Get("tempo"), p.Tempo)
 	}
 	if stemsReady && fit.Score < 0.5 {
-		p.Notes = append(p.Notes, "the sung sections don't line up well with the voice: check the chart's sections and bar counts, then the markers by ear")
+		p.note("the sung sections don't line up well with the voice: check the chart's sections and bar counts, then the markers by ear")
 	}
 	p.Key = CheckKey(body, irealKey, a.Key, a.KeyConfidence)
 	return p, nil
@@ -229,23 +400,79 @@ func ApplySync(ctx context.Context, st *store.Store, variantID int64, category s
 	if err != nil {
 		return "", "", err
 	}
-	old, err := st.ListAudioMarkers(ctx, meta.ID)
-	if err != nil {
+	// A program placed these: estimated until someone checks them by ear
+	// (the player says "Synchro estimée" and offers to correct it).
+	markers := make([]store.AudioMarker, 0, len(p.Sections))
+	for _, s := range p.Sections {
+		markers = append(markers, store.AudioMarker{SectionIndex: s.Index, TimeSeconds: s.Time, Origin: store.SyncAuto})
+	}
+	if err := st.ReplaceAudioMarkers(ctx, meta.ID, markers, actor); err != nil {
 		return "", "", err
 	}
-	keep := map[int]bool{}
-	for _, s := range p.Sections {
-		keep[s.Index] = true
-		if err := st.SetAudioMarker(ctx, meta.ID, s.Index, s.Time); err != nil {
-			return "", "", err
-		}
-	}
-	for _, m := range old {
-		if !keep[m.SectionIndex] {
-			if err := st.DeleteAudioMarker(ctx, meta.ID, m.SectionIndex); err != nil {
-				return "", "", err
-			}
-		}
-	}
 	return nb, version, nil
+}
+
+// UseAutoSync replaces the proposal's section starts, tempo and metre
+// with the recording analysis' (on its downbeats, the voice only
+// choosing which), when it has one it's sure enough of.
+func (p *SyncProposal) UseAutoSync(a *AutoSync) {
+	if a == nil || a.State == "unsure" {
+		return
+	}
+	at := map[int]int{}
+	for i, s := range a.Sections {
+		at[s.Index] = i
+	}
+	for i := range p.Sections {
+		k, ok := at[p.Sections[i].Index]
+		if !ok || a.Sections[k].Start < 0 {
+			continue
+		}
+		sr := a.Sections[k]
+		p.Sections[i].Time = sr.Start
+		p.Sections[i].ChartBars, p.Sections[i].RecordingBars = 0, 0
+		if sr.Played != sr.Written && !sr.Last {
+			p.Sections[i].ChartBars, p.Sections[i].RecordingBars = sr.Written, sr.Played
+		}
+	}
+	// The tempo and the notes about it are the analysis' only when it
+	// says something about the tempo: a tempo of its own, or the chart's
+	// confirmed (within 8% of the recording's). An unsteady recording
+	// proposes none, and then what the voice's fit found stays: song
+	// 334's chart tempo, contradicted by the recording, isn't put back.
+	chartF, _ := strconv.ParseFloat(a.ChartTempo, 64)
+	chart := int(math.Round(chartF))
+	confirmed := chart > 0 && a.Tempo > 0 && math.Abs(float64(chart)/a.Tempo-1) <= 0.08
+	if a.ProposeTempo > 0 || confirmed {
+		if a.ProposeTempo > 0 {
+			p.Tempo = a.ProposeTempo
+		} else {
+			p.Tempo = chart
+		}
+		p.TempoMismatch = false
+		p.notes, p.Notes = nil, nil
+	} else {
+		kept := p.notes
+		p.notes, p.Notes = nil, nil
+		for _, n := range kept {
+			p.note(n.msg, n.args...)
+		}
+	}
+	if a.ProposeTime != "" && p.TimeSigFrom == "audio" {
+		p.TimeSig = a.ProposeTime
+	}
+	p.Downbeats = true
+	p.note("placed on the recording's downbeats (its own analysis), the voice choosing which")
+	wrong := 0
+	for _, s := range p.Sections {
+		if s.RecordingBars > 0 {
+			wrong++
+		}
+	}
+	if wrong > 0 {
+		p.note("in %d sections the chart has more or fewer bars than the recording plays: the Sync sheet proposes their grids", wrong)
+	}
+	for _, n := range a.notes {
+		p.note(n.msg, n.args...)
+	}
 }

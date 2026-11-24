@@ -1,0 +1,33 @@
+{{/* A student's proposals to the coach (httpapi/coach_proposals.go,
+     propose-song.js, docs/coaching.md "A student proposes a song"): on
+     the student's Songbooks section, a song of their own to propose, and
+     what became of the ones proposed. */}}
+{{define "cbook-proposals"}}
+{{if .CanPropose}}
+<section class="home-section cbook-proposals" id="proposals">
+  <div class="home-section-head">
+    <h3>{{t "Your proposals to %s" .CoachFirstName}}</h3>
+    <button type="button" class="cbook-propose-open" data-propose-community="{{.Community.ID}}" data-coach="{{.CoachFirstName}}" data-my-songbook="{{.MySongbookID}}" data-reload="1"{{if .ReadOnly}} disabled title="{{t "Read-only: a preview"}}"{{end}}>{{template "icon-plus"}} {{t "Propose a song…"}}</button>
+  </div>
+  <p class="hint">{{t "A song you found or made, from your own songbook: %s listens to it, then adds it to your songbook with them, in a key, or tells you why not." .CoachFirstName}}</p>
+  {{if .Proposals}}
+  <ul class="cbook-proposal-list">
+  {{range .Proposals}}
+    <li class="cbook-proposal is-{{.Status}}" id="proposal-{{.ID}}">
+      <a class="cbook-song-title" href="{{.Href}}"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></a>
+      {{if eq .Status "pending"}}<span class="cbook-state is-asked">{{t "Waiting for %s" $.CoachFirstName}}</span>
+      {{else if eq .Status "added"}}<span class="cbook-state is-in">{{t "Taken: in your songbook"}}</span>
+      {{else}}<span class="cbook-state is-declined">{{t "Not this time"}}</span>{{end}}
+      {{if or .Note .Reply}}
+      <div class="cbook-proposal-notes">
+        {{with .Note}}<p class="cbook-proposal-note"><span class="hint">{{t "You:"}}</span> {{.}}</p>{{end}}
+        {{with .Reply}}<p class="cbook-proposal-reply"><span class="hint">{{t "%s:" $.CoachFirstName}}</span> {{.}}</p>{{end}}
+      </div>
+      {{end}}
+    </li>
+  {{end}}
+  </ul>
+  {{end}}
+</section>
+{{end}}
+{{end}}

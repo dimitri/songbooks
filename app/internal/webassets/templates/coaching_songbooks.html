@@ -1,0 +1,460 @@
+{{/* A coaching community's Songbooks section (coaching_songbooks.go,
+     docs/coaching.md "The songbooks"): the student's songbook with the
+     coach, then the coach's repertoire to ask from. The coach's view is
+     coaching_book.html now; this page's coach branch below ({{if
+     .IsCoach}}) is no longer rendered, left in place only so this branch
+     merges with review's edits to it, to be deleted once merged. */}}
+
+{{/* A song's key for a student, as a pill: "C (−3)", or "original".
+     Needs a bookSong. */}}
+{{define "cbook-key-pill"}}{{if .Pill}}<span class="cbook-key is-moved" title="{{t "the key, in semitones from the reference recording"}}">{{.Pill}}</span>{{else}}<span class="cbook-key">{{t "original"}}</span>{{end}}{{end}}
+
+{{/* The community's other songbooks (a concert's, the coach's reference
+     material), and the coach's way to make one. */}}
+{{define "cbook-others"}}
+{{if or .OtherBooks .CanEdit}}
+<section class="home-section cbook-others">
+  <div class="home-section-head"><h3>{{t "Other songbooks"}}</h3></div>
+  {{if .OtherBooks}}
+  <div class="catalog-book-cards">
+  {{range .OtherBooks}}
+    <div>
+      <a class="catalog-book-card" href="/songbooks/{{.ID}}">
+        <div class="catalog-book-card-title">{{.Name}}{{if .RequiresGrant}} <span class="hint">&#128274; {{t "members need access"}}</span>{{end}}{{if .Closed}} <span class="hint">{{t "songbook|closed"}}</span>{{end}}{{if .Public}} <span class="hint">{{t "songbook|public"}}</span>{{end}}{{if .IsCourse}} <span class="hint">{{t "course"}}</span>{{end}}</div>
+        <div class="catalog-book-card-meta">{{if .IsCourse}}{{tn .LessonCount "%d lesson" "%d lessons"}} · {{end}}{{tn .SongCount "%d song" "%d songs"}}</div>
+      </a>
+      {{if $.IsCoach}}<a class="hint" href="/communities/{{$.Community.ID}}/songbooks/{{.ID}}/access" style="display:block; margin-top:0.3rem;">{{t "Sharing and access"}} &rarr;</a>{{end}}
+    </div>
+  {{end}}
+  </div>
+  {{end}}
+  {{if .CanEdit}}
+  <form class="create-row form-inline" id="create-songbook-form">
+    <div class="field"><label for="new-songbook-name">{{t "New songbook name"}}</label><input type="text" id="new-songbook-name" name="name" placeholder="{{t "e.g. Jam night book"}}" required autocomplete="off"></div>
+    <button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button>
+    <p id="create-songbook-result" class="form-status" role="status"></p>
+  </form>
+  {{end}}
+</section>
+{{end}}
+{{end}}
+
+{{define "coaching_songbooks"}}
+{{$brand := brandFor "community" .Community.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+{{template "coaching-head"}}
+<title>{{template "space-title" .Space}}</title>
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
+</header>
+<main class="index cbook-page" data-community="{{.Community.ID}}">
+  {{template "space-nav" .Space}}
+
+  {{if .IsCoach}}
+  {{/* ---- The coach's view ---- */}}
+  {{if .Requests}}
+  <section class="home-section cbook-requests" id="requests">
+    <div class="home-section-head"><h3>{{t "Requests"}} <span class="cbook-count">{{len .Requests}}</span></h3><span class="hint">{{t "songs your students asked for"}}</span></div>
+    <ul class="cbook-request-list">
+    {{range .Requests}}
+      <li class="cbook-request{{if eq .ID $.OpenRequest}} is-open{{end}}" id="request-{{.ID}}" data-request="{{.ID}}" data-person="{{.PersonID}}" data-variant="{{.VariantID}}" data-key="{{.Key}}" data-semitones="0">
+        <div class="cbook-request-what">
+          <strong>{{.StudentName}}</strong> <span class="hint">{{t "asks for"}}</span> <a href="/song/{{.VariantID}}">{{.Title}}</a>{{with .Artist}} <span class="hint">· {{.}}</span>{{end}}
+          <div class="hint">{{date .CreatedAt "Mon 2 Jan, 15:04"}}</div>
+        </div>
+        <div class="cbook-request-actions">
+          {{if $.KeyPicker}}
+          <span class="coach-key" title="{{t "the key, in semitones from the reference recording"}}">
+            <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
+            <output>{{with keyIn .Key 0}}{{.}} ({{t "original"}}){{else}}{{t "original"}}{{end}}</output>
+            <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
+          </span>
+          {{end}}
+          <button type="button" class="primary cbook-request-add">{{t "Add to their songbook"}}</button>
+          <button type="button" class="cbook-request-decline">{{t "Not now"}}</button>
+        </div>
+        {{/* The student's range with the song's melody over it, in the
+             key being tried (voice-strip.js). */}}
+        <div class="voice-strip cbook-request-strip" hidden></div>
+      </li>
+    {{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  <div class="cbook-coach">
+    <section class="home-section cbook-students">
+      <div class="home-section-head"><h3>{{t "Your students’ songbooks"}}</h3><span class="count">{{len .Cards}}</span></div>
+      {{if gt (len .Cards) 6}}
+      <div class="field cbook-filter"><label for="cbook-filter" class="sr-only">{{t "Find a student or a group"}}</label>
+        <input type="search" id="cbook-filter" placeholder="{{t "Find a student or a group"}}" autocomplete="off"></div>
+      {{end}}
+      <div class="cbook-cards">
+      {{range .Cards}}
+        <article class="cbook-card{{if eq .Kind "group"}} is-group{{end}}" data-name="{{.Name}}">
+          <div class="cbook-card-head">
+            <strong class="cbook-card-name">{{.Name}}</strong>
+            {{if .Requests}}<a class="cbook-badge" href="#requests" data-person="{{.PersonID}}" data-count="{{.Requests}}">{{tn .Requests "%d request" "%d requests"}}</a>{{end}}
+          </div>
+          <div class="cbook-card-meta">
+            {{if eq .Kind "group"}}<span>{{if .IsYear}}{{t "year group"}}{{else}}{{t "one-off"}}{{end}} · {{tn .Members "%d student" "%d students"}}</span>{{end}}
+            <span>{{tn .SongCount "%d song" "%d songs"}}</span>
+            {{with .Voice}}<span class="voice-tag" title="{{t "Range"}}">{{.}}</span>{{end}}
+            {{with .Comfort}}<span class="voice-tag is-comfort" title="{{t "Tessitura"}}">{{t "comfortable %s" .}}</span>{{end}}
+            {{with .Label}}<span class="cbook-card-label" title="{{t "Working label"}}">{{.}}</span>{{end}}
+          </div>
+          <p class="cbook-card-status">
+            {{with .LastSong}}<span>{{t "Last worked on: %s" .Title}}</span>{{end}}
+            {{if .Takes}}<span class="is-due">{{tn .Takes "%d take to check" "%d takes to check"}}</span>{{end}}
+            {{if eq .Kind "group"}}<span>{{with .Next}}{{t "Next session %s" (date . "Mon 2 Jan, 15:04")}}{{else}}{{t "No session planned"}}{{end}}</span>
+            {{else}}<span>{{with .Next}}{{t "Next lesson %s" (date . "Mon 2 Jan, 15:04")}}{{else}}{{t "No lesson planned"}}{{end}}</span>{{end}}
+            {{if and .Next .NextOnline}}<span class="lesson-tag is-online">{{t "Online"}}</span>{{end}}
+          </p>
+          <a class="chip-link cbook-open" href="{{.Href}}">{{t "Open songbook"}} &rarr;</a>
+        </article>
+      {{else}}
+        <p class="hint">{{t "No students yet: invite them below."}}</p>
+      {{end}}
+      </div>
+      <p class="hint cbook-filter-none" hidden>{{t "No student or group by that name."}}</p>
+    </section>
+
+    {{if .RepertoireID}}
+    <section class="home-section cbook-rep-coach">
+      <div class="cbook-rep-card">
+        <p class="cbook-eyebrow">{{t "The repertoire"}}</p>
+        <h2 class="cbook-title">{{.RepertoireName}}</h2>
+        <p class="cbook-meta">{{tn (len .Repertoire) "%d song" "%d songs"}}</p>
+        <p class="hint">{{t "The songs you teach: add one to a student’s songbook in their key."}}</p>
+        <div class="cbook-actions">
+          <button type="button" class="cbook-rep-toggle" aria-expanded="false" aria-controls="cbook-rep-list">{{t "Show the songs"}}</button>
+          <button type="button" data-add-song="{{.RepertoireID}}">{{template "icon-plus"}} {{t "Add song"}}</button>
+          <a class="chip-link" href="/communities/{{.Community.ID}}/songbooks/default">{{t "Edit the repertoire"}} &rarr;</a>
+        </div>
+      </div>
+      <ul class="cbook-rep-list" id="cbook-rep-list" hidden>
+      {{range .Repertoire}}
+        <li class="cbook-rep-row" data-variant="{{.VariantID}}" data-title="{{.Title}}">
+          <a class="cbook-song-title" href="/song/{{.VariantID}}?songbook={{$.RepertoireID}}"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></a>
+          <button type="button" class="cbook-add-to">{{t "Add to…"}}</button>
+        </li>
+      {{else}}
+        <li class="hint">{{t "No songs yet."}}</li>
+      {{end}}
+      </ul>
+    </section>
+    {{end}}
+  </div>
+
+  <dialog class="program-plan-dialog cbook-add-dialog">
+    <form method="dialog" class="form-stack cbook-add-form">
+      <h2>{{t "Add to a songbook"}}</h2>
+      <p class="hint cbook-add-song"></p>
+      <fieldset class="field-group cbook-add-targets">
+        <legend>{{t "For"}}</legend>
+        <div class="cbook-add-choices"></div>
+      </fieldset>
+      <div class="field cbook-add-key">
+        <span class="cbook-add-key-label">{{t "Key"}}</span>
+        <span class="coach-key">
+          <button type="button" class="coach-key-down" aria-label="{{t "down a semitone"}}">−</button>
+          <output></output>
+          <button type="button" class="coach-key-up" aria-label="{{t "up a semitone"}}">+</button>
+        </span>
+      </div>
+      <div class="voice-strip cbook-add-strip" hidden></div>
+      <p class="form-status" role="status"></p>
+      <div class="form-actions">
+        <button type="submit" class="primary cbook-add-save">{{t "Add"}}</button>
+        <button type="button" class="cbook-add-cancel">{{t "Cancel"}}</button>
+      </div>
+    </form>
+  </dialog>
+
+  {{template "cbook-others" .}}
+
+  {{else}}
+  {{/* ---- The student's view ---- */}}
+  <div class="cbook-student">
+    <section class="cbook-mine">
+      <p class="cbook-eyebrow">{{t "Your songbook with %s" .CoachName}}</p>
+      {{if .BookID}}
+      <h2 class="cbook-title">{{.BookName}}</h2>
+      <p class="cbook-meta">
+        <span>{{tn .BookCount "%d song" "%d songs"}}</span>
+        <span>{{t "in your key"}}</span>
+        {{with .NextLesson}}<span>{{t "Next lesson %s" (date .StartsAt "Mon 2 Jan, 15:04")}}</span>{{end}}
+      </p>
+      {{if .BookSongs}}
+      <ol class="cbook-songs">
+      {{range .BookSongs}}
+        <li class="cbook-song">
+          <a class="cbook-song-title" href="/song/{{.VariantID}}?songbook={{$.BookID}}"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></a>
+          {{template "row-voice" .Voice}}
+          {{template "cbook-key-pill" .}}
+        </li>
+      {{end}}
+      </ol>
+      <div class="cbook-actions">
+        <a class="chip-link" href="/songbooks/{{.BookID}}">{{t "All %d songs" .BookCount}} &rarr;</a>
+        <a class="chip-link" href="/songbooks/{{.BookID}}/export-songbook.pdf?keys=songbook" download>{{template "icon-download"}} {{t "PDF in my keys"}}</a>
+      </div>
+      {{else}}
+      <p class="hint">{{t "No songs yet: ask %s for one from the repertoire." .CoachFirstName}}</p>
+      {{end}}
+      {{else}}
+      {{with .NextLesson}}<p class="cbook-meta"><span>{{t "Next lesson %s" (date .StartsAt "Mon 2 Jan, 15:04")}}</span></p>{{end}}
+      <p class="hint">{{t "No songs yet: ask %s for one from the repertoire." .CoachFirstName}}</p>
+      {{end}}
+    </section>
+
+    {{if .RepertoireID}}
+    <section class="cbook-rep">
+      <p class="cbook-eyebrow">{{t "%s’s repertoire" (ofName .CoachFirstName)}}</p>
+      <p class="hint">{{t "The songs %s teaches: ask for one." .CoachFirstName}}</p>
+      <ul class="cbook-rep-list">
+      {{range .Repertoire}}
+        <li class="cbook-rep-row" data-variant="{{.VariantID}}">
+          <span class="cbook-song-title"><strong>{{.Title}}</strong> <span class="hint">{{.Artist}}</span></span>
+          {{if .InBook}}<span class="cbook-state is-in">{{t "in your songbook"}}</span>
+          {{else if .Asked}}<span class="cbook-state is-asked">{{t "Asked"}}</span>
+          {{else}}<button type="button" class="cbook-ask"{{if $.ReadOnly}} disabled title="{{t "Read-only: a preview"}}"{{end}}>{{t "Ask for it"}}</button>{{end}}
+        </li>
+      {{else}}
+        <li class="hint">{{t "No songs yet."}}</li>
+      {{end}}
+      </ul>
+    </section>
+    {{end}}
+  </div>
+
+  {{template "cbook-proposals" .}}
+
+  {{if .GroupBooks}}
+  <section class="home-section">
+    <div class="home-section-head"><h3>{{template "coach-groups-label"}}</h3></div>
+    <div class="catalog-book-cards">
+    {{range .GroupBooks}}
+      <a class="catalog-book-card" href="{{.Href}}">
+        <div class="catalog-book-card-title">{{.Name}}</div>
+        <div class="catalog-book-card-meta">{{if .IsYear}}{{t "year group"}}{{else}}{{t "one-off"}}{{end}} · {{tn .SongCount "%d song" "%d songs"}} · {{t "in the group’s key"}}</div>
+      </a>
+    {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{template "cbook-others" .}}
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+{{if or .IsCoach .CanPropose}}<script src="/static/js/voice-strip.js?v={{staticVersion}}"></script>{{end}}
+{{if .CanPropose}}<script src="/static/js/propose-song.js?v={{staticVersion}}"></script>{{end}}
+<script src="/static/js/row-range.js?v={{staticVersion}}" defer></script>
+{{if .IsCoach}}<script src="/static/js/add-song.js?v={{staticVersion}}"></script>{{end}}
+<script>
+(() => {
+  const page = document.querySelector('.cbook-page');
+  const community = page.dataset.community;
+  const api = `/api/communities/${community}`;
+  const send = (url, method, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
+    .then((r) => { if (!r.ok) return r.json().catch(() => ({})).then((d) => { throw new Error(d.error || ''); }); return r; });
+  // "A (+2)": a key moved by n, named as the server does
+  // (chordsym.KeyName); "original" unmoved.
+  const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
+  const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const keyText = (key, n) => {
+    const off = n ? (n > 0 ? '+' + n : '−' + -n) : t('original');
+    const m = /^([A-G])([#b]?)(m(?!aj))?/.exec(key || '');
+    if (!m) return off;
+    const pc = (((PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + n) % 12) + 12) % 12;
+    return `${m[3] ? MINOR[pc] + 'm' : MAJOR[pc]} (${off})`;
+  };
+  const clamp = (n) => Math.max(-12, Math.min(12, n));
+
+  // The student: "Ask for it", the row then says "Asked".
+  page.querySelectorAll('.cbook-ask').forEach((btn) => btn.addEventListener('click', () => {
+    const row = btn.closest('.cbook-rep-row');
+    btn.disabled = true;
+    send(`${api}/song-requests`, 'POST', { variantId: Number(row.dataset.variant) }).then(() => {
+      const done = document.createElement('span');
+      done.className = 'cbook-state is-asked';
+      done.textContent = t('Asked');
+      btn.replaceWith(done);
+    }).catch((e) => { btn.disabled = false; alert(e.message || t('Couldn’t ask for it. Try again.')); });
+  }));
+
+  // The coach: a request added (in the key picked) or not now.
+  page.querySelectorAll('.cbook-request').forEach((row) => {
+    const out = row.querySelector('output');
+    const move = (d) => {
+      const n = clamp((Number(row.dataset.semitones) || 0) + d);
+      row.dataset.semitones = n;
+      out.textContent = keyText(row.dataset.key, n);
+      window.VoiceStrip?.key(strip, n);
+    };
+    const strip = row.querySelector('.cbook-request-strip');
+    window.VoiceStrip?.show(strip, { variant: Number(row.dataset.variant), community, person: Number(row.dataset.person), coach: true, semitones: 0 });
+    row.querySelector('.coach-key-down')?.addEventListener('click', () => move(-1));
+    row.querySelector('.coach-key-up')?.addEventListener('click', () => move(1));
+    const gone = () => {
+      row.remove();
+      // The student's card: one request fewer.
+      const badge = page.querySelector(`.cbook-badge[data-person="${row.dataset.person}"]`);
+      if (badge) {
+        const n = Number(badge.dataset.count) - 1;
+        badge.dataset.count = n;
+        if (n > 0) badge.textContent = tn(n, '%d request', '%d requests'); else badge.remove();
+      }
+      const left = page.querySelectorAll('.cbook-request').length;
+      const count = page.querySelector('.cbook-requests .cbook-count');
+      if (count) count.textContent = left;
+      if (!left) page.querySelector('.cbook-requests')?.remove();
+    };
+    row.querySelector('.cbook-request-add').addEventListener('click', (e) => {
+      e.target.disabled = true;
+      send(`${api}/song-requests/${row.dataset.request}/add`, 'POST', { semitones: Number(row.dataset.semitones) || 0 })
+        .then(() => { gone(); window.SongbooksUnread?.refresh(); })
+        .catch((err) => { e.target.disabled = false; alert(err.message || t('Couldn’t add it.')); });
+    });
+    row.querySelector('.cbook-request-decline').addEventListener('click', (e) => {
+      e.target.disabled = true;
+      send(`${api}/song-requests/${row.dataset.request}/decline`, 'POST')
+        .then(() => { gone(); window.SongbooksUnread?.refresh(); })
+        .catch((err) => { e.target.disabled = false; alert(err.message || t('Couldn’t save.')); });
+    });
+  });
+  page.querySelector('.cbook-request.is-open')?.scrollIntoView({ block: 'center' });
+
+  // The coach's cards, found by name.
+  const filter = document.getElementById('cbook-filter');
+  filter?.addEventListener('input', () => {
+    const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+    const q = fold(filter.value.trim());
+    let shown = 0;
+    page.querySelectorAll('.cbook-card').forEach((c) => {
+      const on = !q || fold(c.dataset.name).includes(q);
+      c.hidden = !on;
+      shown += on ? 1 : 0;
+    });
+    page.querySelector('.cbook-filter-none').hidden = shown > 0;
+  });
+
+  // The repertoire: its songs shown, each one added to a student's or a
+  // group's songbook in their key (the song page's own endpoint).
+  const toggle = page.querySelector('.cbook-rep-toggle');
+  const list = document.getElementById('cbook-rep-list');
+  toggle?.addEventListener('click', () => {
+    list.hidden = !list.hidden;
+    toggle.setAttribute('aria-expanded', String(!list.hidden));
+    toggle.textContent = list.hidden ? t('Show the songs') : t('Hide the songs');
+  });
+  const dlg = page.querySelector('.cbook-add-dialog');
+  if (!dlg) return;
+  const form = dlg.querySelector('form');
+  const choices = dlg.querySelector('.cbook-add-choices');
+  const keyOut = dlg.querySelector('.cbook-add-key output');
+  const status = dlg.querySelector('.form-status');
+  let song = null, songKey = '', targets = [], semis = 0;
+  const addStrip = dlg.querySelector('.cbook-add-strip');
+  const showKey = () => { keyOut.textContent = keyText(songKey, semis); window.VoiceStrip?.key(addStrip, semis); };
+  const picked = () => targets[Number(form.querySelector('input[name="target"]:checked')?.value)];
+  dlg.querySelector('.coach-key-down').addEventListener('click', () => { semis = clamp(semis - 1); showKey(); });
+  dlg.querySelector('.coach-key-up').addEventListener('click', () => { semis = clamp(semis + 1); showKey(); });
+  choices.addEventListener('change', () => {
+    const x = picked();
+    semis = x ? x.semitones : 0;
+    // A student picked: their range, the song's melody over it.
+    if (x && x.kind === 'student') window.VoiceStrip?.show(addStrip, { variant: Number(song), community, person: x.personId, coach: true, semitones: semis });
+    else window.VoiceStrip?.hide(addStrip);
+    showKey();
+  });
+  dlg.querySelector('.cbook-add-cancel').addEventListener('click', () => dlg.close());
+  page.querySelectorAll('.cbook-add-to').forEach((btn) => btn.addEventListener('click', async () => {
+    const row = btn.closest('.cbook-rep-row');
+    song = row.dataset.variant;
+    dlg.querySelector('.cbook-add-song').textContent = row.dataset.title;
+    status.textContent = '';
+    choices.textContent = t('Loading…');
+    semis = 0;
+    keyOut.textContent = '';
+    window.VoiceStrip?.hide(addStrip);
+    dlg.showModal();
+    try {
+      const r = await fetch(`/api/songs/${song}/coach-keys?community=${community}`);
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      songKey = d.key || '';
+      targets = (d.targets || []).filter((x) => String(x.communityId) === community);
+      choices.textContent = '';
+      targets.forEach((x, i) => {
+        const label = document.createElement('label');
+        label.className = 'program-plan-choice';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'target';
+        input.value = i;
+        const text = document.createElement('span');
+        const name = document.createElement('strong');
+        name.textContent = x.name;
+        const hint = document.createElement('span');
+        hint.className = 'hint';
+        const bits = [x.kind === 'group' ? t('group') : ''];
+        if (x.inSongbook) bits.push(t('has it, in %s', keyText(songKey, x.semitones)));
+        if (x.nextSessionLabel) bits.push(x.nextSessionLabel);
+        hint.textContent = bits.filter(Boolean).join(' · ');
+        text.append(name, ' ', hint);
+        label.append(input, ' ', text);
+        choices.append(label);
+      });
+      if (!targets.length) choices.textContent = t('No student or group to add it to.');
+      showKey();
+    } catch (e) {
+      choices.textContent = t('Couldn’t load your students.');
+    }
+  }));
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const x = picked();
+    if (!x) { status.textContent = t('Pick a student or a group.'); return; }
+    const body = { communityId: Number(community), semitones: semis };
+    if (x.kind === 'group') body.groupId = x.groupId; else body.personId = x.personId;
+    send(`/api/songs/${song}/coach-keys`, 'POST', body).then(() => {
+      status.textContent = t('Added to %s’s songbook, in %s.', x.name, keyText(songKey, semis));
+      x.inSongbook = true;
+      x.semitones = semis;
+      setTimeout(() => location.reload(), 700);
+    }).catch((err) => { status.textContent = err.message || t('Couldn’t add it.'); });
+  });
+})();
+</script>
+<script>
+const createForm = document.getElementById('create-songbook-form');
+createForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  Forms.run(createForm, document.getElementById('create-songbook-btn'), async () => {
+    const name = document.getElementById('new-songbook-name').value.trim();
+    const res = await fetch('/api/songbooks', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, ownerCommunityId: {{.Community.ID}}}),
+    }).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : t('Couldn’t create the songbook. Try again.'));
+    location.href = `/songbooks/${data.id}`;
+  });
+});
+</script>
+</body>
+</html>
+{{end}}

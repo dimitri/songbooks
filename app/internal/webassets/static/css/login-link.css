@@ -1,0 +1,70 @@
+/* A site admin's "Login link" dialog (static/js/login-link.js). Its own
+   file, loaded with the script by templates/login_link.html: only an
+   admin's pages need it. */
+
+.login-link-btn { flex: none; font-size: 0.8rem; padding: 0.3rem 0.65rem; }
+
+/* On a phone, a band roster row with the admin's extra button puts the
+   name on its own line and the row's controls under it, rather than
+   squeezing the name into a sliver. */
+@media (max-width: 600px) {
+  .roster-row:has(> .login-link-btn) { flex-wrap: wrap; row-gap: 0.4rem; }
+  .roster-row:has(> .login-link-btn) > .roster-row-main { flex-basis: 100%; }
+  .roster-row:has(> .login-link-btn) > .remove-member-btn { margin-left: auto; }
+}
+
+.login-link-dialog {
+  width: min(26rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-raised); color: var(--fg); padding: 1rem 1.2rem 1.2rem;
+}
+.login-link-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.login-link-dialog [hidden] { display: none !important; }
+.login-link-dialog .ll-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.login-link-dialog h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.login-link-dialog .ll-close { width: 2.2rem; height: 2.2rem; min-width: 2.2rem; min-height: 2.2rem; font-size: 1.3rem; }
+.login-link-dialog p { margin: 0.4rem 0; }
+.login-link-dialog .form-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+
+/* The QR code: black on a literal white square in either theme (a
+   tinted quiet zone is harder to scan), as big as the dialog. */
+.ll-qr-wrap { position: relative; width: min(100%, 18rem); margin: 0.2rem auto 0; }
+.ll-qr { aspect-ratio: 1; background: #fff; border-radius: 8px; overflow: hidden; }
+.ll-qr svg { display: block; width: 100%; height: 100%; }
+.ll-qr-state {
+  position: absolute; inset: 0; margin: 0 !important; display: flex; align-items: center; justify-content: center;
+  padding: 1rem; text-align: center; font-weight: 700; color: #241e18; background: rgba(255, 255, 255, 0.88); border-radius: 8px;
+}
+.ll-link.is-over .ll-qr { opacity: 0.25; }
+.ll-who { text-align: center; font-weight: 700; font-size: 1.05rem; margin-bottom: 0 !important; overflow-wrap: anywhere; }
+.ll-countdown { text-align: center; color: var(--fg-muted); font-variant-numeric: tabular-nums; margin-top: 0 !important; }
+.ll-url-row { display: flex; gap: 0.4rem; margin: 0.6rem 0 0.2rem; }
+.ll-url-row input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
+.ll-url-row button { flex: none; }
+.ll-admin-warn { color: var(--danger); font-weight: 600; }
+.ll-exit-full { display: none; }
+
+/* Full screen: the whole window, white whatever the theme, the code as
+   big as it fits with the name and the countdown under it; the rest of
+   the dialog steps aside. */
+.login-link-dialog.is-full {
+  width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; inset: 0;
+  border: 0; border-radius: 0; padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+  background: #fff; color: #111;
+}
+.login-link-dialog.is-full::backdrop { background: #fff; }
+.login-link-dialog.is-full .ll-head,
+.login-link-dialog.is-full .ll-url-row,
+.login-link-dialog.is-full .ll-rules,
+.login-link-dialog.is-full .ll-admin-warn,
+.login-link-dialog.is-full .ll-actions,
+.login-link-dialog.is-full .ll-status { display: none; }
+.login-link-dialog.is-full .ll-link { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; }
+.login-link-dialog.is-full .ll-qr-wrap { width: min(92vw, calc(100dvh - 12rem)); margin: 0; }
+.login-link-dialog.is-full .ll-qr { border-radius: 0; }
+.login-link-dialog.is-full .ll-who { font-size: clamp(1.4rem, 5vw, 2.4rem); color: #111; }
+.login-link-dialog.is-full .ll-countdown { font-size: clamp(1rem, 3.5vw, 1.5rem); color: #444; }
+.login-link-dialog.is-full .ll-one { color: #444; text-align: center; max-width: 32rem; }
+.login-link-dialog.is-full .ll-exit-full {
+  display: inline-block; margin-top: 0.4rem; background: #fff; color: #111; border-color: #111;
+}

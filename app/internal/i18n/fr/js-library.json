@@ -48,5 +48,6 @@
   "reference video": "vidéo de référence",
   "same key — safe to accept": "même tonalité — vous pouvez accepter",
   "this song": "ce morceau",
-  "transposed %s semitones — please check before accepting": "transposée de %s demi-tons — vérifiez avant d’accepter"
+  "transposed %s semitones — please check before accepting": "transposée de %s demi-tons — vérifiez avant d’accepter",
+  "sentence|%s’s version": "la version de %s"
 }

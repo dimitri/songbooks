@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	"app/internal/chartalign"
 	"app/internal/importer"
 	"app/internal/song"
 	"app/internal/songimport"
 	"app/internal/store"
-	"app/internal/ytaudio"
 )
 
 // SyncSections is the chart's sections as the player numbers their bars
@@ -28,26 +28,6 @@ func SyncSections(sg *song.Song) []songimport.SyncSection {
 		out = append(out, songimport.SyncSection{Index: sec.Index, Label: sec.Label, StartBar: sec.StartBar, BarCount: sec.BarCount, HasLyrics: sung})
 	}
 	return out
-}
-
-// handleImportYouTubeFind is GET /api/import/youtube/find?title=&artist=:
-// candidate reference recordings, the artist's own upload of the
-// studio version first (ytaudio.Search).
-func (s *Server) handleImportYouTubeFind(w http.ResponseWriter, r *http.Request) {
-	title := r.URL.Query().Get("title")
-	if title == "" {
-		httpError(w, http.StatusBadRequest, "missing title")
-		return
-	}
-	list, err := ytaudio.Search(r.Context(), title, r.URL.Query().Get("artist"))
-	if err != nil {
-		httpError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	if len(list) > 8 {
-		list = list[:8]
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"candidates": list})
 }
 
 // handleImportCleanup is POST /api/import/cleanup {text, stripInlineChords}:
@@ -141,6 +121,15 @@ func (s *Server) proposeSync(r *http.Request, variantID int64, category store.Au
 	if err != nil {
 		return nil, http.StatusUnprocessableEntity, err
 	}
+	// The recording's own analysis, when the stems worker has made one:
+	// sections on its downbeats.
+	if meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, category); err == nil {
+		if st, err := s.store.GetAnalysis(r.Context(), meta.ID); err == nil && st.Analysis != nil {
+			p.UseAutoSync(songimport.ProposeAutoSync(st.Analysis, text, SyncSections(sg), chartalign.Hints{}))
+		}
+	}
+	lang := s.langOfRequest(r)
+	p.Localize(func(msg string, args ...any) string { return i18n.T(lang, msg, args...) })
 	return p, http.StatusOK, nil
 }
 

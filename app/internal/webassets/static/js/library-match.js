@@ -38,8 +38,8 @@
 
   // Fallback for a server without /api/catalog/match: the full-text
   // search over the title, then the same title rules as the server.
-  async function searchFallback(title, artist, signal) {
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(title)}`, { signal });
+  async function searchFallback(title, artist, signal, band) {
+    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(title)}${band ? `&band=${band}` : ''}`, { signal });
     if (!res.ok) throw new Error('search failed');
     const hits = await res.json();
     const t = normalize(title), a = normalize(artist);
@@ -59,9 +59,11 @@
     return scored.sort((x, y) => y.score - x.score).slice(0, 5).map((s) => s.hit);
   }
 
-  async function fetchMatches(title, artist, signal) {
+  // band: a band's add dialog (opts.band) — the band's own versions,
+  // never another band's.
+  async function fetchMatches(title, artist, signal, band) {
     if (!matchEndpointMissing) {
-      const res = await fetch(`/api/catalog/match?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`, { signal });
+      const res = await fetch(`/api/catalog/match?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}${band ? `&band=${band}` : ''}`, { signal });
       // A server without the route answers 404, or 200 with the home page
       // (GET / catches everything): either way, not JSON.
       const json = (res.headers.get('Content-Type') || '').includes('application/json');
@@ -69,13 +71,14 @@
       if (json) throw new Error('match failed');
       matchEndpointMissing = true;
     }
-    return searchFallback(title, artist, signal);
+    return searchFallback(title, artist, signal, band);
   }
 
   // The line under a title: what tells two versions of a song apart.
   function details(hit) {
     const bits = [];
     if (hit.artist) bits.push(hit.artist);
+    if (hit.band) bits.push(t('sentence|%s’s arrangement', hit.band)); // a band of yours has its own
     if (hit.key) bits.push(t('Key %s', hit.key));
     if (hit.visibility === 'user') bits.push(t('Only you can see it'));
     else if (hit.madeBy) bits.push(t('Shared by %s', hit.madeBy));
@@ -206,7 +209,7 @@
       if (k === shownKey) return Promise.resolve(shownCount);
       controller = new AbortController();
       const signal = controller.signal;
-      pending = fetchMatches(title, artist, signal)
+      pending = fetchMatches(title, artist, signal, opts.band)
         .then((hits) => {
           if (signal.aborted) return shownCount;
           render(hits || [], k);

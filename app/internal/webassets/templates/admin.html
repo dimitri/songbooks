@@ -14,7 +14,6 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Admin"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{/* Quick-glance counts — the three tabs below used to be three cards
@@ -49,18 +48,37 @@
   <section class="admin-panel" data-panel="people">
     <div class="card">
       <h3>{{t "People"}}</h3>
+      {{/* The email is the account (docs/accounts.md): one with a
+           password and no email can't log in (store.ListPasswordNoEmail). */}}
+      {{if .LockedOut}}
+      <div class="admin-locked-out" role="note">
+        <p><strong>{{tn (len .LockedOut) "%d account has a password but no email: it can’t log in." "%d accounts have a password but no email: they can’t log in."}}</strong></p>
+        <ul>{{range .LockedOut}}<li><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a> <span class="hint">(id {{.ID}})</span></li>{{end}}</ul>
+        <p class="hint">{{t "Give each an email to log in with: songbooks --set-email <id> <email> on the server."}}</p>
+      </div>
+      {{end}}
+      {{/* An email but no password nor passkey, while no login email
+           reaches anyone (store.ListEmailNoPassword; event registration
+           made them before a password was required). */}}
+      {{if .NoPassword}}
+      <div class="admin-locked-out" role="note">
+        <p><strong>{{tn (len .NoPassword) "%d account has an email but no password: it can’t log back in, as login emails aren’t sent yet." "%d accounts have an email but no password: they can’t log back in, as login emails aren’t sent yet."}}</strong></p>
+        <ul>{{range .NoPassword}}<li><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a> <span class="hint">({{.Email}}, id {{.ID}})</span></li>{{end}}</ul>
+        <p class="hint">{{t "Give each a login link (Login link on their band’s or community’s Members page), then they set a password on their profile; or set one on the server: songbooks --set-password <id>."}}</p>
+      </div>
+      {{end}}
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>{{t "Username"}}</th><th>{{t "Display name"}}</th><th>{{t "Created"}}</th><th>{{t "Admin"}}</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Name"}}</th><th>{{t "Email"}}</th><th>{{t "Created"}}</th><th>{{t "Admin"}}</th><th></th></tr></thead>
         <tbody>
         {{range .People}}
           <tr>
-            <td data-label="{{t "Username"}}"><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
-            <td data-label="{{t "Display name"}}">{{.DisplayName}}</td>
+            <td data-label="{{t "Name"}}"><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a></td>
+            <td data-label="{{t "Email"}}">{{if .Email}}{{.Email}}{{else if .IsShell}}<span class="hint">{{t "hasn’t joined yet"}}</span>{{else}}<span class="hint">{{t "no email: can’t log in"}}</span>{{end}}</td>
             <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
             <td data-label="{{t "Admin"}}">{{if .IsAdmin}}{{t "yes"}}{{else}}{{t "no"}}{{end}}</td>
             <td>
               {{if ne .ID $.Me.ID}}
-              <form method="post" action="/admin/people/{{.ID}}/admin" style="display:inline"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Username}}')"{{end}}>
+              <form method="post" action="/admin/people/{{.ID}}/admin" class="button-form"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .DisplayName}}')"{{end}}>
                 <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
                 <button type="submit">{{if .IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
               </form>
@@ -144,11 +162,11 @@
     <div class="card card--narrow">
       <h3>{{t "Plain signup invite"}}</h3>
       <p class="hint">{{t "No self-serve registration exists yet — this is the only way to let someone in with no project or band attached."}}</p>
-      <div class="form-actions" style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+      <div class="form-actions form-actions--start">
         <button type="button" id="create-plain-invite-btn" class="primary">{{t "Create invite link"}}</button>
         <button type="button" id="copy-plain-invite-btn" hidden>{{t "Copy link"}}</button>
       </div>
-      <p id="plain-invite-result" class="form-status" role="status" style="overflow-wrap:anywhere;"></p>
+      <p id="plain-invite-result" class="form-status" role="status"></p>
     </div>
 
     {{/* The gap a direct report flagged: no way to see who was invited,
@@ -313,7 +331,7 @@ document.querySelectorAll('.qr-link-btn').forEach(btn => {
 </script>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -138,7 +138,6 @@
   <h1>{{t "Metronome"}}</h1>
   <nav class="song-nav">
     <button id="theme-toggle" class="icon-btn" type="button" title="{{t "toggle light/dark"}}">{{template "icon-theme"}}</button>
-    {{template "notif-bell"}}
   </nav>
 </header>
 <main>
@@ -167,7 +166,7 @@
 {{end}}
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

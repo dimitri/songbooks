@@ -31,6 +31,156 @@ community's song is split in two parts only, voice and backing (the stems
 worker keeps vocals and no_vocals): the Voice control and the Mixer's
 Vocals and Backing lanes.
 
+## Who sees what
+
+A coaching community's pages are the coach's or the student's
+(coaching_viewer.go): the staff (a manage privilege) see the coach's; a
+student sees the student's, their own data only, **a site admin who is
+a student there too** (the app's owner, taking lessons); a site admin
+who isn't a member sees the coach's.
+
+**See as…** (site admins only, on every page of the studio: the
+Songbooks tab, the student pages, the lessons, groups, warm-ups, the
+overview): as themselves, as the coach, as one student by name, or as a
+member with nothing yet. It's remembered (a cookie, `coach_see_as`,
+for that community) until they leave it, and a striped banner says it's
+a preview. As a student or a member it's **read-only**: every change
+asked for on the studio's API is refused (409) while it's on, so
+nothing is asked, logged or changed for someone who didn't. As the
+coach, the admin acts as themselves, with the coach's pages. Anyone
+else's cookie counts for nothing, and the switch (`GET
+/communities/{id}/see-as`) answers 403.
+
+## Voice types
+
+On a student's page, under *Voice* (the C2–C7 strip): the coach's
+assessment (migrations 0108, 0109, 0111; coaching_voice.go,
+store/voice_profile.go). The range comes first, the label second: most
+coaches of pop singers keep no fixed label (see below).
+
+- **The range** leads ("Range do2–la4"): the registers' (chest, mixed,
+  head), as before, no second range. The registers are named the way a
+  pop coach also says them: *Chest / belt*, *Mix*, *Head / falsetto*.
+- **The comfortable zone** (the tessitura), beside it ("comfortable
+  sol2–la3"), a striped bar under the registers. In French *zone de
+  confort*, since the app already says *tessiture* for the range
+  (French speakers often do; strictly it's the *étendue*).
+- **The working label**, second and optional: *not classified yet*
+  unless the coach says otherwise; a type (soprano, mezzo-soprano,
+  contralto, countertenor, tenor, baritone, bass; French: soprano,
+  mezzo-soprano, contralto, contre-ténor, ténor, baryton, basse),
+  either *leaning* (a working opinion, the default: "leaning baritone ·
+  Nov 2026", *plutôt baryton · nov. 2026*) or firm ("Baritone · Nov
+  2026"), dated by its last change. Types noted before 0111 stay firm.
+- **A few words beside it**, each optional: the timbre (bright, warm,
+  dark) and where the two passages sit ("passages at mi3 and si3").
+- **The assessment**: a few words (what she hears, what to work on).
+- **The history**: every change to the label, the comfortable zone,
+  the timbre, the passages, the assessment and each register's range,
+  with when, who, old → new and the note; the latest first.
+- **The student** reads it all: their range and comfortable zone, the
+  label, the assessment and its history (migration 0109 dropped the
+  switch that kept the assessment the coach's: it's what they make
+  progress with).
+- **The coach's cards** (the Songbooks tab) show the range and the
+  comfortable zone, then the working label.
+
+### The song's melody over the student's range
+
+Where a key is chosen for a student, the student's range is drawn as on
+their page (C2 to C7: chest, mix, head, the comfortable zone striped),
+and the song's melody over it as a frame, **at the key being tried**: it
+slides as − / + is pressed. Information, not advice: no verdict, no
+number, only the caption *the song's melody (from its recording), in this
+key*. Nothing when the melody isn't known (the coach's pickers say
+*melody range not known yet*). Where:
+
+- the song page's *Voice & key* panel (a coaching community with its key
+  per student on): the student the coach picked, or the student's own;
+- the coach's *Add to…* (a student picked) and the requests' key
+  pickers, on the Songbooks tab.
+
+`GET /api/songs/{id}/voice-strip?community=C[&person=P]`
+(voice_strip.go, voice-strip.js): without `person`, the viewer's own
+(a student; the student a site admin looks as); with it, the coach's
+only; the song must be the community's. The melody's place in each key
+from −12 to +12 comes with it.
+
+**The melody range** is found from the recording's vocals part
+(audioanalysis.MelodyRangeOf: the voice tracked note by note with YIN,
+only notes held about 0.14 s or more, from the 5th to the 95th percentile
+of their pitches, so an octave slip, a shout or a backing voice's stray
+note don't move it; at least 8 s of steady singing, else none). The app
+finds it in the background (melody_ranges.go, started by cmd/songbooks),
+one vocals part at a time, newest first, never while a page waits, and
+keeps it (`song_melody_ranges`, migration 0112): once per split; a new
+split (a new vocals part) or a new analyzer finds it again; a part that
+can't be read is kept as "no range" until it's split again. A song's
+range is its reference recording's (YouTube), else its band recording's,
+else a Guitar Pro backing's (rarely sung): the recordings the player
+offers. It's the recording's own key, the one the key's semitones move.
+About half a second per recording (Apple M-series, a 3–4 minute part).
+
+### What the types mean
+
+Classical singing names six or seven types (opera; choirs use the four
+SATB parts), the German *Fach* system subdividing them (coloratura,
+soubrette, lyric, spinto, dramatic; Heldentenor, Kavalierbariton…).
+Typical ranges and passaggi (Richard Miller's, as Wikipedia reports
+them; sources differ by a semitone or more):
+
+| Type | Typical range | Primo / secondo passaggio |
+|---|---|---|
+| Soprano | C4–C6 (coloratura up to F6) | E♭4 / F♯5 |
+| Mezzo-soprano | A3–A5 | E4 / E5–F5 |
+| Contralto | F3–F5 | G♯4–A4 / D5 |
+| Countertenor | about E3–E5 | no standard values |
+| Tenor | C3–C5 (some: B2–B4) | about C4–E4 / F4–A4 |
+| Baritone | A2–A4 (some: G2–G4) | lyric B3 / E4 |
+| Bass | E2–E4 | G3–A3 / C4–D4 |
+
+A type is more than a range: teachers weigh the **tessitura** (where the
+voice is comfortable and sounds best, individual, no standard values),
+the **timbre**, where the **passaggi** fall, and the voice's weight and
+agility. Singing long outside the tessitura (pushing chest voice up
+especially) strains the voice.
+
+Coaches of pop, rock and musical theatre (CCM) classify by range, timbre
+and where the voice changes register, but most keep no fixed *Fach*: a
+label is a working description that changes with training, and an
+untrained voice (chest carried too high, falsetto leaned on) can't be
+classified before its registers develop. Hence *not classified yet*,
+the assessment in words beside the type, and the history.
+
+French: *tessiture* (the comfortable notes; loosely, the range),
+*étendue* (the whole range), *passage* (passaggio), *registre* (voix de
+poitrine, voix mixte, voix de tête); *haute-contre* is a historical
+French high tenor, not the modern *contre-ténor* (mostly falsetto).
+French octaves: middle C (C4) is do3.
+
+Sources: [Voice type](https://en.wikipedia.org/wiki/Voice_type),
+[Passaggio](https://en.wikipedia.org/wiki/Passaggio) (values from R.
+Miller, *The Structure of Singing*, *Training Tenor Voices*, *Securing
+Baritone, Bass-Baritone, and Bass Voices*),
+[Fach](https://en.wikipedia.org/wiki/Fach),
+[Tessitura](https://en.wikipedia.org/wiki/Tessitura),
+[Countertenor](https://en.wikipedia.org/wiki/Countertenor),
+[Voice classification in non-classical music](https://en.wikipedia.org/wiki/Voice_classification_in_non-classical_music);
+I. Bartlett & M. L. Naismith, "An Investigation of Contemporary
+Commercial Music (CCM) Voice Pedagogy: A Class of its Own?", *Journal of
+Singing* 76/3 (2020),
+[NATS](https://www.nats.org/_Library/JOS_On_Point/JOS-076-3-2020-273_-_Bartlett-Naismith_-_An_Investigatin_of_CCM.pdf);
+A. Young, "Mixed Up and Upside Down", *Journal of Singing* 76/2 (2019),
+[NATS](https://nats.org/_Library/JOS_On_Point/JOS-076-2-2019-137_-_Mixed_Up_Registers_Young.PDF);
+A. Festeu, ["Voice classification: system or art?"](https://blog.oup.com/2018/03/voice-classification-system-singing/),
+OUPblog (2018); A. C. Merritt,
+["Determining Your Voice Type"](https://www.interlochen.org/online/determining-your-voice-type),
+Interlochen; [Voix (musique classique)](https://fr.wikipedia.org/wiki/Voix_(musique_classique)),
+[Tessiture](https://fr.wikipedia.org/wiki/Tessiture),
+[Haute-contre](https://fr.wikipedia.org/wiki/Haute-contre) (French
+Wikipedia); [Voix](https://www.larousse.fr/encyclopedie/musdico/voix/170577),
+Larousse, *Dictionnaire de la musique*.
+
 ## Groups
 
 `/communities/{id}/groups`: a year's class (September to June, the
@@ -39,7 +189,9 @@ community events of type `masterclass`, which the group's members are
 registered for). A group has its members (the coach's to change), its
 songs in the group's key, and its sessions (lessons for the group). Who
 joins gets the group's songbook and its coming sessions; who leaves loses
-both. A student sees their groups.
+both, and stops editing its songs. A student sees their groups. A
+group's songs are the community's, one song for all its members and the
+coach, each member editing it ("A group works on one song" below).
 
 ## The songbooks
 
@@ -57,6 +209,279 @@ A song is the community's song in all of them; only its key differs
 (`songbook_entries.semitones`). Opened from a group's or a student's
 songbook, the song page starts the practice player in that key, the
 chords following. A student's page shows their songs and their groups'.
+
+The **Songbooks** section (`/communities/{id}/songbooks`,
+coaching_songbooks.go) shows them from each side:
+
+- **The student**: first *Your songbook with* the coach (its name, how
+  many songs, in their key, the next lesson), each song with its key as
+  a pill ("C (−3)", or "original"), *All n songs* and *PDF in my keys*
+  (`/songbooks/{id}/export-songbook.pdf?keys=songbook`: each song
+  transposed by its entry's semitones). Then the coach's repertoire (the
+  default songbook), each song either *in your songbook* or *Ask for
+  it*; then their groups' songbooks and the community's others they may
+  open. Never another student's.
+- **Ask for it** (migration 0107, `coaching_song_requests`, one row per
+  student and song): only a current student, for their own songbook,
+  and only a song of the repertoire. Each of the staff gets a
+  notification (`song_request`, in their language) that opens the
+  Songbooks section on the request; the row says *Asked*. The coach
+  *Adds it to their songbook* (with the key picker when the community
+  has its key per student on, `coach_student_keys`), or *Not now* (the
+  student may ask again). Added, the student is told
+  (`song_request_added`); either way the other staff's notifications of
+  it are marked read.
+- **The coach** (coaching_book.html, coaching_book.go, coach-book.js):
+  one songbook, full width, like a band's. *Requests (n)* first, when
+  there are some; then the students and groups as a strip, one line
+  each (name, songs, next lesson or session, requests waiting), the
+  soonest lesson first, each to their page. Then the songs as rows: the
+  repertoire's, then any a student or a group has from elsewhere ("not
+  in the repertoire"); title, artist, the song's badges, its key, and a
+  chip per student or group who has it, in their key ("Zoé · Gm −2"). A
+  chip opens its key (− / +, their range with the song's melody over
+  it) to save, or takes the song out of their songbook; *+ Assign*
+  gives it to another student or group, in a key (the song page's
+  coach-keys endpoint, the community's songbook songs). A search over
+  titles and artists, a filter by student ("Zoé's songs", "Not
+  assigned", remembered in the address as `?who=s:56`), and *Add song*:
+  the one Add / Create dialog where the page has it (add-song.js), else
+  the repertoire's own page and its dialog.
+
+## A student proposes a song
+
+A student's own songbook (*My songbook*, as anyone's) holds the songs
+they find or make (the Add / Create dialog, its quick add). One of them
+they'd like to work on with the coach, they **propose** it
+(coach_proposals.go, propose-song.js, migration 0128): from the song's
+page (⋯, or the phone's *Song* sheet: *Propose to Inès…*) or from the
+Songbooks section (*Your proposals to Inès* → *Propose a song…*: a song
+of their own songbook to pick, or one found or made there and then),
+with a note and, if they like, the key they'd sing it in (− / +, their
+range with the song's melody over it).
+
+- **What may be proposed**: their own song (private or public), any
+  public song, a song of the community's; never a band's or another
+  community's private song, nor a closed songbook's
+  (`store.ProposalCheck`). Proposing puts it in their songbook if it
+  isn't there; they keep it whatever the answer.
+- **Where it waits**: with the *Ask for it* requests, one *Requests (n)*
+  list on the coach's songbook, each row saying which it is (*asked from
+  your repertoire* / *proposed by the student*), a proposal with the
+  note, the key wished (the picker starts there) and what taking it
+  does. Each of the staff is told (`song_proposal`). Proposing again
+  while it waits updates the note and the key.
+- **The coach opens and plays it** while it waits, even the student's
+  private song (`SongRights.ViaProposal`: see, play, nothing else — no
+  link, no arrangement, no edit), and sees the student's range over its
+  melody.
+- **Taken** (*Take it*, in the key picked): the song enters the
+  repertoire and the student's songbook with the coach, in that key, in
+  one transaction (`store.AcceptSongProposal`):
+  - a **public** song is **linked**: the community's own arrangement of
+    it when it has one already, else the song itself (a first edit then
+    offers the community's arrangement, as for any linked song);
+  - the student's **private** song becomes **the community's
+    arrangement made from it**: a copy owned by the community, private,
+    forked from theirs, its media copied (its recording is split and its
+    melody found again in the background), which the coach and the
+    student edit in place as any song of theirs. The student's own song
+    stays theirs, untouched. Proposed again later, the same arrangement
+    is used, nothing new made;
+  - the student is told (`song_proposal_accepted`, the song in their
+    songbook one tap away).
+- **Declined** (*Not now*, then a word for the student, optional):
+  nothing moves; the student is told, with the note
+  (`song_proposal_declined`), and their list says *Not this time* and
+  the note. They may propose it again.
+
+## A key stays where it was when the song is transposed
+
+A key kept in a songbook is semitones from the song's own key
+(`songbook_entries.semitones`, `event_program.semitones`). When a save
+**transposes** the song — its chords actually move, every chord by the
+same interval, in the same order (at least two of them) — each kept key
+is moved back by as much, in the save's transaction, so it sounds where
+it did (song.KeyShift, store keepEntryKeys): a student's F (−2) on a
+song transposed from G to A becomes −4. It's every save: the editor, a
+revert, an original's changes taken by its arrangement, a catalogue
+edit applied or approved. Which keys: every key someone chose — an
+entry not in the song's own key, in any songbook (a student's, a
+group's, a person's, a band's), every entry of a student's or a group's
+songbook (the coach gave it in that key, even "original"), every event
+program's song. An entry of any other songbook in the song's own key
+follows the song (the repertoire, the owner's songbook). A key wraps by
+an octave when it would leave ±12.
+
+**The `key:` header alone changed is a label fix, not a
+transposition** (2026-11-24): the header was wrong, the chords and the
+reference recording don't move, so no kept key moves either — the same
+semitones, so the same sound (the audio, the chords played); only the
+key's name, read from the header, changes ("Eb" becomes the "F" it
+always was). The same for a relabel to the relative key ("Am" → "C"),
+a chord edit, or a single chord changed (a fix, not a transposition).
+
+## The song's melody on songbook rows
+
+Wherever a songbook lists its songs — a person's songbook, a band's
+(its songbook page and its repertoire tab), the coach's one songbook, a
+student's songbook (its page and their card on the Songbooks section) —
+each row shows the song's melody as a tiny staff, at the row's key (the
+entry's semitones), treble or treble-8vb as the melody sheet writes it
+(its middle under C4):
+
+- **Range only** (the range is known, `song_melody_ranges`, the
+  recording the player uses): one bar, the lowest and the highest note
+  as two whole notes.
+- **Melody analysed** (`song_melody_notes`, the melody sheet's bars):
+  two bars side by side, as sung (rhythm, rests), the one where the
+  melody first reaches its lowest note and the one where it first
+  reaches its highest (played order: a repeat's first pass wins), the
+  note marked, the syllables under it when the lyrics are placed. Notes
+  outside the known range (the pitch tracking an octave off) are left
+  out. A tap (Enter) on a bar opens the song's Melody view at that bar
+  (`?view=melody&bar=N`, the player there). A screen reader reads
+  "Range A2–E4; lowest in bar 12, highest in bar 31".
+- **Drawn** as small SVGs by the server (melody/staffsvg.go), never an
+  alphaTab per row: the range in the page, the two bars fetched as the
+  row comes into view (row-range.js, `GET /api/songs/{id}/row-range?k=`),
+  cached on the server (by song, key and the state of its melody, ten
+  minutes) and in the browser. A melody with no bars yet (its recording
+  not synced) keeps its range.
+
+An indication, nothing more: the row says where the melody goes, never
+whether it suits someone — which notes a student sings in chest voice,
+which in falsetto, is the coach's call, not the app's. The coach's
+songbook filtered by a student shows the melody at that student's key.
+Nothing when the melody isn't known; no notification. (The key pickers'
+voice strip stays: the student's range drawn with the melody over it,
+no words of judgement.)
+
+## The song the coach and the students share
+
+The song a student works on with the coach is **the community's song**:
+what the student adds to it (a chord grid to play it on the guitar or
+the piano while singing, a Guitar Pro score, a reference, the lyrics put
+right) the coach sees, and the other way round. Only the key is each
+one's (the student's songbook entry, `semitones`): editing the song
+never moves it.
+
+- **A linked song** (the repertoire links a catalogue song, as Chloé
+  Paul's do): the first edit, by the coach, by a student it's given to or
+  by a member of a group it's given to, offers *Make the community's
+  version* — beside *Fix the catalogue's song*, the catalogue's own rules
+  ("A group works on one song" below) — (from any of the community's
+  songbooks, the student's own included, or from no songbook at all: the
+  song opened from search or home). The version replaces the link in
+  **every** songbook of the community — the repertoire, each student's,
+  each group's, their keys kept — and the community's requests,
+  practice assignments, logs, takes, notes and event programs follow it
+  (store.MakeVersion). Linking the catalogue's song again afterwards
+  gives the version.
+- **The community's own song**: edited in place by the coach (its staff,
+  who edit the repertoire), by each student whose student songbook
+  holds it (`SongRights.AssignedStudent`) and by each member of a group
+  whose songbook holds it (`SongRights.GroupMember`). Not another
+  student's song, not the repertoire's others, not once it's taken out
+  of their songbook, not by a former student or a member who left the
+  group; "edit repertoire" alone (the built-in member role has it) opens
+  none of them. A student makes no "New version from this" and
+  publishes nothing. The history says who changed what.
+- **What goes with it**: its Guitar Pro file and recordings are the
+  song's, shared with the coach and the students it's given to; a closed
+  (paid) songbook's rules don't change.
+- **A site admin who is a student there** (the app's owner): from their
+  student songbook, the same offer; from elsewhere, the catalogue's song
+  is theirs to edit in place (they're The Big Songbook's staff).
+
+## A group works on one song
+
+Decided 2026-11-24: "Coaching group members all can edit a song and it's
+the same song as the other members of the group. And the community's,
+except for the key."
+
+- **One song**: a group's songbook holds the community's song — its own,
+  or a public song it links (the catalogue's) — never a copy made for
+  the group or for one of its members. Giving a song to a group or to a
+  student (*+ Assign*, a key picked on the song page, *Add* on the
+  group's page, a request added, `sbcoach songs`) adds an entry and
+  nothing else; editing it makes no copy either.
+- **Every member edits it** in place, as the coach does and as a student
+  it's given to alone does (`SongRights.GroupMember`): the chart, the
+  sections, the lyrics, its notes, the Guitar Pro file, the reference
+  and its recordings. The coach and the group's other members see each
+  edit at once; each is a revision with its author, which the coach (or
+  any of them) reverts from the History. Opened from the group's
+  songbook, the page is the editor in place: no *Make my arrangement*
+  (a copy of one's own would leave the group).
+- **Only the key is each place's**: the group's entry has the group's
+  key, a student's own songbook entry theirs (`semitones`, the coach's
+  − / +); picking a key changes no song. An edit leaves every entry's
+  key where it was (see "A key stays where it was when the song's
+  moves" for the song's own key changing).
+- **Who**: a current student of the community who is one of the group's
+  members, for the songs of the group's songbook (plus the songs of
+  their own student songbook, as before). Leaving the group (the
+  coach's members list) or the song leaving the group's songbook ends
+  it; leaving the community ends everything. The group's page says it:
+  *Everyone in the group changes these songs, and so does the coach…
+  Only the key is the group's.*
+- **A linked catalogue song** (The Big Songbook's, linked into the
+  community) stays under the catalogue's rules (docs/ownership-model.md
+  §5, §11): a group member is no more its editor than anyone signed in.
+  Edit says so and offers two ways, by what the change is:
+  - **Fix the catalogue's song**: a wrong chord, a typo, a section the
+    recording plays — the catalogue's song itself, edited in place as
+    anyone may (*What did you change?*, its key locked), applied at once
+    or held for review (a newcomer's first edits wait); everyone who
+    has it, the community included, gets it once applied. The editor's
+    note offers *Make the community's arrangement instead*, never
+    *Make my arrangement* (a copy of one's own).
+  - **Make the community's arrangement** (the primary button): a change
+    the studio's way — a chord grid to play while singing, a Guitar Pro
+    file (the catalogue's are its staff's), a shorter form. The
+    community's song, made once (store.MakeVersion), takes the link's
+    place in every songbook of the community, the group's key and each
+    student's kept, and the members edit it in place from then on.
+  The coach, and a student it's given to alone, get the same choice.
+
+Today's data (2026-11-24): no copies to convert. The demo's Studio Lumen
+has 3 groups (19 members, 12 entries), 14 student songbooks (66 entries)
+and its repertoire (17), every entry a link to a catalogue song (the
+ownership mapping, docs/ownership-model.md §9, made Chloé's charts the
+catalogue's); no song of the community forked from another, no
+student's own copy of one, no frozen copy. Staging: one coaching
+community, no group, one student songbook (6 links), the repertoire (7
+links), no copy either. What made copies before: `sbcoach songs`, which
+copied every song into the community when given (it links them now; the
+community's arrangement only for another recording than the linked
+song's), and *Make my arrangement* offered to a group member on a
+song of their group (they edit it now).
+
+## Adding a song for a student
+
+As simple as finding the video and the lyrics without the app. In the
+coach's songbook, *Add song* (or a YouTube link pasted in its search, or
+Enter on "Title — Artist" there) opens the Add dialog with the link or
+the words looked up (quick_add.go):
+
+- **A link**: the video's title and channel (oEmbed) give the title and
+  the artist ("Artist - Title (Official Video)", or the title on the
+  artist's "- Topic" or VEVO channel).
+- **Found**: the community's own version of it first, else the public
+  song of that video, else of that title and artist (either way round):
+  *Add* links it.
+- **Not found**: *Create* makes it in the repertoire with the video as
+  its reference (typed, the best YouTube match the editor's finder
+  gives) and the singer's lyrics fetched (the editor's Import:
+  Ultimate Guitar's lyrics without chords, iReal Pro's grids).
+- Then **Assign to {student}**, the student the songbook is filtered on
+  picked already, the key a − / + away.
+
+Paste, *Add* or *Create*, *Assign*: two clicks, where it took about
+twelve before (open the dialog, search, create, the editor's Import,
+fetch, save, back, *+ Assign*, pick, save) besides finding the video and
+the lyrics elsewhere.
 
 ## Students' songs, and an event's program
 
@@ -85,10 +510,23 @@ vocals:
 
 ## Teaching notes
 
-On a student's page, the coach's only: a few lines about the student (who
-they are as a singer, goals), and dated notes, each maybe about a lesson
-(what was worked on, what to practise next), the latest first, edited in
-place.
+On a student's page, two kinds of notes (migration 0109):
+
+- **Private**: the coach's and the staff's only. *About {student}* (a
+  few lines: who they are as a singer, goals) is always private, and so
+  is every note written before 0109.
+- **Shared**: the student reads them on their page (*Notes from
+  {coach}*, the latest first). The student is told: a notification
+  (*New note from Chloé*, `teaching_note_shared`), and a line on the
+  studio's overview until they open their page.
+
+The coach picks the kind when writing (private unless she says
+otherwise), and may tie a note to a lesson and a song. A private note
+can be shared later (*Share with {student}*, asked first); a shared
+note can be rewritten or deleted but never made private again: the
+student may have read it. A student never gets a private note: not on
+their page, not through the API, not in a site admin's *See as…* of
+them, not in search or their calendar feed (neither holds notes).
 
 ## Practice
 
@@ -189,16 +627,19 @@ Garamond joined the fonts a look picks from.
 ## Setting one up
 
 ```
-sbcoach community --db URL --name "Chloé Paul" --coach chloepaul --student tapoueh --look look.json
-sbcoach songs --db URL --community ID --student tapoueh --songs 206,215,228 --clips clips.tsv
+sbcoach community --db URL --name "Chloé Paul" --coach chloe@example.com --student 1 --look look.json
+sbcoach songs --db URL --community ID --student 1 --songs 206,215,228 --clips clips.tsv
 ```
 
-`community` makes the coach's account when there's none (no password, no
-email: theirs once invited), the community, its Repertoire, its look, and
-a first student. `songs` copies songs into the community (its members may
-open them, a person's own songs are private), puts them in the student's
-songbook, and with `--clips` (song id, tab, YouTube URL) sets each one's
-reference video and downloads its sound, which the stems worker splits.
+`community` makes the coach's account with that email when there's none
+(no password: they log in with a link sent to it; a person is named by
+email or id, there are no usernames), the community, its Repertoire, its look, and
+a first student. `songs` puts songs in the repertoire and the student's
+songbook: linked (the catalogue's, a public song), or the community's own
+song or arrangement of it — never a copy per student or per run; with
+`--clips` (song id, tab, YouTube URL) it sets each one's reference video
+and downloads its sound, which the stems worker splits (another recording
+than a linked song's makes the community's arrangement of it, once).
 
 ## Warm-ups
 

@@ -1,0 +1,11 @@
+{
+  "The song has no tempo yet.": "Le morceau n’a pas encore de tempo.",
+  "The song: %d bpm": "Le morceau : %d bpm",
+  "The song: %d bpm, the same": "Le morceau : %d bpm, le même",
+  "The song: %d bpm, %d faster here": "Le morceau : %d bpm, ici %d plus vite",
+  "The song: %d bpm, %d slower here": "Le morceau : %d bpm, ici %d moins vite",
+  "Couldn't save the tempo. Try again.": "Impossible d’enregistrer le tempo. Réessayez.",
+  "Saved: the song is at %d bpm.": "Enregistré : le morceau est à %d bpm.",
+  "Tap": "Taper",
+  "tap the beat to fill in the tempo": "tapez la pulsation pour remplir le tempo"
+}

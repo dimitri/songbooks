@@ -14,10 +14,9 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Profile"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main>
-  <h2 style="margin:0 0 0.3rem">{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
+  <h2 style="margin:0 0 0.3rem">{{.Me.DisplayName}}</h2>
   <nav class="band-tabs band-tabs-row profile-tabs">
     <a href="#" class="profile-tab-btn{{if ne .Tab "public"}} active{{end}}" data-tab="account">{{t "Account"}}</a>
     <a href="#" class="profile-tab-btn{{if eq .Tab "public"}} active{{end}}" data-tab="public">{{t "Public profile"}}</a>
@@ -40,38 +39,13 @@
          .Me in scope, so it's the natural place for this instead. */}}
     <p class="hint"><a href="/admin">{{t "Admin panel"}} &rarr;</a></p>
     {{end}}
-    <h3>{{t "Instruments you play"}}</h3>
-    <p class="hint">{{t "Picked here pre-fill your instrument choice when you join a jam."}}</p>
-    {{/* "next" (honoured by handleUpdateInstruments) brings the person
-         back with a flag the script below turns into "Instruments saved." */}}
-    <form method="post" action="/profile/instruments" class="form-stack" id="instruments-form">
-      <input type="hidden" name="next" value="/profile?instsaved=1">
-      {{/* sr-only, not display:none, so each icon is still a checkbox a
-           keyboard can reach (the label shows its focus ring). */}}
-      <fieldset class="field-group">
-        <legend>{{t "Pick any that apply"}}</legend>
-        <div class="instrument-icon-row">
-          {{range .CommonInstruments}}
-          <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
-            <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} class="sr-only">
-            {{template "instrument-icon" .}}
-            <span class="instrument-icon-label">{{t .}}</span>
-          </label>
-          {{end}}
-        </div>
-      </fieldset>
-      <div class="field">
-        <label for="profile-other-instruments">{{t "Other instruments"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <p class="field-hint" id="profile-other-instruments-hint">{{t "Separate them with commas, e.g. keyboard, sax."}}</p>
-        <input id="profile-other-instruments" type="text" name="other" value="{{.Other}}" aria-describedby="profile-other-instruments-hint">
-      </div>
-      <p class="form-status" role="status"></p>
-      <div class="form-actions"><button type="submit" class="primary">{{t "Save instruments"}}</button></div>
-    </form>
   </section>
 
-  <section class="card book-card">
+  {{template "my-instruments" .Instruments}}
+
+  <section class="card book-card" id="language">
     <h3>{{t "Language"}}</h3>
+    <div class="form-stack">
     <div class="field">
       <label for="profile-locale">{{t "Language"}}</label>
       <select id="profile-locale">
@@ -81,14 +55,15 @@
       </select>
     </div>
     <p class="form-status" id="profile-locale-status" role="status"></p>
+    </div>
   </section>
 
   <section class="card book-card">
     <h3>{{t "Email"}}</h3>
     {{if .Me.Email}}
-      <p class="hint">{{t "You can log in with this email or your username, and login links are sent here. Currently:"}} <strong>{{.Me.Email}}</strong>.</p>
+      <p class="hint">{{t "Your email is your account: you log in with it, and login links are sent to it. Currently:"}} <strong>{{.Me.Email}}</strong>.</p>
     {{else}}
-      <p class="hint">{{t "No email yet — add one to be able to get login links by email."}}</p>
+      <p class="hint">{{t "No email yet — add one: it’s what you log in with, by password or by a link sent to it."}}</p>
     {{end}}
     <form method="post" action="/profile/email" class="form-stack" id="email-form">
       {{if .EmailSaved}}<p class="form-status is-ok" role="status">{{t "Email saved."}}</p>{{end}}
@@ -106,14 +81,20 @@
     {{if .HasPassword}}
       <p class="hint">{{t "A password is set — you can log in with it, a passkey, or a login link."}}</p>
     {{else}}
+      {{if .LoginEmails}}
       <p class="hint">{{t "No password yet — you log in with emailed login links. Set one to log in with a password too."}}</p>
+      {{else}}
+      {{/* No login email reaches anyone yet (no SMTP): without a
+           password or a passkey, this session is the only way in. */}}
+      <p class="form-status is-error" role="alert">{{t "No password yet. Set one now: login emails aren’t sent yet, so without a password (or a passkey) you can’t log back in once this session ends."}}</p>
+      {{end}}
     {{end}}
     <form method="post" action="/profile/password" class="form-stack" id="password-form">
       {{if .PwSaved}}<p class="form-status is-ok" role="status">{{t "Password saved."}}</p>{{end}}
       {{if .PwError}}<p class="form-status is-error server-error" role="alert" data-for="profile-password">{{.PwError}}</p>{{end}}
       {{/* Not sent: tells password managers which account the new
            password belongs to. */}}
-      <input type="text" autocomplete="username" value="{{.Me.Username}}" hidden readonly>
+      <input type="email" autocomplete="username" value="{{.Me.Email}}" hidden readonly>
       <div class="field">
         <label for="profile-password">{{if .HasPassword}}{{t "New password"}}{{else}}{{t "Password"}}{{end}}</label>
         <p class="field-hint" id="profile-password-hint">{{t "At least 8 characters."}}</p>
@@ -170,7 +151,7 @@
     {{else}}
     <p class="hint">{{t "No passkeys registered yet."}}</p>
     {{end}}
-    <div class="form-actions"><button type="button" id="webauthn-register-btn">{{t "Add a passkey"}}</button></div>
+    <div class="form-actions form-actions--start"><button type="button" id="webauthn-register-btn">{{t "Add a passkey"}}</button></div>
     <p class="form-status" id="webauthn-register-status" role="status"></p>
     <p class="hint" id="webauthn-register-unsupported" hidden>{{t "This browser can't use passkeys. Your password and login links still work."}}</p>
   </section>
@@ -179,7 +160,7 @@
   <div class="profile-tab-panel" data-tab="public" {{if ne .Tab "public"}}hidden{{end}}>
   <section class="card book-card">
     <h3>{{t "Public profile"}}</h3>
-    <p class="hint">{{t "A nickname and picture people see instead of your real name/username, and opt-in toggles for whether your email or phone show alongside it."}}</p>
+    <p class="hint">{{t "A nickname and picture people see instead of your real name, and opt-in toggles for whether your email or phone show alongside it."}}</p>
     <form method="post" action="/profile/public" class="form-stack">
       {{if .PublicSaved}}<p class="form-status is-ok" role="status">{{t "Public profile saved."}}</p>{{end}}
       {{/* No picture_url set: fall back to a Gravatar for the account's
@@ -228,13 +209,30 @@ document.querySelectorAll('.profile-tab-btn').forEach(btn => {
   });
 });
 
-// A checkbox styled as an icon button — toggle the "active" look when
-// its (visually hidden) checkbox is clicked, same idea as the segmented
-// mode-switcher elsewhere in the app, just backed by real checkboxes so
-// the form still works with JS disabled.
-document.querySelectorAll('.instrument-icon-btn input[type=checkbox]').forEach(cb => {
-  cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
-});
+// My instruments: the "Which one?" field is for Other only.
+(function() {
+  const sel = document.getElementById('add-instrument');
+  const field = document.getElementById('add-instrument-other');
+  if (!sel || !field) return;
+  const sync = () => {
+    const other = sel.value === 'other';
+    field.hidden = !other;
+    field.querySelector('input').required = other;
+  };
+  sel.addEventListener('change', sync);
+  sync();
+})();
+
+// Sharing levels: saved as soon as it's ticked or unticked (its Save
+// button is for when there's no script).
+(function() {
+  const form = document.getElementById('instrument-sharing');
+  if (!form) return;
+  const box = form.querySelector('input[name=share]');
+  const save = form.querySelector('.my-instruments-sharing-save');
+  save.hidden = true;
+  box.addEventListener('change', () => form.requestSubmit(save));
+})();
 
 // Every settings form here is a plain POST that comes back to this page:
 // the submit button goes busy meanwhile (and back if the page is restored
@@ -263,9 +261,10 @@ window.addEventListener('pageshow', () => {
   });
 })();
 
-// The instruments form comes back via ?instsaved=1 (its hidden "next").
+// The instruments card's forms come back with ?instsaved= (the
+// template shows it), so the next reload doesn't say it again.
 if (new URLSearchParams(location.search).has('instsaved')) {
-  Forms.status(document.getElementById('instruments-form'), t('Instruments saved.'), 'ok');
+  history.replaceState(null, '', '/profile' + location.hash);
 }
 
 // The email and password forms come back with ?emailerror=/?pwerror= and
@@ -281,7 +280,9 @@ if (new URLSearchParams(location.search).has('instsaved')) {
   const byField = [
     [/already registered/, 'profile-email', t('That email already belongs to another account. Use a different one.')],
     [/valid email/, 'profile-email', t('Enter an email address like name@example.com.')],
+    [/password is required/, 'profile-password', t('Choose a password of at least %d characters.', 8)],
     [/at least 8/, 'profile-password', t('Use at least %d characters.', 8)],
+    [/too long/, 'profile-password', t('That password is too long. Use a shorter one.')],
     [/didn't match/, 'profile-confirm', t('The two passwords didn\u2019t match. Type the same one in both.')],
   ];
   document.querySelectorAll('.server-error').forEach(el => {
@@ -378,7 +379,7 @@ if (new URLSearchParams(location.search).has('instsaved')) {
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

@@ -11,20 +11,18 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{t "Students’ songs"}} — {{.Community.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
 {{template "desktop-sidebar" .}}
 <div class="app-content" data-community="{{.Community.ID}}">
 <header class="app-header">
-  <a class="back-link" href="/communities/{{.Community.ID}}">{{template "icon-back"}} {{.Community.Name}}</a>
-  <h1>{{t "Students’ songs"}}</h1>
-  {{template "notif-bell"}}
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index">
-  {{template "brand-banner" $brand}}
-  {{template "community-tabs" .}}
+  {{template "space-nav" .Space}}
   {{if .Events}}
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Coming up"}}</h3></div>
@@ -72,12 +70,12 @@
     <form method="dialog" class="form-stack program-plan-form">
       <h2>{{t "Plan for an event"}}</h2>
       <p class="hint program-plan-what"></p>
-      <fieldset class="program-plan-events">
+      <fieldset class="program-plan-events field-group">
         <legend>{{t "Event"}}</legend>
         {{range .Events}}<label class="program-plan-choice"><input type="radio" name="event" value="{{.ID}}"> <span><strong>{{.Name}}</strong> <span class="hint">{{date .StartsAt "Mon 2 Jan"}}{{if .SongCount}} · {{tn .SongCount "%d song" "%d songs"}}{{end}}</span></span></label>{{end}}
         <label class="program-plan-choice"><input type="radio" name="event" value="new"{{if not .Events}} checked{{end}}> <span><strong>{{t "A new event"}}</strong></span></label>
       </fieldset>
-      <div class="program-plan-new"{{if .Events}} hidden{{end}}>
+      <div class="program-plan-new form-stack"{{if .Events}} hidden{{end}}>
         <div class="field"><label for="plan-name">{{t "Name"}}</label><input id="plan-name" name="name" placeholder="{{t "End-of-year concert"}}"></div>
         <div class="field"><label for="plan-type">{{t "Kind"}}</label>
           <select id="plan-type" name="type"><option value="concert">{{t "Concert"}}</option><option value="open_mic">{{t "Open mic"}}</option><option value="masterclass">{{t "Master class"}}</option></select></div>
@@ -93,7 +91,7 @@
   </dialog>
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 <script>
 (() => {
@@ -160,7 +158,7 @@
 <html lang="{{lang}}">
 <head>
 {{template "coaching-head"}}
-<title>{{.Event.Name}} — {{t "Program"}}</title>
+<title>{{docTitle (t "Program") .Event.Name .Community.Name}}</title>
 {{template "brand-head" $brand}}
 </head>
 <body{{template "brand-body" $brand}}>
@@ -170,7 +168,6 @@
   {{if .IsCoach}}<a class="back-link" href="/communities/{{.Community.ID}}/student-songs">{{template "icon-back"}} {{t "Students’ songs"}}</a>
   {{else}}<a class="back-link" href="/events/{{.Event.ID}}">{{template "icon-back"}} {{.Event.Name}}</a>{{end}}
   <h1>{{.Event.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   {{template "brand-banner" $brand}}
@@ -227,7 +224,7 @@
     <p class="hint">{{t "No songs yet."}}{{if .IsCoach}} {{t "Pick them from your students’ songs, or add one below."}}{{end}}</p>
     {{end}}
     {{if and .IsCoach .AddSongs}}
-    <form class="coach-add-song program-add">
+    <form class="coach-add-song program-add form-inline">
       <select class="coach-add-variant" aria-label="{{t "A song to add"}}">{{range .AddSongs}}<option value="{{.VariantID}}">{{.Title}}{{with .Artist}} — {{.}}{{end}}</option>{{end}}</select>
       <button type="submit" class="primary">{{t "Add"}}</button>
     </form>
@@ -243,7 +240,7 @@
   {{end}}
 </main>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 {{if .IsCoach}}
 <script>

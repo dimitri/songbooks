@@ -78,15 +78,32 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 
 	riffs, _ := tab.LoadScores(sg)
 	tracks := wholeSongTracks(sections, riffs, timeNum, timeDen)
+	// The song's "lead:" bars come first, in no section: rests in every
+	// track.
+	if lead := sg.LeadIn(); lead > 0 {
+		for i := range tracks {
+			r := *tracks[i].Riff
+			bars := make([]tab.Bar, 0, lead+len(r.Bars))
+			for k := 0; k < lead; k++ {
+				bars = append(bars, restBar(timeNum, timeDen))
+			}
+			r.Bars = append(bars, r.Bars...)
+			tracks[i].Riff = &r
+		}
+	}
 	pickup := pickupBeats(tracks, timeNum, timeDen)
 	resp := map[string]any{
 		"tempo": tempo, "timeNum": timeNum, "timeDen": timeDen, "key": sg.Get("key"),
 		"totalBars": totalBars, "sections": outSections, "tracks": []mixerTrackJSON{},
 		"pickupBeats": pickup,
 		"notation":    s.notationPrefsFor(r),
+		// The bars before bar 1: the song's "lead:" (mixer.js numbers
+		// from after them).
+		"leadIn": sg.LeadIn(),
 	}
 	if gp.Meta != nil {
 		resp["hasGPFile"] = true
+		resp["gpInstruments"] = gpTrackProgramsJSON(gp.Meta)
 	}
 	// A song that points into its Guitar Pro file plays the file itself:
 	// gpOrder says which written bar of the file each performed bar is
@@ -125,6 +142,21 @@ func gpBarOrder(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, total
 	if f == nil {
 		return nil
 	}
+	// A chart next to its file plays it bar for bar from "gp_start:".
+	// (A song still playing its own score voices keeps them.)
+	if !anyGPLine(sg) {
+		if total == 0 || len(f.Played) == 0 || anyScoreVoice(sg) {
+			return nil
+		}
+		start := gpStart(sg)
+		order := make([]int, total)
+		for b := range order {
+			if p := start + b; p >= 1 && p <= len(f.Played) {
+				order[b] = f.Played[p-1]
+			}
+		}
+		return order
+	}
 	order := make([]int, total)
 	any := false
 	for i := range sections {
@@ -154,6 +186,16 @@ func gpBarOrder(sg *song.Song, sections []viewerSection, f *gpfacts.Facts, total
 		return nil
 	}
 	return order
+}
+
+// anyScoreVoice reports whether any section has a "score[...]" voice.
+func anyScoreVoice(sg *song.Song) bool {
+	for _, sec := range sg.Sections {
+		if len(sec.Scores) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // definingSection is the section a bare reference section (IsReference —

@@ -16,11 +16,11 @@ func TestBandMembershipValidity(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	memberID, err := st.CreatePerson(ctx, "member", "Member", "member@example.com")
+	memberID, err := st.CreatePerson(ctx, "Member", "member@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -109,11 +109,11 @@ func TestCommunityMembershipValidity(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	staffID, err := st.CreatePerson(ctx, "staff", "Staff", "staff@example.com")
+	staffID, err := st.CreatePerson(ctx, "Staff", "staff@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	memberID, err := st.CreatePerson(ctx, "member", "Member", "member@example.com")
+	memberID, err := st.CreatePerson(ctx, "Member", "member@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -168,11 +168,11 @@ func TestBandMemberRevisionUndoRestoresValidity(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	memberID, err := st.CreatePerson(ctx, "member", "Member", "member@example.com")
+	memberID, err := st.CreatePerson(ctx, "Member", "member@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}

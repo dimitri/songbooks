@@ -23,6 +23,10 @@ type SongGPSourceFile struct {
 	// Facts is what the file says about the song, as JSON (see
 	// internal/gpfacts); nil until read.
 	Facts []byte
+	// TrackPrograms is the instrument each track plays with, as the
+	// song's editors chose it: a JSON array of {track, name, program}
+	// (migration 0118); nil when none was chosen.
+	TrackPrograms []byte
 }
 
 // GetSongGPSourceFileMeta loads a variant's GP source file metadata
@@ -31,9 +35,9 @@ type SongGPSourceFile struct {
 func (st *Store) GetSongGPSourceFileMeta(ctx context.Context, variantID int64) (*SongGPSourceFile, error) {
 	var f SongGPSourceFile
 	err := st.db.QueryRow(ctx, `
-		SELECT variant_id, filename, content_type, byte_size, sha256, created_at, created_by_person_id, facts
+		SELECT variant_id, filename, content_type, byte_size, sha256, created_at, created_by_person_id, facts, track_programs
 		FROM song_gp_source_file WHERE variant_id = $1`, variantID).
-		Scan(&f.VariantID, &f.Filename, &f.ContentType, &f.ByteSize, &f.SHA256, &f.CreatedAt, &f.CreatedByPersonID, &f.Facts)
+		Scan(&f.VariantID, &f.Filename, &f.ContentType, &f.ByteSize, &f.SHA256, &f.CreatedAt, &f.CreatedByPersonID, &f.Facts, &f.TrackPrograms)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -111,6 +115,20 @@ func (st *Store) SetSongGPSourceFile(ctx context.Context, variantID int64, filen
 func (st *Store) SetSongGPSourceFileFacts(ctx context.Context, variantID int64, sha256 string, facts []byte) (bool, error) {
 	tag, err := st.db.Exec(ctx, `UPDATE song_gp_source_file SET facts = $3 WHERE variant_id = $1 AND sha256 = $2 AND facts IS NULL`,
 		variantID, sha256, nullJSON(facts))
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// SetSongGPTrackPrograms sets the instruments a song's file plays with
+// (a JSON array of {track, name, program}, already checked; nil or empty
+// clears them). ok is false when the song has no file.
+func (st *Store) SetSongGPTrackPrograms(ctx context.Context, variantID int64, programs []byte) (bool, error) {
+	if len(programs) == 0 || string(programs) == "[]" {
+		programs = nil
+	}
+	tag, err := st.db.Exec(ctx, `UPDATE song_gp_source_file SET track_programs = $2 WHERE variant_id = $1`, variantID, nullJSON(programs))
 	if err != nil {
 		return false, err
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 
 	"app/internal/song"
 	"app/internal/store"
@@ -46,6 +47,10 @@ func (s *Server) handlePutSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sg := fromJSON(req.Song)
+	// The Big Songbook's song: weighed against its recording first.
+	if body := song.Write(sg); s.catalogueSave(w, r, id, chartHead(body, "title"), chartHead(body, "artist"), chartHead(body, "reference"), body, req.Version) {
+		return
+	}
 	newVersion, err := s.store.SaveVariant(id, sg, req.Version, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
@@ -82,6 +87,9 @@ func (s *Server) handlePutRaw(w http.ResponseWriter, r *http.Request) {
 	var req rawResponse
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if s.catalogueSave(w, r, id, chartHead(req.Text, "title"), chartHead(req.Text, "artist"), chartHead(req.Text, "reference"), req.Text, req.Version) {
 		return
 	}
 	newVersion, err := s.store.SaveVariantRaw(id, req.Text, req.Version, actorID(r))
@@ -124,13 +132,26 @@ func (s *Server) handlePutMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sg.Set(req.Key, req.Value)
+	if body := song.Write(sg); s.catalogueSave(w, r, id, chartHead(body, "title"), chartHead(body, "artist"), chartHead(body, "reference"), body, version) {
+		return
+	}
 	newVersion, err := s.store.SaveVariant(id, sg, version, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"version": newVersion})
+	out := map[string]string{"version": newVersion}
+	// A new reference: its video's or page's title, at once (a few
+	// seconds at most, reftitle.Timeout), for the header and the
+	// Reference view.
+	if req.Key == "reference" && strings.TrimSpace(req.Value) != "" {
+		out["referenceTitle"] = s.fetchRefTitle(r.Context(), id, req.Value)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
+
+// chartHead is a chart's header field.
+func chartHead(body, key string) string { return song.Parse(body).Get(key) }
 
 func writeSaveErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, store.ErrConflict) {

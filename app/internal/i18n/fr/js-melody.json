@@ -1,0 +1,17 @@
+{
+  "Could not load the score viewer.": "Impossible de charger l’afficheur de partition.",
+  "Melody: available once the song has a recording, split and synced.": "Mélodie : disponible quand le morceau aura un enregistrement, séparé et synchronisé.",
+  "Melody: available once the recording is split and synced.": "Mélodie : disponible quand l’enregistrement sera séparé et synchronisé.",
+  "Melody: the recording’s voice is being read. Come back in a few minutes.": "Mélodie : la voix de l’enregistrement est en cours de lecture. Revenez dans quelques minutes.",
+  "Melody: too little singing in this recording to write a melody.": "Mélodie : trop peu de chant dans cet enregistrement pour en écrire la mélodie.",
+  "lyrics placed: %s": "paroles placées : %s",
+  "bars estimated from the recording, not synced": "mesures estimées d’après l’enregistrement, pas synchronisées",
+  "sync estimated": "synchro estimée",
+  "bar %d": "mesure %d",
+  "not placed": "non placée",
+  "a note earlier": "une note plus tôt",
+  "a note later": "une note plus tard",
+  "melody": "mélodie",
+  "Could not load the melody.": "Impossible de charger la mélodie.",
+  "placement depends on the sync — save the sync for better results": "le placement dépend de la synchro — enregistrez la synchro pour un meilleur résultat"
+}

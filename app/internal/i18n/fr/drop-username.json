@@ -1,0 +1,15 @@
+{
+  "Someone you already play with": "Quelqu’un avec qui vous jouez déjà",
+  "They’re on the roster right away, with a personal invite link to send them: they join with their email, a new account or the one they have.": "La personne est tout de suite dans l’effectif, avec un lien d’invitation personnel à lui envoyer : elle rejoint avec son e-mail, un nouveau compte ou celui qu’elle a déjà.",
+  "Add someone by name": "Ajouter quelqu’un par son nom",
+  "They’re on the roster straight away, with a personal link to send them: they join with their email, a new account or the one they have.": "La personne est tout de suite dans la liste, avec un lien personnel à lui envoyer : elle rejoint avec son e-mail, un nouveau compte ou celui qu’elle a déjà.",
+  "They have an account: they’re added straight away.": "La personne a un compte : elle est ajoutée tout de suite.",
+  "Pick someone": "Choisissez quelqu’un",
+  "Join with your email: a new account, or the one you already have. Nothing else changes, these memberships are already yours.": "Rejoignez avec votre e-mail : un nouveau compte, ou celui que vous avez déjà. Rien d’autre ne change, ces adhésions sont déjà les vôtres.",
+  "Join as": "Rejoindre en tant que",
+  "Your account takes the place on the roster kept for %s.": "Votre compte prend la place gardée pour %s dans l’effectif.",
+  "Not you? Log out, then open this link again.": "Ce n’est pas vous ? Déconnectez-vous, puis rouvrez ce lien.",
+  "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after.": "Vous avez déjà un compte ? Connectez-vous avec votre e-mail, par mot de passe ou par un lien que nous vous envoyons, et vous rejoindrez juste après.",
+  "Already have an account? Log in with your email, by password or a link we send you, then register.": "Vous avez déjà un compte ? Connectez-vous avec votre e-mail, par mot de passe ou par un lien que nous vous envoyons, puis inscrivez-vous.",
+  "Log in to register": "Se connecter pour s’inscrire"
+}

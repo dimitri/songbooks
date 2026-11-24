@@ -141,6 +141,12 @@ class Metronome {
     return false;
   }
 
+  // Where the clicks go: while running, a gain node of this run, which
+  // stop() cuts and drops, so the clicks already scheduled ahead (up to
+  // the lookahead) don't sound after Stop, or on top of the next song's
+  // first beat; one-off clicks (countIn, playBarThenFade) go straight out.
+  _dest() { return this._out || this._ctx.destination; }
+
   _ensureCtx() {
     if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (this._ctx.state === 'suspended') this._ctx.resume();
@@ -152,19 +158,24 @@ class Metronome {
   // the main pulse: quieter AND duller (lower pitch), not just quieter.
   // "Brighter" in a click sound is mostly its pitch/harmonic content, so
   // "less bright" means pulling the frequency down, not only the gain.
-  _click(atTime, accent, soft, volScale = 1) {
+  // mid: a lighter accent, between the downbeat's and a plain beat's (the
+  // start of each group in 7/8 and other odd meters, midAccents).
+  _click(atTime, accent, soft, volScale = 1, mid = false) {
     const ctx = this._ctx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     let freq = { click: accent ? 1600 : 1100, beep: accent ? 1800 : 1200, wood: accent ? 500 : 350, tick: accent ? 2400 : 1800 }[this.sound] || 1000;
-    let vol = (accent ? 0.85 : 0.55) * volScale;
+    // volume: the song page's player sets it (its Click line); 1 elsewhere.
+    const userVol = this.volume === undefined ? 1 : this.volume;
+    let vol = (accent ? 0.85 : 0.55) * volScale * userVol;
+    if (mid && !accent) { freq *= 1.2; vol = 0.72 * volScale * userVol; }
     if (soft) { freq *= 0.62; vol *= 0.5; }
     const dur = this.sound === 'wood' ? 0.035 : 0.05;
     osc.type = this.sound === 'wood' ? 'triangle' : (this.sound === 'beep' ? 'sine' : 'square');
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(vol, atTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, atTime + dur);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this._dest());
     osc.start(atTime);
     osc.stop(atTime + dur);
   }
@@ -182,7 +193,7 @@ class Metronome {
     osc.frequency.exponentialRampToValueAtTime(45, atTime + 0.1);
     gain.gain.setValueAtTime(vol, atTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, atTime + 0.12);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this._dest());
     osc.start(atTime);
     osc.stop(atTime + 0.13);
   }
@@ -205,7 +216,7 @@ class Metronome {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(vol, atTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, atTime + 0.018);
-    noise.connect(hp).connect(gain).connect(ctx.destination);
+    noise.connect(hp).connect(gain).connect(this._dest());
     noise.start(atTime);
     noise.stop(atTime + 0.03);
   }
@@ -224,7 +235,7 @@ class Metronome {
   // sensibly to any other beatsPerBar (3/4, 9/8, 5/4, ...) the same way.
   // Backbeat mode is the same parity rule with the even (kick) slot
   // silenced instead of voiced.
-  _patternClick(atTime, beatIndexInBar, accent, volScale = 1) {
+  _patternClick(atTime, beatIndexInBar, accent, volScale = 1, mid = false) {
     if (this.pattern === 'kick-hihat') {
       if (beatIndexInBar % 2 === 0) this._kick(atTime, volScale);
       else this._hihat(atTime, 0.5 * volScale);
@@ -235,7 +246,7 @@ class Metronome {
       // Even pulses are silent by design — not quieter, absent.
       return;
     }
-    this._click(atTime, accent, false, volScale);
+    this._click(atTime, accent, false, volScale, mid);
   }
 
   // A "flam" (a quiet extra tick just before the real beat) — the
@@ -295,6 +306,10 @@ class Metronome {
 
   start() {
     this._ensureCtx();
+    // Started again while running (e.g. a lock-screen Play): one timer.
+    this.stop();
+    this._out = this._ctx.createGain();
+    this._out.connect(this._ctx.destination);
     this._nextBeat = Math.ceil(this.clock.currentBeat());
     // Lookahead scheduler: tick every ~25ms, schedule any beat boundary in
     // the next ~100ms against AudioContext.currentTime — immune to JS
@@ -305,14 +320,30 @@ class Metronome {
   stop() {
     if (this._timer) clearInterval(this._timer);
     this._timer = null;
+    const out = this._out;
+    this._out = null;
+    if (out) {
+      out.gain.setValueAtTime(0, this._ctx.currentTime);
+      setTimeout(() => out.disconnect(), 200);
+    }
   }
 
   _tick() {
-    if (!this.enabled || !this.clock.running) return;
+    if (!this.clock.running) return;
     const ctx = this._ctx;
     const lookaheadMs = 100;
     const nowBeat = this.clock.currentBeat();
     const horizonBeat = this.clock.currentBeat(performance.now() + lookaheadMs);
+    // A beat already more than ~30 ms gone is skipped, not played late:
+    // after a mute (beats go by unscheduled) or a throttled background
+    // tab, catching up would fire every missed click at once, as one
+    // loud burst.
+    if ((nowBeat - this._nextBeat) * this.clock.beatDurationMs() > 30) this._nextBeat = Math.ceil(nowBeat);
+    if (!this.enabled) {
+      // Muted: the beats go by silently, so unmuting picks up on the next one.
+      if (this._nextBeat <= horizonBeat) this._nextBeat = Math.floor(horizonBeat) + 1;
+      return;
+    }
     while (this._nextBeat <= horizonBeat) {
       const beat = this._nextBeat;
       const beatIndexInBar = ((beat % this.clock.beatsPerBar) + this.clock.beatsPerBar) % this.clock.beatsPerBar;
@@ -342,7 +373,7 @@ class Metronome {
       // something time-critical.
       if (toChange === 1) this._pickup(atTime, beatIndexInBar, accent, 45);
       else if (toChange === 2) this._pickup(atTime, beatIndexInBar, accent, 80);
-      else if (!this._muteMainBeat(beat)) this._patternClick(atTime, beatIndexInBar, accent);
+      else if (!this._muteMainBeat(beat)) this._patternClick(atTime, beatIndexInBar, accent, 1, !!(this.midAccents && this.midAccents.has(beatIndexInBar)));
       // Compound meter (6/8, 9/8, 12/8): each "beat" here is a dotted
       // quarter — three eighth notes — and the visual beat-dots already
       // show that subdivision as 3 sub-ticks. The audio should actually

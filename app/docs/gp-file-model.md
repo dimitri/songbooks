@@ -101,6 +101,47 @@ key, time) the library, search, set lists and the click track read.
 text). `tempo:`, `time:`, `key:`, `swing:` and `chord:` lines keep their
 meaning; when a file is attached they are also checked against it (§4).
 
+### 3.4 The full score next to the chart
+
+A song can also keep its file *next to* its chart, with no `gp[...]`
+lines: a full transcription of a song played from its chart. The chart is
+laid over the file bar for bar, from one header line:
+
+```
+gp_start: 3
+```
+
+the file's bar, as played, where the chart's first bar starts (here the
+file has two bars before it: a count-in, a silent lead-in). Absent, the
+chart starts on the file's first bar.
+
+A chart with a lead-in of its own (a `lead: N` header line, see the
+format page: bars before its first section, in none) starts with its
+lead: `gp_start` names the file bar the lead's first bar falls on, and
+bar 1 of the chart is N bars later.
+A file opening with two count-in bars and a chart written `lead: 2`
+need no `gp_start` at all — the lead plays over the file's count-in.
+
+The GP import checks the file against the chart before keeping it (its
+step 3, *Check*): the chart's sections over the file's bars from
+`gp_start`, their bar counts against the file's own section markers
+(repeats and alternate endings played out; a marker played again through
+a repeat is one section), the chords over each bar, time signature, tempo
+and key. It shows two timelines on one bar axis (the chart's sections,
+the file's), a row per section, and the chords and the file's notation of
+the section picked. What the app can do is one tap: where the chart
+starts (lining a section up with the file's marker, after the file's
+silent bars, where the chords line up best when the file has no markers)
+and the header facts; the rest is said in plain words ("the file's
+Verse 2 has 2 more bars: add them to the chart's Verse 2, or edit the
+file in Guitar Pro"). Nothing changes until *Import*.
+
+The comparison is the server's (`gpalign.go`, `POST …/gp-check`) and
+drift uses it for a song with no `gp[...]` lines (§4), so what the check
+leaves and what "Out of step" shows after the import are the same items.
+The GProTab.net search results use it too: each has a *Preview* (the
+whole score, played, its facts next to the song's, how it lines up).
+
 ## 4. Facts in both places, and drift
 
 ### 4.1 What's compared
@@ -115,6 +156,7 @@ meaning; when a file is attached they are also checked against it (§4).
 | Chords | `grid:` bars | chord names on beats |
 | Chord diagrams | `chord:` lines | the file's chord diagrams (§6) |
 | References | `gp[...]` lines | the track exists, the bars exist, the range's played length equals the section's bar count |
+| Next to the chart (§3.4) | each section from `gp_start:` | the file's section marker there and its bar count, chords per bar, time signature |
 
 ### 4.2 How it's checked
 
@@ -151,16 +193,40 @@ with the facts and stores the differences.
   (one load of the file per page; each section renders its range with
   `display.startBar`/`barCount` and the chosen tracks), in the same
   place `score[...]` voices are drawn today.
-- **`content: gp` songs open on the score**: the whole file in alphaTab,
-  the Guitar Pro way — track picker, tab/staff, playback with the
-  cursor, the file's backing track and its sync points, the speed and
-  loop controls the Mixer already has. The song view stays one tap away
-  when the text has anything to show.
+- **`content: gp` songs open on the score** (and so does a course
+  lesson's song with a file): the whole file in alphaTab, as a sheet of
+  music — A4 pages, four bars a line where they fit — with a track
+  picker and tab/staff. It plays in the song's player, the dock, like
+  every other view: the song's recording (the file's backing track is
+  one, `gp`), else the file through alphaTab's synthesizer (with
+  GeneralUser GS, cut down to the file's instruments: soundfont.md), rendered
+  once in the browser (`exportAudio`) and handed to the dock as its
+  sound, waveform and all. alphaTab's player follows the dock
+  (`PlayerMode.EnabledExternalMedia`): the cursor, a click on a note,
+  bars dragged across as the dock's loop. The song view stays one tap
+  away when the text has anything to show.
 - **Score**, a new view, is there for any song with a file.
-- Stage mode, the Drummer view and set lists work for both kinds.
+- The Drummer view and set lists work for both kinds.
 - **Mixer:** a song with a file plays the file itself (every track, every
   effect, its own backing track) instead of alphaTeX rebuilt from voices.
-  A song without one keeps playing its LilyPond voices.
+  A song without one keeps playing its LilyPond voices. A file next to the
+  chart (§3.4) is played from `gp_start`.
+- **Where the file's score plays.** A file next to the chart (or inside
+  it: not `content: gp`) is played, as a score, in the Score view only.
+  The song's other views play its recordings, as a song with no file does
+  (the file's own recording, `gp`, is one of them: the song's YouTube or
+  band recording comes first, the file's when it is the only one). In the
+  Score view the dock plays the file's sound (rendered by alphaTab's
+  synthesizer, as for a song with no recording), even when the song has a
+  recording; that recording follows it bar by bar, through its bar sync
+  points or section markers and which bar of the chart each bar of the
+  file is (`gp_start`, or the sections' `gp[...]` lines). A simplified
+  mixer in the sheet bar sets them: *Recording* and *Score*, a mute and a
+  level each, the full Mixer a tap away; a song with no recording plays
+  the file's own (by its sync points), and a recording not lined up with
+  the song's bars says so, Recording off. Leaving the Score view stops it
+  and gives the dock back the song's recording. A `content: gp` song plays
+  as before: its recording, else the file.
 
 ## 6. Chord diagrams from the file
 

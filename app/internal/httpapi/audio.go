@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"app/internal/audiotranscode"
+	"app/internal/songimport"
 	"app/internal/store"
 	"app/internal/ytaudio"
 )
@@ -57,11 +58,27 @@ type audioCategoryMeta struct {
 	// "done", "failed").
 	Stems      []string `json:"stems,omitempty"`
 	StemStatus string   `json:"stemStatus,omitempty"`
+	// AnalysisStatus: where the recording's own analysis (beats, bars,
+	// chords: migration 0106) is, "done" once there's one.
+	AnalysisStatus string `json:"analysisStatus,omitempty"`
+	// SyncOrigin: "" when nothing is synced, "auto" when any of the sync
+	// was placed by a program and not checked yet, "set" otherwise.
+	SyncOrigin string `json:"syncOrigin,omitempty"`
 }
 
 type jsonAudioMark struct {
 	SectionIndex int     `json:"sectionIndex"`
 	TimeSeconds  float64 `json:"timeSeconds"`
+	Origin       string  `json:"origin,omitempty"` // "auto" or "set"
+}
+
+// mergeOrigin folds one marker's origin into a recording's: any
+// estimate makes the whole sync estimated.
+func mergeOrigin(cur, o string) string {
+	if cur == store.SyncAuto || o == store.SyncAuto {
+		return store.SyncAuto
+	}
+	return store.SyncSet
 }
 
 // jsonGPBarSync is one GPBarSyncPoint on the wire — only ever present on
@@ -99,9 +116,15 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 			cm.Stems, cm.StemStatus = ss.Stems, ss.Status
 		}
 		for _, m := range markers {
-			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds})
+			cm.Markers = append(cm.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
+			cm.SyncOrigin = mergeOrigin(cm.SyncOrigin, m.Origin)
 		}
-		if a.Category == store.AudioGP {
+		if as, err := s.store.GetAnalysisState(r.Context(), a.ID); err == nil {
+			cm.AnalysisStatus = as
+		}
+		// Every bar's time: a Guitar Pro file's own, or the recording's
+		// analysis accepted (any category).
+		{
 			points, err := s.store.ListGPBarSyncPoints(r.Context(), a.ID)
 			if err != nil {
 				httpError(w, http.StatusInternalServerError, err.Error())
@@ -109,6 +132,7 @@ func (s *Server) handleGetSongAudioMeta(w http.ResponseWriter, r *http.Request) 
 			}
 			for _, p := range points {
 				cm.BarSyncPoints = append(cm.BarSyncPoints, jsonGPBarSync{BarIndex: p.BarIndex, TimeSeconds: p.TimeSeconds})
+				cm.SyncOrigin = mergeOrigin(cm.SyncOrigin, p.Origin)
 			}
 		}
 		out = append(out, cm)
@@ -182,6 +206,10 @@ func (s *Server) handlePostSongAudioStems(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.store.QueueStemJob(r.Context(), meta.ID); err != nil {
+		if errors.Is(err, store.ErrNotSplit) {
+			httpError(w, http.StatusConflict, err.Error())
+			return
+		}
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -357,6 +385,9 @@ func (s *Server) handlePutGPBarSyncPoints(w http.ResponseWriter, r *http.Request
 			BarIndex    int     `json:"barIndex"`
 			TimeSeconds float64 `json:"timeSeconds"`
 		} `json:"points"`
+		// "auto" from the Mixer's Auto-align; a Guitar Pro file's own
+		// sync, or a person's, is "set" (the default).
+		Origin string `json:"origin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -364,7 +395,7 @@ func (s *Server) handlePutGPBarSyncPoints(w http.ResponseWriter, r *http.Request
 	}
 	points := make([]store.GPBarSyncPoint, len(req.Points))
 	for i, p := range req.Points {
-		points[i] = store.GPBarSyncPoint{BarIndex: p.BarIndex, TimeSeconds: p.TimeSeconds}
+		points[i] = store.GPBarSyncPoint{BarIndex: p.BarIndex, TimeSeconds: p.TimeSeconds, Origin: req.Origin}
 	}
 	if err := s.store.SetGPBarSyncPoints(r.Context(), meta.ID, points); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
@@ -399,6 +430,140 @@ func (s *Server) handleDeleteAudioMarker(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// audioMetaFor resolves {id} and {category} to the recording, writing
+// the error itself when there isn't one.
+func (s *Server) audioMetaFor(w http.ResponseWriter, r *http.Request) (*store.SongAudio, bool) {
+	variantID, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return nil, false
+	}
+	category, ok := parseAudioCategory(r.PathValue("category"))
+	if !ok {
+		httpError(w, http.StatusBadRequest, `category must be "youtube", "band", or "gp"`)
+		return nil, false
+	}
+	meta, err := s.store.GetSongAudioMeta(r.Context(), variantID, category)
+	if err != nil {
+		httpError(w, http.StatusNotFound, "no audio for this song/category yet")
+		return nil, false
+	}
+	return meta, true
+}
+
+// handlePutAudioMarkers is PUT /api/songs/{id}/audio/{category}/markers:
+// the recording's whole sync in one request (the Sync sheet's Save, the
+// Mixer's Auto-align), body {"markers": [{"sectionIndex", "timeSeconds",
+// "origin": "auto"|"set"}]}. Sections left out lose their marker. The
+// sync it replaces goes to the history (GET .../markers/history).
+func (s *Server) handlePutAudioMarkers(w http.ResponseWriter, r *http.Request) {
+	meta, ok := s.audioMetaFor(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Markers []jsonAudioMark `json:"markers"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	seen := map[int]bool{}
+	markers := make([]store.AudioMarker, 0, len(req.Markers))
+	for _, m := range req.Markers {
+		if m.SectionIndex < 0 || seen[m.SectionIndex] || m.TimeSeconds != m.TimeSeconds || m.TimeSeconds < -60 || m.TimeSeconds > 6*3600 {
+			httpError(w, http.StatusBadRequest, "invalid marker")
+			return
+		}
+		if m.Origin != "" && m.Origin != store.SyncAuto && m.Origin != store.SyncSet {
+			httpError(w, http.StatusBadRequest, `origin must be "auto" or "set"`)
+			return
+		}
+		seen[m.SectionIndex] = true
+		markers = append(markers, store.AudioMarker{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
+	}
+	// The sections play in their order: a later one starting before an
+	// earlier one runs the bar grid backwards.
+	if !markersInOrder(markers) {
+		httpError(w, http.StatusBadRequest, "the sections' starts are out of order")
+		return
+	}
+	points, err := s.reconcileBarPoints(r, meta, markers)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.store.ReplaceSync(r.Context(), meta.ID, markers, actorID(r), points); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(markers)})
+}
+
+// markersInOrder: by section, the starts never go back in time (two at
+// the same time are allowed: a section with no bars).
+func markersInOrder(markers []store.AudioMarker) bool {
+	ms := slices.Clone(markers)
+	slices.SortFunc(ms, func(a, b store.AudioMarker) int { return a.SectionIndex - b.SectionIndex })
+	for i := 1; i < len(ms); i++ {
+		if ms[i].TimeSeconds < ms[i-1].TimeSeconds {
+			return false
+		}
+	}
+	return true
+}
+
+// handleGetAudioMarkersHistory is GET /api/songs/{id}/audio/{category}/markers/history:
+// the syncs earlier saves replaced, newest first, to take one back.
+func (s *Server) handleGetAudioMarkersHistory(w http.ResponseWriter, r *http.Request) {
+	meta, ok := s.audioMetaFor(w, r)
+	if !ok {
+		return
+	}
+	list, err := s.store.ListSyncHistory(r.Context(), meta.ID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type entry struct {
+		ID      int64           `json:"id"`
+		SavedAt string          `json:"savedAt"`
+		SavedBy string          `json:"savedBy,omitempty"`
+		Markers []jsonAudioMark `json:"markers"`
+	}
+	out := make([]entry, 0, len(list))
+	for _, e := range list {
+		je := entry{ID: e.ID, SavedAt: e.SavedAt.UTC().Format("2006-01-02T15:04:05Z"), SavedBy: e.SavedBy, Markers: []jsonAudioMark{}}
+		for _, m := range e.Markers {
+			je.Markers = append(je.Markers, jsonAudioMark{SectionIndex: m.SectionIndex, TimeSeconds: m.TimeSeconds, Origin: m.Origin})
+		}
+		out = append(out, je)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": out})
+}
+
+// handleGetAudioVoice is GET /api/songs/{id}/audio/{category}/voice: when
+// the singer sings in the recording (its phrases, from the vocals part),
+// for the Sync sheet's snapping and the lyrics view's lines. 404 until
+// the recording is split.
+func (s *Server) handleGetAudioVoice(w http.ResponseWriter, r *http.Request) {
+	meta, ok := s.audioMetaFor(w, r)
+	if !ok {
+		return
+	}
+	c, err := songimport.Voice(r.Context(), s.store, meta.VariantID, meta.Category)
+	if err != nil {
+		code := http.StatusInternalServerError
+		if errors.Is(err, songimport.ErrNoVoice) {
+			code = http.StatusNotFound
+		}
+		httpError(w, code, err.Error())
+		return
+	}
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	writeJSON(w, http.StatusOK, c)
 }
 
 // handlePutSongAudioKind is PUT /api/songs/{id}/audio/{category}/kind,

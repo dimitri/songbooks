@@ -6,14 +6,15 @@
 //
 // Layout:
 //
-//	songbooks/<owner>/<songbook>/<title>.song   one real .song source file per song
+//	songbooks/<owner>/<songbook>/<title>.song   one real .song source file per song; a person's
+//	                                             <owner> is person-<id>, their id in users.json
 //	songbooks/<band>/members.json                band roster (see internal/groupfmt)
 //	songbooks/<community>/members.json           community roster + role definitions
 //	songbooks/_catalog/...                      public-catalogue songs (no person/band/community owner)
 //	users.json                                  every person referenced anywhere, by id — members.json
 //	                                             rosters and variants.json's createdByUserId/invitedBy all
 //	                                             reference this file's entries by id, rather than each
-//	                                             repeating a username/display name redundantly
+//	                                             repeating an email/display name redundantly
 //	variants.json                               per-song metadata a directory tree alone can't carry:
 //	                                             visibility, true owner, work (title/artist/genre/album),
 //	                                             fork lineage, every songbook it's actually filed in (a song
@@ -47,6 +48,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"app/internal/groupfmt"
+	"app/internal/store"
 )
 
 // user carries every profile field EXCEPT password_hash and WebAuthn
@@ -56,7 +58,6 @@ import (
 // passkey) that doesn't depend on this export at all.
 type user struct {
 	ID              int64           `json:"id"`
-	Username        string          `json:"username"`
 	DisplayName     string          `json:"displayName"`
 	Email           string          `json:"email,omitempty"`
 	IsAdmin         bool            `json:"isAdmin,omitempty"`
@@ -235,6 +236,11 @@ func rfc3339Null(t *time.Time) string {
 
 var slugRE = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
+// personDirName is a person's owner directory (and ownerName): their
+// users.json id — there are no usernames (migration 0135), and a name
+// or an email is neither unique nor fit for a path.
+func personDirName(id int64) string { return fmt.Sprintf("person-%d", id) }
+
 func slugify(s string) string {
 	s = strings.TrimSpace(s)
 	s = slugRE.ReplaceAllString(s, "-")
@@ -288,7 +294,7 @@ func main() {
 
 	users := map[int64]user{}
 	rows, err := pool.Query(ctx, `
-		SELECT id, username, display_name, coalesce(email,''), is_admin, is_shell, instruments,
+		SELECT id, display_name, coalesce(email,''), is_admin, is_shell, instruments,
 		       nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out,
 		       onboarded_at, click_track_prefs, created_at
 		FROM people`)
@@ -298,7 +304,7 @@ func main() {
 		var onboardedAt *time.Time
 		var clickTrackPrefs []byte
 		var createdAt time.Time
-		must(rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.IsAdmin, &u.IsShell, &u.Instruments,
+		must(rows.Scan(&u.ID, &u.DisplayName, &u.Email, &u.IsAdmin, &u.IsShell, &u.Instruments,
 			&u.Nickname, &u.PictureURL, &u.Phone, &u.ShareEmail, &u.SharePhone, &u.GravatarOptOut,
 			&onboardedAt, &clickTrackPrefs, &createdAt), "scan user")
 		u.OnboardedAt = rfc3339Null(onboardedAt)
@@ -376,8 +382,8 @@ func main() {
 	ownerDirName := func(kind string, id int64) string {
 		switch kind {
 		case "person":
-			if p, ok := users[id]; ok {
-				return slugify(p.Username)
+			if _, ok := users[id]; ok {
+				return personDirName(id)
 			}
 		case "band":
 			if b, ok := bands[id]; ok {
@@ -394,7 +400,11 @@ func main() {
 	// ---- Songs ----
 
 	rows, err = pool.Query(ctx, `
-		SELECT id, title, artist, body, visibility, owner_person_id, owner_band_id, owner_community_id,
+		SELECT id, title, artist, body,
+		       CASE WHEN owner_person_id IS NOT NULL THEN 'user' WHEN owner_band_id IS NOT NULL THEN 'band'
+		            WHEN owner_community_id = (SELECT id FROM communities WHERE kind = 'global') THEN 'global'
+		            ELSE 'community' END,
+		       owner_person_id, owner_band_id, owner_community_id,
 		       forked_from_id, created_by_person_id, work_id, created_at
 		FROM songs ORDER BY id`)
 	must(err, "query songs")
@@ -432,7 +442,7 @@ func main() {
 		var trueOwnerKind, trueOwnerName string
 		switch {
 		case s.OwnerPersonID != nil:
-			trueOwnerKind, trueOwnerName = "person", slugify(users[*s.OwnerPersonID].Username)
+			trueOwnerKind, trueOwnerName = "person", personDirName(*s.OwnerPersonID)
 		case s.OwnerBandID != nil:
 			trueOwnerKind, trueOwnerName = "band", slugify(bands[*s.OwnerBandID].Name)
 		case s.OwnerCommunityID != nil:
@@ -508,7 +518,7 @@ func main() {
 	// ---- members.json for every band and community ----
 	//
 	// Rosters reference people by id (groupfmt.Member.UserID/InvitedBy),
-	// into users.json below — not by embedding a username in every group
+	// into users.json below — not by embedding a name or email in every group
 	// file that person belongs to.
 
 	for id, b := range bands {
@@ -616,7 +626,7 @@ func main() {
 	setlistUsedPaths := map[string]bool{}
 	var setlistList []setlistRecord
 	rows, err = pool.Query(ctx, `
-		SELECT id, title, notes, scope::text, owner_person_id, owner_band_id, owner_community_id, body, created_at
+		SELECT id, title, notes, scope::text, owner_person_id, owner_band_id, owner_community_id, created_at
 		FROM setlists ORDER BY id`)
 	must(err, "query setlists")
 	type setlistRow struct {
@@ -629,10 +639,15 @@ func main() {
 	var setlistRows []setlistRow
 	for rows.Next() {
 		var sl setlistRow
-		must(rows.Scan(&sl.ID, &sl.Title, &sl.Notes, &sl.Scope, &sl.OwnerPersonID, &sl.OwnerBandID, &sl.OwnerCommunityID, &sl.Body, &sl.CreatedAt), "scan setlist")
+		must(rows.Scan(&sl.ID, &sl.Title, &sl.Notes, &sl.Scope, &sl.OwnerPersonID, &sl.OwnerBandID, &sl.OwnerCommunityID, &sl.CreatedAt), "scan setlist")
 		setlistRows = append(setlistRows, sl)
 	}
 	rows.Close()
+	// Each one's text form, from its rows (setlist_items).
+	for i := range setlistRows {
+		setlistRows[i].Body, err = store.SetlistTextOf(ctx, pool, setlistRows[i].ID)
+		must(err, "read setlist")
+	}
 	for _, sl := range setlistRows {
 		var ownerName string
 		switch sl.Scope {

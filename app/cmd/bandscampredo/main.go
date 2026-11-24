@@ -4,7 +4,7 @@
 // dropped community_catalog_entries; CreateCommunityVariant/ForkVariant's
 // community case kept writing to it — see the commit that fixed this).
 // Bands Camp's songbook_entries were cleared, leaving the underlying
-// songs rows (visibility='global') in place but unlinked.
+// songs rows (the catalogue's) in place but unlinked.
 //
 // Originally this fetched fresh content from Ultimate Guitar/iReal,
 // but the user pointed at a much better source: v2/BandsCamp/ already

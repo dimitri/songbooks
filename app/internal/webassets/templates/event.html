@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Event.Name}} — Songbooks</title>
+<title>{{docTitle .Event.Name .Event.OwnerName}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 </head>
@@ -18,7 +18,6 @@
   <a class="back-link" href="/bands/{{.Event.OwnerBandID}}/events">{{template "icon-back"}} {{.Event.OwnerName}}</a>
   {{end}}
   <h1>{{.Event.Name}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card">
@@ -56,7 +55,9 @@
     <h3>{{t "Who's coming"}}</h3>
     <div class="form-stack">
     {{range .Attendees}}
-      <div class="import-row"><span>{{.DisplayName}}{{if .BandName}} <span class="hint">({{.BandName}})</span>{{end}}</span></div>
+      <div class="import-row"><span>{{.DisplayName}}{{if .BandName}} <span class="hint">({{.BandName}})</span>{{end}}
+        {{with index $.Plays .PersonID}}<span class="event-plays">{{range .}}<span class="roster-instrument-badge">{{template "instrument-icon" .Instrument}} {{instrumentName .Instrument}}{{with .Level}} · {{levelName .}}{{end}}</span> {{end}}</span>{{end}}
+      </span></div>
     {{else}}
       <p class="hint">{{t "Nobody's registered yet — be the first!"}}</p>
     {{end}}
@@ -67,28 +68,34 @@
   <div class="card card--narrow-lg" id="register-card">
     <h3>{{t "Register"}}</h3>
     {{/* Still a plain POST form (works without JS); the script below
-         sends it with fetch so a refused registration ("username taken")
+         sends it with fetch so a refused registration ("email taken")
          shows here instead of replacing the page and losing what was
          typed. */}}
     <form method="post" action="/events/{{.Event.ID}}/register" class="form-stack" id="register-form">
       {{if not .Me}}
       <p class="hint">{{t "Registering also creates your account."}}</p>
-      <div class="field">
-        <label for="reg-username">{{t "Username"}}</label>
-        <p class="field-hint" id="reg-username-hint">{{t "What you'll log in with."}}</p>
-        <input type="text" id="reg-username" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="reg-username-hint">
-      </div>
       <div class="field"><label for="reg-display-name">{{t "Your name"}}</label><input type="text" id="reg-display-name" name="display_name" required autocomplete="name"></div>
       <div class="field">
-        <label for="reg-email">{{t "Email"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <input type="email" id="reg-email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+        <label for="reg-email">{{t "Email"}}</label>
+        <p class="field-hint" id="reg-email-hint">{{t "What you'll log in with."}}</p>
+        <input type="email" id="reg-email" name="email" required autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="reg-email-hint">
+      </div>
+      {{/* Required, as on every way in (password_rule.go): no login
+           email is sent yet. */}}
+      <div class="field">
+        <label for="reg-password">{{t "Password"}}</label>
+        <p class="field-hint" id="reg-password-hint">{{t "At least 8 characters."}}</p>
+        <div class="pw-field">
+          <input type="password" id="reg-password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="reg-password-hint" required minlength="8">
+          <button type="button" class="pw-toggle" aria-controls="reg-password reg-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "passwords"}}</span></button>
+        </div>
       </div>
       <div class="field">
-        <label for="reg-password">{{t "Password"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <p class="field-hint" id="reg-password-hint">{{t "Leave it empty to log in with a link sent to your email instead."}}</p>
-        <input type="password" id="reg-password" name="password" autocomplete="new-password" aria-describedby="reg-password-hint">
+        <label for="reg-confirm">{{t "Password again"}}</label>
+        <input type="password" id="reg-confirm" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="reg-password" required minlength="8">
       </div>
       {{end}}
+      {{if .Playing}}{{template "event-plays-fields" .}}{{end}}
       {{if and (not .AlreadyRegistered) .MyBands}}
       <div class="field">
         <label for="reg-band">{{t "Registering as"}}</label>
@@ -101,9 +108,26 @@
       <div class="form-actions"><button type="submit" class="primary">{{t "Register"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
+    {{if not .Me}}
+    {{/* An account already: log in (password or emailed link), then
+         back here to register as themselves (pendingJoinCookie). */}}
+    <form method="get" action="/events/{{.Event.ID}}/login" class="form-stack">
+      <p class="hint">{{if .LoginEmails}}{{t "Already have an account? Log in with your email, by password or a link we send you, then register."}}{{else}}{{t "Already have an account? Log in with your email and password, then register."}}{{end}}</p>
+      <div class="form-actions form-actions--start"><button type="submit">{{t "Log in to register"}}</button></div>
+    </form>
+    {{end}}
   </div>
   {{else}}
   <p class="hint">{{t "You're registered for this event."}}</p>
+  {{if .Playing}}
+  <div class="card card--narrow-lg">
+    <h3>{{t "What you'll play"}}</h3>
+    <form method="post" action="/events/{{.Event.ID}}/instruments" class="form-stack">
+      {{template "event-plays-fields" .}}
+      <div class="form-actions"><button type="submit" class="primary">{{t "Save"}}</button></div>
+    </form>
+  </div>
+  {{end}}
   {{end}}
 
   {{if .Event.SetlistID}}
@@ -115,7 +139,7 @@
          is true, which would otherwise make it impossible to pick a
          band when claiming a song after already registering. */}}
     {{if .MyBands}}
-    <div class="field" style="max-width:320px; display:flex; flex-direction:column; gap:0.3rem;">
+    <div class="field field--short event-play-as">
       <label for="song-reg-band">{{t "Playing as"}}</label>
       <select id="song-reg-band">
         <option value="">{{t "Just me"}}</option>
@@ -144,9 +168,10 @@
   {{end}}
   {{end}}
 </main>
+<script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
-// The handler's own refusals ("that username is already taken — try
-// another") are written for people; a 500's text isn't.
+// The handler's own refusals ("that email is already registered to
+// another account") are written for people; a 500's text isn't.
 function errText(res, data, fallback) {
   const msg = res && res.status < 500 && data && data.error;
   return msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback;
@@ -158,7 +183,11 @@ registerForm?.addEventListener('submit', (e) => {
     const res = await fetch(registerForm.action, {method: 'POST', body: new URLSearchParams(new FormData(registerForm))}).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
     // Success is the handler's redirect back to this page, now registered.
     if (res.ok) { location.reload(); return; }
+    if (res.status === 409) throw new Error(t('That email already has an account. Use “Log in to register” below instead.'));
     const data = await res.json().catch(() => ({}));
+    // A refusal about one field goes under that field.
+    const field = res.status === 400 && newAccountFieldError(data.error || '', {email: 'reg-email', password: 'reg-password', confirm: 'reg-confirm'});
+    if (field) return;
     throw new Error(errText(res, data, t('Couldn’t register you. Try again.')));
   });
 });
@@ -183,8 +212,31 @@ document.querySelectorAll('.event-song-register-btn').forEach(btn => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
+{{end}}
+
+{{/* What someone will play at a jam: the common instruments and their
+     own (ticked when on their profile, or already said for this event),
+     and any other from a list. Goes on their profile too
+     (httpapi/instruments.go, saveEventPlays). */}}
+{{define "event-plays-fields"}}
+<input type="hidden" name="plays" value="1">
+<fieldset class="field-group">
+  <legend{{if .AlreadyRegistered}} class="sr-only"{{end}}>{{t "What you'll play"}} <span class="field-optional">{{t "(optional)"}}</span></legend>
+  <div class="event-plays-choices">
+  {{range .PlayChoices}}
+  <label class="check"><input type="checkbox" name="instrument" value="{{.}}"{{if index $.MyPlays .}} checked{{end}}> {{instrumentName .}}</label>
+  {{end}}
+  </div>
+</fieldset>
+<div class="field">
+  <label for="reg-instrument-more">{{t "Another instrument"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+  <select id="reg-instrument-more" name="instrument_more">
+    <option value=""></option>
+    {{range instrumentChoices}}{{if and (ne .ID "other") (not (index $.PlayChoiceSet .ID))}}<option value="{{.ID}}">{{instrumentName .ID}}</option>{{end}}{{end}}
+  </select>
+</div>
 {{end}}

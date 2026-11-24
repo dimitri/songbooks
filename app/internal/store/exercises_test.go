@@ -9,8 +9,8 @@ import (
 func TestExercises(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
-	emma, _ := st.CreatePerson(ctx, "emma", "Emma", "emma@example.com")
+	coach, _ := st.CreatePerson(ctx, "Coach", "coach@example.com")
+	emma, _ := st.CreatePerson(ctx, "Emma", "emma@example.com")
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	if err != nil {
 		t.Fatal(err)

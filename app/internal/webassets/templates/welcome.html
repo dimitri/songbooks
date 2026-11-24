@@ -14,7 +14,6 @@
 <header class="app-header">
   {{template "home-link"}}
   <h1>{{t "Getting started"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <div class="card book-card wizard-card">
@@ -30,10 +29,10 @@
 
     {{if eq .Step 1}}
     <h2>{{t "Welcome to Songbooks"}}</h2>
-    <p>{{t "Chord charts, lyrics, your bands' repertoires, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs."}}</p>
+    <p>{{t "Chord charts, lyrics, your bands' songbooks, and setlists for the gig — all in one place. A few quick steps to set your profile up: a passkey, your instrument, a band (or not), a few first songs."}}</p>
     <div class="wizard-actions">
       <a class="primary" href="/welcome?step=2{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Let's go"}}</a>
-      <form method="post" action="/welcome/finish" style="display:inline">
+      <form method="post" action="/welcome/finish" class="button-form">
         {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
         <button type="submit" class="link-btn">{{t "Skip setup"}}</button>
       </form>
@@ -58,6 +57,10 @@
     {{if .AlreadyDone}}<p class="hint">{{t "Already set — pick again any time, or just move on."}}</p>{{end}}
     <form method="post" action="/profile/instruments" class="form-stack">
       <input type="hidden" name="next" value="/welcome?step=4{{if .Next}}&amp;next={{.Next}}{{end}}">
+      {{/* "had": the icons ticked when the page was drawn. Only those the
+           person unticks come off (handleUpdateInstruments); everything
+           else on the profile stays. */}}
+      {{range .CommonInstruments}}{{if index $.Checked .}}<input type="hidden" name="had" value="{{.}}">{{end}}{{end}}
       {{/* sr-only, not display:none, so each icon is still a checkbox a
            keyboard can reach (the label shows its focus ring). */}}
       <fieldset class="field-group">
@@ -67,15 +70,16 @@
           <label class="instrument-icon-btn{{if index $.Checked .}} active{{end}}">
             <input type="checkbox" name="instrument" value="{{.}}"{{if index $.Checked .}} checked{{end}} class="sr-only">
             {{template "instrument-icon" .}}
-            <span class="instrument-icon-label">{{t .}}</span>
+            <span class="instrument-icon-label">{{instrumentName .}}</span>
           </label>
           {{end}}
         </div>
       </fieldset>
+      {{if .AlsoPlays}}<p class="hint">{{t "Also on your profile: %s." .AlsoPlays}} <a href="/profile#instruments">{{t "Change them on your profile"}}</a></p>{{end}}
       <div class="field">
         <label for="wizard-other-instruments">{{t "Other instruments"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <p class="field-hint" id="wizard-other-instruments-hint">{{t "Separate them with commas, e.g. keyboard, sax."}}</p>
-        <input id="wizard-other-instruments" type="text" name="other" value="{{.Other}}" aria-describedby="wizard-other-instruments-hint">
+        <p class="field-hint" id="wizard-other-instruments-hint">{{t "Separate them with commas, e.g. sax, ukulele."}}</p>
+        <input id="wizard-other-instruments" type="text" name="other" value="" aria-describedby="wizard-other-instruments-hint">
       </div>
       <div class="wizard-actions">
         <button type="submit" class="primary">{{t "Continue"}}</button>
@@ -119,7 +123,7 @@
     {{if .MyCatalogCount}}
     <p class="hint">{{tn .MyCatalogCount "You already have %d song in" "You already have %d songs in"}} <a href="/songbooks/mine">{{t "your songbook"}}</a>. {{t "Add a few more below, or move on."}}</p>
     {{else}}
-    <p class="hint">{{t "Pick a couple from the global catalog to start your own songbook — one tap, it's yours to edit."}}</p>
+    <p class="hint">{{t "Pick a couple to start your songbook: one tap adds a song as it is, in your own key; make your own arrangement of it any time."}}</p>
     {{end}}
     <div class="wizard-pick-grid">
       {{range .Picks}}
@@ -130,6 +134,9 @@
       </div>
       {{end}}
     </div>
+    {{/* Anything else, or a song of their own: the one Add / Create
+         dialog (add-song.js), on their songbook. */}}
+    <p class="wizard-find"><button type="button" data-add-song="{{.MySongbookID}}">{{template "icon-plus"}} {{t "Find another song, or create one…"}}</button></p>
     <div class="wizard-actions">
       <a class="primary" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Continue"}}</a>
       <a class="link-btn" href="/welcome?step=6{{if .Next}}&amp;next={{.Next}}{{end}}">{{t "Skip this step"}}</a>
@@ -224,6 +231,8 @@
     cb.addEventListener('change', () => cb.closest('.instrument-icon-btn').classList.toggle('active', cb.checked));
   });
   // Each pick says what happened on its own card: "Added", or why not.
+  // Added: a link in the person's songbook (docs/ownership-model.md §4).
+  const mySongbookId = {{or .MySongbookID 0}};
   document.querySelectorAll('.wizard-pick-add').forEach(b => {
     const card = b.closest('.wizard-pick');
     const text = b.querySelector('.wizard-pick-add-text');
@@ -232,7 +241,10 @@
       Forms.busy(b, true);
       let ok = false;
       try {
-        ok = (await fetch(`/api/variants/${card.dataset.variantId}/fork`, {method: 'POST'})).ok;
+        ok = (await fetch(`/api/songbooks/${mySongbookId}/entries`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({variantId: Number(card.dataset.variantId)}),
+        })).ok;
       } catch (e) {}
       Forms.busy(b, false);
       if (ok) {
@@ -246,9 +258,10 @@
   });
 })();
 </script>
+{{if eq .Step 5}}<script src="/static/js/add-song.js?v={{staticVersion}}"></script>{{end}}
 {{template "pwa-register"}}
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>

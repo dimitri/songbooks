@@ -17,7 +17,7 @@ type CommunitySubmission struct {
 	ID                 int64
 	CommunityID           int64
 	StudentPersonID    int64
-	StudentUsername    string
+	StudentName        string // the student's display name
 	Kind               string // "new_song" or "edit"
 	SourceVariantID    *int64
 	SourceTitle        string
@@ -28,7 +28,7 @@ type CommunitySubmission struct {
 	CreatedAt          time.Time
 	DecidedAt          *time.Time
 	DecidedByPersonID  *int64
-	DecidedByUsername  string
+	DecidedByName      string
 }
 
 // ErrAlreadyDecided (reused from band_proposals.go — same package, same
@@ -79,9 +79,9 @@ func (st *Store) CreateCommunitySubmission(ctx context.Context, communityID, stu
 // submissionCols/submissionJoins is ListCommunitySubmissions/
 // GetCommunitySubmission's shared SELECT shape.
 const submissionCols = `
-	sub.id, sub.community_id, sub.student_person_id, stu.username, sub.kind::text, sub.source_variant_id,
+	sub.id, sub.community_id, sub.student_person_id, stu.display_name, sub.kind::text, sub.source_variant_id,
 	coalesce(src.title, ''), sub.submitted_variant_id, coalesce(sv.title, ''),
-	sub.note, sub.status::text, sub.created_at, sub.decided_at, sub.decided_by_person_id, coalesce(dp.username, '')`
+	sub.note, sub.status::text, sub.created_at, sub.decided_at, sub.decided_by_person_id, coalesce(dp.display_name, '')`
 const submissionJoins = `
 	FROM community_submissions sub
 	JOIN people stu ON stu.id = sub.student_person_id
@@ -91,9 +91,9 @@ const submissionJoins = `
 
 func scanSubmission(row pgx.Row) (*CommunitySubmission, error) {
 	var s CommunitySubmission
-	err := row.Scan(&s.ID, &s.CommunityID, &s.StudentPersonID, &s.StudentUsername, &s.Kind, &s.SourceVariantID,
+	err := row.Scan(&s.ID, &s.CommunityID, &s.StudentPersonID, &s.StudentName, &s.Kind, &s.SourceVariantID,
 		&s.SourceTitle, &s.SubmittedVariantID, &s.SubmittedTitle,
-		&s.Note, &s.Status, &s.CreatedAt, &s.DecidedAt, &s.DecidedByPersonID, &s.DecidedByUsername)
+		&s.Note, &s.Status, &s.CreatedAt, &s.DecidedAt, &s.DecidedByPersonID, &s.DecidedByName)
 	if err != nil {
 		return nil, err
 	}

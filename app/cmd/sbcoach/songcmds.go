@@ -28,24 +28,25 @@ import (
 // check is read-only and takes a whole songbook too: what each song
 // needs (songimport.Assess).
 const songUsage = `
-  sbcoach add --db URL (--community ID | --band ID | --person USER) --actor USER --title T --artist A
+  sbcoach add --db URL (--community ID | --band ID | --person PERSON) --actor PERSON --title T --artist A
               [--clip URL] [--chart FILE | --vocal] [--ireal] [--lyrics ug|url|text [--input X]]
-              [--student USER] [--wait 20m]
-  sbcoach sync   --db URL --song ID [--actor USER] [--overwrite] [--dry-run]
-  sbcoach lyrics --db URL --song ID --actor USER [--source ug|url|text|own] [--input X] [--replace] [--dry-run]
-  sbcoach ireal  --db URL --song ID --actor USER [--all] [--dry-run]
+              [--student PERSON] [--wait 20m]
+  sbcoach sync   --db URL --song ID [--actor PERSON] [--overwrite] [--dry-run]
+  sbcoach lyrics --db URL --song ID --actor PERSON [--source ug|url|text|own] [--input X] [--replace] [--dry-run]
+  sbcoach ireal  --db URL --song ID --actor PERSON [--all] [--dry-run]
   sbcoach key    --db URL --song ID
   sbcoach check  --db URL (--song ID | --songbook ID)
-  sbcoach rebuild --db URL (--song ID | --songbook ID) --actor USER [--no-clip] [--dry-run] [--pause 20s]
-  sbcoach relyric --db URL (--song ID | --songbook ID) --actor USER [--dry-run]
-  sbcoach tidy   --db URL (--song ID | --songbook ID) --actor USER [--dry-run]`
+  sbcoach rebuild --db URL (--song ID | --songbook ID) --actor PERSON [--no-clip] [--dry-run] [--pause 20s]
+  sbcoach relyric --db URL (--song ID | --songbook ID) --actor PERSON [--dry-run]
+  sbcoach tidy   --db URL (--song ID | --songbook ID) --actor PERSON [--dry-run]
+  (PERSON: an email or a numeric id)`
 
 var songCommands = map[string]bool{"add": true, "sync": true, "lyrics": true, "ireal": true, "key": true, "check": true, "rebuild": true, "relyric": true, "tidy": true}
 
 func runSongCommand(cmd string, args []string) {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	dbURL := fs.String("db", os.Getenv("DATABASE_URL"), "database connection string")
-	actorName := fs.String("actor", "", "username doing it")
+	actorName := fs.String("actor", "", "who's doing it: an email or a person id")
 	communityID := fs.Int64("community", 0, "add: into this community's songbook")
 	bandID := fs.Int64("band", 0, "add: into this band's songbook")
 	personName := fs.String("person", "", "add: into this person's songbook")
@@ -78,7 +79,7 @@ func runSongCommand(cmd string, args []string) {
 	defer st.Close()
 	actor := int64(0)
 	if *actorName != "" {
-		p, err := st.GetPersonByUsername(ctx, *actorName)
+		p, err := st.FindPerson(ctx, *actorName)
 		if err != nil {
 			log.Fatalf("%s: %v", *actorName, err)
 		}
@@ -361,7 +362,7 @@ func createSong(ctx context.Context, st *store.Store, communityID, bandID int64,
 			log.Fatal(err)
 		}
 		if student != "" {
-			sp, err := st.GetPersonByUsername(ctx, student)
+			sp, err := st.FindPerson(ctx, student)
 			if err != nil {
 				log.Fatalf("%s: %v", student, err)
 			}
@@ -381,7 +382,7 @@ func createSong(ctx context.Context, st *store.Store, communityID, bandID int64,
 		}
 		return id
 	default:
-		p, err := st.GetPersonByUsername(ctx, personName)
+		p, err := st.FindPerson(ctx, personName)
 		if err != nil {
 			log.Fatalf("%s: %v", personName, err)
 		}

@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{t "%s — repertoire" .Band.Name}}</title>
+<title>{{template "space-title" .Space}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -14,23 +14,28 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/bands/{{.Band.ID}}">{{template "icon-back"}} {{.Band.Name}}</a>
-  <h1>{{t "%s — repertoire" .Band.Name}}</h1>
-  <nav class="song-nav">
-    {{template "notif-bell"}}
-  </nav>
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
 </header>
 <main class="index">
-  {{template "band-tabs" (bandTabs .Band.ID "catalog")}}
+  {{template "space-nav" .Space}}
 
+  {{/* The head of the list: its views (Songs, To vote, Discover) as
+       chips, the search, then what to do with the songbook — play it,
+       add to it, print it (menu proposal §3.6: views apart from
+       actions). */}}
+  <div class="songbook-head">
+    {{template "space-views" .Space}}
+    {{if .Entries}}<input type="search" id="repertoire-search" placeholder="{{t "Search this songbook…"}}" aria-label="{{t "Search this songbook"}}" enterkeyhint="search">{{end}}
+    <div class="setlist-actions songbook-actions">
+      {{if .Entries}}{{template "space-playlist" .Export}}{{end}}
+      <button type="button" id="open-add-song" class="setlist-action" data-add-song="{{.SongbookID}}">{{template "icon-plus"}} {{t "Add song"}}</button>
+      {{if .Entries}}{{template "space-export" .Export}}{{end}}
+    </div>
+  </div>
   {{if not .Entries}}
   <div class="attention-empty" style="border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:1.2rem; font-size:0.95rem;">
-    {{t "This band’s repertoire is empty — songs don’t appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty">{{t "Add your first song"}}</button> {{t "repertoire|to get started."}}
-  </div>
-  {{else}}
-  <div class="repertoire-toolbar">
-    <input type="search" id="repertoire-search" placeholder="{{t "Search this repertoire…"}}" aria-label="{{t "Search this repertoire"}}" enterkeyhint="search">
-    <button type="button" id="open-add-song">{{template "icon-plus"}} {{t "Add song"}}</button>
+    {{t "This songbook is empty."}} {{t "Songs don't appear here automatically."}} <button type="button" class="link-button" id="open-add-song-empty" data-add-song="{{.SongbookID}}">{{t "Add your first song"}}</button> {{t "to get started."}}
   </div>
   {{end}}
 
@@ -47,15 +52,16 @@
   {{range .Entries}}
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
+        {{template "row-voice" .Voice}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
         <summary aria-label="{{t "More for %s" .Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+          <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
           <p class="hint">{{t (printf "visibility|%s" .Visibility)}}</p>
@@ -70,19 +76,20 @@
   {{range .Entries}}
     <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-        {{.Title}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
+        {{template "row-voice" .Voice}}
       </a>
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
         <summary aria-label="{{t "More for %s" .Title}}">{{template "icon-more"}}</summary>
         <div class="row-menu-panel">
-          <a href="/works/{{.WorkID}}">{{t "All versions"}}</a>
+          <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
-          <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByUsername}}</p>
-          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove from repertoire"}}</button>
+          <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByName}}</p>
+          <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove from the songbook"}}</button>
           <p class="form-status" role="status"></p>
         </div>
       </details>
@@ -92,179 +99,15 @@
   {{end}}
   <p class="hint repertoire-empty-filtered" id="repertoire-empty-filtered">{{t "No songs match that search."}}</p>
 
-  <dialog id="add-song-dialog">
-    <h2>{{t "Add a song"}}</h2>
-    <p class="hint">{{t "Write a new song, or bring one in from the catalog: as it is, or as the band’s own copy that any member can edit."}}</p>
-    <div class="add-song-tabs">
-      <button type="button" class="add-song-tab active" data-panel="write">{{t "Write new"}}</button>
-      <button type="button" class="add-song-tab" data-panel="catalog">{{t "From the catalog"}}</button>
-    </div>
-
-    <div class="add-song-panel" data-panel="write">
-      <p class="hint">{{t "A blank song, private to the band."}}</p>
-      <form class="form-stack" id="new-variant-form">
-        <div class="field">
-          <label for="new-variant-title">{{t "Title"}}</label>
-          <input type="text" id="new-variant-title" autocomplete="off" required>
-        </div>
-        <div class="field">
-          <label for="new-variant-artist">{{t "Artist"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-          <input type="text" id="new-variant-artist" autocomplete="off">
-        </div>
-        {{/* "Already in the library" list, see library-match.js. */}}
-        <div id="new-variant-library-match"></div>
-        <div class="form-actions">
-          <button type="submit" id="new-variant-btn" class="primary">{{t "Create song"}}</button>
-        </div>
-        <p id="new-variant-result" class="form-status" role="status"></p>
-      </form>
-    </div>
-
-    <div class="add-song-panel" data-panel="catalog" hidden>
-      <p class="hint">{{t "“Add” links to the song as it is. “Add a copy” gives the band its own version that any member can edit."}}</p>
-      <form class="field" id="catalog-search-form" role="search">
-        <label for="catalog-search-input">{{t "Find a song in the catalog"}}</label>
-        <input type="search" id="catalog-search-input" placeholder="{{t "e.g. a title or an artist"}}" autocomplete="off" enterkeyhint="search">
-      </form>
-      <div id="catalog-search-results" class="attention-list" aria-live="polite"></div>
-      <p id="add-result" class="form-status" role="status"></p>
-    </div>
-
-    <div class="form-actions" style="margin-top:1rem;">
-      <button type="button" id="close-add-song">{{t "Close"}}</button>
-    </div>
-  </dialog>
 </main>
-<script src="/static/js/library-match.js?v={{staticVersion}}"></script>
+{{/* "Add song": the one Add / Create dialog (add-song.js), on the
+     band's songbook. */}}
+<script src="/static/js/add-song.js?v={{staticVersion}}"></script>
 <script>
 const bandId = {{.Band.ID}};
-// As the title is typed, songs already in the library with that title,
-// each with one button that adds it to the repertoire instead of
-// writing a duplicate. "None of these" creates the new song.
-const bandLibrary = window.LibraryMatch ? LibraryMatch.attach({
-  title: document.getElementById('new-variant-title'),
-  artist: document.getElementById('new-variant-artist'),
-  host: document.getElementById('new-variant-library-match'),
-  addLabel: t('Add to the repertoire'),
-  add: async (hit) => {
-    const res = await fetch(`/api/bands/${bandId}/catalog`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({variantId: hit.variantId}),
-    }).catch(() => null);
-    if (!res || !res.ok) throw new Error(t('Couldn’t add “%s” to the repertoire. Try again.', hit.title));
-    location.href = `/song/${hit.variantId}?band=${bandId}`;
-  },
-  isInList: (id) => !!document.querySelector(`[data-repertoire-list] [data-variant-id="${id}"]`),
-  openHref: (hit) => `/song/${hit.variantId}?band=${bandId}`,
-  onNone: () => document.getElementById('new-variant-form').requestSubmit(),
-}) : null;
-document.getElementById('new-variant-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = e.target;
-  // Pressed Create before the list had a chance to show: show it first.
-  if (bandLibrary && !(await bandLibrary.guard())) return;
-  const title = document.getElementById('new-variant-title').value.trim();
-  const artist = document.getElementById('new-variant-artist').value.trim();
-  Forms.run(form, document.getElementById('new-variant-btn'), async () => {
-    const res = await fetch(`/api/bands/${bandId}/variants`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({title, artist}),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(t('Couldn’t create “%s”. Try again.', title));
-    // Straight into edit mode, not the Play page — a brand-new original
-    // has an empty [Verse] placeholder and nothing to play yet.
-    location.href = `/song/${data.variantId}?edit=1`;
-  });
-});
-// ---- "From the catalog": search-as-you-type over /api/catalog/search,
-// replacing the old "paste a variant id you found on another page"
-// flow — add points at the variant as-is, fork makes this band's own
-// copy, same two actions the old by-id form offered. ----
-(function () {
-  const input = document.getElementById('catalog-search-input');
-  const results = document.getElementById('catalog-search-results');
-  const resultMsg = document.getElementById('add-result');
-  if (!input) return;
-  let debounceTimer;
-
-  async function doAdd(hit, fork, btn) {
-    const url = fork ? `/api/bands/${bandId}/catalog/fork/${hit.variantId}` : `/api/bands/${bandId}/catalog`;
-    const opts = fork
-      ? {method: 'POST'}
-      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({variantId: hit.variantId})};
-    Forms.status(resultMsg, '');
-    Forms.busy(btn, true);
-    const res = await fetch(url, opts).catch(() => null);
-    if (res && res.ok) { location.reload(); return; }
-    Forms.busy(btn, false);
-    Forms.status(resultMsg, t('Couldn’t add “%s”. It may already be in the repertoire; if not, try again.', hit.title), 'error');
-  }
-
-  async function search() {
-    const q = input.value.trim();
-    results.innerHTML = '';
-    if (!q) return;
-    const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).catch(() => null);
-    const hits = res && res.ok ? await res.json().catch(() => []) : null;
-    if (!hits) {
-      results.innerHTML = '<p class="hint">' + t('Couldn’t search the catalog. Try again.') + '</p>';
-      return;
-    }
-    if (!hits.length) {
-      results.innerHTML = '<p class="hint">' + t('No songs match that.') + '</p>';
-      return;
-    }
-    for (const hit of hits) {
-      const row = document.createElement('div');
-      row.className = 'attention-row';
-      // Titles and artists go in as text, never as markup.
-      const text = document.createElement('div');
-      const title = document.createElement('div');
-      title.className = 'attention-title';
-      title.textContent = hit.title;
-      text.appendChild(title);
-      if (hit.artist) {
-        const artist = document.createElement('div');
-        artist.className = 'attention-subtitle';
-        artist.textContent = hit.artist;
-        text.appendChild(artist);
-      }
-      row.appendChild(text);
-      const actions = document.createElement('span');
-      actions.style.marginLeft = 'auto';
-      actions.style.display = 'flex';
-      actions.style.gap = '0.4rem';
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.textContent = t('Add');
-      addBtn.setAttribute('aria-label', t('Add %s', hit.title));
-      addBtn.addEventListener('click', () => doAdd(hit, false, addBtn));
-      const forkBtn = document.createElement('button');
-      forkBtn.type = 'button';
-      forkBtn.textContent = t('Add a copy');
-      forkBtn.setAttribute('aria-label', t('Add a copy of %s', hit.title));
-      forkBtn.addEventListener('click', () => doAdd(hit, true, forkBtn));
-      actions.append(addBtn, forkBtn);
-      row.appendChild(actions);
-      results.appendChild(row);
-    }
-  }
-
-  // Enter searches straight away rather than waiting out the debounce.
-  document.getElementById('catalog-search-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    clearTimeout(debounceTimer);
-    search();
-  });
-  input.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(search, 250);
-  });
-})();
 document.querySelectorAll('.remove-entry-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm(t('Remove “%s” from the band’s repertoire?', btn.dataset.title))) return;
+    if (!confirm(t('Remove “%s” from the band’s songbook?', btn.dataset.title))) return;
     Forms.busy(btn, true);
     const res = await fetch(`/api/bands/${bandId}/catalog/${btn.dataset.variantId}`, {method: 'DELETE'}).catch(() => null);
     if (res && res.ok) { btn.closest('.gig-row').remove(); return; }
@@ -272,22 +115,6 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
     Forms.status(btn.parentElement.querySelector('.form-status'), t('Couldn’t remove it. Try again.'), 'error');
   });
 });
-
-// ---- "+ Add song" dialog: three alternative methods as tabs, not a
-// linear wizard — opened from either the toolbar or the empty state. ----
-(function () {
-  const dialog = document.getElementById('add-song-dialog');
-  if (!dialog) return;
-  document.getElementById('open-add-song')?.addEventListener('click', () => dialog.showModal());
-  document.getElementById('open-add-song-empty')?.addEventListener('click', () => dialog.showModal());
-  document.getElementById('close-add-song')?.addEventListener('click', () => dialog.close());
-  dialog.querySelectorAll('.add-song-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      dialog.querySelectorAll('.add-song-tab').forEach(el => el.classList.toggle('active', el === tab));
-      dialog.querySelectorAll('.add-song-panel').forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.panel; });
-    });
-  });
-})();
 
 // ---- Live search over the already-rendered list — a repertoire is
 // small enough to filter client-side, no round trip, instant as you
@@ -317,10 +144,10 @@ document.querySelectorAll('.remove-entry-btn').forEach(btn => {
 })();
 </script>
 <script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+<script src="/static/js/row-range.js?v={{staticVersion}}" defer></script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
-{{template "desktop-sidebar-script"}}
 </body>
 </html>
 {{end}}

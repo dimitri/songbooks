@@ -1,0 +1,135 @@
+{{/* The community's open invite links, on its admin page under "Pending
+     invites", after the people invited by name and in the same rows, for
+     whoever may make and close them (manage_members): the role links
+     ("Community link or QR code", handleCreateCommunityLink) and the
+     links with names ("Group invite link"). Each says whether it's a
+     role's link or one with names, its role, who made it and when, who
+     joined with it and, for a link with names, who it's still waiting
+     for; with Copy link, QR code and Close link (the link itself shows
+     nowhere: Copy and QR code carry it). The admin page's scripts
+     announce a link they make with an "invite-link-made" event (detail:
+     id, url, named, role, roleKey, roleLabel, waiting names; label, the
+     older one-line title, still read when there's no role), and one
+     they close with "invite-link-closed" (detail: id). Its markup and
+     script stay in this one block. Needs qr.js on the page. */}}
+{{define "community-pending-links"}}
+{{if .CanManageMembers}}
+<section class="invite-group" id="community-open-links" data-community-id="{{.Community.ID}}" aria-labelledby="open-links-title">
+  <h4 class="invite-group-title" id="open-links-title">{{t "Open invite links"}} <span class="count" data-open-links-count>{{len .OpenLinks}}</span></h4>
+  <ul class="roster-list invite-list open-link-list">
+  {{range .OpenLinks}}
+    <li class="roster-row invite-row open-link-row" data-id="{{.ID}}" data-url="/join/{{.Token}}">
+      <span class="invite-icon" aria-hidden="true">{{template "icon-link"}}</span>
+      <div class="invite-main">
+        <div class="invite-name"><strong class="open-link-title" id="open-link-{{.ID}}">{{if .Named}}{{t "Link with names"}}{{else}}{{t "Open link"}}{{end}}</strong> <span class="member-role{{if .RoleKey}} is-{{.RoleKey}}{{end}}">{{t .RoleLabel}}</span></div>
+        <p class="invite-meta">{{if .CreatedByName}}{{t "made by %s · %s" .CreatedByName (date .CreatedAt .DateLayout)}}{{else}}{{t "made %s" (date .CreatedAt .DateLayout)}}{{end}}</p>
+        <p class="invite-meta open-link-joined">{{with .Joined}}{{t "Joined with it:"}} {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}{{t "Nobody has joined with it yet."}}{{end}}</p>
+        {{with .Waiting}}<p class="invite-meta open-link-waiting">{{t "Still waiting for:"}} {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}</p>{{end}}
+      </div>
+      <div class="invite-actions">
+        <button type="button" class="open-link-copy" aria-describedby="open-link-{{.ID}}">{{t "Copy link"}}</button>
+        <button type="button" class="open-link-qr" aria-describedby="open-link-{{.ID}}">{{t "QR code"}}</button>
+        <button type="button" class="open-link-close danger" aria-describedby="open-link-{{.ID}}">{{t "Close link"}}</button>
+      </div>
+    </li>
+  {{end}}
+  </ul>
+  <p class="invite-empty open-links-empty"{{if .OpenLinks}} hidden{{end}}>{{t "No open link right now."}} <a href="#joining">{{t "Make one under Joining and invites"}}</a></p>
+  <template id="open-link-row-tpl">
+    <li class="roster-row invite-row open-link-row">
+      <span class="invite-icon" aria-hidden="true">{{template "icon-link"}}</span>
+      <div class="invite-main">
+        <div class="invite-name"><strong class="open-link-title"></strong> <span class="member-role" hidden></span></div>
+        <p class="invite-meta">{{t "made just now"}}</p>
+        <p class="invite-meta open-link-joined">{{t "Nobody has joined with it yet."}}</p>
+        <p class="invite-meta open-link-waiting" hidden><span>{{t "Still waiting for:"}} <span class="open-link-waiting-names"></span></span></p>
+      </div>
+      <div class="invite-actions">
+        <button type="button" class="open-link-copy">{{t "Copy link"}}</button>
+        <button type="button" class="open-link-qr">{{t "QR code"}}</button>
+        <button type="button" class="open-link-close danger">{{t "Close link"}}</button>
+      </div>
+    </li>
+  </template>
+  <p class="form-status open-link-status" role="status"></p>
+  <script>
+  (function () {
+    const group = document.getElementById('community-open-links');
+    const list = group.querySelector('.open-link-list');
+    const empty = group.querySelector('.open-links-empty');
+    const count = group.querySelector('[data-open-links-count]');
+    const statusEl = group.querySelector('.open-link-status');
+    const say = (msg, kind) => Forms.status(statusEl, msg, kind);
+    const sync = () => {
+      const n = list.querySelectorAll('.open-link-row').length;
+      empty.hidden = n > 0;
+      list.hidden = n === 0;
+      count.textContent = n;
+    };
+    // No clipboard (a plain-http page, a refused permission): show the
+    // link to copy by hand instead.
+    const copy = (url) => navigator.clipboard
+      ? navigator.clipboard.writeText(url).then(() => true, () => false)
+      : Promise.resolve(false);
+    function wire(row) {
+      const url = () => location.origin + row.dataset.url;
+      const copyBtn = row.querySelector('.open-link-copy');
+      copyBtn.addEventListener('click', async () => {
+        const was = copyBtn.textContent;
+        if (await copy(url())) {
+          copyBtn.textContent = t('Copied');
+          setTimeout(() => { copyBtn.textContent = was; }, 1500);
+        } else {
+          window.prompt(t('Copy this link:'), url());
+        }
+      });
+      row.querySelector('.open-link-qr').addEventListener('click', () => showQR(url()));
+      const closeBtn = row.querySelector('.open-link-close');
+      closeBtn.addEventListener('click', async () => {
+        if (!confirm(t('Close this link? Nobody new can join with it; those who already did stay in the community.'))) return;
+        Forms.busy(closeBtn, true);
+        const res = await fetch(`/api/communities/${group.dataset.communityId}/group-invites/${row.dataset.id}/close`, {method: 'POST'}).catch(() => null);
+        Forms.busy(closeBtn, false);
+        if (!res || !res.ok) { say(t('Couldn’t close the link. Try again.'), 'error'); return; }
+        row.remove();
+        sync();
+        say(t('Link closed.'), 'ok');
+      });
+    }
+    list.querySelectorAll('.open-link-row').forEach(wire);
+    sync();
+    document.addEventListener('invite-link-made', (e) => {
+      const d = e.detail;
+      if (list.querySelector(`.open-link-row[data-id="${d.id}"]`)) return;
+      const row = document.getElementById('open-link-row-tpl').content.firstElementChild.cloneNode(true);
+      row.dataset.id = d.id;
+      row.dataset.url = d.url;
+      const title = row.querySelector('.open-link-title');
+      title.id = 'open-link-' + d.id;
+      row.querySelectorAll('.invite-actions button').forEach((b) => b.setAttribute('aria-describedby', title.id));
+      if (d.role) {
+        title.textContent = d.named ? t('Link with names') : t('Open link');
+        const chip = row.querySelector('.member-role');
+        chip.textContent = d.roleLabel || d.role;
+        if (d.roleKey) chip.classList.add('is-' + d.roleKey);
+        chip.hidden = false;
+      } else {
+        title.textContent = d.label;
+      }
+      if (d.waiting && d.waiting.length) {
+        row.querySelector('.open-link-waiting-names').textContent = d.waiting.join(', ');
+        row.querySelector('.open-link-waiting').hidden = false;
+      }
+      list.prepend(row);
+      wire(row);
+      sync();
+    });
+    document.addEventListener('invite-link-closed', (e) => {
+      list.querySelector(`.open-link-row[data-id="${e.detail.id}"]`)?.remove();
+      sync();
+    });
+  })();
+  </script>
+</section>
+{{end}}
+{{end}}

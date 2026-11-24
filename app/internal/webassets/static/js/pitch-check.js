@@ -13,18 +13,32 @@
 (function () {
   if (!window.AudioContext || !navigator.mediaDevices || !window.indexedDB) return;
 
-  // The song page: the recording's voice against the singer.
+  // The song page: the recording's voice against the singer. Opened from
+  // the dock's Pitch option (a row of the dock, over the waveform), which
+  // starts listening; closed again with it.
   function songPage() {
     const root = document.getElementById('audio-player');
     if (!root) return;
     const go = () => {
       const ctx = window.songbooksPracticeContext;
-      create({
-        mount: (panel) => root.after(panel),
+      const btn = document.getElementById('audio-pitch-btn');
+      const dock = document.getElementById('audio-dock');
+      const hasVoice = () => { const c = window.songbooksReferenceClock(); return !!(c && c.category && c.stems.includes('vocals')); };
+      let wanted = false;
+      const checker = create({
+        mount: (panel) => {
+          const wave = dock && dock.querySelector('.audio-waveform-wrap');
+          if (wave) wave.before(panel); else root.after(panel);
+        },
         clock: () => window.songbooksReferenceClock(),
-        visible: () => { const c = window.songbooksReferenceClock(); return !!(c && c.category && c.stems.includes('vocals')); },
+        visible: () => {
+          const ok = hasVoice();
+          if (btn) btn.hidden = !ok;
+          return ok && (wanted || !btn);
+        },
         notesKey: (c) => `${c.variantId}:${c.category}`,
-        loadNotes: async (c, progress) => notesOf(await referenceLine(c, progress)),
+        // the factory's own helpers: the recording's voice, cut into notes
+        loadNotes: async (c, progress, h) => h.notesOf(await h.referenceLine(c, progress)),
         loading: () => t('Listening to the song’s voice…'),
         loadingAt: (pc) => t('Listening to the song’s voice… %d%', pc),
         loadFailed: () => t('Couldn’t read the song’s voice.'),
@@ -36,6 +50,12 @@
           const r = await fetch('/api/practice/pitch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ songbookId: ctx.songbookId, variantId: ctx.variantId }, body)) });
           return r.status === 200 ? r.json() : null;
         } : null,
+      });
+      btn?.addEventListener('click', () => {
+        wanted = !wanted;
+        btn.setAttribute('aria-pressed', String(wanted)); btn.classList.toggle('active', wanted);
+        checker.refresh();
+        if (wanted) checker.start(); else checker.stop();
       });
     };
     // The player sets its clock up as it starts: wait for it.
@@ -51,6 +71,8 @@
   // the notes move), seek(time), loadInfo() and postTake(body) → the
   // progress (or null), info (the progress known already), anyPitch (a
   // rhythm: entries only, any note), and its words (loading, ready…).
+  // toggle: false when the page has its own button for it (start() and
+  // stop() returned; onChange(on) says when it starts or stops).
   function create(opts) {
 
   // ---- Pitch tracking (YIN) ----------------------------------------------
@@ -313,8 +335,11 @@
   panel.innerHTML = `
     <div class="pitch-check-head">
       <button type="button" class="pitch-check-toggle"></button>
-      <span class="pitch-check-levels" role="group"></span>
       <span class="hint pitch-check-status" aria-live="polite"></span>
+    </div>
+    <div class="pitch-check-aim">
+      <span class="pitch-check-objective"></span>
+      <span class="pitch-check-levels"></span>
     </div>
     <div class="pitch-check-goal" hidden></div>
     <canvas class="pitch-check-lane" height="150" hidden></canvas>
@@ -324,33 +349,54 @@
   const $p = (sel) => panel.querySelector(sel);
   const toggle = $p('.pitch-check-toggle'), status = $p('.pitch-check-status'), lane = $p('.pitch-check-lane');
   const result = $p('.pitch-check-result'), goal = $p('.pitch-check-goal'), history = $p('.pitch-check-history'), levels = $p('.pitch-check-levels');
+  const objective = $p('.pitch-check-objective');
   toggle.textContent = t('Check my singing');
+  if (opts.toggle === false) toggle.hidden = true;
 
   // What the coach set for this song (a target, a level) and the takes so
   // far: a coaching student's song of their songbook, else nothing.
   let info = opts.info || null;
   let level = LEVELS[storedLevel()] ? storedLevel() : 'beginner';
+  // What a level asks, in plain words, its margin beside them: a coach
+  // may have renamed the levels and moved their margins.
+  function levelWords(lv0) {
+    if (opts.anyPitch) return t('on time within %d ms', lv0.ms);
+    const plain = lv0.cents >= 45 ? t('within a quarter tone') : lv0.cents >= 20 ? t('as anyone hears it') : t('as a trained ear hears it');
+    return `${plain} (±${lv0.cents} cents)`;
+  }
+  // The goal, said once (the coach's target if they set one, with the
+  // level's margin), and how strict the checking is: a list whose options
+  // say what each level asks; the coach's level for this song, fixed.
   function renderLevels() {
+    const cur = lv();
+    const target = info && (opts.anyPitch ? info.rhythmTarget : info.pitchTarget);
+    objective.textContent = opts.anyPitch
+      ? (target ? t('Goal: %d% of the entries within ±%d ms', target, cur.ms) : t('Goal: the entries within ±%d ms', cur.ms))
+      : (target ? t('Goal: %d% of the notes within ±%d cents', target, cur.cents) : t('Goal: the notes within ±%d cents', cur.cents));
     levels.innerHTML = '';
-    if (info && info.level) {
+    if (info && LEVELS[info.level]) {
       const s = document.createElement('span');
       s.className = 'pitch-level-fixed';
-      s.textContent = LEVELS[info.level].label();
-      s.title = t('the level your coach set for this song');
+      s.textContent = t('Strictness: %s, set by your coach', LEVELS[info.level].label());
+      s.title = levelWords(LEVELS[info.level]);
       levels.append(s);
       return;
     }
-    for (const [k, lv] of Object.entries(LEVELS)) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = lv.label();
-      b.title = t('in tune within %d cents, on time within %d ms', lv.cents, lv.ms);
-      b.setAttribute('aria-pressed', String(k === level));
-      b.addEventListener('click', () => { level = k; try { localStorage.setItem(LEVEL_KEY, k); } catch (e) { /* kept for this page */ } renderLevels(); });
-      levels.append(b);
+    const label = document.createElement('label');
+    const sel = document.createElement('select');
+    sel.className = 'pitch-check-level';
+    for (const [k, lv0] of Object.entries(LEVELS)) {
+      const o = document.createElement('option');
+      o.value = k;
+      o.textContent = `${lv0.label()} — ${levelWords(lv0)}`;
+      o.selected = k === level;
+      sel.append(o);
     }
+    sel.addEventListener('change', () => { level = sel.value; try { localStorage.setItem(LEVEL_KEY, level); } catch (e) { /* kept for this page */ } renderLevels(); });
+    label.append(t('Strictness') + ' ', sel);
+    levels.append(label);
   }
-  const lv = () => LEVELS[(info && info.level) || level];
+  const lv = () => LEVELS[(info && LEVELS[info.level] && info.level) || level];
 
   function renderGoal() {
     if (!info || (!info.pitchTarget && !info.rhythmTarget)) { goal.hidden = true; return; }
@@ -405,15 +451,17 @@
     on = true;
     toggle.textContent = t('Stop checking');
     toggle.classList.add('is-on');
+    if (opts.onChange) opts.onChange(true);
     result.hidden = true;
     const key = opts.notesKey(clock);
     if (!line || lineKey !== key) {
       status.textContent = opts.loading();
       try {
-        notes = await opts.loadNotes(clock, (p) => { status.textContent = opts.loadingAt(Math.round(p * 100)); });
+        notes = await opts.loadNotes(clock, (p) => { status.textContent = opts.loadingAt(Math.round(p * 100)); }, { notesOf, referenceLine });
         line = true;
         lineKey = key;
       } catch (e) {
+        console.warn('pitch-check: the line to sing: ' + (e && (e.stack || e.message) || e));
         status.textContent = opts.loadFailed();
         stop();
         return;
@@ -443,6 +491,7 @@
     on = false;
     toggle.textContent = t('Check my singing');
     toggle.classList.remove('is-on');
+    if (opts.onChange) opts.onChange(false);
     cancelAnimationFrame(raf);
     if (mic) mic.getTracks().forEach((tr) => tr.stop());
     if (ac) ac.close();
@@ -482,8 +531,8 @@
   // singer's pitch as dots --------------------------------------------------
   const live = new Map(); // note -> verdict, for the notes passed in this take
   function draw(now, key) {
-    const w = lane.clientWidth, h = 150, dpr = window.devicePixelRatio || 1;
-    if (lane.width !== Math.round(w * dpr)) { lane.width = Math.round(w * dpr); lane.height = Math.round(h * dpr); }
+    const w = lane.clientWidth, h = lane.clientHeight || 150, dpr = window.devicePixelRatio || 1;
+    if (lane.width !== Math.round(w * dpr) || lane.height !== Math.round(h * dpr)) { lane.width = Math.round(w * dpr); lane.height = Math.round(h * dpr); }
     const g = lane.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
@@ -584,7 +633,7 @@
     setTimeout(() => box.remove(), 3200);
   }
     refresh();
-    return { refresh, stop: () => { if (on) stop(); } };
+    return { refresh, start: () => { if (!on) start(); }, stop: () => { if (on) stop(); } };
   }
 
   window.songbooksPitchCheck = { create };

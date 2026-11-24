@@ -10,6 +10,15 @@ goes without a Referer (`referrerPolicy: 'no-referrer'`): with an Origin and a
 Referer from another site than pCloud's (localhost aside), pCloud refuses it
 ("Invalid link referer", error 7010).
 
+That is on the band's own pages, its members only. Everywhere else — a public
+song's recordings (*played by*), a songbook's playlist, a set list's player —
+a recording plays through the app, `/recordings/{id}/audio`
+(`recordings_stream.go`): the app checks the listener may hear it (one of the
+band's current members, or anyone signed in for a public recording), asks pCloud
+for the file itself (the link cached an hour), and passes the bytes on, Range
+requests included, 2 GB at most. Whoever has the folder's link lists the whole
+folder: it never leaves the server there.
+
 ## Setting it up
 
 One member pastes the folder's pCloud shared link on the band's Rehearsals tab.
@@ -92,8 +101,9 @@ day's recordings to pick from. A wide screen shows it all in one bar, which
 opens (its title, or its ⤢ button) into the same full player as a panel in
 the middle of the screen: on a tablet in portrait, one column; on a
 landscape screen (an iPad held sideways, a desktop), the player and the
-recordings side by side. Escape, its × or a tap beside it closes it. Keys: space or K plays and pauses, ←/→ or J/L
-skip 15 s, shift ←/→ the recording before or after, 0 restarts.
+recordings side by side. Escape, its × or a tap beside it closes it. Keys (the same map as every player, player-shell.js): space or K plays and
+pauses, ←/→ skip 5 s and ⌥←/→ 15 s, shift ←/→ the recording before or after,
+Home or 0 restarts, C loops A–B, [ ] the speed, F opens it, ? lists them.
 
 The same player plays a set list (its running order page): each song's
 sound in the set's order, *Play all* or a song's own play button. A song

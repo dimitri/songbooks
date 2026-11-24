@@ -12,9 +12,8 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  <a class="back-link" href="/songbooks">{{template "icon-back"}} Songbooks</a>
+  <a class="back-link" href="/catalog?view=songbooks">{{template "icon-back"}} {{t "Library"}}</a>
   <h1>{{t "My songbooks"}}</h1>
-  {{template "notif-bell"}}
 </header>
 <main class="index">
   <p class="hint">{{t "Every profile has a default songbook (can't be deleted, can be renamed) — create more if you want separate collections."}}</p>
@@ -25,9 +24,9 @@
     </a>
   {{end}}
   </div>
-  <form class="form-stack" id="create-songbook-form" style="margin-top:1rem">
+  <form class="create-row form-inline" id="create-songbook-form">
     <div class="field"><label for="new-songbook-name">{{t "New songbook name"}}</label><input type="text" id="new-songbook-name" name="name" placeholder="{{t "e.g. Wedding gigs"}}" required autocomplete="off"></div>
-    <div class="form-actions"><button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button></div>
+    <button type="submit" id="create-songbook-btn" class="primary">{{t "Create songbook"}}</button>
     <p id="create-songbook-result" class="form-status" role="status"></p>
   </form>
 </main>
@@ -48,7 +47,7 @@ createForm.addEventListener('submit', (e) => {
 });
 </script>
 </div>
-{{template "global-tabbar"}}
+{{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}
 </body>
 </html>
