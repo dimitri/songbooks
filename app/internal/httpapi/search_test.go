@@ -25,9 +25,9 @@ func TestSearchEndpoints(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	person := func(username, name string) int64 {
+	person := func(handle, name string) int64 {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, username, name, username+"@example.com")
+		id, err := st.CreatePerson(ctx, name, handle+"@example.com")
 		must(err)
 		return id
 	}

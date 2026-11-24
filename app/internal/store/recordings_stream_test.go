@@ -122,7 +122,7 @@ func TestDeleteKeepsPractice(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.AddTestPractice(t, st, f.Outsider, f.BandSong, 600)
-	fan, err := st.CreatePerson(ctx, "fan", "Fan", "fan@example.com")
+	fan, err := st.CreatePerson(ctx, "Fan", "fan@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

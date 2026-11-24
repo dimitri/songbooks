@@ -34,7 +34,7 @@
       {{if .IsCurrent}}
       <div class="roster-row{{if .IsShell}} roster-row-pending{{end}}" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">
         <div class="roster-row-main">
-          <div class="roster-name">{{.DisplayName}}{{if not .IsShell}} <span class="hint">({{.Username}})</span>{{end}}{{if .IsShell}} <span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>{{end}}</div>
+          <div class="roster-name">{{.DisplayName}}{{if .IsShell}} <span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>{{end}}</div>
           <div class="roster-instruments">
           {{range .Instruments}}<span class="roster-instrument-badge">{{template "instrument-icon" .}} {{.}}</span>{{else}}<span class="hint">{{t "no instrument set"}}</span>{{end}}
           {{if .CanEditInstruments}}<button type="button" class="roster-edit-btn" aria-expanded="false" aria-label="{{t "Edit instruments for %s" .DisplayName}}">{{t "Edit"}}</button>{{end}}
@@ -97,12 +97,11 @@
 
   <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
   <div class="table-scroll" id="past-members-wrap" hidden><table class="card table-stack" style="width:100%">
-    <thead><tr><th>{{t "Username"}}</th><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "member|Joined"}}</th><th>{{t "member|Left"}}</th></tr></thead>
+    <thead><tr><th>{{t "Name"}}</th><th>{{t "Role"}}</th><th>{{t "member|Joined"}}</th><th>{{t "member|Left"}}</th></tr></thead>
     <tbody>
     {{range .Members}}
       {{if not .IsCurrent}}
       <tr>
-        <td data-label="{{t "Username"}}">{{.Username}}</td>
         <td data-label="{{t "Name"}}">{{.DisplayName}}</td>
         <td data-label="{{t "Role"}}">{{template "band-role-name" .Role}}</td>
         <td data-label="{{t "member|Joined"}}">{{.JoinedAt.Format "2006-01-02"}}</td>
@@ -128,11 +127,22 @@
       </div>
       {{end}}
       <form class="form-stack" id="add-member-form">
+        {{/* Someone with an account: their email, or their name among
+             the people the viewer already plays with (add_person.go). */}}
         <div class="field">
-          <label for="add-username">{{t "Username"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-          <p class="field-hint" id="add-username-hint">{{t "Leave it blank to get a one-time link to send them instead."}}</p>
-          <input type="text" id="add-username" placeholder="{{t "e.g. marcguitar"}}" aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+          <label for="add-email">{{t "Their email"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+          <p class="field-hint" id="add-email-hint">{{t "For someone who already has an account: they’re added straight away. Leave it blank to get a one-time link to send them instead."}}</p>
+          <input type="email" id="add-email" placeholder="{{t "name@example.com"}}" aria-describedby="add-email-hint" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
         </div>
+        {{if .KnownPeople}}
+        <div class="field">
+          <label for="add-known">{{t "Or someone you already play with"}}</label>
+          <select id="add-known">
+            <option value="">{{t "Nobody here"}}</option>
+            {{range .KnownPeople}}<option value="{{.ID}}">{{.DisplayName}} · {{.Where}}</option>{{end}}
+          </select>
+        </div>
+        {{end}}
         <div class="field">
           <label for="add-status">{{t "Role"}}</label>
           <p class="field-hint" id="add-status-hint">{{t "Any of the band’s roles: what each allows is in Settings."}}</p>
@@ -283,36 +293,41 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
   document.getElementById('past-members-wrap').hidden = !e.target.checked;
 });
 
-// One form, two outcomes: a username adds that account now; a blank one
-// makes a one-time link instead. The button says which it's about to do.
+// One form, two outcomes: an email or a name picked adds that account
+// now; neither makes a one-time link instead. The button says which
+// it's about to do.
 (function () {
   const form = document.getElementById('add-member-form');
   if (!form) return; // a guest: no inviting
-  const userInput = document.getElementById('add-username');
+  const emailInput = document.getElementById('add-email');
+  const knownSel = document.getElementById('add-known');
   const btn = document.getElementById('add-member-btn');
-  const label = () => { btn.textContent = userInput.value.trim() ? t('Add to band') : t('Create invite link'); };
-  userInput.addEventListener('input', label);
+  const label = () => { btn.textContent = (emailInput.value.trim() || knownSel?.value) ? t('Add to band') : t('Create invite link'); };
+  emailInput.addEventListener('input', label);
+  knownSel?.addEventListener('change', label);
   label();
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const username = userInput.value.trim();
+    const email = emailInput.value.trim();
+    const personId = Number(knownSel?.value || 0);
     const roleId = Number(document.getElementById('add-status').value);
     Forms.run(form, btn, async () => {
-      if (username) {
+      if (personId || email) {
+        const who = personId ? knownSel.selectedOptions[0].textContent.split(' · ')[0] : email;
         const res = await fetch(`/api/bands/${bandId}/members`, {
           method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({username, roleId}),
+          body: JSON.stringify(personId ? {personId, roleId} : {email, roleId}),
         });
-        if (res.status === 404) {
-          Forms.fieldError(userInput, t('There’s no account called “%s”. Check the spelling, or leave it blank to get a link instead.', username));
-          userInput.focus();
+        if (res.status === 404 && !personId) {
+          Forms.fieldError(emailInput, t('No account uses %s. Check it, or leave it blank to get a link to send them instead.', email));
+          emailInput.focus();
           return;
         }
-        if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', username));
+        if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', who));
         location.reload();
         return;
       }
-      // No username — same action, send a link instead ("we send a link,
+      // Nobody named — same action, send a link instead ("we send a link,
       // that's it").
       const res = await fetch(`/api/bands/${bandId}/invites`, {method: 'POST', body: new URLSearchParams({roleId})});
       if (!res.ok) throw new Error(t('Couldn’t create the link. Try again.'));

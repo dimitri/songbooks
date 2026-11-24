@@ -29,12 +29,8 @@ type listCardPerson struct {
 	Guest    bool
 }
 
-// cardPerson is a member's face: their display name, else username.
-func cardPerson(displayName, username string, guest bool) listCardPerson {
-	name := displayName
-	if name == "" {
-		name = username
-	}
+// cardPerson is a member's face: their display name.
+func cardPerson(name string, guest bool) listCardPerson {
 	return listCardPerson{Name: name, Initials: initials(name), Guest: guest}
 }
 
@@ -115,7 +111,7 @@ func (s *Server) bandListCards(ctx context.Context, lang string, personID int64,
 				card.MorePeople = len(members) - j
 				break
 			}
-			card.People = append(card.People, cardPerson(m.DisplayName, m.Username, m.Status == "guest"))
+			card.People = append(card.People, cardPerson(m.DisplayName, m.Status == "guest"))
 		}
 		for j := range items {
 			if it := &items[j]; it.BandID != nil && *it.BandID == c.ID {
@@ -149,7 +145,7 @@ func (s *Server) communityListCards(ctx context.Context, personID int64, cards [
 				card.MoreStaff++
 				continue
 			}
-			card.Staff = append(card.Staff, cardPerson(m.DisplayName, m.Username, false))
+			card.Staff = append(card.Staff, cardPerson(m.DisplayName, false))
 		}
 		if c.IsCoaching() && c.MyRole != "staff" {
 			list, err := s.store.ListStudentAssignments(ctx, c.ID, personID, false)

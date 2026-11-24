@@ -15,15 +15,15 @@ import (
 // where the viewer may change the instruments.
 func TestBandMembersRosterRows(t *testing.T) {
 	until := time.Date(2026, 12, 19, 12, 0, 0, 0, time.UTC)
-	me := &store.Person{ID: 1, Username: "guest", DisplayName: "Guest"}
+	me := &store.Person{ID: 1, DisplayName: "Guest", Email: "guest@example.com"}
 	rows := []bandRosterRow{
-		{BandMember: store.BandMember{PersonID: 1, Username: "guest", DisplayName: "Guest", Status: "guest", Instruments: []string{"bass"}},
+		{BandMember: store.BandMember{PersonID: 1, DisplayName: "Guest", Status: "guest", Instruments: []string{"bass"}},
 			CanEditInstruments: store.MayEditMemberInstruments(false, true, false)},
-		{BandMember: store.BandMember{PersonID: 2, Username: "corey", DisplayName: "Corey", Status: "core"},
+		{BandMember: store.BandMember{PersonID: 2, DisplayName: "Corey", Status: "core"},
 			CanEditInstruments: store.MayEditMemberInstruments(false, false, false)},
-		{BandMember: store.BandMember{PersonID: 3, Username: "pending-abc", DisplayName: "Marc", Status: "core", IsShell: true, Instruments: []string{"drums", "vocals"}},
+		{BandMember: store.BandMember{PersonID: 3, DisplayName: "Marc", Status: "core", IsShell: true, Instruments: []string{"drums", "vocals"}},
 			InviteToken: "tok123", InviteUntil: until, CanEditInstruments: store.MayEditMemberInstruments(false, false, true)},
-		{BandMember: store.BandMember{PersonID: 4, Username: "pending-def", DisplayName: "Lea", Status: "guest", IsShell: true},
+		{BandMember: store.BandMember{PersonID: 4, DisplayName: "Lea", Status: "guest", IsShell: true},
 			CanEditInstruments: true},
 	}
 	data := map[string]any{"Me": me, "Band": &store.Band{ID: 7, Name: "The Band"}, "Members": rows, "IsCore": true}
@@ -46,8 +46,8 @@ func TestBandMembersRosterRows(t *testing.T) {
 		if !strings.Contains(page, `data-url="/invite/tok123"`) {
 			t.Errorf("%s: Marc's link missing", lang)
 		}
-		if strings.Contains(page, "pending-abc") {
-			t.Errorf("%s: a placeholder's internal username shows", lang)
+		if strings.Contains(page, "guest@example.com") || strings.Contains(page, "(Corey)") {
+			t.Errorf("%s: a login handle or email shows in the roster", lang)
 		}
 		if n := strings.Count(page, `class="roster-edit-btn"`); n != 3 {
 			t.Errorf("%s: %d Edit buttons, want 3 (self and the two placeholders)", lang, n)

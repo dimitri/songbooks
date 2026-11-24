@@ -21,7 +21,7 @@ func TestSetlistPages(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	player, err := st.CreatePerson(ctx, "setlistplayer", "Pia Player", "pia@example.com")
+	player, err := st.CreatePerson(ctx, "Pia Player", "pia@example.com")
 	must(err)
 	band, err := st.CreateBand(ctx, "Night Owls", player)
 	must(err)

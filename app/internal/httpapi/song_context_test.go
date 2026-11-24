@@ -32,7 +32,7 @@ func TestSongContextAccess(t *testing.T) {
 	}
 	person := func(name string) *store.Person {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, strings.ToLower(name), name, strings.ToLower(name)+"@example.com")
+		id, err := st.CreatePerson(ctx, name, strings.ToLower(name)+"@example.com")
 		must(err)
 		p, err := st.GetPersonByID(ctx, id)
 		must(err)

@@ -28,9 +28,9 @@ func TestMelodySheet(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	owner, err := st.CreatePerson(ctx, "melodyowner", "Mel Owner", "mel@example.com")
+	owner, err := st.CreatePerson(ctx, "Mel Owner", "mel@example.com")
 	must(err)
-	stranger, err := st.CreatePerson(ctx, "melodystranger", "Stan Ger", "stan@example.com")
+	stranger, err := st.CreatePerson(ctx, "Stan Ger", "stan@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, store.OwnerPerson, owner, "Tune", "", owner)
 	must(err)
@@ -191,7 +191,7 @@ func TestMelodyLyricsOnTheChart(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	owner, err := st.CreatePerson(ctx, "chartowner", "Cha Owner", "cha@example.com")
+	owner, err := st.CreatePerson(ctx, "Cha Owner", "cha@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, store.OwnerPerson, owner, "Night", "", owner)
 	must(err)

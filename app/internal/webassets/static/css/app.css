@@ -10226,3 +10226,10 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
   .song-news-actions { justify-content: flex-start; }
 }
 tr[id^="rev-"]:target > td { background: var(--accent-bg); }
+
+/* ---- No usernames (docs/accounts.md) ----
+   The admin page's note on accounts with a password and no email: they
+   can't log in any more. */
+.admin-locked-out { background: var(--warn-bg); color: var(--fg); border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0 0 0.8rem; }
+.admin-locked-out p { margin: 0.2rem 0; }
+.admin-locked-out ul { margin: 0.3rem 0; padding-left: 1.2rem; }

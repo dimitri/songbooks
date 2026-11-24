@@ -26,7 +26,7 @@ func TestSongNews(t *testing.T) {
 	}
 	person := func(name string) int64 {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, strings.ToLower(name), name, strings.ToLower(name)+"@example.com")
+		id, err := st.CreatePerson(ctx, name, strings.ToLower(name)+"@example.com")
 		must(err)
 		return id
 	}

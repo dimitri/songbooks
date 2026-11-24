@@ -110,7 +110,7 @@ func (s *Server) handleAdminCreateLoginLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	admin := personFromContext(r)
-	log.Printf("login link: admin %s (id %d) created a login link for %s (id %d)", admin.Username, admin.ID, p.Username, p.ID)
+	log.Printf("login link: admin %q (id %d) created a login link for %q (id %d)", admin.DisplayName, admin.ID, p.DisplayName, p.ID)
 	writeJSON(w, http.StatusOK, loginLinkResponse{
 		URL: link, Token: token, SecondsLeft: int(store.LoginTokenTTL / time.Second),
 		Name: p.DisplayName, IsAdmin: p.IsAdmin, HasEmail: p.Email != "", QRSVG: svg,
@@ -156,7 +156,7 @@ func (s *Server) handleAdminSendLoginLink(w http.ResponseWriter, r *http.Request
 		return
 	}
 	admin := personFromContext(r)
-	log.Printf("login link: admin %s (id %d) emailed a login link to %s (id %d)", admin.Username, admin.ID, p.Username, p.ID)
+	log.Printf("login link: admin %q (id %d) emailed a login link to %q (id %d)", admin.DisplayName, admin.ID, p.DisplayName, p.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"sent": true})
 }
 

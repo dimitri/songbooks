@@ -32,7 +32,7 @@ func newAccessFixture(t *testing.T, st *Store) accessFixture {
 		return v
 	}
 	person := func(name string) int64 {
-		return id(st.CreatePerson(ctx, name, strings.ToUpper(name[:1])+name[1:], name+"@example.com"))
+		return id(st.CreatePerson(ctx, strings.ToUpper(name[:1])+name[1:], name+"@example.com"))
 	}
 	f.admin, f.alice, f.bob = person("admin"), person("alice"), person("bob")
 	f.core, f.guest, f.former = person("core"), person("guest"), person("former")

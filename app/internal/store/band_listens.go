@@ -102,7 +102,7 @@ func (st *Store) AddBandListen(ctx context.Context, bandID, personID int64, n Ne
 func (st *Store) ListBandListens(ctx context.Context, bandID int64, pool string) ([]BandListen, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT l.id, l.band_id, l.pool, l.url, l.video_id, l.title, l.artist, l.note, l.tags,
-		       coalesce(l.added_by_person_id, 0), coalesce(nullif(p.display_name, ''), p.username, ''),
+		       coalesce(l.added_by_person_id, 0), coalesce(p.display_name, ''),
 		       l.created_at, coalesce(l.proposal_id, 0)
 		FROM band_listens l LEFT JOIN people p ON p.id = l.added_by_person_id
 		WHERE l.band_id = $1 AND l.pool = $2

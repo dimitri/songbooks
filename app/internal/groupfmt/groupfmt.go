@@ -9,7 +9,7 @@
 //
 // A member is recorded by UserID, a reference into the export's own
 // users.json (see cmd/songexport's user type) — not by embedding that
-// person's username/display name/etc. redundantly in every group file
+// person's email/display name/etc. redundantly in every group file
 // they belong to. InvitedBy is the same kind of reference.
 package groupfmt
 

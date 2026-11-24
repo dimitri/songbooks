@@ -183,13 +183,22 @@ func personIDFromBytes(b []byte) (int64, bool) {
 	return int64(binary.BigEndian.Uint64(b)), true
 }
 
-func (u webauthnUser) WebAuthnID() []byte   { return personIDBytes(u.person.ID) }
-func (u webauthnUser) WebAuthnName() string { return u.person.Username }
+func (u webauthnUser) WebAuthnID() []byte { return personIDBytes(u.person.ID) }
+
+// WebAuthnName is the account name a passkey manager lists the passkey
+// under: the email, the account itself (docs/accounts.md); the display
+// name for the rare account without one.
+func (u webauthnUser) WebAuthnName() string {
+	if u.person.Email != "" {
+		return u.person.Email
+	}
+	return u.person.DisplayName
+}
 func (u webauthnUser) WebAuthnDisplayName() string {
 	if u.person.DisplayName != "" {
 		return u.person.DisplayName
 	}
-	return u.person.Username
+	return u.person.Email
 }
 
 func (u webauthnUser) WebAuthnCredentials() []webauthn.Credential {
@@ -386,7 +395,7 @@ func (s *Server) handleRemoveWebAuthnCredential(w http.ResponseWriter, r *http.R
 // identifier typed first, and FinishPasskeyLogin resolves which person
 // that is FROM the assertion's userHandle (see webauthnDiscoverableHandler
 // below) rather than from anything the visitor typed. This is the UX this
-// phase chose over identifier-then-passkey (look up by email/username
+// phase chose over identifier-then-passkey (look up by email
 // first, then call BeginLogin with that one person's own
 // allowedCredentials): go-webauthn supports both equally directly
 // (BeginLogin/FinishLogin vs. BeginDiscoverableLogin/FinishPasskeyLogin are
@@ -467,7 +476,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// notice and investigate) rather than lock the person out of their
 	// own account on what may well be a false positive.
 	if credential.Authenticator.CloneWarning {
-		log.Printf("WEBAUTHN CLONE WARNING: credential for person %d (%s) reported a sign count that didn't advance — possible cloned authenticator", wu.person.ID, wu.person.Username)
+		log.Printf("WEBAUTHN CLONE WARNING: credential for person %d (%q) reported a sign count that didn't advance — possible cloned authenticator", wu.person.ID, wu.person.DisplayName)
 	}
 
 	if err := s.store.UpdateWebAuthnCredentialAfterLogin(ctx, credential.ID, credential.Authenticator.SignCount,

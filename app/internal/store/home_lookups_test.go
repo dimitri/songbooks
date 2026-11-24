@@ -14,7 +14,7 @@ func TestStudentBooksAndNewSongs(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	person := func(name string) int64 {
-		id, err := st.CreatePerson(ctx, name, name, name+"@example.com")
+		id, err := st.CreatePerson(ctx, name, name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}

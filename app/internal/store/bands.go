@@ -40,7 +40,6 @@ type BandMember struct {
 	ID                int64
 	BandID            int64
 	PersonID          int64
-	Username          string
 	DisplayName       string
 	Status            string // core or guest: follows the role (guest for the guest role, core for any other)
 	RoleID            int64  // band_roles.id: what the member may do (band_roles.go)
@@ -48,7 +47,7 @@ type BandMember struct {
 	JoinedAt          time.Time
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
-	InvitedByUsername string
+	InvitedByName     string   // the inviter's display name
 	Instruments       []string // p.instruments — see migration 0018
 	IsShell           bool     // p.is_shell: a placeholder who hasn't joined yet (see CreateShellPerson)
 }
@@ -258,10 +257,10 @@ func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (b
 // first.
 func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast bool) ([]BandMember, error) {
 	q := `
-		SELECT m.id, m.band_id, m.person_id, p.username, p.display_name, m.status::text, m.role_id,
+		SELECT m.id, m.band_id, m.person_id, p.display_name, m.status::text, m.role_id,
 		       EXISTS (SELECT 1 FROM band_role_privileges brp WHERE brp.role_id = m.role_id AND brp.privilege = 'vote'),
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
-		       m.invited_by_person_id, coalesce(ip.username, ''), p.instruments, p.is_shell
+		       m.invited_by_person_id, coalesce(ip.display_name, ''), p.instruments, p.is_shell
 		FROM band_members m
 		JOIN people p ON p.id = m.person_id
 		LEFT JOIN people ip ON ip.id = m.invited_by_person_id
@@ -278,8 +277,8 @@ func (st *Store) ListBandMembers(ctx context.Context, bandID int64, includePast 
 	var out []BandMember
 	for rows.Next() {
 		var m BandMember
-		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.Username, &m.DisplayName, &m.Status, &m.RoleID, &m.Votes,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.Instruments, &m.IsShell); err != nil {
+		if err := rows.Scan(&m.ID, &m.BandID, &m.PersonID, &m.DisplayName, &m.Status, &m.RoleID, &m.Votes,
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByName, &m.Instruments, &m.IsShell); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

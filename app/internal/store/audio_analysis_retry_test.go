@@ -11,7 +11,7 @@ import (
 func TestAnalysisJobRetryCap(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "singer", "Singer", "singer@example.com")
+	me, err := st.CreatePerson(ctx, "Singer", "singer@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestAnalysisJobRetryCap(t *testing.T) {
 func TestReplaceSync(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "editor", "Editor", "editor@example.com")
+	me, err := st.CreatePerson(ctx, "Editor", "editor@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

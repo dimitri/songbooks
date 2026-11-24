@@ -70,7 +70,6 @@ func (st *Store) CanSeeCommunityMembers(ctx context.Context, communityID, person
 // who hasn't made their account yet.
 type CommunityRosterEntry struct {
 	PersonID    int64
-	Username    string
 	DisplayName string
 	PictureURL  string
 	Instruments []string
@@ -91,7 +90,7 @@ func (e CommunityRosterEntry) IsCurrent() bool { return e.LeftAt == nil }
 // (picture, instruments) and nothing about how they joined.
 func (st *Store) ListCommunityRoster(ctx context.Context, communityID int64, includePast bool) ([]CommunityRosterEntry, error) {
 	q := `
-		SELECT p.id, p.username, p.display_name, p.picture_url, coalesce(p.instruments, '{}'), p.is_shell,
+		SELECT p.id, p.display_name, p.picture_url, coalesce(p.instruments, '{}'), p.is_shell,
 		       cr.name, coalesce(cr.builtin_key, ''),
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END
 		FROM community_members m
@@ -114,7 +113,7 @@ func (st *Store) ListCommunityRoster(ctx context.Context, communityID int64, inc
 	var out []CommunityRosterEntry
 	for rows.Next() {
 		var e CommunityRosterEntry
-		if err := rows.Scan(&e.PersonID, &e.Username, &e.DisplayName, &e.PictureURL, &e.Instruments, &e.IsShell,
+		if err := rows.Scan(&e.PersonID, &e.DisplayName, &e.PictureURL, &e.Instruments, &e.IsShell,
 			&e.Role, &e.RoleKey, &e.JoinedAt, &e.LeftAt); err != nil {
 			return nil, err
 		}

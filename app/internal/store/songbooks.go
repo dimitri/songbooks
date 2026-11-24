@@ -168,7 +168,7 @@ func (st *Store) HasSongbookAccessGrant(ctx context.Context, songbookID, personI
 // SongbookAccessGrant is one row of a gated songbook's grant list.
 type SongbookAccessGrant struct {
 	PersonID        int64
-	Username        string
+	DisplayName     string
 	GrantedAt       time.Time
 	GrantedByPersonID *int64
 	// Source is where the grant came from: "manual" (staff, from the
@@ -188,7 +188,7 @@ func (g SongbookAccessGrant) Expired() bool {
 // songbookID, most recently granted first.
 func (st *Store) ListSongbookAccessGrants(ctx context.Context, songbookID int64) ([]SongbookAccessGrant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT g.person_id, p.username, g.granted_at, g.granted_by_person_id, g.source, g.reference, g.expires_at
+		SELECT g.person_id, p.display_name, g.granted_at, g.granted_by_person_id, g.source, g.reference, g.expires_at
 		FROM songbook_access_grants g JOIN people p ON p.id = g.person_id
 		WHERE g.songbook_id = $1 ORDER BY g.granted_at DESC`, songbookID)
 	if err != nil {
@@ -198,7 +198,7 @@ func (st *Store) ListSongbookAccessGrants(ctx context.Context, songbookID int64)
 	var out []SongbookAccessGrant
 	for rows.Next() {
 		var g SongbookAccessGrant
-		if err := rows.Scan(&g.PersonID, &g.Username, &g.GrantedAt, &g.GrantedByPersonID, &g.Source, &g.Reference, &g.ExpiresAt); err != nil {
+		if err := rows.Scan(&g.PersonID, &g.DisplayName, &g.GrantedAt, &g.GrantedByPersonID, &g.Source, &g.Reference, &g.ExpiresAt); err != nil {
 			return nil, err
 		}
 		out = append(out, g)

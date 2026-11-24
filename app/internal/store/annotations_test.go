@@ -8,8 +8,8 @@ import (
 func TestSectionAnnotationsAuthorOnly(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, _ := st.CreatePerson(ctx, "me", "Me", "me@example.com")
-	other, _ := st.CreatePerson(ctx, "other", "Other", "other@example.com")
+	me, _ := st.CreatePerson(ctx, "Me", "me@example.com")
+	other, _ := st.CreatePerson(ctx, "Other", "other@example.com")
 	song, err := st.CreateVariant(ctx, OwnerPerson, me, "Song", "", me)
 	if err != nil {
 		t.Fatal(err)

@@ -17,7 +17,7 @@ import (
 // when they joined. Its admins always see it; its other members only when
 // the community says so (store.CommunityMembersVisibility, set on the
 // Admin page). What the members see is what they'd learn from meeting
-// each other: no username, no "hasn't joined yet", no past members, and
+// each other: no email, no "hasn't joined yet", no past members, and
 // never anything a coach keeps about a student (their voice, notes, keys,
 // assignments, lessons — those stay on the student's own page). Changing
 // a role or removing someone renders only for a role granting
@@ -25,8 +25,8 @@ import (
 // themselves (requireCommunityPrivilege in router.go).
 
 // communityMembersAccess is what one person may do with a community's
-// Members page: See it, see it as an admin (Manage: usernames, past
-// members, who hasn't joined yet), change roles or remove people
+// Members page: See it, see it as an admin (Manage: past members,
+// who hasn't joined yet), change roles or remove people
 // (ManageMembers) and change who sees it (ManageSettings).
 type communityMembersAccess struct {
 	See, Manage, ManageMembers, ManageSettings bool
@@ -148,9 +148,9 @@ func (s *Server) handleCommunityMembersPage(w http.ResponseWriter, r *http.Reque
 	seenRole := map[string]bool{}
 	for _, e := range roster {
 		if !access.Manage {
-			// Not theirs to know: how someone logs in, or that they
-			// haven't made their account yet.
-			e.Username, e.IsShell = "", false
+			// Not theirs to know: that they haven't made their
+			// account yet.
+			e.IsShell = false
 		}
 		card := communityMemberCard{
 			CommunityRosterEntry: e,

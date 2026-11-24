@@ -36,10 +36,10 @@ func TestSetBandMemberInstruments(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	core, _ := st.CreatePerson(ctx, "core", "Core", "core@example.com")
-	guest, _ := st.CreatePerson(ctx, "guest", "Guest", "guest@example.com")
-	other, _ := st.CreatePerson(ctx, "other", "Other", "other@example.com")
-	outsider, _ := st.CreatePerson(ctx, "outsider", "Outsider", "outsider@example.com")
+	core, _ := st.CreatePerson(ctx, "Core", "core@example.com")
+	guest, _ := st.CreatePerson(ctx, "Guest", "guest@example.com")
+	other, _ := st.CreatePerson(ctx, "Other", "other@example.com")
+	outsider, _ := st.CreatePerson(ctx, "Outsider", "outsider@example.com")
 	bandID, err := st.CreateBand(ctx, "Test Band", core)
 	if err != nil {
 		t.Fatalf("CreateBand: %v", err)
@@ -120,7 +120,7 @@ func TestPersonalInviteNewLink(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	core, _ := st.CreatePerson(ctx, "core", "Core", "core@example.com")
+	core, _ := st.CreatePerson(ctx, "Core", "core@example.com")
 	bandID, err := st.CreateBand(ctx, "Test Band", core)
 	if err != nil {
 		t.Fatalf("CreateBand: %v", err)
@@ -192,7 +192,7 @@ func TestPersonalInviteNewLink(t *testing.T) {
 
 	// Once claimed, the account is real: no new link, and a link that
 	// somehow points at a real account can't take it over.
-	if _, err := st.ClaimPersonalInvite(ctx, third, "marc", "marc@example.com", ""); err != nil {
+	if _, err := st.ClaimPersonalInvite(ctx, third, "marc@example.com", ""); err != nil {
 		t.Fatalf("ClaimPersonalInvite: %v", err)
 	}
 	if _, err := st.CreatePersonalInvite(ctx, shell, core, time.Hour); !errors.Is(err, ErrNotShell) {
@@ -201,7 +201,7 @@ func TestPersonalInviteNewLink(t *testing.T) {
 	if _, err := st.db.Exec(ctx, `INSERT INTO invites (token, person_id, expires_at) VALUES ('stale-token', $1, now() + interval '1 day')`, core); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.ClaimPersonalInvite(ctx, "stale-token", "taken", "taken@example.com", ""); !errors.Is(err, ErrNotFound) {
+	if _, err := st.ClaimPersonalInvite(ctx, "stale-token", "taken@example.com", ""); !errors.Is(err, ErrNotFound) {
 		t.Errorf("claiming a real account: err = %v, want ErrNotFound", err)
 	}
 }

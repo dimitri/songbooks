@@ -9,15 +9,15 @@ import (
 func TestCoaching(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, err := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	student, err := st.CreatePerson(ctx, "student", "Student", "student@example.com")
+	student, err := st.CreatePerson(ctx, "Student", "student@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := st.CreatePerson(ctx, "other", "Other", "other@example.com")
+	other, err := st.CreatePerson(ctx, "Other", "other@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

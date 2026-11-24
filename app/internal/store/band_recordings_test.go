@@ -66,7 +66,7 @@ func TestMatchBandSong(t *testing.T) {
 func TestBandRecordings(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "drummer", "Drummer", "drummer@example.com")
+	me, err := st.CreatePerson(ctx, "Drummer", "drummer@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

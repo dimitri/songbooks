@@ -69,9 +69,9 @@ func TestCommunityMembersPage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	person := func(username, name string) int64 {
+	person := func(handle, name string) int64 {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, username, name, username+"@example.com")
+		id, err := st.CreatePerson(ctx, name, handle+"@example.com")
 		must(err)
 		return id
 	}
@@ -137,7 +137,7 @@ func TestCommunityMembersPage(t *testing.T) {
 
 	type want struct {
 		code   int
-		admin  bool // usernames, who hasn't joined yet
+		admin  bool // who hasn't joined yet
 		manage bool // role selects, Remove
 	}
 	check := func(setting string, c int64, cases map[int64]want) {
@@ -161,8 +161,13 @@ func TestCommunityMembersPage(t *testing.T) {
 			if !strings.Contains(body, "</html>") {
 				t.Errorf("%s, %s: incomplete page", setting, names[who])
 			}
-			username := map[int64]string{jam: "(memberuser)", voice: "(otheruser)"}[c]
-			if strings.Contains(body, username) != w.admin || strings.Contains(body, `class="roster-pending-badge"`) != (w.admin && c == jam) {
+			// No login handle or email for anyone, admins included
+			// (migration 0135: there are no usernames).
+			handle := map[int64]string{jam: "memberuser", voice: "otheruser"}[c]
+			if strings.Contains(body, "("+handle+")") || strings.Contains(body, handle+"@example.com") {
+				t.Errorf("%s, %s: a member's login handle or email shows", setting, names[who])
+			}
+			if strings.Contains(body, `class="roster-pending-badge"`) != (w.admin && c == jam) {
 				t.Errorf("%s, %s: admin details shown: %v, want %v", setting, names[who], !w.admin, w.admin)
 			}
 			if strings.Contains(body, `class="member-role-select"`) != w.manage || strings.Contains(body, `class="member-remove-btn`) != w.manage {
@@ -273,7 +278,7 @@ func TestCommunityMembersPage(t *testing.T) {
 	refused := []struct{ method, path, body string }{
 		{"POST", fmt.Sprintf("/api/communities/%d/members/%d/role", jam, staff), `{"role":"member"}`},
 		{"DELETE", fmt.Sprintf("/api/communities/%d/members/%d", jam, staff), ""},
-		{"POST", fmt.Sprintf("/api/communities/%d/members", jam), `{"username":"outsideruser","role":"member"}`},
+		{"POST", fmt.Sprintf("/api/communities/%d/members", jam), `{"email":"outsideruser@example.com","role":"member"}`},
 		{"POST", fmt.Sprintf("/api/communities/%d/personal-invites", jam), `{"displayName":"Eve","role":"member"}`},
 		{"POST", fmt.Sprintf("/api/communities/%d/community-link", jam), `{"role":"staff"}`},
 	}

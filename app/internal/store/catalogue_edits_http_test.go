@@ -35,13 +35,13 @@ func newCatalogueFixture(t *testing.T, st *store.Store) catalogueFixture {
 	ctx := context.Background()
 	f := catalogueFixture{BandFixture: store.NewBandFixture(t, st)}
 	var err error
-	if f.Admin, err = st.CreatePerson(ctx, "admin", "Admin", "admin@example.com"); err != nil {
+	if f.Admin, err = st.CreatePerson(ctx, "Admin", "admin@example.com"); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.SetAdmin(ctx, f.Admin, true); err != nil {
 		t.Fatal(err)
 	}
-	if f.Editor, err = st.CreatePerson(ctx, "editor", "Editor", "editor@example.com"); err != nil {
+	if f.Editor, err = st.CreatePerson(ctx, "Editor", "editor@example.com"); err != nil {
 		t.Fatal(err)
 	}
 	acceptedEdits(t, st, f.Editor, f.CatalogSong, store.CatalogueNewcomerEdits)
@@ -367,7 +367,7 @@ func TestCatalogueRevert(t *testing.T) {
 	f := newCatalogueFixture(t, st)
 	start := "title: Le Vent\nartist: Someone\n\n[Verse]\nLe vent\n"
 	setChart(t, st, f.CatalogSong, start)
-	other, err := st.CreatePerson(ctx, "other", "Other", "other@example.com")
+	other, err := st.CreatePerson(ctx, "Other", "other@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

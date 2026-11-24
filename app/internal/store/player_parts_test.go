@@ -13,7 +13,7 @@ import (
 func TestPlayerParts(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "mia", "Mia", "mia@example.com")
+	me, err := st.CreatePerson(ctx, "Mia", "mia@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

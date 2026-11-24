@@ -11,7 +11,7 @@ import (
 func TestBrandLogo(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	owner, err := st.CreatePerson(ctx, "logo-owner", "Logo Owner", "logo-owner@example.com")
+	owner, err := st.CreatePerson(ctx, "Logo Owner", "logo-owner@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

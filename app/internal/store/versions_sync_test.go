@@ -257,7 +257,7 @@ func TestFrozenCopies(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	fan, err := st.CreatePerson(ctx, "fan", "Fan", "fan@example.com")
+	fan, err := st.CreatePerson(ctx, "Fan", "fan@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -28,7 +28,7 @@ func (f *bandRolesFixture) roleOf(t *testing.T, personID int64) int64 {
 
 func (f *bandRolesFixture) newPerson(t *testing.T, name string) int64 {
 	t.Helper()
-	id, err := f.st.CreatePerson(context.Background(), name, name, name+"@example.test")
+	id, err := f.st.CreatePerson(context.Background(), name, name+"@example.test")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -65,7 +65,6 @@ type SongStats struct {
 // MemberStats is what one member viewed and downloaded.
 type MemberStats struct {
 	PersonID     int64
-	Username     string
 	DisplayName  string
 	Role         string
 	Songs        int // songs of the community's songbooks viewed
@@ -253,7 +252,7 @@ func (st *Store) GetCommunityStats(ctx context.Context, communityID int64) (*Com
 			WHERE sb.owner_kind = 'community' AND sb.owner_community_id = $1
 			GROUP BY p.person_id
 		)
-		SELECT p.id, p.username, p.display_name, cr.name,
+		SELECT p.id, p.display_name, cr.name,
 		       coalesce(views.lessons, 0), coalesce(views.views, 0),
 		       coalesce(dl.files, 0), coalesce(dl.downloads, 0), coalesce(dl.zips, 0), coalesce(done.lessons, 0),
 		       greatest(views.last, dl.last, done.last)
@@ -264,14 +263,14 @@ func (st *Store) GetCommunityStats(ctx context.Context, communityID int64) (*Com
 		LEFT JOIN dl ON dl.person_id = p.id
 		LEFT JOIN done ON done.person_id = p.id
 		WHERE m.community_id = $1 AND upper_inf(m.validity)
-		ORDER BY greatest(views.last, dl.last, done.last) DESC NULLS LAST, lower(p.display_name), p.username`, communityID)
+		ORDER BY greatest(views.last, dl.last, done.last) DESC NULLS LAST, lower(p.display_name), p.id`, communityID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var m MemberStats
-		if err := rows.Scan(&m.PersonID, &m.Username, &m.DisplayName, &m.Role, &m.Songs, &m.Views,
+		if err := rows.Scan(&m.PersonID, &m.DisplayName, &m.Role, &m.Songs, &m.Views,
 			&m.Files, &m.Downloads, &m.Zips, &m.LessonsDone, &m.LastActivity); err != nil {
 			return nil, err
 		}

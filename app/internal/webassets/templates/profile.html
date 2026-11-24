@@ -16,7 +16,7 @@
   <h1>{{t "Profile"}}</h1>
 </header>
 <main>
-  <h2 style="margin:0 0 0.3rem">{{.Me.DisplayName}} <span class="song-link-sub">@{{.Me.Username}}</span></h2>
+  <h2 style="margin:0 0 0.3rem">{{.Me.DisplayName}}</h2>
   <nav class="band-tabs band-tabs-row profile-tabs">
     <a href="#" class="profile-tab-btn{{if ne .Tab "public"}} active{{end}}" data-tab="account">{{t "Account"}}</a>
     <a href="#" class="profile-tab-btn{{if eq .Tab "public"}} active{{end}}" data-tab="public">{{t "Public profile"}}</a>
@@ -61,9 +61,9 @@
   <section class="card book-card">
     <h3>{{t "Email"}}</h3>
     {{if .Me.Email}}
-      <p class="hint">{{t "You can log in with this email or your username, and login links are sent here. Currently:"}} <strong>{{.Me.Email}}</strong>.</p>
+      <p class="hint">{{t "Your email is your account: you log in with it, and login links are sent to it. Currently:"}} <strong>{{.Me.Email}}</strong>.</p>
     {{else}}
-      <p class="hint">{{t "No email yet — add one to be able to get login links by email."}}</p>
+      <p class="hint">{{t "No email yet — add one: it’s what you log in with, by password or by a link sent to it."}}</p>
     {{end}}
     <form method="post" action="/profile/email" class="form-stack" id="email-form">
       {{if .EmailSaved}}<p class="form-status is-ok" role="status">{{t "Email saved."}}</p>{{end}}
@@ -88,7 +88,7 @@
       {{if .PwError}}<p class="form-status is-error server-error" role="alert" data-for="profile-password">{{.PwError}}</p>{{end}}
       {{/* Not sent: tells password managers which account the new
            password belongs to. */}}
-      <input type="text" autocomplete="username" value="{{.Me.Username}}" hidden readonly>
+      <input type="email" autocomplete="username" value="{{.Me.Email}}" hidden readonly>
       <div class="field">
         <label for="profile-password">{{if .HasPassword}}{{t "New password"}}{{else}}{{t "Password"}}{{end}}</label>
         <p class="field-hint" id="profile-password-hint">{{t "At least 8 characters."}}</p>
@@ -154,7 +154,7 @@
   <div class="profile-tab-panel" data-tab="public" {{if ne .Tab "public"}}hidden{{end}}>
   <section class="card book-card">
     <h3>{{t "Public profile"}}</h3>
-    <p class="hint">{{t "A nickname and picture people see instead of your real name/username, and opt-in toggles for whether your email or phone show alongside it."}}</p>
+    <p class="hint">{{t "A nickname and picture people see instead of your real name, and opt-in toggles for whether your email or phone show alongside it."}}</p>
     <form method="post" action="/profile/public" class="form-stack">
       {{if .PublicSaved}}<p class="form-status is-ok" role="status">{{t "Public profile saved."}}</p>{{end}}
       {{/* No picture_url set: fall back to a Gravatar for the account's

@@ -32,13 +32,13 @@
       <tbody>
       {{range .PendingSubmissions}}
         <tr data-submission-id="{{.ID}}">
-          <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
+          <td data-label="{{t "Submitted by"}}">{{.StudentName}}</td>
           <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
           <td data-label="{{t "Submitted"}}"><a href="/song/{{.SubmittedVariantID}}">{{.SubmittedTitle}}</a></td>
           <td data-label="{{t "Source"}}">{{if .SourceVariantID}}{{.SourceTitle}} (#{{deref64 .SourceVariantID}}){{end}}</td>
           <td data-label="{{t "Note"}}">{{.Note}}</td>
           <td class="row-actions">
-            <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentUsername}}">{{t "Reject"}}</button>
+            <button type="button" class="reject-btn danger" data-id="{{.ID}}" data-title="{{.SubmittedTitle}}" data-who="{{.StudentName}}">{{t "Reject"}}</button>
             <button type="button" class="accept-btn primary" data-id="{{.ID}}">{{t "Accept"}}</button>
           </td>
         </tr>
@@ -76,7 +76,7 @@
           <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Forked from"}}</a>{{end}}
-          <p class="hint">{{t .Visibility}} &middot; {{t "added by %s" .AddedByUsername}}</p>
+          <p class="hint">{{t .Visibility}} &middot; {{t "added by %s" .AddedByName}}</p>
           {{if $.CanEdit}}<button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove"}}</button>{{end}}
         </div>
       </details>
@@ -94,11 +94,11 @@
       <tbody>
       {{range .DecidedSubmissions}}
         <tr>
-          <td data-label="{{t "Submitted by"}}">{{.StudentUsername}}</td>
+          <td data-label="{{t "Submitted by"}}">{{.StudentName}}</td>
           <td data-label="{{t "Kind"}}">{{if eq .Kind "new_song"}}{{t "New song"}}{{else if eq .Kind "edit"}}{{t "Edit"}}{{else}}{{.Kind}}{{end}}</td>
           <td data-label="{{t "Submitted"}}">{{.SubmittedTitle}}</td>
           <td data-label="{{t "Status"}}">{{t .Status}}</td>
-          <td data-label="{{t "Decided by"}}">{{.DecidedByUsername}}</td>
+          <td data-label="{{t "Decided by"}}">{{.DecidedByName}}</td>
         </tr>
       {{end}}
       </tbody>

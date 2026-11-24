@@ -25,11 +25,11 @@ func TestKeepEntryKeys(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	coach, err := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	must(err)
-	zoe, err := st.CreatePerson(ctx, "zoe", "Zoé", "zoe@example.com")
+	zoe, err := st.CreatePerson(ctx, "Zoé", "zoe@example.com")
 	must(err)
-	max, err := st.CreatePerson(ctx, "max", "Max", "max@example.com")
+	max, err := st.CreatePerson(ctx, "Max", "max@example.com")
 	must(err)
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	must(err)
@@ -150,9 +150,9 @@ func TestSongProposals(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	coach, err := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	must(err)
-	zoe, err := st.CreatePerson(ctx, "zoe", "Zoé Student", "zoe@example.com")
+	zoe, err := st.CreatePerson(ctx, "Zoé Student", "zoe@example.com")
 	must(err)
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	must(err)
@@ -332,7 +332,7 @@ func TestKeepEntryKeysCatalogue(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ann, err := st.CreatePerson(ctx, "ann", "Ann", "ann@example.com")
+	ann, err := st.CreatePerson(ctx, "Ann", "ann@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, OwnerCatalog, 0, "Cat", "", ann)
 	must(err)

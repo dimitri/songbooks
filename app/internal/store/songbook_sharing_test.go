@@ -13,15 +13,15 @@ import (
 func TestCanCopyVariant(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	staff, err := st.CreatePerson(ctx, "author", "Author", "author@example.com")
+	staff, err := st.CreatePerson(ctx, "Author", "author@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	member, err := st.CreatePerson(ctx, "student", "Student", "student@example.com")
+	member, err := st.CreatePerson(ctx, "Student", "student@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	outsider, err := st.CreatePerson(ctx, "outsider", "Outsider", "outsider@example.com")
+	outsider, err := st.CreatePerson(ctx, "Outsider", "outsider@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

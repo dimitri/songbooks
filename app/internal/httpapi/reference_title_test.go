@@ -40,7 +40,7 @@ func TestReferenceTitle(t *testing.T) {
 	fetcher := &reftitle.Fetcher{Client: oembed.Client(), Providers: map[string]string{"youtube.com": oembed.URL + "/oembed?format=json"}}
 	t.Cleanup(func() { RefTitles = nil })
 
-	me, err := st.CreatePerson(ctx, "reftitler", "Rita Ref", "rita@example.com")
+	me, err := st.CreatePerson(ctx, "Rita Ref", "rita@example.com")
 	must(err)
 	p, err := st.GetPersonByID(ctx, me)
 	must(err)

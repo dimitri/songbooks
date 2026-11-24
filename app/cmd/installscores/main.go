@@ -7,13 +7,13 @@
 //
 // Never writes to an existing published (public) song —
 // for each matched song it creates a NEW personal (private)
-// song, owned by the given --as username, carrying the addition, and
+// song, owned by the given --as person (email or id), carrying the addition, and
 // prints its /song/{id} URL for review. The published variant is
 // untouched; nothing is auto-merged.
 //
 // Usage (inside the deploy container, same network as the db service):
 //
-//	installscores --db "$DATABASE_URL" --as tapoueh --legacy-root /legacy [--apply]
+//	installscores --db "$DATABASE_URL" --as me@example.com --legacy-root /legacy [--apply]
 //
 // Without --apply it only prints what it WOULD do (dry run).
 package main
@@ -163,14 +163,14 @@ func surveyChords(root string) []chordMatch {
 
 func main() {
 	dbURL := flag.String("db", os.Getenv("DATABASE_URL"), "Postgres connection string")
-	asUsername := flag.String("as", "", "username to own the new review variants")
+	asPerson := flag.String("as", "", "who owns the new review variants: an email or a person id")
 	legacyRoot := flag.String("legacy-root", "/legacy", "path to the legacy corpus (Mercy/, MySongs/, Other Lies/, Trio/)")
 	apply := flag.Bool("apply", false, "actually write; without this flag, only prints what would happen")
 	publicBase := flag.String("public-base", "https://songbooks.tapoueh.org", "base URL to print song links against")
 	flag.Parse()
 
-	if *dbURL == "" || *asUsername == "" {
-		log.Fatal("usage: installscores --db <url> --as <username> --legacy-root <path> [--apply]")
+	if *dbURL == "" || *asPerson == "" {
+		log.Fatal("usage: installscores --db <url> --as <email or id> --legacy-root <path> [--apply]")
 	}
 
 	ctx := context.Background()
@@ -184,10 +184,11 @@ func main() {
 	}
 	defer pool.Close()
 
-	var personID int64
-	if err := pool.QueryRow(ctx, `SELECT id FROM people WHERE username = $1`, *asUsername).Scan(&personID); err != nil {
-		log.Fatalf("no such person %q: %v", *asUsername, err)
+	as, err := st.FindPerson(ctx, *asPerson)
+	if err != nil {
+		log.Fatalf("no such person %q: %v", *asPerson, err)
 	}
+	personID := as.ID
 
 	riffs := surveyRiffs(*legacyRoot)
 	chordsByWork := map[string][]song.ChordRef{} // keyed by "norm_title|norm_artist"
@@ -284,7 +285,7 @@ func main() {
 		newText := song.Write(sg)
 
 		if !*apply {
-			fmt.Printf("  (dry run — would create a new personal variant for %s)\n", *asUsername)
+			fmt.Printf("  (dry run — would create a new personal variant for %s)\n", *asPerson)
 			continue
 		}
 

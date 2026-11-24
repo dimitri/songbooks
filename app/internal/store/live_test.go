@@ -9,7 +9,7 @@ import (
 func TestLiveRoomAndHeadphones(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, _ := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestLiveRoomAndHeadphones(t *testing.T) {
 func TestSetLessonMode(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, _ := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	c, _ := st.CreateCommunity(ctx, "Voice", coach)
 	ev, _ := st.CreateEvent(ctx, "community", c, "lesson", "Lesson", "", "", time.Now(), nil, "members", coach)
 	if err := st.SetLessonMode(ctx, ev, "online"); err != nil {

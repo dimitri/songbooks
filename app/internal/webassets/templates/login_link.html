@@ -7,9 +7,7 @@
 
      Person needs PersonID and DisplayName; Shell is whether they haven't
      joined yet (no account to log in to: their invite link is what they
-     need). A row without an IsShell field can pass
-     (hasPrefix .Username "pending-"), the username a shell person gets.
-     Both print nothing unless the viewer is a site admin. The server
+     need). Both print nothing unless the viewer is a site admin. The server
      checks all of it again. */}}
 {{define "login-link-btn"}}{{if and .Me .Me.IsAdmin (not .Shell)}}<button type="button" class="login-link-btn" data-person-id="{{.Person.PersonID}}" data-name="{{.Person.DisplayName}}" aria-haspopup="dialog">{{t "Login link"}}</button>{{end}}{{end}}
 {{define "login-link-script"}}{{if and . .IsAdmin}}<link rel="stylesheet" href="/static/css/login-link.css?v={{staticVersion}}">

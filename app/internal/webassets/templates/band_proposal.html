@@ -70,7 +70,7 @@
         {{else}}<h2>{{t "The vote"}}</h2>{{end}}
         {{else}}
         <h2>{{if eq .Proposal.Status "accepted"}}{{t "Accepted"}}{{else}}{{t "Turned down"}}{{end}}</h2>
-        <p class="vote-decided is-{{.Proposal.Status}}">{{date .Proposal.DecidedAt "2 Jan 2006, 15:04"}} · {{if .Proposal.DecidedByUsername}}{{t "by %s" .Proposal.DecidedByUsername}}{{else}}{{t "by the votes"}}{{end}}</p>
+        <p class="vote-decided is-{{.Proposal.Status}}">{{date .Proposal.DecidedAt "2 Jan 2006, 15:04"}} · {{if .Proposal.DecidedByName}}{{t "by %s" .Proposal.DecidedByName}}{{else}}{{t "by the votes"}}{{end}}</p>
         {{end}}
         <h3 class="proposal-sub">{{t "Where the vote stands"}}</h3>
         <div class="vote-sum is-full" data-sum></div>

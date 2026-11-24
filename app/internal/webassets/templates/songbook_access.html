@@ -46,10 +46,10 @@
     <tbody>
     {{range .Members}}
       <tr data-person-id="{{.PersonID}}">
-        <td data-label="{{t "Member"}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Username}}{{end}}</td>
+        <td data-label="{{t "Member"}}">{{.DisplayName}}</td>
         <td data-label="{{t "Role"}}">{{t .Role}}</td>
         <td data-label="{{t "Access"}}">
-          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{t "%s has access" (or .DisplayName .Username)}}" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> {{t "Has access"}}</label>
+          <label class="check"><input type="checkbox" class="grant-checkbox" data-person-id="{{.PersonID}}" aria-label="{{t "%s has access" .DisplayName}}" {{with index $.Granted .PersonID}}{{if not .Expired}}checked{{end}}{{end}}> {{t "Has access"}}</label>
           {{with index $.Granted .PersonID}}<span class="hint">{{if .Expired}}{{t "ended %s" (date .ExpiresAt "2 Jan 2006")}}{{else}}{{if eq .Source "purchase"}}{{t "bought %s" (date .GrantedAt "2 Jan 2006")}}{{else if eq .Source "bundle"}}{{t "in a bundle %s" (date .GrantedAt "2 Jan 2006")}}{{else}}{{t "given %s" (date .GrantedAt "2 Jan 2006")}}{{end}}{{with .ExpiresAt}}{{t ", until %s" (date . "2 Jan 2006")}}{{end}}{{with .Reference}} · {{.}}{{end}}{{end}}</span>{{end}}
         </td>
       </tr>

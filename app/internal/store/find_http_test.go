@@ -88,7 +88,7 @@ func TestFindBadgesOverHTTP(t *testing.T) {
 	}
 
 	// A closed songbook's song: never offered to another songbook.
-	staff, _ := st.CreatePerson(ctx, "staff", "Staff", "staff@example.com")
+	staff, _ := st.CreatePerson(ctx, "Staff", "staff@example.com")
 	community, err := st.CreateCommunity(ctx, "Florent", staff)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestBigSongbookAndDuplicatesOverHTTP(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
-	admin, _ := st.CreatePerson(ctx, "admin", "Admin", "admin@example.com")
+	admin, _ := st.CreatePerson(ctx, "Admin", "admin@example.com")
 	if err := st.SetAdmin(ctx, admin, true); err != nil {
 		t.Fatal(err)
 	}

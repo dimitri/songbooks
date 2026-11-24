@@ -23,7 +23,7 @@ func NewBandFixture(t *testing.T, st *Store) BandFixture {
 	ctx := context.Background()
 	var f BandFixture
 	person := func(name string) int64 {
-		id, err := st.CreatePerson(ctx, name, strings.ToUpper(name[:1])+name[1:], name+"@example.com")
+		id, err := st.CreatePerson(ctx, strings.ToUpper(name[:1])+name[1:], name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}

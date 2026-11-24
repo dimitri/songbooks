@@ -106,7 +106,6 @@ type BandProposal struct {
 	ID                int64
 	BandID            int64
 	ProposerPersonID  int64
-	ProposerUsername  string
 	ProposerName      string
 	Kind              string // "new_song" or "new_reference"
 	TargetVariantID   *int64
@@ -119,7 +118,7 @@ type BandProposal struct {
 	CreatedAt         time.Time
 	DecidedAt         *time.Time
 	DecidedByPersonID *int64
-	DecidedByUsername string
+	DecidedByName     string // who decided it by hand; "": the votes did
 
 	// The votes standing: how many rated it, their stars' sum, how many
 	// gave 3 or 4 stars (Positive) and 1 or 2 (Negative), how many said
@@ -334,10 +333,10 @@ type ProposalFilter struct {
 }
 
 const proposalCols = `
-	bp.id, bp.band_id, bp.proposer_person_id, p.username, coalesce(nullif(p.display_name, ''), p.username),
+	bp.id, bp.band_id, bp.proposer_person_id, p.display_name,
 	bp.kind::text, bp.target_variant_id,
 	coalesce(s.title, ''), coalesce(s.artist, ''), coalesce(s.version_name, ''), coalesce(s.reference_url, ''),
-	bp.payload, bp.status::text, bp.created_at, bp.decided_at, bp.decided_by_person_id, coalesce(dp.username, ''),
+	bp.payload, bp.status::text, bp.created_at, bp.decided_at, bp.decided_by_person_id, coalesce(dp.display_name, ''),
 	coalesce(v.ratings, 0), coalesce(v.star_sum, 0), coalesce(v.positive, 0), coalesce(v.negative, 0), coalesce(v.no_thanks, 0)`
 
 // seenSQL is whether person (the query's parameter $n) sees a proposal's
@@ -363,10 +362,10 @@ const proposalFrom = `
 
 func scanProposal(row pgx.Row) (*BandProposal, error) {
 	var p BandProposal
-	if err := row.Scan(&p.ID, &p.BandID, &p.ProposerPersonID, &p.ProposerUsername, &p.ProposerName,
+	if err := row.Scan(&p.ID, &p.BandID, &p.ProposerPersonID, &p.ProposerName,
 		&p.Kind, &p.TargetVariantID,
 		&p.TargetTitle, &p.TargetArtist, &p.TargetVersionName, &p.TargetReference,
-		&p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt, &p.DecidedByPersonID, &p.DecidedByUsername,
+		&p.Payload, &p.Status, &p.CreatedAt, &p.DecidedAt, &p.DecidedByPersonID, &p.DecidedByName,
 		&p.Ratings, &p.StarSum, &p.Positive, &p.Negative, &p.NoThanks, &p.Hidden); err != nil {
 		return nil, err
 	}
@@ -459,7 +458,6 @@ func (st *Store) GetProposal(ctx context.Context, proposalID int64) (*BandPropos
 type ProposalBallot struct {
 	ProposalID int64     `json:"-"`
 	PersonID   int64     `json:"personId"`
-	Username   string    `json:"-"`
 	Name       string    `json:"name"`
 	Stars      int       `json:"stars,omitempty"`
 	NoThanks   bool      `json:"noThanks,omitempty"`
@@ -473,7 +471,7 @@ func (st *Store) ProposalBallots(ctx context.Context, proposalIDs []int64) (map[
 		return out, nil
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT v.proposal_id, v.person_id, p.username, coalesce(nullif(p.display_name, ''), p.username),
+		SELECT v.proposal_id, v.person_id, p.display_name,
 		       coalesce(v.stars, 0), v.no_thanks, v.cast_at
 		FROM proposal_votes v JOIN people p ON p.id = v.person_id
 		WHERE v.proposal_id = ANY($1)
@@ -484,7 +482,7 @@ func (st *Store) ProposalBallots(ctx context.Context, proposalIDs []int64) (map[
 	defer rows.Close()
 	for rows.Next() {
 		var b ProposalBallot
-		if err := rows.Scan(&b.ProposalID, &b.PersonID, &b.Username, &b.Name, &b.Stars, &b.NoThanks, &b.CastAt); err != nil {
+		if err := rows.Scan(&b.ProposalID, &b.PersonID, &b.Name, &b.Stars, &b.NoThanks, &b.CastAt); err != nil {
 			return nil, err
 		}
 		out[b.ProposalID] = append(out[b.ProposalID], b)
@@ -506,7 +504,7 @@ type ProposalVoteEntry struct {
 // back, newest first.
 func (st *Store) ProposalVoteLog(ctx context.Context, proposalID int64) ([]ProposalVoteEntry, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT l.person_id, coalesce(nullif(p.display_name, ''), p.username), coalesce(l.stars, 0), l.no_thanks,
+		SELECT l.person_id, p.display_name, coalesce(l.stars, 0), l.no_thanks,
 		       coalesce(l.legacy_vote::text, ''), l.cast_at
 		FROM proposal_vote_log l JOIN people p ON p.id = l.person_id
 		WHERE l.proposal_id = $1
@@ -568,12 +566,7 @@ func (t ProposalTally) BlindFor(status string) ProposalTally {
 		Rated: []ProposalBallot{}, NoThanks: []ProposalBallot{}, NotVoted: []string{}, Guests: []ProposalBallot{}}
 }
 
-func memberName(m BandMember) string {
-	if m.DisplayName != "" {
-		return m.DisplayName
-	}
-	return m.Username
-}
+func memberName(m BandMember) string { return m.DisplayName }
 
 // TallyOf is where a proposal's vote stands with ballots, among the
 // band's current members, as viewer sees it. Only the members whose

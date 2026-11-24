@@ -209,11 +209,22 @@
           <h3>{{t "Add an existing account"}}</h3>
           <p class="hint">{{t "For someone who already uses Songbooks."}}</p>
           <form class="form-stack" id="add-member-form">
+            {{/* Their email, or their name among the people the viewer
+                 already plays or learns with (add_person.go). */}}
             <div class="field">
-              <label for="add-username">{{t "Username"}}</label>
-              <p class="field-hint" id="add-username-hint">{{t "The username they log in with."}}</p>
-              <input type="text" id="add-username" name="username" placeholder="{{t "e.g. marcguitar"}}" required aria-describedby="add-username-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
+              <label for="add-email">{{t "Their email"}}</label>
+              <p class="field-hint" id="add-email-hint">{{t "The email they log in with."}}</p>
+              <input type="email" id="add-email" name="email" placeholder="{{t "name@example.com"}}" aria-describedby="add-email-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
             </div>
+            {{if .KnownPeople}}
+            <div class="field">
+              <label for="add-known">{{t "Or someone you already play with"}}</label>
+              <select id="add-known">
+                <option value="">{{t "Nobody here"}}</option>
+                {{range .KnownPeople}}<option value="{{.ID}}">{{.DisplayName}} · {{.Where}}</option>{{end}}
+              </select>
+            </div>
+            {{end}}
             <div class="field">
               <label for="add-role">{{t "Role"}}</label>
               <select id="add-role" name="role">
@@ -485,9 +496,11 @@ document.querySelectorAll('.qr-link-btn').forEach(btn => {
   btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
 });
 onSubmit($('add-member-form'), async () => {
-  const username = $('add-username').value.trim();
+  const email = $('add-email').value.trim();
+  const personId = Number($('add-known')?.value || 0);
   const role = $('add-role').value;
-  await api(`/api/communities/${communityId}/members`, {username, role}, t('Couldn’t add them. Check the username and try again.'));
+  if (!email && !personId) throw new Error(t('Type their email, or pick someone.'));
+  await api(`/api/communities/${communityId}/members`, personId ? {personId, role} : {email, role}, t('Couldn’t add them. Check the email and try again.'));
   location.hash = 'members';
   location.reload();
 });

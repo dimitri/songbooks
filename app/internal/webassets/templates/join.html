@@ -57,18 +57,14 @@
       <input type="hidden" name="slot_id" id="create-slot-id" value="unlisted">
       <div class="form-stack">
         <div class="field">
-          <label for="join-username">{{t "Username"}}</label>
-          <p class="field-hint" id="join-username-hint">{{t "What you'll log in with, e.g. marcguitar."}}</p>
-          <input id="join-username" type="text" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-username-hint" required autofocus>
-        </div>
-        <div class="field">
           <label for="join-display-name">{{t "Your name"}}</label>
           <p class="field-hint" id="join-display-name-hint">{{t "How the others will see you."}}</p>
-          <input id="join-display-name" type="text" name="display_name" autocomplete="name" autocapitalize="words" aria-describedby="join-display-name-hint" required>
+          <input id="join-display-name" type="text" name="display_name" autocomplete="name" autocapitalize="words" aria-describedby="join-display-name-hint" required autofocus>
         </div>
         <div class="field">
           <label for="join-email">{{t "Email"}}</label>
-          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+          <p class="field-hint" id="join-email-hint">{{t "What you'll log in with."}}</p>
+          <input id="join-email" type="email" name="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="join-email-hint" required>
         </div>
         <div class="field">
           <label for="join-password">{{t "Password"}}</label>
@@ -121,7 +117,6 @@
     (function() {
       const form = document.getElementById('claim-form') || document.getElementById('create-account-form');
       const btn = form.querySelector('button[type=submit]');
-      const username = document.getElementById('join-username');
       const email = document.getElementById('join-email');
       form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -132,9 +127,9 @@
           // Busy until the next page arrives.
           if (res.redirected || res.ok) { location.href = res.url; return new Promise(() => {}); }
           const text = (await res.text()).toLowerCase();
-          if (username && text.includes('username already')) {
-            Forms.fieldError(username, t('That username is taken. Try another.'));
-            username.focus();
+          if (email && text.includes('valid email')) {
+            Forms.fieldError(email, t('Enter an email address like name@example.com.'));
+            email.focus();
             return;
           }
           if (email && text.includes('email already')) {

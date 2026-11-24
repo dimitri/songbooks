@@ -46,7 +46,7 @@ func testStore(t *testing.T) *store.Store {
 func TestRun(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
-	admin, err := st.CreatePerson(ctx, "admin", "Admin", "admin@example.com")
+	admin, err := st.CreatePerson(ctx, "Admin", "admin@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

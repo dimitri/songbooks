@@ -48,18 +48,27 @@
   <section class="admin-panel" data-panel="people">
     <div class="card">
       <h3>{{t "People"}}</h3>
+      {{/* The email is the account (docs/accounts.md): one with a
+           password and no email can't log in (store.ListPasswordNoEmail). */}}
+      {{if .LockedOut}}
+      <div class="admin-locked-out" role="note">
+        <p><strong>{{tn (len .LockedOut) "%d account has a password but no email: it can’t log in." "%d accounts have a password but no email: they can’t log in."}}</strong></p>
+        <ul>{{range .LockedOut}}<li><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a> <span class="hint">(id {{.ID}})</span></li>{{end}}</ul>
+        <p class="hint">{{t "Give each an email to log in with: songbooks --set-email <id> <email> on the server."}}</p>
+      </div>
+      {{end}}
       <div class="table-scroll"><table class="table-stack" style="width:100%">
-        <thead><tr><th>{{t "Username"}}</th><th>{{t "Display name"}}</th><th>{{t "Created"}}</th><th>{{t "Admin"}}</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Name"}}</th><th>{{t "Email"}}</th><th>{{t "Created"}}</th><th>{{t "Admin"}}</th><th></th></tr></thead>
         <tbody>
         {{range .People}}
           <tr>
-            <td data-label="{{t "Username"}}"><a href="/admin/people/{{.ID}}">{{.Username}}</a></td>
-            <td data-label="{{t "Display name"}}">{{.DisplayName}}</td>
+            <td data-label="{{t "Name"}}"><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a></td>
+            <td data-label="{{t "Email"}}">{{if .Email}}{{.Email}}{{else if .IsShell}}<span class="hint">{{t "hasn’t joined yet"}}</span>{{else}}<span class="hint">{{t "no email: can’t log in"}}</span>{{end}}</td>
             <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
             <td data-label="{{t "Admin"}}">{{if .IsAdmin}}{{t "yes"}}{{else}}{{t "no"}}{{end}}</td>
             <td>
               {{if ne .ID $.Me.ID}}
-              <form method="post" action="/admin/people/{{.ID}}/admin" class="button-form"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Username}}')"{{end}}>
+              <form method="post" action="/admin/people/{{.ID}}/admin" class="button-form"{{if .IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .DisplayName}}')"{{end}}>
                 <input type="hidden" name="is_admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
                 <button type="submit">{{if .IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
               </form>

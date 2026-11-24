@@ -42,7 +42,7 @@ func newCoachFlow(t *testing.T, st *store.Store) *coachFlow {
 	ctx := context.Background()
 	f := &coachFlow{ctx: ctx}
 	person := func(name string) int64 {
-		id, err := st.CreatePerson(ctx, name, strings.ToUpper(name[:1])+name[1:], name+"@example.com")
+		id, err := st.CreatePerson(ctx, strings.ToUpper(name[:1])+name[1:], name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -583,7 +583,7 @@ func TestQuickAddForAStudent(t *testing.T) {
 		t.Errorf("the video, after the community's version: %+v", l)
 	}
 	// Someone who can't change the songbook: refused.
-	outsider, err := st.CreatePerson(ctx, "outsider", "Outsider", "outsider@example.com")
+	outsider, err := st.CreatePerson(ctx, "Outsider", "outsider@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

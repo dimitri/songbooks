@@ -517,7 +517,7 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 	// (dev-auto-login has no real session cookie at all) and silently
 	// fell through to the anonymous-visitor branch even for a logged-in
 	// user, which then failed validation since the page hides the
-	// username/password fields whenever .Me is set.
+	// account fields whenever .Me is set.
 	if p := personFromContext(r); p != nil {
 		if ev.OwnerKind == "band" {
 			isMember, _ := s.store.IsCurrentBandMember(r.Context(), ev.OwnerBandID, p.ID)
@@ -554,12 +554,17 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	username := strings.TrimSpace(r.FormValue("username"))
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
-	if username == "" || displayName == "" {
-		httpError(w, http.StatusBadRequest, "username and display name are required")
+	// The email is the account (docs/accounts.md): without one, nobody
+	// could ever log back in to it.
+	if displayName == "" || email == "" {
+		httpError(w, http.StatusBadRequest, "your name and email are both required")
+		return
+	}
+	if at := strings.IndexByte(email, '@'); at <= 0 || at == len(email)-1 {
+		httpError(w, http.StatusBadRequest, "enter a valid email address")
 		return
 	}
 	var hash string
@@ -572,13 +577,11 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 		}
 		hash = string(h)
 	}
-	personID, err := s.store.CreatePersonAndRegisterForEvent(r.Context(), eventID, username, displayName, email, hash, bandID)
+	personID, err := s.store.CreatePersonAndRegisterForEvent(r.Context(), eventID, displayName, email, hash, bandID)
 	if err != nil {
 		switch {
-		case errors.Is(err, store.ErrUsernameTaken):
-			httpError(w, http.StatusConflict, "that username is already taken — try another")
 		case errors.Is(err, store.ErrEmailTaken):
-			httpError(w, http.StatusConflict, "that email is already registered to another account")
+			httpError(w, http.StatusConflict, "that email is already registered to another account — log in with it instead")
 		default:
 			log.Printf("registering for event %d: %v", eventID, err)
 			httpError(w, http.StatusInternalServerError, "couldn't register — try again")

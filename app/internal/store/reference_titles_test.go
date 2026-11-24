@@ -12,7 +12,7 @@ import (
 func TestReferenceTitle(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "reftitle", "Ref Title", "reftitle@example.com")
+	me, err := st.CreatePerson(ctx, "Ref Title", "reftitle@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -47,7 +47,7 @@ func testStore(t *testing.T) *store.Store {
 func TestCommunitySong(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
-	coach, err := st.CreatePerson(ctx, "ines", "Inès", "ines@example.com")
+	coach, err := st.CreatePerson(ctx, "Inès", "ines@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

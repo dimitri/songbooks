@@ -27,7 +27,7 @@ func spaceClient(t *testing.T, h http.Handler, token string) func(string) *httpt
 func TestBandSections(t *testing.T) {
 	st, h := newTestServer(t)
 	ctx := context.Background()
-	player, err := st.CreatePerson(ctx, "bandplayer", "Bea Player", "bea@example.com")
+	player, err := st.CreatePerson(ctx, "Bea Player", "bea@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,11 +89,11 @@ func TestBandSections(t *testing.T) {
 func TestCommunitySections(t *testing.T) {
 	st, h := newTestServer(t)
 	ctx := context.Background()
-	staff, err := st.CreatePerson(ctx, "jamstaff", "Jo Staff", "jo@example.com")
+	staff, err := st.CreatePerson(ctx, "Jo Staff", "jo@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	member, err := st.CreatePerson(ctx, "jammember", "Max Member", "max@example.com")
+	member, err := st.CreatePerson(ctx, "Max Member", "max@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,11 +154,11 @@ func TestCommunitySections(t *testing.T) {
 func TestCoachingStudioSections(t *testing.T) {
 	st, h := newTestServer(t)
 	ctx := context.Background()
-	coach, err := st.CreatePerson(ctx, "studiocoach", "Cora Coach", "cora@example.com")
+	coach, err := st.CreatePerson(ctx, "Cora Coach", "cora@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	student, err := st.CreatePerson(ctx, "studiostudent", "Stan Student", "stan@example.com")
+	student, err := st.CreatePerson(ctx, "Stan Student", "stan@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

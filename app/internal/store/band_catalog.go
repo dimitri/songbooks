@@ -13,7 +13,7 @@ type BandCatalogEntry struct {
 	EntryID         int64
 	AddedAt         time.Time
 	AddedByPersonID *int64
-	AddedByUsername string
+	AddedByName     string // who added it: their display name
 }
 
 // AddBandCatalogEntry points bandID's default songbook at variantID — a
@@ -46,7 +46,7 @@ func (st *Store) ListBandCatalog(ctx context.Context, bandID int64) ([]BandCatal
 		return nil, err
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT se.id, se.added_at, se.added_by_person_id, coalesce(p.username, ''),
+		SELECT se.id, se.added_at, se.added_by_person_id, coalesce(p.display_name, ''),
 		       s.id, s.work_id, s.title, s.artist, `+songKindSQL("s")+`, s.owner_person_id, s.forked_from_id, s.public, s.version_name
 		FROM songbook_entries se
 		JOIN songs s ON s.id = se.variant_id
@@ -60,7 +60,7 @@ func (st *Store) ListBandCatalog(ctx context.Context, bandID int64) ([]BandCatal
 	var out []BandCatalogEntry
 	for rows.Next() {
 		var e BandCatalogEntry
-		if err := rows.Scan(&e.EntryID, &e.AddedAt, &e.AddedByPersonID, &e.AddedByUsername,
+		if err := rows.Scan(&e.EntryID, &e.AddedAt, &e.AddedByPersonID, &e.AddedByName,
 			&e.VariantID, &e.WorkID, &e.Title, &e.Artist, &e.Visibility, &e.OwnerID, &e.ForkedFromID, &e.Public, &e.VersionName); err != nil {
 			return nil, err
 		}

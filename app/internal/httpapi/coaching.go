@@ -106,7 +106,6 @@ func (s *Server) viewedPersonID(r *http.Request, communityID int64) int64 {
 type studentRow struct {
 	PersonID   int64
 	Name       string
-	Username   string
 	Ranges     []rangeView
 	SongbookID int64
 	SongCount  int
@@ -174,7 +173,7 @@ func (s *Server) handleCoachingStudentsPage(w http.ResponseWriter, r *http.Reque
 		if m.IsStaff() {
 			continue
 		}
-		row := studentRow{PersonID: m.PersonID, Name: m.DisplayName, Username: m.Username}
+		row := studentRow{PersonID: m.PersonID, Name: m.DisplayName}
 		rs, err := s.store.StudentRanges(r.Context(), community.ID, m.PersonID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())

@@ -35,13 +35,13 @@ import (
 func main() {
 	addr := flag.String("addr", "localhost:8080", "address to listen on")
 	dbURL := flag.String("db-url", envOr("DATABASE_URL", "postgres://localhost:5432/songbooks_dev?sslmode=disable"), "Postgres connection string (or set DATABASE_URL)")
-	setPasswordUser := flag.String("set-password", "", "one-time bootstrap: read a password for this username from stdin, hash it, store it, then exit — secondary/legacy auth path now that /login is magic-link-only")
-	grantAdminUser := flag.String("grant-admin", "", "one-time bootstrap: grant this username site-wide admin (is_admin), then exit — the only way to create the first admin, since there's no self-serve path")
-	setEmailUser := flag.String("set-email", "", "one-time bootstrap: set a pre-existing account's email so it can use magic-link login — pass the username here and the email as the one remaining positional argument, e.g. songbooks --set-email tapoueh me@example.com")
-	createPersonalInviteUser := flag.String("create-personal-invite", "", "one-time bootstrap: mint a fresh /invite/{token} link for an existing shell account (one created via the band/community roster's quick-add, is_shell=true, not yet logged in) and print it, then exit — the admin-panel equivalent of the roster page's 'Get invite link' button, for an account that has no admin band/community member around to click it. Pass the shell account's username.")
-	createBandInviteID := flag.Int64("create-band-invite", 0, "one-time bootstrap: mint a fresh single-use /invite/{token} band invite link (see handleCreateBandInvite) for this band ID and print it, then exit — the admin-panel equivalent of the band members page's 'Add to band' action with no username typed in. Status defaults to \"core\"; pass \"guest\" as the one positional argument to override.")
+	setPasswordUser := flag.String("set-password", "", "one-time bootstrap: read a password for this person (an email or a numeric id) from stdin, hash it, store it, then exit")
+	grantAdminUser := flag.String("grant-admin", "", "one-time bootstrap: grant this person (an email or a numeric id) site-wide admin (is_admin), then exit — the only way to create the first admin, since there's no self-serve path")
+	setEmailUser := flag.String("set-email", "", "one-time bootstrap: set (or change) an account's email, the account's identity and what it logs in with — pass the person here (their numeric id, or their current email) and the new email as the one remaining positional argument, e.g. songbooks --set-email 3 me@example.com")
+	createPersonalInviteUser := flag.String("create-personal-invite", "", "one-time bootstrap: mint a fresh /invite/{token} link for an existing shell account (one created via the band/community roster's quick-add, is_shell=true, not yet logged in) and print it, then exit — the admin-panel equivalent of the roster page's 'Get invite link' button, for an account that has no admin band/community member around to click it. Pass the shell account's numeric id (it has no email yet).")
+	createBandInviteID := flag.Int64("create-band-invite", 0, "one-time bootstrap: mint a fresh single-use /invite/{token} band invite link (see handleCreateBandInvite) for this band ID and print it, then exit — the admin-panel equivalent of the band members page's 'Add to band' action with no email typed in. Status defaults to \"core\"; pass \"guest\" as the one positional argument to override.")
 	smtpURL := flag.String("smtp-url", "", "real SMTP endpoint for outbound mail — NOT YET IMPLEMENTED; if set, this is logged and the server falls back to the console/outbox mailer. Swapping in a real mailer.Mailer implementation here is the contained follow-up change this flag is a placeholder for.")
-	devAutoLoginUser := flag.String("dev-auto-login", envOr("SONGBOOKS_DEV_AUTO_LOGIN", ""), "DEV/TESTING ONLY, DEFAULT OFF: if set to a username, every single HTTP request is automatically authenticated as that person — /login is skipped entirely, no cookie, no session. This completely disables authentication for anyone who can reach the server. NEVER set this (as a flag or as the SONGBOOKS_DEV_AUTO_LOGIN env var) on a production or otherwise publicly-reachable deployment. Leave it unset (the default) everywhere except your own local dev loop.")
+	devAutoLoginUser := flag.String("dev-auto-login", envOr("SONGBOOKS_DEV_AUTO_LOGIN", ""), "DEV/TESTING ONLY, DEFAULT OFF: if set to a person (an email or a numeric id), every single HTTP request is automatically authenticated as that person — /login is skipped entirely, no cookie, no session. This completely disables authentication for anyone who can reach the server. NEVER set this (as a flag or as the SONGBOOKS_DEV_AUTO_LOGIN env var) on a production or otherwise publicly-reachable deployment. Leave it unset (the default) everywhere except your own local dev loop.")
 	webauthnRPID := flag.String("webauthn-rp-id", envOr("SONGBOOKS_WEBAUTHN_RP_ID", ""), "passkey (WebAuthn) Relying Party ID — the bare hostname passkeys are bound to (e.g. songbooks.tapoueh.org). MUST be set explicitly in production: a passkey only ever works against the exact RPID it was registered under, and defaulting this is a dev-only convenience (see below). Left unset (the default), the RPID/origin are instead derived per-request from that request's own Host header — fine for bouncing between localhost:8080 and a LAN IP while developing, but wrong for a real deployment, which should pin one fixed hostname here instead of trusting whatever Host a request arrived with.")
 	soundfontPath := flag.String("soundfont", envOr("SONGBOOKS_SOUNDFONT", ""), "the SoundFont 2 bank scores play with, served cut down to each score's presets at /soundfonts/subset/ (docs/soundfont.md); default: GeneralUser GS where the image puts it (/usr/local/share/songbooks) or deploy/fetch-soundfont.sh does (the cache directory). None, scores play with alphaTab's Sonivox")
 	cacheDir := flag.String("cache-dir", envOr("SONGBOOKS_CACHE_DIR", defaultCacheDir()), "a directory for files the app makes and can make again (the soundfont subsets)")
@@ -65,7 +65,7 @@ func main() {
 	defer st.Close()
 
 	if *setPasswordUser != "" {
-		p, err := st.GetPersonByUsername(ctx, *setPasswordUser)
+		p, err := st.FindPerson(ctx, *setPasswordUser)
 		if err != nil {
 			log.Fatalf("looking up %q: %v", *setPasswordUser, err)
 		}
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	if *grantAdminUser != "" {
-		p, err := st.GetPersonByUsername(ctx, *grantAdminUser)
+		p, err := st.FindPerson(ctx, *grantAdminUser)
 		if err != nil {
 			log.Fatalf("looking up %q: %v", *grantAdminUser, err)
 		}
@@ -110,7 +110,7 @@ func main() {
 		if email == "" {
 			log.Fatal("empty email")
 		}
-		p, err := st.GetPersonByUsername(ctx, *setEmailUser)
+		p, err := st.FindPerson(ctx, *setEmailUser)
 		if err != nil {
 			log.Fatalf("looking up %q: %v", *setEmailUser, err)
 		}
@@ -122,7 +122,7 @@ func main() {
 	}
 
 	if *createPersonalInviteUser != "" {
-		p, err := st.GetPersonByUsername(ctx, *createPersonalInviteUser)
+		p, err := st.FindPerson(ctx, *createPersonalInviteUser)
 		if err != nil {
 			log.Fatalf("looking up %q: %v", *createPersonalInviteUser, err)
 		}
@@ -169,19 +169,30 @@ func main() {
 
 	var devAutoLogin *store.Person
 	if *devAutoLoginUser != "" {
-		p, err := st.GetPersonByUsername(ctx, *devAutoLoginUser)
+		p, err := st.FindPerson(ctx, *devAutoLoginUser)
 		if err != nil {
 			log.Fatalf("--dev-auto-login %q: %v", *devAutoLoginUser, err)
 		}
 		devAutoLogin = p
 		log.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-		log.Printf("!!! DEV AUTO-LOGIN IS ACTIVE: every request is auto-authenticated as %-20q !!!", p.Username)
+		log.Printf("!!! DEV AUTO-LOGIN IS ACTIVE: every request is auto-authenticated as %-20q !!!", p.DisplayName)
 		log.Printf("!!! ALL AUTHENTICATION IS DISABLED. /login is bypassed for every visitor.      !!!")
 		log.Printf("!!! THIS MUST NEVER RUN ON A PRODUCTION OR PUBLICLY-REACHABLE DEPLOYMENT.      !!!")
 		log.Printf("!!! If you are seeing this banner on songbooks.tapoueh.org (or any other live  !!!")
 		log.Printf("!!! deployment), stop the server NOW: unset --dev-auto-login /                 !!!")
 		log.Printf("!!! SONGBOOKS_DEV_AUTO_LOGIN and restart.                                       !!!")
 		log.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	}
+
+	// The email is the account (migration 0135): one with a password and
+	// no email can't log in any more. Said at every start, like the admin
+	// page does, until each has one.
+	if locked, err := st.ListPasswordNoEmail(ctx); err != nil {
+		log.Printf("listing the accounts without an email: %v", err)
+	} else if len(locked) > 0 {
+		for _, p := range locked {
+			log.Printf("account %d (%q) has a password but no email: it can't log in — songbooks --set-email %d <email>", p.ID, p.DisplayName, p.ID)
+		}
 	}
 
 	handler := httpapi.NewServer(st, m, devAutoLogin, *webauthnRPID, *adminFileDir)

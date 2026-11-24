@@ -96,7 +96,7 @@ func TestCardImageClean(t *testing.T) {
 func TestCardImageBesideBrand(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	pid, err := st.CreatePerson(ctx, "core", "Core", "core@example.com")
+	pid, err := st.CreatePerson(ctx, "Core", "core@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

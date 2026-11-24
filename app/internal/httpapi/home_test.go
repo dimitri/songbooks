@@ -137,7 +137,7 @@ func TestCardImageAccess(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
 	person := func(name string) *store.Person {
-		id, err := st.CreatePerson(ctx, name, name, name+"@example.com")
+		id, err := st.CreatePerson(ctx, name, name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +207,7 @@ func TestCardImageAccess(t *testing.T) {
 	}
 	for _, p := range []*store.Person{guest, outsider} {
 		if w := do(p, "POST", `{"mode":"mosaic"}`); w.Code != http.StatusForbidden {
-			t.Errorf("POST by %s: %d, want 403", p.Username, w.Code)
+			t.Errorf("POST by %s: %d, want 403", p.DisplayName, w.Code)
 		}
 	}
 	if w := do(core, "POST", `{"mode":"picked","works":[`+itoa(theirs)+`]}`); w.Code != http.StatusBadRequest {

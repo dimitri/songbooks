@@ -48,21 +48,17 @@
              the passwords) and a one-line reason; the script below moves
              a reason it recognises under its own field. */}}
         {{if .Error}}<p class="form-status is-error" role="alert" id="invite-error">{{.Error}}</p>{{end}}
-        <div class="field">
-          <label for="f-username">{{t "Username"}}</label>
-          <p class="field-hint" id="f-username-hint">{{t "What you'll log in with, e.g. marcguitar."}}</p>
-          <input id="f-username" type="text" name="username" value="{{.Username}}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="f-username-hint" required autofocus>
-        </div>
         {{if ne .Kind "personal"}}
         <div class="field">
           <label for="f-display-name">{{t "Your name"}}</label>
           <p class="field-hint" id="f-display-name-hint">{{t "How your bandmates will see you."}}</p>
-          <input id="f-display-name" type="text" name="display_name" value="{{.DisplayName}}" autocomplete="name" autocapitalize="words" aria-describedby="f-display-name-hint" required>
+          <input id="f-display-name" type="text" name="display_name" value="{{.DisplayName}}" autocomplete="name" autocapitalize="words" aria-describedby="f-display-name-hint" required autofocus>
         </div>
         {{end}}
         <div class="field">
           <label for="f-email">{{t "Email"}}</label>
-          <input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+          <p class="field-hint" id="f-email-hint">{{t "What you'll log in with."}}</p>
+          <input id="f-email" type="email" name="email" value="{{.Email}}" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="f-email-hint" required{{if eq .Kind "personal"}} autofocus{{end}}>
         </div>
         <div class="field">
           <label for="f-password">{{t "Password"}}</label>
@@ -97,7 +93,6 @@
   if (!errEl) return;
   const msg = errEl.textContent.trim();
   const byField = [
-    [/username is already taken/, 'f-username', t('That username is taken. Try another.')],
     [/email is already registered/, 'f-email', t('That email already belongs to another account. Use a different one, or log in with it instead.')],
     [/valid email/, 'f-email', t('Enter an email address like name@example.com.')],
     [/at least 8/, 'f-password', t('Use at least %d characters.', 8)],

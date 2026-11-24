@@ -29,9 +29,9 @@ func TestRowRange(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	owner, err := st.CreatePerson(ctx, "rangeowner", "Ra Owner", "ra@example.com")
+	owner, err := st.CreatePerson(ctx, "Ra Owner", "ra@example.com")
 	must(err)
-	stranger, err := st.CreatePerson(ctx, "rangestranger", "Stan Ger", "stan@example.com")
+	stranger, err := st.CreatePerson(ctx, "Stan Ger", "stan@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, store.OwnerPerson, owner, "Tune", "", owner)
 	must(err)

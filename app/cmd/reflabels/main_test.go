@@ -57,7 +57,7 @@ func TestRun(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ann, err := st.CreatePerson(ctx, "ann", "Ann", "ann@example.com")
+	ann, err := st.CreatePerson(ctx, "Ann", "ann@example.com")
 	must(err)
 	song := func(title, artist, ref string) int64 {
 		t.Helper()

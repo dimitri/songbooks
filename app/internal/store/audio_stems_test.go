@@ -11,7 +11,7 @@ import (
 func TestStemJobs(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "singer", "Singer", "singer@example.com")
+	me, err := st.CreatePerson(ctx, "Singer", "singer@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestStemJobs(t *testing.T) {
 func TestNoStemsForGPRecordings(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "player", "Player", "player@example.com")
+	me, err := st.CreatePerson(ctx, "Player", "player@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

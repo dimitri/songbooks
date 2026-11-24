@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"app/internal/groupfmt"
@@ -33,8 +34,12 @@ import (
 )
 
 type user struct {
-	ID              int64           `json:"id"`
-	Username        string          `json:"username"`
+	ID int64 `json:"id"`
+	// LegacyName is an older export's "username": its person owner
+	// directories were named after it (now person-<id>, see
+	// cmd/songexport's personDirName). Read from the file only, to
+	// restore such an export; never written to the database.
+	LegacyName      string          `json:"username,omitempty"`
 	DisplayName     string          `json:"displayName"`
 	Email           string          `json:"email,omitempty"`
 	IsAdmin         bool            `json:"isAdmin,omitempty"`
@@ -160,9 +165,9 @@ func main() {
 	}
 	defer st.Close()
 
-	run := &runner{st: st, inDir: *inDir, apply: *apply, newUserID: map[int64]int64{}, usernameByOldID: map[int64]string{},
-		personIDByUsername: map[string]int64{},
-		ownerID:            map[ownerKey]int64{}, groupCreator: map[ownerKey]int64{}, songbookID: map[songbookKey]int64{}, newVariantID: map[int64]int64{}}
+	run := &runner{st: st, inDir: *inDir, apply: *apply, newUserID: map[int64]int64{}, nameByOldID: map[int64]string{},
+		personIDByDir: map[string]int64{},
+		ownerID:       map[ownerKey]int64{}, groupCreator: map[ownerKey]int64{}, songbookID: map[songbookKey]int64{}, newVariantID: map[int64]int64{}}
 
 	run.importUsers(ctx, users)
 	run.importGroups(ctx, variants) // bands/communities, their members
@@ -184,37 +189,46 @@ type runner struct {
 	inDir string
 	apply bool
 
-	newUserID          map[int64]int64    // OLD user id (from users.json) -> NEW person id in this database
-	usernameByOldID    map[int64]string   // for log messages only
-	personIDByUsername map[string]int64   // username -> NEW person id — OwnerName for a person-owned song/songbook is a username (slug), not a users.json id
-	ownerID            map[ownerKey]int64 // (kind,name) -> band id / community id / person id
-	groupCreator       map[ownerKey]int64 // (kind,name) -> a CURRENT member, for a song whose own created_by is unrecorded; 0 if the group has no members at all
-	songbookID         map[songbookKey]int64
-	newVariantID       map[int64]int64 // old id -> new id
+	newUserID     map[int64]int64    // OLD user id (from users.json) -> NEW person id in this database
+	nameByOldID   map[int64]string   // for log messages only
+	personIDByDir map[string]int64   // a person's owner directory (person-<old id>, or an older export's username) -> NEW person id
+	ownerID       map[ownerKey]int64 // (kind,name) -> band id / community id / person id
+	groupCreator  map[ownerKey]int64 // (kind,name) -> a CURRENT member, for a song whose own created_by is unrecorded; 0 if the group has no members at all
+	songbookID    map[songbookKey]int64
+	newVariantID  map[int64]int64 // old id -> new id
 }
 
 func (r *runner) logf(format string, args ...any) { fmt.Printf(format+"\n", args...) }
 
 func (r *runner) importUsers(ctx context.Context, users []user) {
 	for _, u := range users {
-		r.usernameByOldID[u.ID] = u.Username
-		if !u.IsShell {
-			// A shell's username is a random "pending-..." placeholder
-			// CreateShellPerson generates fresh each time (see its own
-			// doc comment) — there's nothing stable to match an existing
-			// one by, so a shell is always (re)created new; only a real
-			// account is matched against what's already in this database.
-			existing, err := r.st.GetPersonByUsername(ctx, u.Username)
+		label := fmt.Sprintf("%d (%s)", u.ID, u.DisplayName)
+		r.nameByOldID[u.ID] = label
+		dirs := []string{fmt.Sprintf("person-%d", u.ID)}
+		if u.LegacyName != "" {
+			dirs = append(dirs, u.LegacyName)
+		}
+		mapTo := func(id int64) {
+			r.newUserID[u.ID] = id
+			for _, d := range dirs {
+				r.personIDByDir[d] = id
+			}
+		}
+		if !u.IsShell && u.Email != "" {
+			// A real account is matched by its email, the account itself
+			// (docs/accounts.md), against what's already in this
+			// database. A shell has none — nothing stable to match it
+			// by — so it's always (re)created new, as is an account
+			// without an email.
+			existing, err := r.st.GetPersonByEmail(ctx, strings.ToLower(u.Email))
 			if err == nil {
-				r.newUserID[u.ID] = existing.ID
-				r.personIDByUsername[u.Username] = existing.ID
+				mapTo(existing.ID)
 				continue
 			}
 		}
-		r.logf("person %s: creating (display name %q, shell=%v)", u.Username, u.DisplayName, u.IsShell)
+		r.logf("person %s: creating (shell=%v)", label, u.IsShell)
 		if !r.apply {
-			r.newUserID[u.ID] = -1 // placeholder so a dry run can still walk the rest of the logic
-			r.personIDByUsername[u.Username] = -1
+			mapTo(-1) // placeholder so a dry run can still walk the rest of the logic
 			continue
 		}
 		var newID int64
@@ -222,41 +236,40 @@ func (r *runner) importUsers(ctx context.Context, users []user) {
 		if u.IsShell {
 			newID, err = r.st.CreateShellPerson(ctx, u.DisplayName)
 		} else {
-			newID, err = r.st.CreatePerson(ctx, u.Username, u.DisplayName, u.Email)
+			newID, err = r.st.CreatePerson(ctx, u.DisplayName, u.Email)
 		}
 		if err != nil {
-			log.Fatalf("creating person %s: %v", u.Username, err)
+			log.Fatalf("creating person %s: %v", label, err)
 		}
 		if u.IsAdmin {
 			if err := r.st.SetAdmin(ctx, newID, true); err != nil {
-				log.Fatalf("setting admin for %s: %v", u.Username, err)
+				log.Fatalf("setting admin for %s: %v", label, err)
 			}
 		}
 		if len(u.Instruments) > 0 {
 			if err := r.st.UpdateOwnInstruments(ctx, newID, u.Instruments, nil); err != nil {
-				log.Fatalf("setting instruments for %s: %v", u.Username, err)
+				log.Fatalf("setting instruments for %s: %v", label, err)
 			}
 		}
 		if err := r.st.SetPublicProfile(ctx, newID, u.Nickname, u.PictureURL, u.Phone, u.ShareEmail, u.SharePhone, u.GravatarOptOut); err != nil {
-			log.Fatalf("setting public profile for %s: %v", u.Username, err)
+			log.Fatalf("setting public profile for %s: %v", label, err)
 		}
 		createdAt, err := time.Parse(time.RFC3339, u.CreatedAt)
 		if err != nil {
-			log.Fatalf("parsing createdAt for %s: %v", u.Username, err)
+			log.Fatalf("parsing createdAt for %s: %v", label, err)
 		}
 		var onboardedAt *time.Time
 		if u.OnboardedAt != "" {
 			t, err := time.Parse(time.RFC3339, u.OnboardedAt)
 			if err != nil {
-				log.Fatalf("parsing onboardedAt for %s: %v", u.Username, err)
+				log.Fatalf("parsing onboardedAt for %s: %v", label, err)
 			}
 			onboardedAt = &t
 		}
 		if err := r.st.RestorePersonTimestamps(ctx, newID, createdAt, onboardedAt, u.ClickTrackPrefs); err != nil {
-			log.Fatalf("restoring timestamps for %s: %v", u.Username, err)
+			log.Fatalf("restoring timestamps for %s: %v", label, err)
 		}
-		r.newUserID[u.ID] = newID
-		r.personIDByUsername[u.Username] = newID
+		mapTo(newID)
 	}
 }
 
@@ -318,7 +331,7 @@ func (r *runner) importGroup(ctx context.Context, k ownerKey) {
 		log.Fatalf("%s: creator (user id %d) not found in users.json", path, creatorOldID)
 	}
 
-	r.logf("%s %q: creating with %d member(s), creator=%s", k.kind, name, len(mf.Members), r.usernameByOldID[creatorOldID])
+	r.logf("%s %q: creating with %d member(s), creator=%s", k.kind, name, len(mf.Members), r.nameByOldID[creatorOldID])
 	if !r.apply {
 		r.ownerID[k] = -1 // placeholder so importSongs' dry run doesn't also fail to resolve it
 		return
@@ -368,11 +381,11 @@ func (r *runner) importGroup(ctx context.Context, k ownerKey) {
 			_, addErr = r.st.AddCommunityMember(ctx, groupID, personID, m.RoleOrStatus, invitedBy)
 		}
 		if addErr != nil {
-			log.Fatalf("adding %s to %s %q: %v", r.usernameByOldID[m.UserID], k.kind, name, addErr)
+			log.Fatalf("adding %s to %s %q: %v", r.nameByOldID[m.UserID], k.kind, name, addErr)
 		}
 		if m.LeftAt != "" {
 			if err := r.st.SetMemberLeftAt(ctx, k.kind, groupID, personID, m.LeftAt); err != nil {
-				log.Fatalf("marking %s as departed from %s %q: %v", r.usernameByOldID[m.UserID], k.kind, name, err)
+				log.Fatalf("marking %s as departed from %s %q: %v", r.nameByOldID[m.UserID], k.kind, name, err)
 			}
 		}
 	}
@@ -388,7 +401,7 @@ func (r *runner) importGroup(ctx context.Context, k ownerKey) {
 
 func (r *runner) resolveOwnerID(ctx context.Context, kind, name string) int64 {
 	if kind == "person" {
-		id, ok := r.personIDByUsername[name]
+		id, ok := r.personIDByDir[name]
 		if !ok {
 			log.Fatalf("person %q not found", name)
 		}

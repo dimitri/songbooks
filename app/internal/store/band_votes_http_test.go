@@ -28,7 +28,7 @@ func newVotesBand(t *testing.T, st *store.Store) votesBand {
 	f := votesBand{BandFixture: store.NewBandFixture(t, st)}
 	f.Cores = []int64{f.Core}
 	for _, name := range []string{"bea", "cyd"} {
-		id, err := st.CreatePerson(ctx, name, strings.ToUpper(name[:1])+name[1:], name+"@example.com")
+		id, err := st.CreatePerson(ctx, strings.ToUpper(name[:1])+name[1:], name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}

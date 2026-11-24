@@ -52,7 +52,7 @@ func newTestPerson(t *testing.T, st *store.Store, admin bool) testPerson {
 	rand.Read(b)
 	suffix := hex.EncodeToString(b)
 	p := testPerson{Name: "Test " + suffix, Email: "ll-" + suffix + "@example.test"}
-	id, err := st.CreatePerson(ctx, "ll-"+suffix, p.Name, p.Email)
+	id, err := st.CreatePerson(ctx, p.Name, p.Email)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestAdminLoginLink(t *testing.T) {
 		}
 
 		// Nobody to email.
-		noEmailID, err := st.CreatePerson(ctx, "ll-noemail-"+strconv.FormatInt(member.ID, 10), "No Email", "")
+		noEmailID, err := st.CreatePerson(ctx, "No Email", "")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -11,6 +11,7 @@ import (
 	"io"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -47,8 +48,19 @@ func exec(ctx context.Context, tx pgx.Tx, c counts, table, sql string, args ...a
 	return nil
 }
 
-// The username kept as it is: the local stack logs in as it.
-const keptUsername = "tapoueh"
+// The account kept (its password, its sessions): the first one, the
+// bootstrap account, which the local stack logs in as
+// (SONGBOOKS_DEV_AUTO_LOGIN=1) and its owner signs in to staging with,
+// by keptEmail and their password. There are no usernames to find it
+// by (migration 0135).
+const (
+	keptPersonID = 1
+	keptEmail    = "tapoueh@example.invalid"
+)
+
+// studentEmailLike matches the fixtures' invented students' emails
+// (fixer.student): invented already, anonymize leaves them be.
+const studentEmailLike = "demo-student-%@example.invalid"
 
 // lyricSongs is how many songs get invented lyrics.
 const lyricSongs = 8
@@ -126,20 +138,19 @@ func (a *anonymizer) people(ctx context.Context, tx pgx.Tx) error {
 
 	type person struct {
 		id       int64
-		username string
 		hasEmail bool
 		isShell  bool
 	}
 	var people []person
 	// fixtures' students are invented already.
-	rows, err = tx.Query(ctx, `SELECT id, username, email IS NOT NULL, is_shell FROM people
-		WHERE username NOT LIKE 'demo-student-%' ORDER BY id`)
+	rows, err = tx.Query(ctx, `SELECT id, email IS NOT NULL, is_shell FROM people
+		WHERE coalesce(email, '') NOT LIKE $1 ORDER BY id`, studentEmailLike)
 	if err != nil {
 		return err
 	}
 	for rows.Next() {
 		var p person
-		if err := rows.Scan(&p.id, &p.username, &p.hasEmail, &p.isShell); err != nil {
+		if err := rows.Scan(&p.id, &p.hasEmail, &p.isShell); err != nil {
 			return err
 		}
 		people = append(people, p)
@@ -148,29 +159,30 @@ func (a *anonymizer) people(ctx context.Context, tx pgx.Tx) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	// Usernames move out of the way first: a demo-N may be someone
-	// else's until everyone's renamed.
-	if _, err := tx.Exec(ctx, `UPDATE people SET username = 'sbdemo-tmp-' || id WHERE username <> $1 AND username NOT LIKE 'demo-student-%'`, keptUsername); err != nil {
+	// Emails move out of the way first: a demo-N's may be someone
+	// else's until everyone's renamed. The legacy usernames (real
+	// handles, migration 0135) go altogether.
+	if _, err := tx.Exec(ctx, `UPDATE people SET username = NULL, email = CASE WHEN email IS NOT NULL THEN 'sbdemo-tmp-' || id END
+		WHERE coalesce(email, '') NOT LIKE $1`, studentEmailLike); err != nil {
 		return err
 	}
 	for _, p := range people {
-		username := fmt.Sprintf("demo-%d", p.id)
+		email := fmt.Sprintf("demo-%d@example.invalid", p.id)
 		name := PersonName(int(p.id))
-		if p.username == keptUsername {
-			username, name = keptUsername, lucasName
+		if p.id == keptPersonID {
+			email, name = keptEmail, lucasName
 		} else if coaches[p.id] {
 			name = coachName
 		}
-		var email *string
-		if p.hasEmail {
-			e := username + "@example.invalid"
-			email = &e
+		var emailArg *string
+		if p.hasEmail || p.id == keptPersonID {
+			emailArg = &email
 		}
 		if err := exec(ctx, tx, a.c, "people", `
-			UPDATE people SET username = $2, display_name = $3, email = $4, nickname = '', picture_url = '',
+			UPDATE people SET display_name = $2, email = $3, nickname = '', picture_url = '',
 				phone = '', share_email = false, share_phone = false, gravatar_opt_out = true,
-				password_hash = CASE WHEN $2 = $5 THEN password_hash END
-			WHERE id = $1`, p.id, username, name, email, keptUsername); err != nil {
+				password_hash = CASE WHEN id = $4 THEN password_hash END
+			WHERE id = $1`, p.id, name, emailArg, keptPersonID); err != nil {
 			return err
 		}
 	}
@@ -187,7 +199,7 @@ func (a *anonymizer) people(ctx context.Context, tx pgx.Tx) error {
 // history (revisions hold every old body, lyrics included), searches.
 func (a *anonymizer) private(ctx context.Context, tx pgx.Tx) error {
 	for _, s := range []struct{ table, sql string }{
-		{"sessions", `DELETE FROM sessions WHERE person_id <> (SELECT id FROM people WHERE username = '` + keptUsername + `')`},
+		{"sessions", `DELETE FROM sessions WHERE person_id <> ` + strconv.Itoa(keptPersonID)},
 		{"login_tokens", `DELETE FROM login_tokens`},
 		{"webauthn_credentials", `DELETE FROM webauthn_credentials`},
 		{"calendar_feeds", `DELETE FROM calendar_feeds`},

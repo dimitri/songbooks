@@ -32,7 +32,7 @@ func TestSongProposalFlow(t *testing.T) {
 	}
 	person := func(u, name string) int64 {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, u, name, u+"@example.com")
+		id, err := st.CreatePerson(ctx, name, u+"@example.com")
 		must(err)
 		return id
 	}

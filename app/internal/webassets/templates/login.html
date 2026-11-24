@@ -30,11 +30,11 @@
     {{/* Deliberately one message for every failure (no such account, no
          password set, wrong password) — see handlePasswordLogin. */}}
     <form method="post" action="/login" class="form-stack" id="password-login-form">
-      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">{{t "That username or email and password don't match. Check both and try again."}}</p>{{end}}
+      {{if .InvalidCredentials}}<p class="form-status is-error" role="alert">{{t "That email and password don't match. Check both and try again."}}</p>{{end}}
       <input type="hidden" name="mode" value="password">
       <div class="field">
-        <label for="login-identifier">{{t "Username or email"}}</label>
-        <input id="login-identifier" type="text" name="identifier" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required {{if not .InvalidCredentials}}autofocus{{end}}>
+        <label for="login-identifier">{{t "Email"}}</label>
+        <input id="login-identifier" type="email" name="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required {{if not .InvalidCredentials}}autofocus{{end}}>
       </div>
       <div class="field">
         <label for="login-password">{{t "Password"}}</label>
@@ -65,7 +65,7 @@
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
 // A failed password login is a redirect to /login?badlogin=1 (the server
-// keeps nothing), so the username or email typed is stashed for this tab
+// keeps nothing), so the email typed is stashed for this tab
 // and put back, and focus goes to the password, the field to retype.
 // Never the password itself.
 (function() {

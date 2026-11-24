@@ -8,7 +8,7 @@ import (
 func TestCheckSettings(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, _ := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	if err != nil {
 		t.Fatal(err)

@@ -88,7 +88,7 @@
           <a href="/works/{{.WorkID}}">{{t "Recordings and arrangements"}}</a>
           <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a>
           {{if .ForkedFromID}}<a href="/variants/{{deref64 .ForkedFromID}}/history">{{t "Copied from"}}</a>{{end}}
-          <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByUsername}}</p>
+          <p class="hint">{{t (printf "visibility|%s" .Visibility)}} &middot; {{t "added by %s" .AddedByName}}</p>
           <button type="button" class="remove-entry-btn danger" data-variant-id="{{.VariantID}}" data-title="{{.Title}}">{{t "Remove from the songbook"}}</button>
           <p class="form-status" role="status"></p>
         </div>

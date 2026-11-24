@@ -33,7 +33,7 @@ func TestPlayerPartsAPI(t *testing.T) {
 	defer st.Close()
 	sfx := fmt.Sprint(time.Now().UnixNano())
 	person := func(name string, instruments ...string) *store.Person {
-		id, err := st.CreatePerson(ctx, name+sfx, name, name+sfx+"@example.com")
+		id, err := st.CreatePerson(ctx, name, name+sfx+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}

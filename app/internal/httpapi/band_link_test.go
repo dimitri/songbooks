@@ -67,7 +67,7 @@ func TestBandLink(t *testing.T) {
 
 	person := func(name string) (int64, *http.Cookie) {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, name+sfx, name, name+sfx+"@example.test")
+		id, err := st.CreatePerson(ctx, name, name+sfx+"@example.test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -154,7 +154,7 @@ func TestBandLink(t *testing.T) {
 
 	// A stranger creates an account through it.
 	form := url.Values{
-		"slot_id": {"unlisted"}, "username": {"newbie" + sfx}, "display_name": {"Newbie"},
+		"slot_id": {"unlisted"}, "display_name": {"Newbie"},
 		"email": {"newbie" + sfx + "@example.test"}, "password": {"long enough"}, "confirm": {"long enough"},
 	}
 	w = do("POST", core.URL, "application/x-www-form-urlencoded", form.Encode(), nil)
@@ -162,7 +162,7 @@ func TestBandLink(t *testing.T) {
 	if w.Code != http.StatusFound || w.Header().Get("Location") != wantDest {
 		t.Fatalf("joining with a new account: %d %q %s", w.Code, w.Header().Get("Location"), w.Body)
 	}
-	newbie, err := st.GetPersonByUsername(ctx, "newbie"+sfx)
+	newbie, err := st.GetPersonByEmail(ctx, "newbie"+sfx+"@example.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,12 +195,11 @@ func TestBandLink(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("closing: %d %s", w.Code, w.Body)
 	}
-	form.Set("username", "late"+sfx)
 	form.Set("email", "late"+sfx+"@example.test")
 	if w = do("POST", core.URL, "application/x-www-form-urlencoded", form.Encode(), nil); w.Code != http.StatusGone {
 		t.Errorf("joining through a closed link: %d", w.Code)
 	}
-	if _, err := st.GetPersonByUsername(ctx, "late"+sfx); err == nil {
+	if _, err := st.GetPersonByEmail(ctx, "late"+sfx+"@example.test"); err == nil {
 		t.Errorf("a closed link still made an account")
 	}
 	if w = do("GET", core.URL, "", "", nil); !strings.Contains(w.Body.String(), "has been closed") {
@@ -228,7 +227,7 @@ func newInviteEnv(t *testing.T) *inviteEnv {
 func (e *inviteEnv) person(name string) (int64, *http.Cookie) {
 	e.t.Helper()
 	ctx := context.Background()
-	id, err := e.st.CreatePerson(ctx, name+e.sfx, name, name+e.sfx+"@example.test")
+	id, err := e.st.CreatePerson(ctx, name, name+e.sfx+"@example.test")
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -263,7 +262,7 @@ func TestBandInvitesAreCoreOnly(t *testing.T) {
 	ctx := context.Background()
 	coreID, core := e.person("Core")
 	guestID, guest := e.person("Guest")
-	e.person("Someone") // an account to add by username
+	e.person("Someone") // an account to add by email
 	bandID, err := e.st.CreateBand(ctx, "Core Band "+e.sfx, coreID)
 	if err != nil {
 		t.Fatal(err)
@@ -291,7 +290,7 @@ func TestBandInvitesAreCoreOnly(t *testing.T) {
 		return out
 	}
 
-	call("add by username", "POST", b+"/members", `{"username":"Someone`+e.sfx+`","status":"guest"}`)
+	call("add by email", "POST", b+"/members", `{"email":"Someone`+e.sfx+`@example.test","status":"guest"}`)
 	call("one-off link", "POST", b+"/invites", "status=guest")
 	shell := call("personal invite", "POST", b+"/personal-invites", `{"displayName":"Placeholder","status":"guest"}`)
 	shellID := int64(shell["personId"].(float64))
@@ -370,7 +369,7 @@ func TestCommunityOpenLinks(t *testing.T) {
 
 	// Someone joins through the member link.
 	form := url.Values{
-		"slot_id": {"unlisted"}, "username": {"joiner" + e.sfx}, "display_name": {"Joiner Person"},
+		"slot_id": {"unlisted"}, "display_name": {"Joiner Person"},
 		"email": {"joiner" + e.sfx + "@example.test"}, "password": {"long enough"}, "confirm": {"long enough"},
 	}
 	if w := e.do("POST", first.URL, form.Encode(), nil); w.Code != http.StatusFound {
@@ -407,8 +406,8 @@ func TestCommunityOpenLinks(t *testing.T) {
 	}
 
 	// The placeholder is a row under "Invited by name": their name, their
-	// role, who invited them, Copy link and QR code; never their internal
-	// username, nor the link spelled out (the buttons carry it).
+	// role, who invited them, Copy link and QR code; never an internal
+	// placeholder name, nor the link spelled out (the buttons carry it).
 	page = e.do("GET", fmt.Sprintf("/communities/%d/admin", communityID), "", staff).Body.String()
 	for _, want := range []string{"Invited by name", fmt.Sprintf(`class="roster-row invite-row" data-person-id="%d"`, shell.PersonID), ">Waiting One</strong>", "invited by Staffer ·", "link expires", "copy-link-btn", "qr-link-btn"} {
 		if !strings.Contains(page, want) {

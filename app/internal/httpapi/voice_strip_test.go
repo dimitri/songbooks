@@ -65,7 +65,7 @@ func TestMelodyRangeCache(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	coach, err := st.CreatePerson(ctx, "coach", "Cora Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Cora Coach", "coach@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, store.OwnerPerson, coach, "Song", "", coach)
 	must(err)
@@ -171,7 +171,7 @@ func TestVoiceStripAccess(t *testing.T) {
 	}
 	person := func(u, name string) int64 {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, u, name, u+"@example.com")
+		id, err := st.CreatePerson(ctx, name, u+"@example.com")
 		must(err)
 		return id
 	}

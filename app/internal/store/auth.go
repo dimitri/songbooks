@@ -8,21 +8,22 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// Person is one login-capable account. PasswordHash is empty until
-// SetPassword has been called for them (e.g. the accounts Phase 1's
-// --import tool creates). Email is empty for accounts that predate the
-// magic-link login phase and haven't been backfilled yet (see
-// SetEmail / the --set-email bootstrap flag) — such accounts can still
-// only log in via the legacy password path, if they have one.
+// Person is one login-capable account, identified by its Email (see
+// docs/accounts.md): there is no login name (people.username is legacy,
+// migration 0135) and people are shown by DisplayName. PasswordHash is
+// empty until SetPassword has been called for them. Email is empty for
+// a placeholder (shell) account and for the odd old account that never
+// had one backfilled (see SetEmail / the --set-email flag): such an
+// account can't log in at all until it gets one (ListPasswordNoEmail).
 type Person struct {
 	ID           int64
-	Username     string
 	DisplayName  string
 	Email        string
 	PasswordHash string
@@ -34,7 +35,7 @@ type Person struct {
 	Instruments []string
 
 	// Public-profile fields (see migration 0038): shown instead of
-	// Username/DisplayName wherever a "public" view of this person is
+	// DisplayName wherever a "public" view of this person is
 	// shown (not built yet beyond the profile editor itself). ShareEmail/
 	// SharePhone are separate opt-ins — a nickname/picture alone doesn't
 	// expose contact info.
@@ -83,7 +84,6 @@ type ProjectSummary struct {
 // identity, for a project's members/invite-management page.
 type Member struct {
 	PersonID    int64
-	Username    string
 	DisplayName string
 	Role        string
 }
@@ -126,27 +126,39 @@ func randomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// GetPersonByUsername looks up a person by their login name.
-func (st *Store) GetPersonByUsername(ctx context.Context, username string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE username = $1`, username)
-}
-
 // GetPersonByID looks up a person by id.
 func (st *Store) GetPersonByID(ctx context.Context, id int64) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, id)
+	return st.scanPerson(ctx, `SELECT id, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, id)
 }
 
 // GetPersonByEmail looks up a person by their email address — the
-// magic-link login lookup. Case-sensitive exact match, matching how the
-// email was stored (emails are lowercased on input, see handleLogin/
-// SetEmail).
+// login lookup (magic link and password alike), the email being the
+// account. Emails are lowercased on input (handleLogin, SetEmail,
+// CreatePerson); the match ignores case all the same, an exact match
+// first should two old rows differ only by case.
 func (st *Store) GetPersonByEmail(ctx context.Context, email string) (*Person, error) {
-	return st.scanPerson(ctx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE email = $1`, email)
+	return st.scanPerson(ctx, `SELECT id, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people
+		WHERE lower(email) = lower($1) ORDER BY email = $1 DESC, id LIMIT 1`, strings.TrimSpace(email))
+}
+
+// FindPerson resolves how a command line or a config names a person
+// (cmd/songbooks --set-email, SONGBOOKS_DEV_AUTO_LOGIN, cmd/sbcoach…):
+// a numeric id, or an email (matched lowercased, as stored). There is
+// no login name any more (migration 0135). ErrNotFound if nobody.
+func (st *Store) FindPerson(ctx context.Context, emailOrID string) (*Person, error) {
+	ref := strings.TrimSpace(emailOrID)
+	if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
+		return st.GetPersonByID(ctx, id)
+	}
+	if !strings.Contains(ref, "@") {
+		return nil, fmt.Errorf("%q is neither an email nor an id (there are no usernames any more): %w", ref, ErrNotFound)
+	}
+	return st.GetPersonByEmail(ctx, strings.ToLower(ref))
 }
 
 func (st *Store) scanPerson(ctx context.Context, query string, arg any) (*Person, error) {
 	var p Person
-	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
+	err := st.db.QueryRow(ctx, query, arg).Scan(&p.ID, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -204,15 +216,16 @@ func (st *Store) SetAdmin(ctx context.Context, personID int64, isAdmin bool) err
 // PersonAdminRow is one row of the admin panel's people list.
 type PersonAdminRow struct {
 	ID          int64
-	Username    string
 	DisplayName string
+	Email       string // "" for a placeholder, or an account that can't log in
 	IsAdmin     bool
+	IsShell     bool
 	CreatedAt   time.Time
 }
 
 // ListAllPeople lists every person in the system, for the admin panel.
 func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
-	rows, err := st.db.Query(ctx, `SELECT id, username, display_name, is_admin, created_at FROM people ORDER BY created_at`)
+	rows, err := st.db.Query(ctx, `SELECT id, display_name, coalesce(email, ''), is_admin, is_shell, created_at FROM people ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +233,34 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 	var out []PersonAdminRow
 	for rows.Next() {
 		var p PersonAdminRow
-		if err := rows.Scan(&p.ID, &p.Username, &p.DisplayName, &p.IsAdmin, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Email, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ListPasswordNoEmail lists the accounts that have a password but no
+// email: with email the only identity (migration 0135) they can't log
+// in any more — no magic link to send, no email to type with the
+// password — until someone gives them one (songbooks --set-email
+// <id> <email>). Placeholder (shell) accounts aren't in it: they have
+// neither, and their invite link is how they get both. For the admin
+// panel and a line at startup.
+func (st *Store) ListPasswordNoEmail(ctx context.Context) ([]PersonAdminRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT id, display_name, is_admin, is_shell, created_at FROM people
+		WHERE email IS NULL AND password_hash IS NOT NULL AND password_hash <> '' AND NOT is_shell
+		ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PersonAdminRow
+	for rows.Next() {
+		var p PersonAdminRow
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -232,7 +272,7 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 // email (invite-only account creation — see CreatePersonAndAcceptInvite,
 // which is the one actually wired to the accept flow; this is kept as
 // the plain non-transactional equivalent for any future direct caller).
-func (st *Store) CreatePerson(ctx context.Context, username, displayName, email string) (int64, error) {
+func (st *Store) CreatePerson(ctx context.Context, displayName, email string) (int64, error) {
 	// email is UNIQUE but nullable — a literal "" (no caller ever passed
 	// one until cmd/songimport started restoring people with no email on
 	// file) collides with itself on the SECOND such person, since two
@@ -240,13 +280,13 @@ func (st *Store) CreatePerson(ctx context.Context, username, displayName, email 
 	// NULLs are not. Store "no email" as NULL, same as every other no-
 	// email person already in the table.
 	var emailArg *string
-	if email != "" {
+	if email = strings.ToLower(strings.TrimSpace(email)); email != "" {
 		emailArg = &email
 	}
 	var id int64
 	err := st.db.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
-		username, displayName, emailArg).Scan(&id)
+		`INSERT INTO people (display_name, email) VALUES ($1, $2) RETURNING id`,
+		displayName, emailArg).Scan(&id)
 	return id, err
 }
 
@@ -306,11 +346,11 @@ func (st *Store) CreateSession(ctx context.Context, personID int64) (string, err
 func (st *Store) GetSession(ctx context.Context, token string) (*Person, error) {
 	var p Person
 	err := st.db.QueryRow(ctx, `
-		SELECT p.id, p.username, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments,
+		SELECT p.id, p.display_name, coalesce(p.email, ''), coalesce(p.password_hash, ''), p.is_admin, p.instruments,
 		       p.nickname, p.picture_url, p.phone, p.share_email, p.share_phone, p.gravatar_opt_out
 		FROM sessions s JOIN people p ON p.id = s.person_id
 		WHERE s.token = $1 AND s.expires_at > now()`, token).
-		Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
+		Scan(&p.ID, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such session: %w", ErrNotFound)
 	}
@@ -374,7 +414,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 		return nil, err
 	}
 
-	p, err := st.scanPersonTx(ctx, tx, `SELECT id, username, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, personID)
+	p, err := st.scanPersonTx(ctx, tx, `SELECT id, display_name, coalesce(email, ''), coalesce(password_hash, ''), is_admin, instruments, nickname, picture_url, phone, share_email, share_phone, gravatar_opt_out FROM people WHERE id = $1`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +426,7 @@ func (st *Store) ConsumeLoginToken(ctx context.Context, token string) (*Person, 
 
 func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg any) (*Person, error) {
 	var p Person
-	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.Username, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
+	err := tx.QueryRow(ctx, query, arg).Scan(&p.ID, &p.DisplayName, &p.Email, &p.PasswordHash, &p.IsAdmin, &p.Instruments, &p.Nickname, &p.PictureURL, &p.Phone, &p.ShareEmail, &p.SharePhone, &p.GravatarOptOut)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such person: %w", ErrNotFound)
 	}
@@ -482,23 +522,17 @@ func nullableID(id int64) *int64 {
 }
 
 // CreateShellPerson makes a not-yet-claimed person row — displayName
-// set, username a throwaway unique placeholder (replaced by whatever
-// the real person picks when they claim their invite; people.username
-// is NOT NULL+UNIQUE, so a shell needs *something* there from the
-// start), is_shell true. The caller attaches whatever band_members/
+// set, no email (the real person gives theirs when they claim their
+// invite: the email is the account), is_shell true. The caller attaches whatever band_members/
 // community_members rows this person should have (AddBandMember/
 // AddCommunityMember both work unchanged against a shell's id — they're
 // ordinary membership rows, nothing shell-specific about them) before
 // ever generating an invite link — see CreatePersonalInvite.
 func (st *Store) CreateShellPerson(ctx context.Context, displayName string) (int64, error) {
-	placeholder, err := randomToken()
-	if err != nil {
-		return 0, err
-	}
 	var id int64
-	err = st.db.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, is_shell) VALUES ($1, $2, true) RETURNING id`,
-		"pending-"+placeholder[:16], displayName).Scan(&id)
+	err := st.db.QueryRow(ctx,
+		`INSERT INTO people (display_name, is_shell) VALUES ($1, true) RETURNING id`,
+		displayName).Scan(&id)
 	return id, err
 }
 
@@ -632,11 +666,12 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 }
 
 // ClaimPersonalInvite finishes a shell person's account: sets their
-// real username/email/password (bcryptHash may be "" for an email-
-// only/magic-link account, same as the plain-invite path), clears
-// is_shell, and deletes the invite — no new person row, no new
-// memberships (those were already granted when the shell was made).
-func (st *Store) ClaimPersonalInvite(ctx context.Context, token, username, email, bcryptHash string) (personID int64, err error) {
+// email — the account itself from now on — and password (bcryptHash
+// may be "" for an email-only/magic-link account, same as the plain-
+// invite path), clears is_shell, and deletes the invite — no new
+// person row, no new memberships (those were already granted when the
+// shell was made). ErrEmailTaken if another account has that email.
+func (st *Store) ClaimPersonalInvite(ctx context.Context, token, email, bcryptHash string) (personID int64, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -661,12 +696,9 @@ func (st *Store) ClaimPersonalInvite(ctx context.Context, token, username, email
 		pwHash = &bcryptHash
 	}
 	_, err = tx.Exec(ctx, `
-		UPDATE people SET username = $1, email = $2, password_hash = $3, is_shell = false WHERE id = $4`,
-		username, nullableString(email), pwHash, personID)
+		UPDATE people SET email = $1, password_hash = $2, is_shell = false WHERE id = $3`,
+		nullableString(email), pwHash, personID)
 	if err != nil {
-		if constraintViolated(err, "people_username_key") {
-			return 0, ErrUsernameTaken
-		}
 		if constraintViolated(err, "people_email_key") {
 			return 0, ErrEmailTaken
 		}
@@ -929,8 +961,6 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64,
 // visitor (not already logged in): it creates the person row — identified
 // by email, plus accepts the invite as them, in one transaction so a
 // failed membership insert never leaves an orphan account behind.
-// username is kept only as a display label distinct from login identity
-// (see Member/PersonAdminRow and the templates that show it).
 //
 // bcryptHash is optional: pass "" (the invite form's password field left
 // blank) for a passwordless account that can only log in via magic link,
@@ -938,7 +968,7 @@ func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64,
 // first-class option; pass an already-hashed password (handlePostInvite
 // hashes it before calling this) to let the new account log in with that
 // password immediately, same as any other account with a password set.
-func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, username, displayName, email, bcryptHash string) (personID int64, dest string, err error) {
+func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, displayName, email, bcryptHash string) (personID int64, dest string, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, "", err
@@ -950,11 +980,8 @@ func (st *Store) CreatePersonAndAcceptInvite(ctx context.Context, token, usernam
 		pwHash = &bcryptHash
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id`,
-		username, displayName, email, pwHash).Scan(&personID); err != nil {
-		if constraintViolated(err, "people_username_key") {
-			return 0, "", ErrUsernameTaken
-		}
+		`INSERT INTO people (display_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id`,
+		displayName, email, pwHash).Scan(&personID); err != nil {
 		if constraintViolated(err, "people_email_key") {
 			return 0, "", ErrEmailTaken
 		}

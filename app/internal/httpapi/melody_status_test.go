@@ -76,11 +76,11 @@ func TestMelodyStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	owner, err := st.CreatePerson(ctx, "statusowner", "Sta Owner", "sta@example.com")
+	owner, err := st.CreatePerson(ctx, "Sta Owner", "sta@example.com")
 	must(err)
-	reader, err := st.CreatePerson(ctx, "statusreader", "Rea Der", "rea@example.com")
+	reader, err := st.CreatePerson(ctx, "Rea Der", "rea@example.com")
 	must(err)
-	stranger, err := st.CreatePerson(ctx, "statusstranger", "Str Anger", "str@example.com")
+	stranger, err := st.CreatePerson(ctx, "Str Anger", "str@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, store.OwnerPerson, owner, "Tune", "", owner)
 	must(err)
@@ -321,9 +321,9 @@ func TestMelodyKeySignature(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	owner, err := st.CreatePerson(ctx, "keyowner", "Key Owner", "key@example.com")
+	owner, err := st.CreatePerson(ctx, "Key Owner", "key@example.com")
 	must(err)
-	reader, err := st.CreatePerson(ctx, "keyreader", "Key Reader", "keyr@example.com")
+	reader, err := st.CreatePerson(ctx, "Key Reader", "keyr@example.com")
 	must(err)
 	song, err := st.CreateVariant(ctx, store.OwnerPerson, owner, "Tune", "", owner)
 	must(err)

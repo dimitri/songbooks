@@ -60,7 +60,7 @@ func (s *Server) requireBandPrivilege(priv string, next http.HandlerFunc) http.H
 
 // requireBandInviter is requireBandPrivilege(manage_members) for every
 // way of inviting someone to a band — the band link, a one-off link,
-// adding an account by username, a personal invite, a roster link and
+// adding an account by email or by name, a personal invite, a roster link and
 // its names — with a 403 that says so.
 func (s *Server) requireBandInviter(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireBandPrivilegeSaying(store.BandPrivManageMembers, "your role in this band doesn't let you invite people (by default, only core members do)", next)
@@ -414,8 +414,23 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		linkRows = append(linkRows, bandLinkRow{GroupInviteView: gi, Role: inviteRoleOf(roles, gi.RoleID, gi.DefaultStatus)})
 	}
 
+	// The people the viewer already plays with, to add by name.
+	var known []store.KnownPerson
+	if privs.Can(store.BandPrivManageMembers) {
+		current := map[int64]bool{}
+		for _, m := range members {
+			if m.IsCurrent() {
+				current[m.PersonID] = true
+			}
+		}
+		if known, err = s.knownPeopleExcept(r.Context(), person.ID, current); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
 	s.render(w, "band_members", map[string]any{
-		"Me": person, "Band": band, "Members": rows,
+		"Me": person, "Band": band, "Members": rows, "KnownPeople": known,
 		"OpenInvites": invites,
 		// IsCore: may invite people (manage_members), as before roles.
 		"IsCore":    privs.Can(store.BandPrivManageMembers),
@@ -592,33 +607,29 @@ func (s *Server) handleBandSetlistsPage(w http.ResponseWriter, r *http.Request) 
 	s.render(w, "band_setlists", map[string]any{"Me": person, "Band": band, "Setlists": setlists})
 }
 
-// handleAddBandMember adds an existing person (by username — this is a
-// local single-instance app, so a direct add action stands in for an
-// email-invite flow) to a band with one of its roles ({roleId}, or
-// {status}: core or guest). manage_members, like every other way of
-// inviting someone.
+// handleAddBandMember adds an existing account to a band with one of
+// its roles ({roleId}, or {status}: core or guest): {email}, any
+// account's, or {personId}, someone the adder already plays with (see
+// addTarget; there are no usernames). manage_members, like every other
+// way of inviting someone.
 func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Username string `json:"username"`
+		Email    string `json:"email"`
+		PersonID int64  `json:"personId"`
 		Status   string `json:"status"`
 		RoleID   int64  `json:"roleId"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
-		httpError(w, http.StatusBadRequest, "missing username")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	roleID, ok := s.inviteRole(w, r, bandID, req.RoleID, req.Status, "")
 	if !ok {
 		return
 	}
-	target, err := s.store.GetPersonByUsername(r.Context(), req.Username)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, "no such person: "+req.Username)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	target := s.addTarget(w, r, req.Email, req.PersonID)
+	if target == nil {
 		return
 	}
 	actor := personFromContext(r)

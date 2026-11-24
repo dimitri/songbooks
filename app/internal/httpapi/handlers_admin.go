@@ -10,8 +10,9 @@ import (
 	"app/internal/store"
 )
 
-// handleAdminPage is the site-wide admin panel: every person (username,
-// created date, is_admin). Gated by requireAdmin (router.go) — this is
+// handleAdminPage is the site-wide admin panel: every person (name,
+// email, created date, is_admin), and the accounts that can't log in
+// any more (a password but no email: store.ListPasswordNoEmail). Gated by requireAdmin (router.go) — this is
 // instance-wide, not scoped to any one songbook/band.
 func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 	people, err := s.store.ListAllPeople(r.Context())
@@ -45,8 +46,13 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	noEmail, err := s.store.ListPasswordNoEmail(r.Context())
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.render(w, "admin", map[string]any{
-		"Me": personFromContext(r), "People": people,
+		"Me": personFromContext(r), "People": people, "LockedOut": noEmail,
 		"AdminCount": adminCount, "Communities": communities,
 		"GroupInvites": groupInvites, "PlainInvites": plainInvites,
 		"ShellPeople": shellPeople,
@@ -117,7 +123,7 @@ func (s *Server) handleAdminCloseGroupInvite(w http.ResponseWriter, r *http.Requ
 }
 
 // handleAdminPersonPage is the per-person profile review screen: one
-// person's identity (username, display name, created date, site-admin
+// person's identity (display name, email, created date, site-admin
 // bit) plus every band/community they currently belong to and the role
 // within each — the admin-panel counterpart to a band/community's own
 // Members page, but scoped to a PERSON across every roster they're on,

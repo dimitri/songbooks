@@ -90,7 +90,7 @@
     <h3>{{t "Event managers"}}</h3>
     {{if eq .Event.OwnerKind "community"}}
     <ul class="manager-list">
-    {{range .Managers}}<li><span>{{.DisplayName}} <span class="hint">({{.Username}})</span></span>{{if $.CanAssignManagers}} <button type="button" class="remove-manager-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</li>{{else}}<li class="hint">{{t "Nobody separately assigned — community staff can already manage this event."}}</li>{{end}}
+    {{range .Managers}}<li><span>{{.DisplayName}}</span>{{if $.CanAssignManagers}} <button type="button" class="remove-manager-btn danger" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">{{t "Remove"}}</button>{{end}}</li>{{else}}<li class="hint">{{t "Nobody separately assigned — community staff can already manage this event."}}</li>{{end}}
     </ul>
     {{if .CanAssignManagers}}
     <form class="form-stack" id="assign-manager-form">

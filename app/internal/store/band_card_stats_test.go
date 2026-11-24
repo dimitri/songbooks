@@ -8,7 +8,7 @@ import (
 func TestListBandCardStats(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "lea", "Léa", "lea@example.org")
+	me, err := st.CreatePerson(ctx, "Léa", "lea@example.org")
 	if err != nil {
 		t.Fatal(err)
 	}

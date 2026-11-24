@@ -11,7 +11,7 @@ import (
 func TestCourseLessonsOfSong(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "teacher", "Teacher", "teacher@example.com")
+	me, err := st.CreatePerson(ctx, "Teacher", "teacher@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

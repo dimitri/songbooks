@@ -69,7 +69,7 @@ func TestBrandLogoUpload(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
 	person := func(name string) *store.Person {
-		id, err := st.CreatePerson(ctx, name, name, name+"@example.com")
+		id, err := st.CreatePerson(ctx, name, name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,7 +133,7 @@ func TestBrandLogoUpload(t *testing.T) {
 			file = pngData.Bytes()
 		}
 		if w := as(c.who, c.method, c.path, file, "logo.png"); w.Code != http.StatusForbidden {
-			t.Errorf("%s %s by %s: %d, want 403", c.method, c.path, c.who.Username, w.Code)
+			t.Errorf("%s %s by %s: %d, want 403", c.method, c.path, c.who.DisplayName, w.Code)
 		}
 	}
 	if w := as(nil, "PUT", community, pngData.Bytes(), "logo.png"); w.Code != http.StatusUnauthorized && w.Code != http.StatusSeeOther && w.Code != http.StatusFound {

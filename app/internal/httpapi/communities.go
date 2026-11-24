@@ -737,7 +737,7 @@ type communityMemberFace struct {
 
 // pendingInvitee is someone invited by name who hasn't made their
 // account yet (a placeholder, store.ShellPersonRow), with their role in
-// this community: never their internal "pending-…" username.
+// this community.
 type pendingInvitee struct {
 	store.ShellPersonRow
 	Initials  string
@@ -892,8 +892,22 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 			openLinks = append(openLinks, l)
 		}
 	}
+	// The people the viewer already plays or learns with, to add by name.
+	var known []store.KnownPerson
+	if canManageMembers {
+		currentIDs := map[int64]bool{}
+		for _, m := range members {
+			if m.IsCurrent() {
+				currentIDs[m.PersonID] = true
+			}
+		}
+		if known, err = s.knownPeopleExcept(r.Context(), person.ID, currentIDs); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	s.render(w, "community_admin", map[string]any{
-		"Me": person, "Person": person, "Community": community, "IsStaff": true,
+		"Me": person, "Person": person, "Community": community, "IsStaff": true, "KnownPeople": known,
 		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople, "MemberFaces": faces,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges, "RoleLabels": roleLabels,
 		"Locale": locale, "MembersVisibility": membersVisibility,
@@ -970,29 +984,26 @@ func (s *Server) putPlayerOption(w http.ResponseWriter, r *http.Request, set fun
 	writeJSON(w, http.StatusOK, map[string]bool{"on": *req.On})
 }
 
-// handleAddCommunityMember adds an existing person (by username, same
-// direct-add-stands-in-for-invite convention as handleAddBandMember) to
-// a community as instructor or student. Instructor-only.
+// handleAddCommunityMember adds an existing account to a community
+// holding role: {email}, any account's, or {personId}, someone the adder
+// already plays or learns with (same rule as handleAddBandMember, see
+// addTarget). manage_members.
 func (s *Server) handleAddCommunityMember(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Username string `json:"username"`
+		Email    string `json:"email"`
+		PersonID int64  `json:"personId"`
 		Role     string `json:"role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
-		httpError(w, http.StatusBadRequest, "missing username")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	if req.Role == "" {
 		req.Role = "member"
 	}
-	target, err := s.store.GetPersonByUsername(r.Context(), req.Username)
-	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusNotFound, "no such person: "+req.Username)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	target := s.addTarget(w, r, req.Email, req.PersonID)
+	if target == nil {
 		return
 	}
 	actor := personFromContext(r)

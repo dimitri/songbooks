@@ -9,7 +9,7 @@ import (
 func TestQuietStudents(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, _ := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	if err != nil {
 		t.Fatal(err)
@@ -19,7 +19,7 @@ func TestQuietStudents(t *testing.T) {
 	}
 	var students []int64
 	for _, name := range []string{"emma", "leo", "zoe", "max", "new"} {
-		p, err := st.CreatePerson(ctx, name, name, name+"@example.com")
+		p, err := st.CreatePerson(ctx, name, name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}

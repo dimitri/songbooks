@@ -38,7 +38,7 @@
       <tbody>
       {{range .Members}}
         <tr>
-          <td data-label="{{t "Member"}}"><a href="/communities/{{$.Community.ID}}/admin/stats/members/{{.PersonID}}">{{or .DisplayName .Username}}</a></td>
+          <td data-label="{{t "Member"}}"><a href="/communities/{{$.Community.ID}}/admin/stats/members/{{.PersonID}}">{{.DisplayName}}</a></td>
           <td data-label="{{t "Role"}}">{{t .Role}}</td>
           <td data-label="{{t "Songs viewed"}}" class="num">{{.Songs}}</td>
           <td data-label="{{t "Views"}}" class="num">{{.Views}}</td>
@@ -148,7 +148,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{docTitle (or .Member.DisplayName .Member.Username) (t "Stats") .Community.Name}}</title>
+<title>{{docTitle .Member.DisplayName (t "Stats") .Community.Name}}</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
 {{template "brand-head" $brand}}
@@ -158,11 +158,11 @@
 <div class="app-content">
 <header class="app-header">
   <a class="back-link" href="/communities/{{.Community.ID}}/admin/stats">{{template "icon-back"}} {{t "Stats"}}</a>
-  <h1>{{or .Member.DisplayName .Member.Username}}</h1>
+  <h1>{{.Member.DisplayName}}</h1>
 </header>
 <main class="index stats">
   {{with .Member}}
-  <p class="hint">@{{.Username}} · {{t .Role}}{{with .LastActivity}} · {{t "last active %s" (date . "2 Jan 2006 15:04")}}{{end}}</p>
+  <p class="hint">{{t .Role}}{{with .LastActivity}} · {{t "last active %s" (date . "2 Jan 2006 15:04")}}{{end}}</p>
   <div class="stat-tiles">
     <div class="stat-tile"><span class="stat-value">{{.Songs}}</span><span class="stat-label">{{t "songs viewed"}}</span></div>
     <div class="stat-tile"><span class="stat-value">{{.Views}}</span><span class="stat-label">{{t "views"}}</span></div>

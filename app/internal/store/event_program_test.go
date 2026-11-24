@@ -9,9 +9,9 @@ import (
 func TestEventProgram(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, _ := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
-	emma, _ := st.CreatePerson(ctx, "emma", "Émma", "emma@example.com")
-	leo, _ := st.CreatePerson(ctx, "leo", "Leo", "leo@example.com")
+	coach, _ := st.CreatePerson(ctx, "Coach", "coach@example.com")
+	emma, _ := st.CreatePerson(ctx, "Émma", "emma@example.com")
+	leo, _ := st.CreatePerson(ctx, "Leo", "leo@example.com")
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	if err != nil {
 		t.Fatal(err)

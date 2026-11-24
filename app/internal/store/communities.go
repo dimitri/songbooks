@@ -49,14 +49,13 @@ type CommunityMember struct {
 	ID                int64
 	CommunityID       int64
 	PersonID          int64
-	Username          string
 	DisplayName       string
 	RoleID            int64
 	Role              string
 	JoinedAt          time.Time
 	LeftAt            *time.Time
 	InvitedByPersonID *int64
-	InvitedByUsername string
+	InvitedByName     string // the inviter's display name
 	// JoinedViaBandID/JoinedViaBandName: non-nil when this stint was
 	// granted automatically because the person joined a band linked to
 	// this community (see community_bands.go's
@@ -309,9 +308,9 @@ func isCurrentCommunityMember(ctx context.Context, q dbtx, communityID, personID
 // ones. Newest first — same shape/ordering as ListBandMembers.
 func (st *Store) ListCommunityMembers(ctx context.Context, communityID int64, includePast bool) ([]CommunityMember, error) {
 	q := `
-		SELECT m.id, m.community_id, m.person_id, p.username, p.display_name, m.role_id, cr.name,
+		SELECT m.id, m.community_id, m.person_id, p.display_name, m.role_id, cr.name,
 		       lower(m.validity), CASE WHEN upper_inf(m.validity) THEN NULL ELSE upper(m.validity) END,
-		       m.invited_by_person_id, coalesce(ip.username, ''), m.joined_via_band_id, coalesce(vb.name, '')
+		       m.invited_by_person_id, coalesce(ip.display_name, ''), m.joined_via_band_id, coalesce(vb.name, '')
 		FROM community_members m
 		JOIN people p ON p.id = m.person_id
 		JOIN community_roles cr ON cr.id = m.role_id
@@ -330,8 +329,8 @@ func (st *Store) ListCommunityMembers(ctx context.Context, communityID int64, in
 	var out []CommunityMember
 	for rows.Next() {
 		var m CommunityMember
-		if err := rows.Scan(&m.ID, &m.CommunityID, &m.PersonID, &m.Username, &m.DisplayName, &m.RoleID, &m.Role,
-			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByUsername, &m.JoinedViaBandID, &m.JoinedViaBandName); err != nil {
+		if err := rows.Scan(&m.ID, &m.CommunityID, &m.PersonID, &m.DisplayName, &m.RoleID, &m.Role,
+			&m.JoinedAt, &m.LeftAt, &m.InvitedByPersonID, &m.InvitedByName, &m.JoinedViaBandID, &m.JoinedViaBandName); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

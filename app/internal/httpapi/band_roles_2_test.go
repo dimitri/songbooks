@@ -80,9 +80,9 @@ func TestInviteIntoCustomRoleHTTP(t *testing.T) {
 		t.Errorf("joined with the Roadie link: role %d", got)
 	}
 
-	// An account added by name.
+	// An account added by email.
 	addedID, _ := e.person("Added")
-	if w := e.do("POST", b+"/members", fmt.Sprintf(`{"username":"Added%s","roleId":%d}`, e.sfx, roadie), core); w.Code != http.StatusOK {
+	if w := e.do("POST", b+"/members", fmt.Sprintf(`{"email":"Added%s@example.test","roleId":%d}`, e.sfx, roadie), core); w.Code != http.StatusOK {
 		t.Fatalf("added as a Roadie: %d %s", w.Code, w.Body)
 	}
 	if got := currentRole(t, e.st, bandID, addedID); got != roadie {
@@ -122,7 +122,7 @@ func TestInviteIntoCustomRoleHTTP(t *testing.T) {
 	if w := e.do("POST", b+"/band-link", fmt.Sprintf(`{"roleId":%d}`, otherCore), core); w.Code != http.StatusBadRequest {
 		t.Errorf("a link for another band's role: %d", w.Code)
 	}
-	if w := e.do("POST", b+"/members", fmt.Sprintf(`{"username":"Joiner%s","roleId":%d}`, e.sfx, otherCore), core); w.Code != http.StatusBadRequest {
+	if w := e.do("POST", b+"/members", fmt.Sprintf(`{"email":"Joiner%s@example.test","roleId":%d}`, e.sfx, otherCore), core); w.Code != http.StatusBadRequest {
 		t.Errorf("added with another band's role: %d", w.Code)
 	}
 }

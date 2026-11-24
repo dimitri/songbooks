@@ -1,13 +1,16 @@
 // sbcoach sets up a coaching community (docs/coaching.md) from the
 // command line, while its pages are the coach's to use:
 //
-//	sbcoach community --db URL --name "Chloé Paul" --coach chloepaul [--student tapoueh] [--look look.json]
-//	sbcoach songs --db URL --community 21 --student tapoueh --songs 206,215,228 [--clips clips.tsv]
-//	sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale fr
+//	sbcoach community --db URL --name "Chloé Paul" --coach chloe@example.com [--student 12] [--look look.json]
+//	sbcoach songs --db URL --community 21 --student 12 --songs 206,215,228 [--clips clips.tsv]
+//	sbcoach locale --db URL (--community ID | --band ID | --person PERSON) --locale fr
+//
+// A person (--coach, --student, --person, --actor) is named by their
+// email or their numeric id: there are no usernames (docs/accounts.md).
 //
 // community makes a coaching community, its coach its first member (an
-// account made for them when there's none yet: no password, no email,
-// theirs once they're invited), a student with it, and a look (a
+// account made for them with that email when there's none yet: no
+// password, they log in with a link sent to it), a student with it, and a look (a
 // brand.Brand as JSON). songs puts songs in the community's songbook
 // (the coach's reference) and the student's — linked, or the community's
 // own song or arrangement, never a copy per student (communitySong); with
@@ -33,6 +36,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -47,9 +51,10 @@ import (
 )
 
 const usage = `usage:
-  sbcoach community --db URL --name NAME --coach USER [--student USER] [--look FILE]
-  sbcoach songs --db URL --community ID --student USER --songs ID,ID,... [--actor USER] [--clips FILE]
-  sbcoach locale --db URL (--community ID | --band ID | --person USER) --locale LANG`
+  sbcoach community --db URL --name NAME --coach EMAIL [--student PERSON] [--look FILE]
+  sbcoach songs --db URL --community ID --student PERSON --songs ID,ID,... [--actor PERSON] [--clips FILE]
+  sbcoach locale --db URL (--community ID | --band ID | --person PERSON) --locale LANG
+  (PERSON: an email or a numeric id)`
 
 func main() {
 	if len(os.Args) >= 2 && songCommands[os.Args[1]] {
@@ -63,15 +68,15 @@ func main() {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	dbURL := fs.String("db", os.Getenv("DATABASE_URL"), "database connection string")
 	name := fs.String("name", "", "the community's name")
-	actor := fs.String("actor", "", "username doing it")
-	coach := fs.String("coach", "", "community: the coach's username (made when there's none)")
+	actor := fs.String("actor", "", "who's doing it: an email or a person id")
+	coach := fs.String("coach", "", "community: the coach's email (an account made with it when there's none), or a person id")
 	look := fs.String("look", "", "community: a JSON file with its look (brand.Brand)")
 	communityID := fs.Int64("community", 0, "songs: the coaching community")
-	student := fs.String("student", "", "a student's username")
+	student := fs.String("student", "", "a student: an email or a person id")
 	songs := fs.String("songs", "", "songs: song ids, comma separated")
 	clips := fs.String("clips", "", "songs: a file of songID<TAB>YouTube URL lines")
 	bandID := fs.Int64("band", 0, "locale: a band")
-	personName := fs.String("person", "", "locale: a person's username")
+	personName := fs.String("person", "", "locale: a person, by email or id")
 	locale := fs.String("locale", "", "locale: the language, en or fr (\"\" for automatic); community: the community's and its coach's")
 	fs.Parse(os.Args[2:])
 	ctx := context.Background()
@@ -87,12 +92,14 @@ func main() {
 			log.Fatal(usage)
 		}
 		coachID := int64(0)
-		if p, err := st.GetPersonByUsername(ctx, *coach); err == nil {
+		if p, err := st.FindPerson(ctx, *coach); err == nil {
 			coachID = p.ID
-		} else if coachID, err = st.CreatePerson(ctx, *coach, *name, ""); err != nil {
+		} else if !errors.Is(err, store.ErrNotFound) || !strings.Contains(*coach, "@") {
+			log.Fatalf("%s: %v", *coach, err)
+		} else if coachID, err = st.CreatePerson(ctx, *name, strings.ToLower(strings.TrimSpace(*coach))); err != nil {
 			log.Fatalf("making %s: %v", *coach, err)
 		} else {
-			fmt.Printf("account %s (%s) made for the coach: invite them to it\n", *coach, *name)
+			fmt.Printf("account %s (%s) made for the coach: they log in with a link sent to it\n", *coach, *name)
 		}
 		id, err := st.CreateCommunity(ctx, *name, coachID)
 		if err != nil {
@@ -108,7 +115,7 @@ func main() {
 			}
 		}
 		if *student != "" {
-			p, err := st.GetPersonByUsername(ctx, *student)
+			p, err := st.FindPerson(ctx, *student)
 			if err != nil {
 				log.Fatalf("%s: %v", *student, err)
 			}
@@ -148,7 +155,7 @@ func main() {
 			err = st.SetBandLocale(ctx, *bandID, *locale)
 		case *personName != "":
 			var p *store.Person
-			if p, err = st.GetPersonByUsername(ctx, *personName); err == nil {
+			if p, err = st.FindPerson(ctx, *personName); err == nil {
 				err = st.SetPersonLocale(ctx, p.ID, *locale)
 			}
 		default:
@@ -163,13 +170,13 @@ func main() {
 		if *communityID == 0 || *student == "" || *songs == "" {
 			log.Fatal(usage)
 		}
-		sp, err := st.GetPersonByUsername(ctx, *student)
+		sp, err := st.FindPerson(ctx, *student)
 		if err != nil {
 			log.Fatalf("%s: %v", *student, err)
 		}
 		by := sp
 		if *actor != "" {
-			if by, err = st.GetPersonByUsername(ctx, *actor); err != nil {
+			if by, err = st.FindPerson(ctx, *actor); err != nil {
 				log.Fatalf("%s: %v", *actor, err)
 			}
 		}

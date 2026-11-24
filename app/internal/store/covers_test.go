@@ -24,7 +24,7 @@ func TestFillCovers(t *testing.T) {
 	if _, err := st.db.Exec(ctx, `DELETE FROM work_covers`); err != nil {
 		t.Fatal(err)
 	}
-	me, err := st.CreatePerson(ctx, "listener", "Listener", "listener@example.com")
+	me, err := st.CreatePerson(ctx, "Listener", "listener@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

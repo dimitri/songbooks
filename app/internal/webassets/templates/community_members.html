@@ -1,6 +1,5 @@
 {{/* A community's Members page (community_members.go): one card per
-     member. Its admins see who hasn't joined yet, usernames and past
-     members; a role granting manage_members also changes roles and
+     member. Its admins see who hasn't joined yet and past members; a role granting manage_members also changes roles and
      removes people here. The other members, when the community shows
      them the list, see names, pictures, roles, instruments and join
      dates, nothing else. */}}
@@ -65,7 +64,7 @@
         <div class="member-main">
           <div class="member-name">
             {{if .StudentPage}}<a href="/communities/{{$.Community.ID}}/students/{{.PersonID}}">{{.DisplayName}}</a>{{else}}<span>{{.DisplayName}}</span>{{end}}
-            {{if $.IsStaff}}{{if .IsShell}}<span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>{{else if .Username}}<span class="hint">({{.Username}})</span>{{end}}{{end}}
+            {{if $.IsStaff}}{{if .IsShell}}<span class="roster-pending-badge">{{t "hasn’t joined yet"}}</span>{{end}}{{end}}
           </div>
           <div class="member-meta">
             <span class="member-role{{if .RoleKey}} is-{{.RoleKey}}{{end}}">{{t .RoleLabel}}</span>
@@ -102,7 +101,7 @@
       <li class="member-card is-past">
         <span class="member-avatar" aria-hidden="true">{{.Initials}}</span>
         <div class="member-main">
-          <div class="member-name"><span>{{.DisplayName}}</span>{{if and .Username (not .IsShell)}} <span class="hint">({{.Username}})</span>{{end}}</div>
+          <div class="member-name"><span>{{.DisplayName}}</span></div>
           <div class="member-meta">
             <span class="member-role">{{t .RoleLabel}}</span>
             <span class="hint">{{t "from %s to %s" (date .JoinedAt "2 January 2006") (date .LeftAt "2 January 2006")}}</span>

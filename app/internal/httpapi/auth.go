@@ -240,27 +240,24 @@ func getDummyPasswordHash() string {
 }
 
 // handlePasswordLogin is POST /login's password branch (mode=password):
-// verify bcrypt against people.password_hash for the account identified
-// by "identifier" (username or email, either is accepted), and log in
-// directly on success. Any failure — no such account, account has no
-// password set yet (PasswordHash == ""), or wrong password — redirects
+// verify bcrypt against people.password_hash for the account whose
+// "email" it is — the email is the account, there is no login name
+// (docs/accounts.md) — and log in directly on success. Any failure —
+// no such account (or no email typed at all), account has no password
+// set yet (PasswordHash == ""), or wrong password — redirects
 // back to /login with the exact same generic "invalid credentials" error,
 // deliberately not distinguished further: this path has the same
 // non-enumeration requirement the magic-link path already honors.
 func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
-	identifier := strings.TrimSpace(r.FormValue("identifier"))
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
 
 	var p *store.Person
-	if identifier != "" {
+	if strings.Contains(email, "@") {
 		var err error
-		if strings.Contains(identifier, "@") {
-			p, err = s.store.GetPersonByEmail(r.Context(), strings.ToLower(identifier))
-		} else {
-			p, err = s.store.GetPersonByUsername(r.Context(), identifier)
-		}
+		p, err = s.store.GetPersonByEmail(r.Context(), email)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			log.Printf("password login lookup for %q: %v", identifier, err)
+			log.Printf("password login lookup for %q: %v", email, err)
 		}
 	}
 

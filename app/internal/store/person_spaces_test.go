@@ -8,11 +8,11 @@ import (
 func TestSpacesOrder(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "lea", "Léa", "lea@example.org")
+	me, err := st.CreatePerson(ctx, "Léa", "lea@example.org")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := st.CreatePerson(ctx, "max", "Max", "max@example.org")
+	other, err := st.CreatePerson(ctx, "Max", "max@example.org")
 	if err != nil {
 		t.Fatal(err)
 	}

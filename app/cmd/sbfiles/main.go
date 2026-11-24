@@ -2,8 +2,8 @@
 // (docs/community-downloads.md), reading them from stdin: one file, or a
 // zip unpacked the way an upload of a zip on the download page is.
 //
-//	sbfiles add --db URL --songbook 12 [--path F] [--song 251] [--title T] [--kind K] [--actor NAME] --name "01_Mon premier blues.gp" < file
-//	sbfiles import --db URL --songbook 12 [--path F] [--actor NAME] --name "Lessons.zip" < Lessons.zip
+//	sbfiles add --db URL --songbook 12 [--path F] [--song 251] [--title T] [--kind K] [--actor PERSON] --name "01_Mon premier blues.gp" < file
+//	sbfiles import --db URL --songbook 12 [--path F] [--actor PERSON] --name "Lessons.zip" < Lessons.zip
 //	sbfiles course --db URL --songbook 12
 //	sbfiles covers --db URL --songbook 12 [--again] [--set-look]
 //	sbfiles recordings --db URL --band 15
@@ -39,8 +39,8 @@ import (
 )
 
 const usage = `usage:
-  sbfiles add --db URL --songbook ID [--path F] [--song ID] [--title T] [--kind K] [--actor NAME] --name FILE < file
-  sbfiles import --db URL --songbook ID [--path F] [--actor NAME] --name ZIP < zip
+  sbfiles add --db URL --songbook ID [--path F] [--song ID] [--title T] [--kind K] [--actor PERSON] --name FILE < file
+  sbfiles import --db URL --songbook ID [--path F] [--actor PERSON] --name ZIP < zip
   sbfiles course --db URL --songbook ID
   sbfiles covers --db URL --songbook ID [--again] [--set-look]
   sbfiles recordings --db URL --band ID`
@@ -57,7 +57,7 @@ func main() {
 	songID := fs.Int64("song", 0, "a song of the songbook the file goes with")
 	name := fs.String("name", "", "the file's name (required)")
 	title := fs.String("title", "", "what the file is called in the list, when not its name")
-	actor := fs.String("actor", "", "username the files are added as")
+	actor := fs.String("actor", "", "who the files are added as: an email or a person id")
 	kind := fs.String("kind", "", "book, gp, audio or other (default: from the name)")
 	bandID := fs.Int64("band", 0, "recordings: the band whose folder is read again")
 	again := fs.Bool("again", false, "covers: look again for the songs that got no album cover")
@@ -99,7 +99,7 @@ func main() {
 
 	var actorID int64
 	if *actor != "" {
-		p, err := st.GetPersonByUsername(ctx, *actor)
+		p, err := st.FindPerson(ctx, *actor)
 		if err != nil {
 			log.Fatalf("actor %q: %v", *actor, err)
 		}

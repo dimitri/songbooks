@@ -47,7 +47,7 @@ func newOwnershipFixture(t *testing.T, st *Store) ownershipFixture {
 		return v
 	}
 	person := func(name string) int64 {
-		return id(st.CreatePerson(ctx, name, strings.ToUpper(name[:1])+name[1:], name+"@example.com"))
+		return id(st.CreatePerson(ctx, strings.ToUpper(name[:1])+name[1:], name+"@example.com"))
 	}
 	f.admin, f.mercyCore, f.student, f.alice = person("admin"), person("mercycore"), person("student"), person("alice")
 	must(st.SetAdmin(ctx, f.admin, true))

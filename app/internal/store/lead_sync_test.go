@@ -11,7 +11,7 @@ import (
 func TestLeadMovesBarSync(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "editor", "Editor", "editor@example.com")
+	me, err := st.CreatePerson(ctx, "Editor", "editor@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

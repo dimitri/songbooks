@@ -93,7 +93,7 @@ func (s *Server) handleJoinLoginRedirect(w http.ResponseWriter, r *http.Request)
 // handlePostJoin accepts a group invite's slot (or an unlisted "someone
 // else" join). A logged-in visitor just gets the membership added to
 // their existing account on top of whatever they already have; an
-// anonymous one must supply username/display name/email and a password,
+// anonymous one must supply a display name, an email and a password,
 // which creates a brand-new account in the same transaction as the
 // claim. The password is required for the same reason as on the
 // single-use /invite/{token} flow: no login emails are sent, so the
@@ -118,11 +118,14 @@ func (s *Server) handlePostJoin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	username := strings.TrimSpace(r.FormValue("username"))
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
-	if username == "" || displayName == "" || email == "" {
-		httpError(w, http.StatusBadRequest, "username, display name and email are all required")
+	if displayName == "" || email == "" {
+		httpError(w, http.StatusBadRequest, "display name and email are both required")
+		return
+	}
+	if at := strings.IndexByte(email, '@'); at <= 0 || at == len(email)-1 {
+		httpError(w, http.StatusBadRequest, "enter a valid email address")
 		return
 	}
 	password := r.FormValue("password")
@@ -143,14 +146,14 @@ func (s *Server) handlePostJoin(w http.ResponseWriter, r *http.Request) {
 	var personID int64
 	var dest string
 	if slotParam == "" || slotParam == "unlisted" {
-		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteUnlisted(r.Context(), token, username, displayName, email, string(hash))
+		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteUnlisted(r.Context(), token, displayName, email, string(hash))
 	} else {
 		slotID, perr := strconv.ParseInt(slotParam, 10, 64)
 		if perr != nil {
 			httpError(w, http.StatusBadRequest, "invalid slot")
 			return
 		}
-		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteSlot(r.Context(), token, slotID, username, displayName, email, string(hash))
+		personID, dest, err = s.store.CreatePersonAndClaimGroupInviteSlot(r.Context(), token, slotID, displayName, email, string(hash))
 	}
 	if err != nil {
 		writeJoinError(w, err)
@@ -196,6 +199,8 @@ func writeJoinError(w http.ResponseWriter, err error) {
 		status = http.StatusGone // invite explicitly closed
 	case errors.Is(err, store.ErrConflict):
 		status = http.StatusConflict // slot already claimed
+	case errors.Is(err, store.ErrEmailTaken):
+		status = http.StatusConflict // "email already in use…": the form says so under the field
 	}
 	http.Error(w, err.Error(), status)
 }

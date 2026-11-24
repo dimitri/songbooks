@@ -23,7 +23,7 @@ func newBandRolesFixture(t *testing.T) *bandRolesFixture {
 	ctx := context.Background()
 	f := &bandRolesFixture{st: st}
 	mk := func(name string) int64 {
-		id, err := st.CreatePerson(ctx, name, name, name+"@example.test")
+		id, err := st.CreatePerson(ctx, name, name+"@example.test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +109,7 @@ func TestBandRoleDefaultsMatchSeed(t *testing.T) {
 	}
 	for _, m := range members {
 		if want := f.role(t, m.Status).ID; m.RoleID != want {
-			t.Errorf("%s (%s) has role %d, want %d", m.Username, m.Status, m.RoleID, want)
+			t.Errorf("%s (%s) has role %d, want %d", m.DisplayName, m.Status, m.RoleID, want)
 		}
 	}
 }

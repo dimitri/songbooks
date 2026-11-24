@@ -25,9 +25,9 @@ func TestNavNotifications(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	me, err := st.CreatePerson(ctx, "me", "Mia Me", "me@example.com")
+	me, err := st.CreatePerson(ctx, "Mia Me", "me@example.com")
 	must(err)
-	other, err := st.CreatePerson(ctx, "other", "Otto Other", "other@example.com")
+	other, err := st.CreatePerson(ctx, "Otto Other", "other@example.com")
 	must(err)
 	var ids []int64
 	for _, body := range []string{"one", "two", "three"} {

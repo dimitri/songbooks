@@ -14,11 +14,11 @@ func TestLinkBandToCommunityGrantsExistingMembers(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	staffID, err := st.CreatePerson(ctx, "staff", "Staff", "staff@example.com")
+	staffID, err := st.CreatePerson(ctx, "Staff", "staff@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -76,11 +76,11 @@ func TestEnsureCommunityMembershipForBandMemberIdempotent(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	personID, err := st.CreatePerson(ctx, "person", "Person", "person@example.com")
+	personID, err := st.CreatePerson(ctx, "Person", "person@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -138,11 +138,11 @@ func TestAddBandMemberSyncsToLinkedCommunity(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	newMemberID, err := st.CreatePerson(ctx, "new", "New Member", "new@example.com")
+	newMemberID, err := st.CreatePerson(ctx, "New Member", "new@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -179,11 +179,11 @@ func TestRemoveBandMemberKeepsCommunityMembership(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	memberID, err := st.CreatePerson(ctx, "member", "Member", "member@example.com")
+	memberID, err := st.CreatePerson(ctx, "Member", "member@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestUnlinkBandFromCommunityKeepsMembersCurrent(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
@@ -273,19 +273,19 @@ func TestListCommunityMembersGroupedByBand(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	creatorID, err := st.CreatePerson(ctx, "creator", "Creator", "creator@example.com")
+	creatorID, err := st.CreatePerson(ctx, "Creator", "creator@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	directID, err := st.CreatePerson(ctx, "direct", "Direct", "direct@example.com")
+	directID, err := st.CreatePerson(ctx, "Direct", "direct@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	viaBandID, err := st.CreatePerson(ctx, "via", "Via Band", "via@example.com")
+	viaBandID, err := st.CreatePerson(ctx, "Via Band", "via@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}
-	orphanID, err := st.CreatePerson(ctx, "orphan", "Orphan", "orphan@example.com")
+	orphanID, err := st.CreatePerson(ctx, "Orphan", "orphan@example.com")
 	if err != nil {
 		t.Fatalf("CreatePerson: %v", err)
 	}

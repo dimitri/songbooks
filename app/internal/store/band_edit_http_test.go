@@ -481,7 +481,7 @@ func TestCatalogueSongs(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
-	admin, err := st.CreatePerson(ctx, "admin", "Admin", "admin@example.com")
+	admin, err := st.CreatePerson(ctx, "Admin", "admin@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

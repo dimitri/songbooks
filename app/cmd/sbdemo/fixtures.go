@@ -18,7 +18,7 @@ import (
 // fixtures makes the coaching and calendar features look alive, on an
 // anonymized copy: students, voices, groups, lessons, jams, rehearsals,
 // gigs, all invented. Everything is found again before being made (a
-// person by username, a group by name, an event by owner, kind, name and
+// person by email, a group by name, an event by owner, kind, name and
 // start, a set list by band and title, a note by its text), so a second
 // run adds only what the first didn't (new weeks, say).
 
@@ -117,9 +117,9 @@ func (f *fixer) communityByName(ctx context.Context, name string) (int64, error)
 }
 
 func (f *fixer) run(ctx context.Context) error {
-	lucas, err := f.st.GetPersonByUsername(ctx, keptUsername)
+	lucas, err := f.st.GetPersonByID(ctx, keptPersonID)
 	if err != nil {
-		return fmt.Errorf("%s: %w", keptUsername, err)
+		return fmt.Errorf("person %d: %w", keptPersonID, err)
 	}
 	lumen, err := f.communityByName(ctx, "Studio Lumen")
 	if err != nil {
@@ -386,15 +386,16 @@ func (f *fixer) repertoire(ctx context.Context, community int64) ([]int64, error
 	return pgx.CollectRows(rows, pgx.RowTo[int64])
 }
 
-// student makes the k-th invented student of community: a person (no
-// email, no password), a member, a voice, a songbook, a note or two.
+// student makes the k-th invented student of community: a person (an
+// invented email, studentEmailLike, which finds them again; no
+// password), a member, a voice, a songbook, a note or two.
 func (f *fixer) student(ctx context.Context, community, coach int64, k int, repertoire []int64) (int64, error) {
-	username := fmt.Sprintf("demo-student-%02d", k+1)
+	email := fmt.Sprintf("demo-student-%02d@example.invalid", k+1)
 	name := PersonName(500 + k)
 	var id int64
-	if p, err := f.st.GetPersonByUsername(ctx, username); err == nil {
+	if p, err := f.st.GetPersonByEmail(ctx, email); err == nil {
 		id = p.ID
-	} else if id, err = f.st.CreatePerson(ctx, username, name, ""); err != nil {
+	} else if id, err = f.st.CreatePerson(ctx, name, email); err != nil {
 		return 0, err
 	} else {
 		f.c.add("people (students)", 1)

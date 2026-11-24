@@ -19,7 +19,7 @@ func TestSongActions(t *testing.T) {
 	ctx := context.Background()
 	person := func(name string) *store.Person {
 		t.Helper()
-		id, err := st.CreatePerson(ctx, name, name, name+"@example.com")
+		id, err := st.CreatePerson(ctx, name, name+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}

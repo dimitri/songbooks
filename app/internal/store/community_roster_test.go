@@ -13,8 +13,8 @@ import (
 func TestCommunityMembersVisibility(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	person := func(username string) int64 {
-		id, err := st.CreatePerson(ctx, username, username, username+"@example.com")
+	person := func(handle string) int64 {
+		id, err := st.CreatePerson(ctx, handle, handle+"@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,9 +79,9 @@ func TestCommunityMembersVisibility(t *testing.T) {
 func TestListCommunityRoster(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	zoe, _ := st.CreatePerson(ctx, "zoe", "Zoé Martin", "zoe@example.com")
-	ana, _ := st.CreatePerson(ctx, "ana", "ana Lopez", "ana@example.com")
-	bob, _ := st.CreatePerson(ctx, "bob", "Bob", "bob@example.com")
+	zoe, _ := st.CreatePerson(ctx, "Zoé Martin", "zoe@example.com")
+	ana, _ := st.CreatePerson(ctx, "ana Lopez", "ana@example.com")
+	bob, _ := st.CreatePerson(ctx, "Bob", "bob@example.com")
 	c, err := st.CreateCommunity(ctx, "Jam", zoe)
 	if err != nil {
 		t.Fatal(err)

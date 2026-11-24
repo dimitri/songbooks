@@ -34,7 +34,7 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
 			return
 		}
-		s.renderPersonalInvitePage(w, pv, "", pv.DisplayName, "")
+		s.renderPersonalInvitePage(w, pv, "", "")
 		return
 	}
 
@@ -45,22 +45,22 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.renderInvitePage(w, inv, loggedInAs, "", "", "", "")
+	s.renderInvitePage(w, inv, loggedInAs, "", "", "")
 }
 
 // renderInvitePage is the shared render for both the initial GET and a
 // failed POST — the latter needs the exact same invite context
 // (Kind/ProjectName/Role/BandName/Token) PLUS whatever the visitor
-// already typed (so a rejected username/weak password doesn't make them
-// retype their email too) and a reason the form bounced. formErr is
+// already typed (so a rejected email/weak password doesn't make them
+// retype their name too) and a reason the form bounced. formErr is
 // empty on the normal first view.
-func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, loggedInAs, formErr, username, displayName, email string) {
+func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, loggedInAs, formErr, displayName, email string) {
 	s.render(w, "invite", map[string]any{
 		"Token": inv.Token, "Kind": inv.Kind(),
 		"BandName": inv.BandName, "BandStatus": inv.BandStatus,
-		"LoggedInAs": loggedInAs,
-		"Error":      formErr,
-		"Username":   username, "DisplayName": displayName, "Email": email,
+		"LoggedInAs":  loggedInAs,
+		"Error":       formErr,
+		"DisplayName": displayName, "Email": email,
 	})
 }
 
@@ -68,18 +68,18 @@ func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, logg
 // personal invite: reuses the same "invite" template (Kind == "personal"
 // switches its content), but carries the pre-set membership list instead
 // of a single band/role pair.
-func (s *Server) renderPersonalInvitePage(w http.ResponseWriter, pv *store.PersonalInviteView, formErr, username, email string) {
+func (s *Server) renderPersonalInvitePage(w http.ResponseWriter, pv *store.PersonalInviteView, formErr, email string) {
 	s.render(w, "invite", map[string]any{
 		"Token": pv.Token, "Kind": "personal",
 		"DisplayName": pv.DisplayName, "Memberships": pv.Memberships,
-		"Error":    formErr,
-		"Username": username, "Email": email,
+		"Error": formErr,
+		"Email": email,
 	})
 }
 
 // handlePostInvite accepts an invite. A logged-in visitor just gets the
 // membership added to their existing account; an anonymous one must
-// supply a username/display name/email/password, which creates a
+// supply a display name/email/password, which creates a
 // brand-new account in the same transaction as the membership grant —
 // see store.CreatePersonAndAcceptInvite. A password is REQUIRED here
 // (unlike the account this account started as capable of — the store
@@ -108,7 +108,7 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		s.renderInvitePage(w, inv, "", "invalid form", "", "", "")
+		s.renderInvitePage(w, inv, "", "invalid form", "", "")
 		return
 	}
 
@@ -124,14 +124,13 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	username := strings.TrimSpace(r.FormValue("username"))
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
 	confirm := r.FormValue("confirm")
 
-	if username == "" || displayName == "" || email == "" {
-		s.renderInvitePage(w, inv, "", "username, display name and email are all required", username, displayName, email)
+	if displayName == "" || email == "" {
+		s.renderInvitePage(w, inv, "", "display name and email are both required", displayName, email)
 		return
 	}
 	// Same minimal shape check as the profile page's own email field
@@ -139,35 +138,33 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	// to catch a typo before it becomes an account nobody can log into.
 	at := strings.IndexByte(email, '@')
 	if at <= 0 || at == len(email)-1 {
-		s.renderInvitePage(w, inv, "", "enter a valid email address", username, displayName, email)
+		s.renderInvitePage(w, inv, "", "enter a valid email address", displayName, email)
 		return
 	}
 	if len(password) < 8 {
-		s.renderInvitePage(w, inv, "", "password must be at least 8 characters", username, displayName, email)
+		s.renderInvitePage(w, inv, "", "password must be at least 8 characters", displayName, email)
 		return
 	}
 	if password != confirm {
-		s.renderInvitePage(w, inv, "", "passwords didn't match", username, displayName, email)
+		s.renderInvitePage(w, inv, "", "passwords didn't match", displayName, email)
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("hashing invite-accept password: %v", err)
-		s.renderInvitePage(w, inv, "", "couldn't accept this invite — try again", username, displayName, email)
+		s.renderInvitePage(w, inv, "", "couldn't accept this invite — try again", displayName, email)
 		return
 	}
 
-	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, username, displayName, email, string(hash))
+	personID, dest, err := s.store.CreatePersonAndAcceptInvite(r.Context(), token, displayName, email, string(hash))
 	if err != nil {
 		switch {
-		case errors.Is(err, store.ErrUsernameTaken):
-			s.renderInvitePage(w, inv, "", "that username is already taken — try another", "", displayName, email)
 		case errors.Is(err, store.ErrEmailTaken):
-			s.renderInvitePage(w, inv, "", "that email is already registered to another account", username, displayName, "")
+			s.renderInvitePage(w, inv, "", "that email is already registered to another account", displayName, "")
 		default:
 			log.Printf("accepting invite %s: %v", token, err)
-			s.renderInvitePage(w, inv, "", "couldn't accept this invite — try again", username, displayName, email)
+			s.renderInvitePage(w, inv, "", "couldn't accept this invite — try again", displayName, email)
 		}
 		return
 	}
@@ -190,7 +187,8 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePostPersonalInvite finishes a shell person's account — same
-// username/email/password shape as handlePostInvite's anonymous branch,
+// email/password shape as handlePostInvite's anonymous branch (the name
+// is the one the inviter gave; it can be changed later on /profile),
 // but calls ClaimPersonalInvite (sets the fields on the EXISTING shell
 // row) instead of CreatePersonAndAcceptInvite (which always inserts a
 // new one). No "already logged in, just add membership" branch: a
@@ -204,22 +202,21 @@ func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		s.renderPersonalInvitePage(w, pv, "invalid form", "", "")
+		s.renderPersonalInvitePage(w, pv, "invalid form", "")
 		return
 	}
 
-	username := strings.TrimSpace(r.FormValue("username"))
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
 	confirm := r.FormValue("confirm")
 
-	if username == "" || email == "" {
-		s.renderPersonalInvitePage(w, pv, "username and email are both required", username, email)
+	if email == "" {
+		s.renderPersonalInvitePage(w, pv, "enter a valid email address", email)
 		return
 	}
 	at := strings.IndexByte(email, '@')
 	if at <= 0 || at == len(email)-1 {
-		s.renderPersonalInvitePage(w, pv, "enter a valid email address", username, email)
+		s.renderPersonalInvitePage(w, pv, "enter a valid email address", email)
 		return
 	}
 	// Password is REQUIRED here, not an optional fallback to "log in with
@@ -230,31 +227,29 @@ func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request
 	// passkey offered right after (via /welcome?step=2) is step two, not a
 	// substitute for having a working credential at all.
 	if len(password) < 8 {
-		s.renderPersonalInvitePage(w, pv, "password must be at least 8 characters", username, email)
+		s.renderPersonalInvitePage(w, pv, "password must be at least 8 characters", email)
 		return
 	}
 	if password != confirm {
-		s.renderPersonalInvitePage(w, pv, "passwords didn't match", username, email)
+		s.renderPersonalInvitePage(w, pv, "passwords didn't match", email)
 		return
 	}
 	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("hashing personal-invite password: %v", err)
-		s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", username, email)
+		s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", email)
 		return
 	}
 	hash := string(h)
 
-	personID, err := s.store.ClaimPersonalInvite(r.Context(), token, username, email, hash)
+	personID, err := s.store.ClaimPersonalInvite(r.Context(), token, email, hash)
 	if err != nil {
 		switch {
-		case errors.Is(err, store.ErrUsernameTaken):
-			s.renderPersonalInvitePage(w, pv, "that username is already taken — try another", "", email)
 		case errors.Is(err, store.ErrEmailTaken):
-			s.renderPersonalInvitePage(w, pv, "that email is already registered to another account", username, "")
+			s.renderPersonalInvitePage(w, pv, "that email is already registered to another account", "")
 		default:
 			log.Printf("claiming personal invite %s: %v", token, err)
-			s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", username, email)
+			s.renderPersonalInvitePage(w, pv, "couldn't finish setting up this account — try again", email)
 		}
 		return
 	}

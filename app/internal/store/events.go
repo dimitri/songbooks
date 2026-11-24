@@ -183,7 +183,6 @@ func (st *Store) SetEventSongbook(ctx context.Context, eventID, songbookID int64
 // community-wide role (the user's own explicit choice).
 type EventManager struct {
 	PersonID       int64
-	Username       string
 	DisplayName    string
 	AssignedByName string
 	AssignedAt     time.Time
@@ -213,7 +212,7 @@ func (st *Store) RemoveEventManager(ctx context.Context, eventID, personID int64
 // ListEventManagers lists everyone currently assigned to manage eventID.
 func (st *Store) ListEventManagers(ctx context.Context, eventID int64) ([]EventManager, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT p.id, p.username, p.display_name, coalesce(ap.display_name, ''), em.assigned_at
+		SELECT p.id, p.display_name, coalesce(ap.display_name, ''), em.assigned_at
 		FROM event_managers em
 		JOIN people p ON p.id = em.person_id
 		LEFT JOIN people ap ON ap.id = em.assigned_by_person_id
@@ -225,7 +224,7 @@ func (st *Store) ListEventManagers(ctx context.Context, eventID int64) ([]EventM
 	var out []EventManager
 	for rows.Next() {
 		var m EventManager
-		if err := rows.Scan(&m.PersonID, &m.Username, &m.DisplayName, &m.AssignedByName, &m.AssignedAt); err != nil {
+		if err := rows.Scan(&m.PersonID, &m.DisplayName, &m.AssignedByName, &m.AssignedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -328,7 +327,7 @@ func (st *Store) RegisterForEvent(ctx context.Context, eventID, personID int64, 
 // an anonymous jam-style profile: the user's own explicit choice), then
 // registers them, all in one transaction so a failed registration never
 // leaves an orphan account behind.
-func (st *Store) CreatePersonAndRegisterForEvent(ctx context.Context, eventID int64, username, displayName, email, bcryptHash string, bandID int64) (personID int64, err error) {
+func (st *Store) CreatePersonAndRegisterForEvent(ctx context.Context, eventID int64, displayName, email, bcryptHash string, bandID int64) (personID int64, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -340,11 +339,8 @@ func (st *Store) CreatePersonAndRegisterForEvent(ctx context.Context, eventID in
 		pwHash = &bcryptHash
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO people (username, display_name, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id`,
-		username, displayName, email, pwHash).Scan(&personID); err != nil {
-		if constraintViolated(err, "people_username_key") {
-			return 0, ErrUsernameTaken
-		}
+		`INSERT INTO people (display_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id`,
+		displayName, email, pwHash).Scan(&personID); err != nil {
 		if constraintViolated(err, "people_email_key") {
 			return 0, ErrEmailTaken
 		}

@@ -92,9 +92,9 @@ func TestProfileInstruments(t *testing.T) {
 	srv := httptest.NewServer(NewServer(st, mailer.NewConsoleMailer(st), nil, "", ""))
 	defer srv.Close()
 
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
-	mate, _ := st.CreatePerson(ctx, "mate", "Mate", "")
-	stranger, _ := st.CreatePerson(ctx, "stranger", "Stranger", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
+	mate, _ := st.CreatePerson(ctx, "Mate", "")
+	stranger, _ := st.CreatePerson(ctx, "Stranger", "")
 	band, _ := st.CreateBand(ctx, "Mercy", me)
 	if _, err := st.AddBandMember(ctx, band, mate, "guest", me); err != nil {
 		t.Fatal(err)
@@ -201,13 +201,13 @@ func TestJamRegistrationCollectsInstruments(t *testing.T) {
 	srv := httptest.NewServer(NewServer(st, mailer.NewConsoleMailer(st), nil, "", ""))
 	defer srv.Close()
 
-	org, _ := st.CreatePerson(ctx, "org", "Org", "")
+	org, _ := st.CreatePerson(ctx, "Org", "")
 	comm, _ := st.CreateCommunity(ctx, "JamSpace", org)
 	jam, err := st.CreateEvent(ctx, "community", comm, "jam", "Jam du jeudi", "", "", time.Now().Add(48*time.Hour), nil, "members", org)
 	if err != nil {
 		t.Fatal(err)
 	}
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 	if _, err := st.AddInstrument(ctx, me, "bass", "", "intermediate"); err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestJamRegistrationCollectsInstruments(t *testing.T) {
 	if mine, _ := st.ListPersonInstruments(ctx, me); len(mine) != 3 {
 		t.Errorf("profile after changing what I'll play: %+v", mine)
 	}
-	stranger, _ := st.CreatePerson(ctx, "stranger", "Stranger", "")
+	stranger, _ := st.CreatePerson(ctx, "Stranger", "")
 	if code, _ := newAsPerson(t, st, srv, stranger).do("POST", path+"/instruments", url.Values{"instrument": {"drums"}}); code != http.StatusForbidden {
 		t.Errorf("unregistered: %d, want 403", code)
 	}
@@ -264,7 +264,7 @@ func TestWizardInstrumentsKeepCollected(t *testing.T) {
 	srv := httptest.NewServer(NewServer(st, mailer.NewConsoleMailer(st), nil, "", ""))
 	defer srv.Close()
 
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 	band, _ := st.CreateBand(ctx, "Mercy", me)
 	if _, err := st.AddInstrument(ctx, me, "voice", "", "beginner"); err != nil {
 		t.Fatal(err)

@@ -50,7 +50,7 @@ func TestMatchFilesToSongs(t *testing.T) {
 func TestSongbookFilesAndZip(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, err := st.CreatePerson(ctx, "me", "Me", "me@example.com")
+	me, err := st.CreatePerson(ctx, "Me", "me@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

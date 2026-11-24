@@ -32,7 +32,7 @@ func peopleInstruments(t *testing.T, st *Store, id int64) []string {
 func TestPersonInstrumentsOwn(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 
 	gid, err := st.AddInstrument(ctx, me, "guitar", "", "advanced")
 	if err != nil {
@@ -69,7 +69,7 @@ func TestPersonInstrumentsOwn(t *testing.T) {
 	if err := st.SetInstrumentLevel(ctx, me, gid, ""); err != nil {
 		t.Fatal(err)
 	}
-	other, _ := st.CreatePerson(ctx, "other", "Other", "")
+	other, _ := st.CreatePerson(ctx, "Other", "")
 	if err := st.SetInstrumentLevel(ctx, other, gid, "beginner"); err == nil {
 		t.Error("someone else set my level")
 	}
@@ -99,7 +99,7 @@ func TestPersonInstrumentsOwn(t *testing.T) {
 func TestCollectInstrumentsKeepsLevelsAndRemovals(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 	band, _ := st.CreateBand(ctx, "Mercy", me)
 
 	if _, err := st.AddInstrument(ctx, me, "bass", "", "intermediate"); err != nil {
@@ -134,11 +134,11 @@ func TestCollectInstrumentsKeepsLevelsAndRemovals(t *testing.T) {
 func TestBackfillPersonInstruments(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	admin, _ := st.CreatePerson(ctx, "admin", "Admin", "")
+	admin, _ := st.CreatePerson(ctx, "Admin", "")
 	band, _ := st.CreateBand(ctx, "Mercy", admin)
-	a, _ := st.CreatePerson(ctx, "a", "A", "")
-	b, _ := st.CreatePerson(ctx, "b", "B", "")
-	c, _ := st.CreatePerson(ctx, "c", "C", "")
+	a, _ := st.CreatePerson(ctx, "A", "")
+	b, _ := st.CreatePerson(ctx, "B", "")
+	c, _ := st.CreatePerson(ctx, "C", "")
 	// Free text as found in production, written straight in as before.
 	for id, list := range map[int64][]string{
 		a: {"guitar & singer"},
@@ -221,7 +221,7 @@ func mustFind(t *testing.T, st *Store, personID int64, instrument string) int64 
 func TestUpdateOwnInstruments(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 	band, _ := st.CreateBand(ctx, "Mercy", me)
 	if _, err := st.AddInstrument(ctx, me, "bass", "", "advanced"); err != nil {
 		t.Fatal(err)
@@ -306,8 +306,8 @@ func find(t *testing.T, st *Store, personID int64, instrument string) PersonInst
 func TestCollectedInstrumentsStay(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	admin, _ := st.CreatePerson(ctx, "admin", "Admin", "")
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	admin, _ := st.CreatePerson(ctx, "Admin", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 
 	// A roster slot I claim: bass, from Mercy.
 	mercy, _ := st.CreateBand(ctx, "Mercy", admin)
@@ -437,13 +437,13 @@ func mustList(t *testing.T, st *Store, personID int64) []PersonInstrument {
 func TestEventRegistrationAndProgramCollect(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	org, _ := st.CreatePerson(ctx, "org", "Org", "")
+	org, _ := st.CreatePerson(ctx, "Org", "")
 	comm, _ := st.CreateCommunity(ctx, "JamSpace", org)
 	ev, err := st.CreateEvent(ctx, "community", comm, "jam", "Jam du jeudi", "", "", time.Now().Add(24*time.Hour), nil, "members", org)
 	if err != nil {
 		t.Fatal(err)
 	}
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
 	if err := st.SetEventRegistrationInstruments(ctx, ev, me, []string{"sax"}); err == nil {
 		t.Error("instruments saved for an event I'm not registered for")
 	}
@@ -469,13 +469,13 @@ func TestEventRegistrationAndProgramCollect(t *testing.T) {
 func TestInstrumentLevelVisibility(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	me, _ := st.CreatePerson(ctx, "me", "Me", "")
-	mate, _ := st.CreatePerson(ctx, "mate", "Mate", "")
-	org, _ := st.CreatePerson(ctx, "org", "Org", "")
-	member, _ := st.CreatePerson(ctx, "member", "Member", "")
-	stranger, _ := st.CreatePerson(ctx, "stranger", "Stranger", "")
-	admin, _ := st.CreatePerson(ctx, "admin", "Admin", "")
-	evManager, _ := st.CreatePerson(ctx, "evm", "Event manager", "")
+	me, _ := st.CreatePerson(ctx, "Me", "")
+	mate, _ := st.CreatePerson(ctx, "Mate", "")
+	org, _ := st.CreatePerson(ctx, "Org", "")
+	member, _ := st.CreatePerson(ctx, "Member", "")
+	stranger, _ := st.CreatePerson(ctx, "Stranger", "")
+	admin, _ := st.CreatePerson(ctx, "Admin", "")
+	evManager, _ := st.CreatePerson(ctx, "Event manager", "")
 	_ = st.SetAdmin(ctx, admin, true)
 
 	band, _ := st.CreateBand(ctx, "Mercy", me)

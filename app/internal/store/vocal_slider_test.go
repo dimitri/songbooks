@@ -13,13 +13,13 @@ import (
 func TestVocalSlider(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	coach, err := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	poppy, _ := st.CreatePerson(ctx, "poppy", "Poppy", "poppy@example.com")
-	george, _ := st.CreatePerson(ctx, "george", "George", "george@example.com")
-	outsider, _ := st.CreatePerson(ctx, "outsider", "Outsider", "outsider@example.com")
+	poppy, _ := st.CreatePerson(ctx, "Poppy", "poppy@example.com")
+	george, _ := st.CreatePerson(ctx, "George", "george@example.com")
+	outsider, _ := st.CreatePerson(ctx, "Outsider", "outsider@example.com")
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	if err != nil {
 		t.Fatal(err)

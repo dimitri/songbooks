@@ -133,7 +133,7 @@ func stripIDs(l *setlist.Setlist) *setlist.Setlist {
 func TestSetlistMigrationRoundTrip(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
-	p, err := st.CreatePerson(ctx, "mover", "Mover", "mover@example.com")
+	p, err := st.CreatePerson(ctx, "Mover", "mover@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

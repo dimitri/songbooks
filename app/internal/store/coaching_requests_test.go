@@ -17,9 +17,9 @@ func TestSongRequests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	coach, err := st.CreatePerson(ctx, "coach", "Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Coach", "coach@example.com")
 	must(err)
-	student, err := st.CreatePerson(ctx, "student", "Stan Student", "student@example.com")
+	student, err := st.CreatePerson(ctx, "Stan Student", "student@example.com")
 	must(err)
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	must(err)
@@ -109,9 +109,9 @@ func TestVoiceProfile(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	coach, err := st.CreatePerson(ctx, "coach", "Cora Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Cora Coach", "coach@example.com")
 	must(err)
-	student, err := st.CreatePerson(ctx, "student", "Stan Student", "student@example.com")
+	student, err := st.CreatePerson(ctx, "Stan Student", "student@example.com")
 	must(err)
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	must(err)
@@ -199,9 +199,9 @@ func TestStudentNotes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	coach, err := st.CreatePerson(ctx, "coach", "Cora Coach", "coach@example.com")
+	coach, err := st.CreatePerson(ctx, "Cora Coach", "coach@example.com")
 	must(err)
-	student, err := st.CreatePerson(ctx, "student", "Stan Student", "student@example.com")
+	student, err := st.CreatePerson(ctx, "Stan Student", "student@example.com")
 	must(err)
 	c, err := st.CreateCommunity(ctx, "Voice", coach)
 	must(err)

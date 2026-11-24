@@ -120,7 +120,7 @@ func TestMigration0127(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
-	second, err := st.CreatePerson(ctx, "second", "Second", "second@example.com")
+	second, err := st.CreatePerson(ctx, "Second", "second@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -67,7 +67,7 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 
 // handleSetPublicProfile is POST /profile/public — saves the "public
 // profile" tab's fields (see migration 0038): a nickname/picture to show
-// instead of the real username, plus opt-in toggles for whether email/
+// instead of the real name, plus opt-in toggles for whether email/
 // phone show on that public view. There's no public-facing page that
 // actually reads these yet — this is the editor half only, ahead of
 // whatever surface (a public catalog, a jam roster) ends up showing it.
@@ -91,13 +91,11 @@ func (s *Server) handleSetPublicProfile(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleSetEmailProfile is POST /profile/email — lets a logged-in person
-// set or change the email their account uses for magic-link login (and,
-// going forward, as their login identifier for password login too — see
-// handlePasswordLogin, which already accepts either username or email).
-// Many pre-existing accounts (e.g. the --import bootstrap path) start
-// with no email at all and are otherwise stuck on password-only login —
-// this is the self-serve path to fix that, alongside the --set-email CLI
-// flag it shares SetEmail with.
+// set or change the email their account is: what they log in with, by
+// password (handlePasswordLogin) or by magic link — there is no login
+// name (docs/accounts.md). Changing it changes how they log in from now
+// on; the --set-email CLI flag shares SetEmail with it, for an account
+// that has none and so can't log in to get here.
 func (s *Server) handleSetEmailProfile(w http.ResponseWriter, r *http.Request) {
 	p := personFromContext(r)
 	if err := r.ParseForm(); err != nil {

@@ -108,7 +108,7 @@
     <div class="vote-sum" data-sum></div>
     {{if eq .Status "open"}}{{if $.CanVote}}<div data-ctl></div>{{end}}
     {{if $.CanDecide}}{{template "vote-decide" .}}{{end}}
-    {{else}}<p class="vote-decided is-{{.Status}}">{{if eq .Status "accepted"}}{{t "Accepted %s" (date .DecidedAt "2 Jan")}}{{else}}{{t "Turned down %s" (date .DecidedAt "2 Jan")}}{{end}}{{if .DecidedByUsername}} · {{t "by %s" .DecidedByUsername}}{{else}} · {{t "by the votes"}}{{end}}</p>{{end}}
+    {{else}}<p class="vote-decided is-{{.Status}}">{{if eq .Status "accepted"}}{{t "Accepted %s" (date .DecidedAt "2 Jan")}}{{else}}{{t "Turned down %s" (date .DecidedAt "2 Jan")}}{{end}}{{if .DecidedByName}} · {{t "by %s" .DecidedByName}}{{else}} · {{t "by the votes"}}{{end}}</p>{{end}}
   </div>
   {{if eq .Status "open"}}<a class="vote-listen" href="/bands/{{$.Band.ID}}/catalog/vote/listen?start={{.ID}}" aria-label="{{t "Listen to “%s”" .TargetTitle}}">{{template "icon-play"}}<span>{{t "Listen"}}</span></a>{{end}}
 </article>

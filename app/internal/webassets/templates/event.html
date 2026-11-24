@@ -68,21 +68,17 @@
   <div class="card card--narrow-lg" id="register-card">
     <h3>{{t "Register"}}</h3>
     {{/* Still a plain POST form (works without JS); the script below
-         sends it with fetch so a refused registration ("username taken")
+         sends it with fetch so a refused registration ("email taken")
          shows here instead of replacing the page and losing what was
          typed. */}}
     <form method="post" action="/events/{{.Event.ID}}/register" class="form-stack" id="register-form">
       {{if not .Me}}
       <p class="hint">{{t "Registering also creates your account."}}</p>
-      <div class="field">
-        <label for="reg-username">{{t "Username"}}</label>
-        <p class="field-hint" id="reg-username-hint">{{t "What you'll log in with."}}</p>
-        <input type="text" id="reg-username" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="reg-username-hint">
-      </div>
       <div class="field"><label for="reg-display-name">{{t "Your name"}}</label><input type="text" id="reg-display-name" name="display_name" required autocomplete="name"></div>
       <div class="field">
-        <label for="reg-email">{{t "Email"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <input type="email" id="reg-email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+        <label for="reg-email">{{t "Email"}}</label>
+        <p class="field-hint" id="reg-email-hint">{{t "What you'll log in with."}}</p>
+        <input type="email" id="reg-email" name="email" required autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="reg-email-hint">
       </div>
       <div class="field">
         <label for="reg-password">{{t "Password"}} <span class="field-optional">{{t "(optional)"}}</span></label>
@@ -156,8 +152,8 @@
   {{end}}
 </main>
 <script>
-// The handler's own refusals ("that username is already taken — try
-// another") are written for people; a 500's text isn't.
+// The handler's own refusals ("that email is already registered to
+// another account") are written for people; a 500's text isn't.
 function errText(res, data, fallback) {
   const msg = res && res.status < 500 && data && data.error;
   return msg && !/invalid|json|sql/i.test(msg) ? msg.charAt(0).toUpperCase() + msg.slice(1) : fallback;
