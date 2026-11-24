@@ -53,6 +53,11 @@ func TestJazzLayoutFits(t *testing.T) {
 	if len(pages) != 1 || p.E >= full || p.E < full*jzMinShrink || p.x0 <= jzMargin {
 		t.Errorf("12 lines: E %.2f (full %.2f) x0 %.2f pages %v", p.E, full, p.x0, pages)
 	}
+	// 18 lines need about two thirds of the full size: one page still.
+	p, pages, _, _ = jazzLayout(c, jzTestChart(18))
+	if len(pages) != 1 || p.E >= full*0.7 || p.E < full*jzMinShrink {
+		t.Errorf("18 lines: E %.2f (full %.2f) pages %v", p.E, full, pages)
+	}
 	p, pages, _, _ = jazzLayout(c, jzTestChart(30))
 	if len(pages) < 2 || p.E != full {
 		t.Errorf("30 lines: E %.2f pages %v", p.E, pages)

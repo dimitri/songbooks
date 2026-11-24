@@ -35,9 +35,10 @@ type JazzChart struct {
 	// accidental, then the rest ("m"); KeyRoot empty: Key as written.
 	KeyRoot JazzNote
 	Key     string
-	// The page's words, translated: "Key", "with repeats", "lead".
-	KeyWord, WithRepeatsWord, LeadWord string
-	Lines                              []JazzLine
+	// The page's words, translated: "Key", "with repeats", "lead", and
+	// the "cont." of a continued page's title ("Title (cont.)").
+	KeyWord, WithRepeatsWord, LeadWord, ContWord string
+	Lines                                        []JazzLine
 }
 
 // JazzLine is one system: 4 bars (and the song's lead-in cells, narrow,
@@ -150,7 +151,7 @@ const (
 	// A form a little longer than a page is set smaller to stay on one,
 	// down to this fraction of the full size, before it runs on over
 	// two pages.
-	jzMinShrink = 0.75
+	jzMinShrink = 0.6
 )
 
 // jazzChartOf is ref's Jazz chart, or its song's header alone.
@@ -175,6 +176,7 @@ func jazzHeaderOnly(s *song.Song) *JazzChart {
 		Compound: song.CompoundTime(s.Get("time")),
 		Key:      strings.TrimSpace(s.Get("key")),
 		KeyWord:  "Key",
+		ContWord: "cont.",
 	}
 }
 
@@ -223,6 +225,10 @@ const (
 	// Room kept above a continued page's first line, for what stands
 	// over its top (a rehearsal box, a coda sign, an ending's name).
 	jzPageTop = 0.9
+	// A continued page opens with the song's title, small: "Title
+	// (cont.)", at the composer's size (.5em), on a line of its own.
+	jzContSize = 0.5
+	jzContH    = 0.6
 )
 
 // notesLines wraps a line's notes at the chart's width (.jz-notes:
@@ -318,8 +324,8 @@ func jazzLayout(c *canvas, ch *JazzChart) (p *jzPainter, pages []jzPage, tops, h
 }
 
 // jazzPaginate cuts the lines into pages of at most avail em: the first
-// page under the header, each next one with jzPageTop of room above its
-// first line. A page ends before a section's first line when one is
+// page under the header, each next one under its small title (jzContH)
+// with jzPageTop of room above its first line. A page ends before a section's first line when one is
 // near the bottom (no more than 2 lines back), and the last page gets
 // at least 2 lines.
 func jazzPaginate(tops, heights []float64, avail float64) []jzPage {
@@ -351,7 +357,7 @@ func jazzPaginate(tops, heights []float64, avail float64) []jzPage {
 		}
 		pages = append(pages, jzPage{from, to})
 		from = to
-		used = 0
+		used = jzContH
 	}
 	// No orphan: a last page of one line takes the line before it.
 	if n := len(pages); n > 1 && pages[n-1].to-pages[n-1].from == 1 && pages[n-2].to-pages[n-2].from > 2 {
@@ -380,6 +386,9 @@ func renderJazz(doc *gopdf.GoPdf, ch *JazzChart) {
 		if pi == 0 {
 			p.head(ch, y)
 			y += jzHeadH * p.E
+		} else {
+			p.contTitle(ch, y)
+			y += jzContH * p.E
 		}
 		for li := pg.from; li < pg.to; li++ {
 			top := tops[li]
@@ -483,6 +492,17 @@ func (p *jzPainter) head(ch *JazzChart, top float64) {
 		w := p.mw(ch.Title, faceHand, size)
 		p.text(p.x0+(p.w-w)/2, bottom-0.2*size, ch.Title, faceHand, size, jzInk)
 	}
+}
+
+// contTitle heads a continued page: the song's title and "(cont.)",
+// small, at the chart's left.
+func (p *jzPainter) contTitle(ch *JazzChart, top float64) {
+	s := ch.Title
+	if ch.ContWord != "" {
+		s += " (" + ch.ContWord + ")"
+	}
+	size := jzContSize * p.E
+	p.text(p.x0, top+0.8*size, s, faceHand, size, jzInk)
 }
 
 // ---- a system (.jz-sys) ----
