@@ -92,7 +92,7 @@
     </form>
     {{end}}
     </div>
-    {{if .IsCore}}<p class="hint">{{t "They’re on the roster right away, with a personal invite link to send them."}}</p>{{end}}
+    {{if .IsCore}}<p class="hint">{{t "They’re on the roster right away, with a personal invite link to send them: they join with their email, a new account or the one they have."}}</p>{{end}}
   </section>
 
   <label class="check"><input type="checkbox" id="show-past-toggle"> {{t "Show past members"}}</label>
@@ -114,10 +114,10 @@
 
   <div class="home-section-head" style="margin-top:0.4rem;"><h3>{{t "Add people to this band"}}</h3></div>
   {{if .IsCore}}
-  <p class="hint">{{t "For someone who already has an account, a link anyone can use once, or one open link for a rehearsal or a gig."}}</p>
+  <p class="hint">{{t "Someone you already play with, a link anyone can use once, or one open link for a rehearsal or a gig. Whoever joins by a link does it with their email."}}</p>
   <div class="card-grid">
     <div class="card">
-      <h2>{{t "Add an existing account, or send a one-off link"}}</h2>
+      <h2>{{if .KnownPeople}}{{t "Someone you already play with, or a one-off link"}}{{else}}{{t "A one-off link"}}{{end}}</h2>
       {{range .OpenInvites}}
       <div class="invite-link-row">
         <code class="invite-link-url" data-url="/invite/{{.Token}}">/invite/{{.Token}}</code>
@@ -127,17 +127,14 @@
       </div>
       {{end}}
       <form class="form-stack" id="add-member-form">
-        {{/* Someone with an account: their email, or their name among
-             the people the viewer already plays with (add_person.go). */}}
-        <div class="field">
-          <label for="add-email">{{t "Their email"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-          <p class="field-hint" id="add-email-hint">{{t "For someone who already has an account: they’re added straight away. Leave it blank to get a one-time link to send them instead."}}</p>
-          <input type="email" id="add-email" placeholder="{{t "name@example.com"}}" aria-describedby="add-email-hint" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
-        </div>
+        {{/* Someone with an account is picked among the people the
+             viewer already plays with (add_person.go); anyone else is
+             added by name on the roster above, or gets a link. */}}
         {{if .KnownPeople}}
         <div class="field">
-          <label for="add-known">{{t "Or someone you already play with"}}</label>
-          <select id="add-known">
+          <label for="add-known">{{t "Someone you already play with"}}</label>
+          <p class="field-hint" id="add-known-hint">{{t "They’re added straight away. Pick nobody to get a one-time link to send instead."}}</p>
+          <select id="add-known" aria-describedby="add-known-hint">
             <option value="">{{t "Nobody here"}}</option>
             {{range .KnownPeople}}<option value="{{.ID}}">{{.DisplayName}} · {{.Where}}</option>{{end}}
           </select>
@@ -293,36 +290,27 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
   document.getElementById('past-members-wrap').hidden = !e.target.checked;
 });
 
-// One form, two outcomes: an email or a name picked adds that account
-// now; neither makes a one-time link instead. The button says which
-// it's about to do.
+// One form, two outcomes: someone picked is added now; nobody picked
+// makes a one-time link instead. The button says which it's about to do.
 (function () {
   const form = document.getElementById('add-member-form');
   if (!form) return; // a guest: no inviting
-  const emailInput = document.getElementById('add-email');
   const knownSel = document.getElementById('add-known');
   const btn = document.getElementById('add-member-btn');
-  const label = () => { btn.textContent = (emailInput.value.trim() || knownSel?.value) ? t('Add to band') : t('Create invite link'); };
-  emailInput.addEventListener('input', label);
+  const label = () => { btn.textContent = knownSel?.value ? t('Add to band') : t('Create invite link'); };
   knownSel?.addEventListener('change', label);
   label();
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const email = emailInput.value.trim();
     const personId = Number(knownSel?.value || 0);
     const roleId = Number(document.getElementById('add-status').value);
     Forms.run(form, btn, async () => {
-      if (personId || email) {
-        const who = personId ? knownSel.selectedOptions[0].textContent.split(' · ')[0] : email;
+      if (personId) {
+        const who = knownSel.selectedOptions[0].textContent.split(' · ')[0];
         const res = await fetch(`/api/bands/${bandId}/members`, {
           method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(personId ? {personId, roleId} : {email, roleId}),
+          body: JSON.stringify({personId, roleId}),
         });
-        if (res.status === 404 && !personId) {
-          Forms.fieldError(emailInput, t('No account uses %s. Check it, or leave it blank to get a link to send them instead.', email));
-          emailInput.focus();
-          return;
-        }
         if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', who));
         location.reload();
         return;

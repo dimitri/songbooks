@@ -5,40 +5,20 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"app/internal/mailer"
 )
 
-// Email is the identity (docs/accounts.md, migration 0135): these tests
-// pin login by email only, adding people by email or by name, claiming
-// a placeholder account with an email, and that no page shows a login
-// name any more.
-
-// setLegacyUsername gives personID an old-style username straight in the
-// database (the app no longer writes one), to prove nothing shows it.
-func setLegacyUsername(t *testing.T, personID int64, name string) {
-	t.Helper()
-	ctx := context.Background()
-	conn := os.Getenv("SONGBOOKS_TEST_DATABASE_URL")
-	if conn == "" {
-		conn = "postgres://localhost/songbooks_test?sslmode=disable"
-	}
-	c, err := pgx.Connect(ctx, conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close(ctx)
-	if _, err := c.Exec(ctx, `UPDATE httpapi_test.people SET username = $1 WHERE id = $2`, name, personID); err != nil {
-		t.Fatal(err)
-	}
-}
+// Email is the identity (docs/accounts.md, migrations 0135 and 0136):
+// these tests pin login by email only, adding people by name, claiming a
+// placeholder account with an email, and that no page shows a login name
+// any more. (drop_username_test.go has joining by a link with an email,
+// a new account or one already there.)
 
 func (e *inviteEnv) withPassword(id int64, password string) {
 	e.t.Helper()
@@ -58,8 +38,8 @@ func formLogin(e *inviteEnv, fields url.Values) *http.Response {
 }
 
 // TestLoginIsByEmailOnly: the password form takes an email (any case);
-// a legacy username, an unknown email, a wrong password and no password
-// set all get the very same refusal; the magic link answers the same
+// a name instead of an email, an unknown email, a wrong password and no
+// password set all get the very same refusal; the magic link answers the same
 // page whether the email has an account or not.
 func TestLoginIsByEmailOnly(t *testing.T) {
 	e := newInviteEnv(t)
@@ -68,7 +48,6 @@ func TestLoginIsByEmailOnly(t *testing.T) {
 	id, _ := e.person("Lena")
 	email := "Lena" + e.sfx + "@example.test"
 	e.withPassword(id, "correct horse")
-	setLegacyUsername(t, id, "lena"+e.sfx)
 
 	res := formLogin(e, url.Values{"mode": {"password"}, "email": {strings.ToUpper(email)}, "password": {"correct horse"}})
 	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/home" {
@@ -83,7 +62,7 @@ func TestLoginIsByEmailOnly(t *testing.T) {
 	}
 
 	refusals := map[string]url.Values{
-		"the legacy username":      {"mode": {"password"}, "email": {"lena" + e.sfx}, "password": {"correct horse"}},
+		"a name, not an email":     {"mode": {"password"}, "email": {"lena" + e.sfx}, "password": {"correct horse"}},
 		"the old identifier field": {"mode": {"password"}, "identifier": {email}, "password": {"correct horse"}},
 		"a wrong password":         {"mode": {"password"}, "email": {email}, "password": {"wrong horse!"}},
 		"an unknown email":         {"mode": {"password"}, "email": {"nobody" + e.sfx + "@example.test"}, "password": {"correct horse"}},
@@ -143,11 +122,12 @@ func TestLoginIsByEmailOnly(t *testing.T) {
 	}
 }
 
-// TestAddMemberByEmailOrName: a band's core member adds an account by its
-// email, or someone they already play with by picking them; an unknown
-// email is refused (a link is how a newcomer joins), and so is a person
-// they don't know. The same for a community.
-func TestAddMemberByEmailOrName(t *testing.T) {
+// TestAddMemberByName: a band's core member adds someone they already
+// play with by picking them (their id); a person they don't know is
+// refused, and nobody is added by email any more (no field, and the API
+// refuses one whether or not it has an account: nothing tells). The same
+// for a community.
+func TestAddMemberByName(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
 	coreID, core := e.person("Core")
@@ -174,21 +154,20 @@ func TestAddMemberByEmailOrName(t *testing.T) {
 		return ok
 	}
 
-	if w := e.do("POST", b, `{"email":" ByEmail`+e.sfx+`@Example.test ","status":"guest"}`, core); w.Code != http.StatusOK || !member(bandID, byEmailID) {
-		t.Errorf("adding by email: %d %s", w.Code, w.Body)
+	known := e.do("POST", b, `{"email":"ByEmail`+e.sfx+`@example.test","status":"guest"}`, core)
+	unknown := e.do("POST", b, `{"email":"nobody`+e.sfx+`@example.test","status":"guest"}`, core)
+	if known.Code != http.StatusBadRequest || member(bandID, byEmailID) {
+		t.Errorf("adding by email: %d %s, want 400 and nobody added", known.Code, known.Body)
 	}
-	if w := e.do("POST", b, `{"email":"nobody`+e.sfx+`@example.test","status":"guest"}`, core); w.Code != http.StatusNotFound {
-		t.Errorf("an unknown email: %d, want 404", w.Code)
-	}
-	if w := e.do("POST", b, `{"email":"Stranger`+e.sfx+`","status":"guest"}`, core); w.Code != http.StatusBadRequest {
-		t.Errorf("a name where the email goes: %d, want 400", w.Code)
+	if unknown.Code != known.Code || unknown.Body.String() != known.Body.String() {
+		t.Errorf("an email with an account and one without answer differently: %d %d", known.Code, unknown.Code)
 	}
 	if w := e.do("POST", b, `{"username":"Stranger`+e.sfx+`","status":"guest"}`, core); w.Code != http.StatusBadRequest {
 		t.Errorf("the old username field: %d, want 400", w.Code)
 	}
 
 	// The members page offers Mate (they share Other Band), not Stranger,
-	// and not who's in the band already.
+	// and not who's in the band already; no email field.
 	page := e.do("GET", fmt.Sprintf("/bands/%d/members", bandID), "", core).Body.String()
 	if !strings.Contains(page, fmt.Sprintf(`<option value="%d">Mate · Other Band %s</option>`, mateID, e.sfx)) {
 		t.Errorf("members page: Mate isn't offered")
@@ -196,8 +175,11 @@ func TestAddMemberByEmailOrName(t *testing.T) {
 	if strings.Contains(page, fmt.Sprintf(`<option value="%d">`, strangerID)) || strings.Contains(page, fmt.Sprintf(`<option value="%d">`, byEmailID)) {
 		t.Errorf("members page: offers a stranger or a current member")
 	}
-	if strings.Contains(page, `id="add-username"`) || !strings.Contains(page, `id="add-email"`) {
-		t.Errorf("members page: still a username field")
+	if strings.Contains(page, `id="add-username"`) || strings.Contains(page, `id="add-email"`) || strings.Contains(page, `type="email"`) {
+		t.Errorf("members page: still a username or email field")
+	}
+	if !strings.Contains(page, `id="roster-add-name"`) {
+		t.Errorf("members page: no adding by name")
 	}
 	if w := e.do("POST", b, fmt.Sprintf(`{"personId":%d,"status":"guest"}`, strangerID), core); w.Code != http.StatusNotFound || member(bandID, strangerID) {
 		t.Errorf("adding a stranger by id: %d, want 404", w.Code)
@@ -206,19 +188,26 @@ func TestAddMemberByEmailOrName(t *testing.T) {
 		t.Errorf("adding a bandmate by name: %d %s", w.Code, w.Body)
 	}
 
-	// A community: by email too.
+	// A community: no email either; someone known by picking them.
 	communityID, err := e.st.CreateCommunity(ctx, "Email Jam "+e.sfx, coreID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := fmt.Sprintf("/api/communities/%d/members", communityID)
-	if w := e.do("POST", c, `{"email":"Stranger`+e.sfx+`@example.test","role":"member"}`, core); w.Code != http.StatusOK {
-		t.Errorf("adding to a community by email: %d %s", w.Code, w.Body)
+	if w := e.do("POST", c, `{"email":"Stranger`+e.sfx+`@example.test","role":"member"}`, core); w.Code != http.StatusBadRequest {
+		t.Errorf("adding to a community by email: %d, want 400", w.Code)
 	}
-	if w := e.do("POST", c, `{"email":"nobody`+e.sfx+`@example.test","role":"member"}`, core); w.Code != http.StatusNotFound {
-		t.Errorf("a community, an unknown email: %d, want 404", w.Code)
+	if ok, _ := e.st.IsCurrentCommunityMember(ctx, communityID, strangerID); ok {
+		t.Errorf("added to the community by email")
 	}
-	if ok, err := e.st.IsCurrentCommunityMember(ctx, communityID, strangerID); err != nil || !ok {
+	admin := e.do("GET", fmt.Sprintf("/communities/%d/admin", communityID), "", core).Body.String()
+	if strings.Contains(admin, `id="add-email"`) || !strings.Contains(admin, `id="quick-add-name"`) || !strings.Contains(admin, fmt.Sprintf(`<option value="%d">Mate · `, mateID)) {
+		t.Errorf("community admin: an email field, or no adding by name or by picking")
+	}
+	if w := e.do("POST", c, fmt.Sprintf(`{"personId":%d,"role":"member"}`, mateID), core); w.Code != http.StatusOK {
+		t.Errorf("adding to a community by picking: %d %s", w.Code, w.Body)
+	}
+	if ok, err := e.st.IsCurrentCommunityMember(ctx, communityID, mateID); err != nil || !ok {
 		t.Errorf("not a community member after the add: %v %v", ok, err)
 	}
 }
@@ -282,19 +271,17 @@ func TestClaimPlaceholderByEmail(t *testing.T) {
 }
 
 // TestNoUsernameOnPages renders the main pages a username used to show
-// on (profile, members, admin, stats, songbooks, proposals) for someone
-// who still has one in the database, and finds it on none of them.
+// on (profile, members, admin, stats, songbooks, proposals): no @name,
+// no Username column (there is no username to show since 0136), the
+// display names instead.
 func TestNoUsernameOnPages(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
-	handle := "zzhandle" + e.sfx
 	meID, me := e.person("Mona")
 	if err := e.st.SetAdmin(ctx, meID, true); err != nil {
 		t.Fatal(err)
 	}
 	mateID, _ := e.person("Matt")
-	setLegacyUsername(t, meID, handle)
-	setLegacyUsername(t, mateID, handle+"mate")
 
 	bandID, err := e.st.CreateBand(ctx, "Handle Band "+e.sfx, meID)
 	if err != nil {
@@ -345,11 +332,7 @@ func TestNoUsernameOnPages(t *testing.T) {
 			t.Errorf("%s: %d", path, w.Code)
 			continue
 		}
-		body := w.Body.String()
-		if strings.Contains(body, handle) {
-			t.Errorf("%s shows a username", path)
-		}
-		if strings.Contains(body, "@"+handle) || strings.Contains(body, ">Username<") {
+		if body := w.Body.String(); strings.Contains(body, ">Username<") || strings.Contains(body, ">@Matt") {
 			t.Errorf("%s shows an @name or a Username column", path)
 		}
 	}

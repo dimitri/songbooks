@@ -52,7 +52,7 @@ func exec(ctx context.Context, tx pgx.Tx, c counts, table, sql string, args ...a
 // bootstrap account, which the local stack logs in as
 // (SONGBOOKS_DEV_AUTO_LOGIN=1) and its owner signs in to staging with,
 // by keptEmail and their password. There are no usernames to find it
-// by (migration 0135).
+// by (migrations 0135, 0136).
 const (
 	keptPersonID = 1
 	keptEmail    = "tapoueh@example.invalid"
@@ -160,9 +160,10 @@ func (a *anonymizer) people(ctx context.Context, tx pgx.Tx) error {
 		return err
 	}
 	// Emails move out of the way first: a demo-N's may be someone
-	// else's until everyone's renamed. The legacy usernames (real
-	// handles, migration 0135) go altogether.
-	if _, err := tx.Exec(ctx, `UPDATE people SET username = NULL, email = CASE WHEN email IS NOT NULL THEN 'sbdemo-tmp-' || id END
+	// else's until everyone's renamed. (The old usernames, real
+	// handles, are gone with their column: store.New migrated past
+	// 0136 before this runs.)
+	if _, err := tx.Exec(ctx, `UPDATE people SET email = CASE WHEN email IS NOT NULL THEN 'sbdemo-tmp-' || id END
 		WHERE coalesce(email, '') NOT LIKE $1`, studentEmailLike); err != nil {
 		return err
 	}

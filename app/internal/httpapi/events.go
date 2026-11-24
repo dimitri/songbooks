@@ -581,7 +581,7 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrEmailTaken):
-			httpError(w, http.StatusConflict, "that email is already registered to another account — log in with it instead")
+			httpError(w, http.StatusConflict, "that email already has an account — log in to register")
 		default:
 			log.Printf("registering for event %d: %v", eventID, err)
 			httpError(w, http.StatusInternalServerError, "couldn't register — try again")
@@ -602,6 +602,18 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 		MaxAge: 30 * 24 * 60 * 60,
 	})
 	http.Redirect(w, r, "/events/"+strconv.FormatInt(eventID, 10), http.StatusFound)
+}
+
+// handleEventLoginRedirect is the registration form's "I already have
+// an account": log in (password or emailed link), then back to the
+// event (pendingJoinCookie) to register as themselves.
+func (s *Server) handleEventLoginRedirect(w http.ResponseWriter, r *http.Request) {
+	eventID, err := pathID(r, "id")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.loginThenResume(w, r, pendingEvent+strconv.FormatInt(eventID, 10))
 }
 
 // handleRegisterSongForEvent claims a song from eventID's attached

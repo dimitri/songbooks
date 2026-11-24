@@ -262,9 +262,16 @@ func TestBandInvitesAreCoreOnly(t *testing.T) {
 	ctx := context.Background()
 	coreID, core := e.person("Core")
 	guestID, guest := e.person("Guest")
-	e.person("Someone") // an account to add by email
+	someoneID, _ := e.person("Someone") // an account to add, one Core plays with
 	bandID, err := e.st.CreateBand(ctx, "Core Band "+e.sfx, coreID)
 	if err != nil {
+		t.Fatal(err)
+	}
+	elsewhere, err := e.st.CreateBand(ctx, "Elsewhere "+e.sfx, coreID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.AddBandMember(ctx, elsewhere, someoneID, "guest", coreID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.st.AddBandMember(ctx, bandID, guestID, "guest", coreID); err != nil {
@@ -290,7 +297,7 @@ func TestBandInvitesAreCoreOnly(t *testing.T) {
 		return out
 	}
 
-	call("add by email", "POST", b+"/members", `{"email":"Someone`+e.sfx+`@example.test","status":"guest"}`)
+	call("add someone known", "POST", b+"/members", fmt.Sprintf(`{"personId":%d,"status":"guest"}`, someoneID))
 	call("one-off link", "POST", b+"/invites", "status=guest")
 	shell := call("personal invite", "POST", b+"/personal-invites", `{"displayName":"Placeholder","status":"guest"}`)
 	shellID := int64(shell["personId"].(float64))

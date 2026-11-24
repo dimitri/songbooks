@@ -4,54 +4,43 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"app/internal/store"
 )
 
-// Adding an existing account to a band or a community (docs/accounts.md):
-// there are no usernames, so the form names the person by their email —
-// any account — or picks them from the people the adder already plays
-// or learns with (store.ListPeopleKnownTo). An email nobody uses is
-// refused, not invited: the same form leaves it blank to get a link to
-// send them, and a link is what makes a new account.
+// Adding someone to a band or a community (docs/accounts.md) is by name:
+// a placeholder with a personal link to send them (the personal-invites
+// routes), who joins with their email — a new account or one they have.
+// Or, for someone with an account, by picking them among the people the
+// adder already plays or learns with (store.ListPeopleKnownTo): the add
+// routes take that person's id, never an email, so nothing tells whether
+// an email has an account.
 
-// addTarget resolves who an add-member request names: personID (one of
-// the adder's known people — a site admin may name anyone) or else an
-// email. It writes the refusal and returns nil when there's no one: 400
-// for neither, 404 for an email no account has or a person the adder
-// doesn't know.
-func (s *Server) addTarget(w http.ResponseWriter, r *http.Request, email string, personID int64) *store.Person {
-	actor := personFromContext(r)
-	email = strings.ToLower(strings.TrimSpace(email))
-	var target *store.Person
-	var err error
-	switch {
-	case personID != 0:
-		known := actor.IsAdmin
-		if !known {
-			if known, err = s.store.KnowsPerson(r.Context(), actor.ID, personID); err != nil {
-				httpError(w, http.StatusInternalServerError, err.Error())
-				return nil
-			}
-		}
-		if !known {
-			httpError(w, http.StatusNotFound, "no such person")
-			return nil
-		}
-		target, err = s.store.GetPersonByID(r.Context(), personID)
-	case strings.Contains(email, "@"):
-		target, err = s.store.GetPersonByEmail(r.Context(), email)
-	default:
-		httpError(w, http.StatusBadRequest, "missing email")
+// addTarget resolves who an add-member request names: personID, one of
+// the adder's known people (a site admin may name anyone). It writes the
+// refusal and returns nil when there's no one: 400 without an id, 404
+// for a person the adder doesn't know.
+func (s *Server) addTarget(w http.ResponseWriter, r *http.Request, personID int64) *store.Person {
+	if personID == 0 {
+		httpError(w, http.StatusBadRequest, "missing personId")
 		return nil
 	}
-	if errors.Is(err, store.ErrNotFound) {
-		if personID != 0 {
-			httpError(w, http.StatusNotFound, "no such person")
-		} else {
-			httpError(w, http.StatusNotFound, "no account with that email")
+	actor := personFromContext(r)
+	known := actor.IsAdmin
+	if !known {
+		var err error
+		if known, err = s.store.KnowsPerson(r.Context(), actor.ID, personID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return nil
 		}
+	}
+	if !known {
+		httpError(w, http.StatusNotFound, "no such person")
+		return nil
+	}
+	target, err := s.store.GetPersonByID(r.Context(), personID)
+	if errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusNotFound, "no such person")
 		return nil
 	}
 	if err != nil {

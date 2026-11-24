@@ -985,13 +985,12 @@ func (s *Server) putPlayerOption(w http.ResponseWriter, r *http.Request, set fun
 }
 
 // handleAddCommunityMember adds an existing account to a community
-// holding role: {email}, any account's, or {personId}, someone the adder
-// already plays or learns with (same rule as handleAddBandMember, see
-// addTarget). manage_members.
+// holding role: {personId}, someone the adder already plays or learns
+// with (same rule as handleAddBandMember, see addTarget; anyone else is
+// added by name, handleCreateCommunityPersonalInvite). manage_members.
 func (s *Server) handleAddCommunityMember(w http.ResponseWriter, r *http.Request) {
 	communityID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Email    string `json:"email"`
 		PersonID int64  `json:"personId"`
 		Role     string `json:"role"`
 	}
@@ -1002,7 +1001,7 @@ func (s *Server) handleAddCommunityMember(w http.ResponseWriter, r *http.Request
 	if req.Role == "" {
 		req.Role = "member"
 	}
-	target := s.addTarget(w, r, req.Email, req.PersonID)
+	target := s.addTarget(w, r, req.PersonID)
 	if target == nil {
 		return
 	}

@@ -13,7 +13,8 @@ import (
 
 // TestAnonymizedDatabase checks a database sbdemo anonymize ran on, when
 // SBDEMO_TEST_DB names one (it only reads): no lyric line but the
-// invented ones, no reference link, no known real name left. It prints
+// invented ones, no reference link, no known real name left (nor the old
+// usernames' column, migration 0136). It prints
 // counts, never a song's content.
 func TestAnonymizedDatabase(t *testing.T) {
 	url := os.Getenv("SBDEMO_TEST_DB")
@@ -79,11 +80,13 @@ func TestAnonymizedDatabase(t *testing.T) {
 		     + (SELECT count(*) FROM song_audio WHERE source_url <> '') + (SELECT count(*) FROM band_recording_sources)
 		     + (SELECT count(*) FROM communities WHERE brand ? 'logoURL' OR brand ? 'website')
 		     + (SELECT count(*) FROM bands WHERE brand ? 'logoURL' OR brand ? 'website')
-		     + (SELECT count(*) FROM lessons WHERE video_url <> '')`,
+		     + (SELECT count(*) FROM lessons WHERE video_url <> '')
+		     + (SELECT count(*) FROM information_schema.columns
+		        WHERE table_schema = current_schema() AND table_name = 'people' AND column_name = 'username')`,
 		[]string{"Bands Camp", "Florent Passamonti", "Chloé Paul", "JamSpace"}).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {
-		t.Errorf("%d real names, links or logos left", n)
+		t.Errorf("%d real names, links, logos or usernames left", n)
 	}
 }

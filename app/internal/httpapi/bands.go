@@ -608,14 +608,13 @@ func (s *Server) handleBandSetlistsPage(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleAddBandMember adds an existing account to a band with one of
-// its roles ({roleId}, or {status}: core or guest): {email}, any
-// account's, or {personId}, someone the adder already plays with (see
-// addTarget; there are no usernames). manage_members, like every other
-// way of inviting someone.
+// its roles ({roleId}, or {status}: core or guest): {personId}, someone
+// the adder already plays with (see addTarget; anyone else is added by
+// name, handleCreateBandPersonalInvite). manage_members, like every
+// other way of inviting someone.
 func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
-		Email    string `json:"email"`
 		PersonID int64  `json:"personId"`
 		Status   string `json:"status"`
 		RoleID   int64  `json:"roleId"`
@@ -628,7 +627,7 @@ func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target := s.addTarget(w, r, req.Email, req.PersonID)
+	target := s.addTarget(w, r, req.PersonID)
 	if target == nil {
 		return
 	}

@@ -14,15 +14,74 @@ import (
 	"app/internal/store"
 )
 
-// pendingJoinCookie carries a not-yet-authenticated visitor's chosen
-// group-invite slot across a "log in to claim this slot" round trip to
-// /login and back. It is a workaround, not a redesign: the magic-link
-// login flow (internal/httpapi/auth.go) has no `next`-redirect
-// parameter yet, and that file's login-route internals are deliberately
-// off limits here (a parallel auth-restoration phase owns them) — see
-// handleJoinLoginRedirect and handleIndex's resume step below instead of
-// a /login?next=... redirect.
+// pendingJoinCookie carries a not-yet-authenticated visitor's join
+// across a "log in to join" round trip to /login and back: every way
+// in by a link (a group invite's slot, an invite or personal link, an
+// event's registration) offers it to someone whose email has an account
+// already. The login page (password or emailed link) lands on /home,
+// where handleIndex finishes the join (resumePendingJoin). Its value:
+//
+//	<group invite token>:<slot id or "unlisted">   a /join/ link
+//	invite:<token>                                 an /invite/ link
+//	event:<id>                                     an event to register for
 const pendingJoinCookie = "songbooks_pending_join"
+
+// The pendingJoinCookie prefixes besides a group invite's token.
+const (
+	pendingInvite = "invite:"
+	pendingEvent  = "event:"
+)
+
+// loginThenResume remembers what to join (a pendingJoinCookie value,
+// for 15 minutes: a login link lasts as long) and sends the visitor to
+// log in.
+func (s *Server) loginThenResume(w http.ResponseWriter, r *http.Request, value string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: pendingJoinCookie, Value: value, Path: "/",
+		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
+		MaxAge: 15 * 60,
+	})
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// resumePendingJoin finishes the join a pendingJoinCookie value names,
+// for person, now logged in, and says where to go: the band, community
+// or event; false when it can't be done any more (a link used, closed
+// or expired meanwhile), and the visitor just gets their home page.
+func (s *Server) resumePendingJoin(ctx context.Context, value string, person *store.Person) (string, bool) {
+	switch {
+	case strings.HasPrefix(value, pendingInvite):
+		token := strings.TrimPrefix(value, pendingInvite)
+		inv, err := s.store.GetInvite(ctx, token)
+		if err != nil {
+			return "", false
+		}
+		if inv.Kind() == "personal" {
+			pv, err := s.store.GetPersonalInvite(ctx, token)
+			if err != nil || s.store.ClaimPersonalInviteAs(ctx, token, person.ID) != nil {
+				return "", false
+			}
+			return personalInviteDest(pv), true
+		}
+		dest, err := s.store.AcceptInvite(ctx, token, person.ID, person.DisplayName)
+		return dest, err == nil
+	case strings.HasPrefix(value, pendingEvent):
+		id, err := strconv.ParseInt(strings.TrimPrefix(value, pendingEvent), 10, 64)
+		if err != nil {
+			return "", false
+		}
+		// Back to the event, to register as themselves: what they'll
+		// play, as whom (a band of theirs) is theirs to say there.
+		return "/events/" + strconv.FormatInt(id, 10), true
+	default:
+		token, slotParam, ok := strings.Cut(value, ":")
+		if !ok {
+			return "", false
+		}
+		dest, err := s.claimGroupInviteForPerson(ctx, token, slotParam, person.ID, person.DisplayName)
+		return dest, err == nil
+	}
+}
 
 // handleJoinPage is the public, no-auth-required group-invite landing
 // page — GET /join/{token} — same "must work from a bare WhatsApp link
@@ -71,23 +130,16 @@ func (s *Server) handleJoinPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleJoinLoginRedirect is the "I already have an account" sub-flow's
-// first step: remember which slot the visitor picked in a short-lived
-// cookie, then send them to the real login mechanism (magic-link,
-// unchanged). handleIndex resumes the claim once they're back and
-// authenticated — see pendingJoinCookie's doc comment for why this
-// cookie-based resume exists instead of a /login?next= redirect.
+// first step: remember which slot the visitor picked (pendingJoinCookie)
+// and send them to log in; handleIndex finishes the claim once they're
+// back (resumePendingJoin).
 func (s *Server) handleJoinLoginRedirect(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	slot := strings.TrimSpace(r.URL.Query().Get("slot"))
 	if slot == "" {
 		slot = "unlisted"
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: pendingJoinCookie, Value: token + ":" + slot, Path: "/",
-		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
-		MaxAge: 15 * 60,
-	})
-	http.Redirect(w, r, "/login", http.StatusFound)
+	s.loginThenResume(w, r, token+":"+slot)
 }
 
 // handlePostJoin accepts a group invite's slot (or an unlisted "someone
