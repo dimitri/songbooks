@@ -99,6 +99,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/webauthn/login/finish", s.handleWebAuthnLoginFinish)
 	mux.HandleFunc("GET /invite/{token}", s.handleInvitePage)
 	mux.HandleFunc("POST /invite/{token}", s.handlePostInvite)
+	mux.HandleFunc("GET /invite/{token}/login", s.handleInviteLoginRedirect)
 
 	// Group invites: a band/community-wide reusable roster link (see
 	// internal/store/group_invites.go) — distinct from the single-use
@@ -688,6 +689,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /calendar/subscribe", s.requireAuth(s.handleCalendarSubscribePage))
 	mux.HandleFunc("POST /api/calendar/feed/reset", s.requireAuth(s.handleResetCalendarFeed))
 	mux.HandleFunc("POST /events/{id}/register", s.optionalPerson(s.handleRegisterForEvent))
+	mux.HandleFunc("GET /events/{id}/login", s.handleEventLoginRedirect)
 	mux.HandleFunc("POST /events/{id}/instruments", s.requireAuth(s.handleSetEventInstruments))
 	mux.HandleFunc("POST /events/{id}/songs", s.requireAuth(s.handleRegisterSongForEvent))
 	mux.HandleFunc("DELETE /events/{id}/songs/{regID}", s.requireAuth(s.handleRemoveSongRegistration))

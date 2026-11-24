@@ -21,7 +21,7 @@
         <ul>
         {{range .Memberships}}<li>{{.Name}} <span class="hint">({{t .Status}})</span></li>{{end}}
         </ul>
-        <p class="hint">{{t "Finish setting up your login below — nothing else changes, these memberships are already yours."}}</p>
+        <p class="hint">{{t "Join with your email: a new account, or the one you already have. Nothing else changes, these memberships are already yours."}}</p>
       {{else if eq .Kind "band"}}
         <h2>{{t "Join %s" .BandName}}</h2>
         <p>{{t "You've been invited as a"}} <strong>{{t .BandStatus}}</strong>{{t " member."}}</p>
@@ -31,18 +31,24 @@
       {{end}}
     </div>
   </div>
+  {{/* Signed in: they just join, as themselves (a personal link's
+       placeholder merges into their account). Otherwise: a new account
+       with their email here, or "Log in to join" below for one they
+       have (password or emailed link, then back: pendingJoinCookie). */}}
   <form class="card" method="post" action="/invite/{{.Token}}" id="invite-form">
-    {{if .LoggedInAs}}{{if ne .Kind "personal"}}
+    {{if .LoggedInAs}}
+      {{if .Error}}<p class="form-status is-error" role="alert">{{.Error}}</p>{{end}}
       <p>
-      {{if eq .Kind "band"}}{{t "Join %s as" .BandName}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}
+      {{if eq .Kind "personal"}}{{t "Join as"}} <strong>{{.LoggedInAs}}</strong>{{t "?"}} <span class="hint">{{t "Your account takes the place on the roster kept for %s." .DisplayName}}</span>
+      {{else if eq .Kind "band"}}{{t "Join %s as" .BandName}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}
       {{else}}{{t "Continue as"}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}{{end}}
       </p>
       <button type="submit" class="primary">
-      {{if eq .Kind "band"}}{{t "Join %s" .BandName}}
+      {{if eq .Kind "personal"}}{{t "Join"}}
+      {{else if eq .Kind "band"}}{{t "Join %s" .BandName}}
       {{else}}{{t "Continue"}}{{end}}
       </button>
-    {{end}}{{end}}
-    {{if or (eq .Kind "personal") (not .LoggedInAs)}}
+    {{else}}
       <div class="form-stack">
         {{/* The server re-renders this page with what was typed (minus
              the passwords) and a one-line reason; the script below moves
@@ -73,10 +79,21 @@
           <input id="f-confirm" type="password" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="f-password" required minlength="8">
         </div>
         <p class="hint">{{t "You'll be offered a passkey (Touch ID, Face ID, Windows Hello) right after this, as a faster alternative for next time — your password still works either way."}}</p>
-        <div class="form-actions"><button type="submit" class="primary">{{if eq .Kind "personal"}}{{t "Finish setting up my account"}}{{else if ne .Kind "plain"}}{{t "Create account and join"}}{{else}}{{t "Create account"}}{{end}}</button></div>
+        <div class="form-actions"><button type="submit" class="primary">{{if eq .Kind "plain"}}{{t "Create account"}}{{else}}{{t "Create account and join"}}{{end}}</button></div>
       </div>
     {{end}}
   </form>
+  {{if .LoggedInAs}}
+    <form class="card" method="post" action="/logout">
+      <p class="hint">{{t "Not you? Log out, then open this link again."}}</p>
+      <div class="form-actions form-actions--start"><button type="submit">{{t "Log out"}}</button></div>
+    </form>
+  {{else}}
+    <form class="card" method="get" action="/invite/{{.Token}}/login">
+      <p class="hint">{{t "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after."}}</p>
+      <div class="form-actions form-actions--start"><button type="submit" id="login-instead-btn">{{t "Log in to join"}}</button></div>
+    </form>
+  {{end}}
 </main>
 <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
@@ -93,7 +110,7 @@
   if (!errEl) return;
   const msg = errEl.textContent.trim();
   const byField = [
-    [/email is already registered/, 'f-email', t('That email already belongs to another account. Use a different one, or log in with it instead.')],
+    [/email is already registered/, 'f-email', t('That email already has an account. Use “Log in to join” below instead.')],
     [/valid email/, 'f-email', t('Enter an email address like name@example.com.')],
     [/at least 8/, 'f-password', t('Use at least %d characters.', 8)],
     [/didn't match/, 'f-confirm', t('The two passwords didn’t match. Type the same one in both.')],

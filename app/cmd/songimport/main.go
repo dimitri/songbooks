@@ -38,7 +38,7 @@ type user struct {
 	// LegacyName is an older export's "username": its person owner
 	// directories were named after it (now person-<id>, see
 	// cmd/songexport's personDirName). Read from the file only, to
-	// restore such an export; never written to the database.
+	// restore such an export; the database has no username (0136).
 	LegacyName      string          `json:"username,omitempty"`
 	DisplayName     string          `json:"displayName"`
 	Email           string          `json:"email,omitempty"`

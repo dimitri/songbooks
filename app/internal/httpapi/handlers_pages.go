@@ -483,20 +483,16 @@ func (s *Server) handleMarketingEducators(w http.ResponseWriter, r *http.Request
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	person := personFromContext(r)
 
-	// Resume step for the group-invite "log in to claim this slot"
-	// sub-flow (see join.go's pendingJoinCookie doc comment): a visitor
-	// who wasn't logged in picked a slot, got redirected through
-	// /login, and has just landed back here, now authenticated. One-shot
-	// — the cookie is cleared regardless of outcome, so a failed claim
-	// (slot already taken, invite closed meanwhile) just falls through
-	// to the ordinary dashboard rather than retrying forever.
+	// Resume step for "log in to join" (see join.go's pendingJoinCookie):
+	// a visitor who wasn't logged in followed a link, logged in, and has
+	// just landed back here. One-shot — the cookie is cleared regardless
+	// of outcome, so a failed join (link used or closed meanwhile) just
+	// falls through to the ordinary dashboard rather than retrying forever.
 	if cookie, err := r.Cookie(pendingJoinCookie); err == nil {
 		http.SetCookie(w, &http.Cookie{Name: pendingJoinCookie, Value: "", Path: "/", MaxAge: -1})
-		if token, slotParam, ok := strings.Cut(cookie.Value, ":"); ok {
-			if dest, err := s.claimGroupInviteForPerson(r.Context(), token, slotParam, person.ID, person.DisplayName); err == nil {
-				http.Redirect(w, r, dest, http.StatusFound)
-				return
-			}
+		if dest, ok := s.resumePendingJoin(r.Context(), cookie.Value, person); ok {
+			http.Redirect(w, r, dest, http.StatusFound)
+			return
 		}
 	}
 

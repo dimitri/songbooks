@@ -99,6 +99,14 @@
       <div class="form-actions"><button type="submit" class="primary">{{t "Register"}}</button></div>
       <p class="form-status" role="status"></p>
     </form>
+    {{if not .Me}}
+    {{/* An account already: log in (password or emailed link), then
+         back here to register as themselves (pendingJoinCookie). */}}
+    <form method="get" action="/events/{{.Event.ID}}/login" class="form-stack">
+      <p class="hint">{{t "Already have an account? Log in with your email, by password or a link we send you, then register."}}</p>
+      <div class="form-actions form-actions--start"><button type="submit">{{t "Log in to register"}}</button></div>
+    </form>
+    {{end}}
   </div>
   {{else}}
   <p class="hint">{{t "You're registered for this event."}}</p>
@@ -165,6 +173,7 @@ registerForm?.addEventListener('submit', (e) => {
     const res = await fetch(registerForm.action, {method: 'POST', body: new URLSearchParams(new FormData(registerForm))}).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
     // Success is the handler's redirect back to this page, now registered.
     if (res.ok) { location.reload(); return; }
+    if (res.status === 409) throw new Error(t('That email already has an account. Use “Log in to register” below instead.'));
     const data = await res.json().catch(() => ({}));
     throw new Error(errText(res, data, t('Couldn’t register you. Try again.')));
   });

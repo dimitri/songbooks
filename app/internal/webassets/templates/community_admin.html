@@ -185,8 +185,8 @@
 
       <div class="card-grid">
         <div class="card">
-          <h3>{{t "Quick add (personal invite)"}}</h3>
-          <p class="hint">{{t "For someone who has no account yet: they're on the roster straight away, and the personal link you get lets them finish their account."}}</p>
+          <h3>{{t "Add someone by name"}}</h3>
+          <p class="hint">{{t "They’re on the roster straight away, with a personal link to send them: they join with their email, a new account or the one they have."}}</p>
           <form class="form-stack" id="quick-add-form">
             <div class="field">
               <label for="quick-add-name">{{t "Name"}}</label>
@@ -205,26 +205,21 @@
           </form>
         </div>
 
+        {{/* Someone with an account is picked among the people the
+             viewer already plays or learns with (add_person.go); anyone
+             else is added by name (Quick add) and joins with their email. */}}
+        {{if .KnownPeople}}
         <div class="card">
-          <h3>{{t "Add an existing account"}}</h3>
-          <p class="hint">{{t "For someone who already uses Songbooks."}}</p>
+          <h3>{{t "Someone you already play with"}}</h3>
+          <p class="hint">{{t "They have an account: they’re added straight away."}}</p>
           <form class="form-stack" id="add-member-form">
-            {{/* Their email, or their name among the people the viewer
-                 already plays or learns with (add_person.go). */}}
             <div class="field">
-              <label for="add-email">{{t "Their email"}}</label>
-              <p class="field-hint" id="add-email-hint">{{t "The email they log in with."}}</p>
-              <input type="email" id="add-email" name="email" placeholder="{{t "name@example.com"}}" aria-describedby="add-email-hint" autocomplete="off" autocapitalize="none" spellcheck="false">
-            </div>
-            {{if .KnownPeople}}
-            <div class="field">
-              <label for="add-known">{{t "Or someone you already play with"}}</label>
-              <select id="add-known">
-                <option value="">{{t "Nobody here"}}</option>
+              <label for="add-known">{{t "Who"}}</label>
+              <select id="add-known" required>
+                <option value="">{{t "Pick someone"}}</option>
                 {{range .KnownPeople}}<option value="{{.ID}}">{{.DisplayName}} · {{.Where}}</option>{{end}}
               </select>
             </div>
-            {{end}}
             <div class="field">
               <label for="add-role">{{t "Role"}}</label>
               <select id="add-role" name="role">
@@ -237,6 +232,7 @@
             <p id="add-member-result" class="form-status" role="status"></p>
           </form>
         </div>
+        {{end}}
       </div>
 
       {{/* Saves on change, like the other selects on this page. */}}
@@ -495,12 +491,11 @@ document.querySelectorAll('.copy-link-btn').forEach(btn => {
 document.querySelectorAll('.qr-link-btn').forEach(btn => {
   btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
 });
-onSubmit($('add-member-form'), async () => {
-  const email = $('add-email').value.trim();
-  const personId = Number($('add-known')?.value || 0);
+if ($('add-member-form')) onSubmit($('add-member-form'), async () => {
+  const personId = Number($('add-known').value || 0);
   const role = $('add-role').value;
-  if (!email && !personId) throw new Error(t('Type their email, or pick someone.'));
-  await api(`/api/communities/${communityId}/members`, personId ? {personId, role} : {email, role}, t('Couldn’t add them. Check the email and try again.'));
+  if (!personId) throw new Error(t('Pick someone.'));
+  await api(`/api/communities/${communityId}/members`, {personId, role}, t('Couldn’t add them. Try again.'));
   location.hash = 'members';
   location.reload();
 });
