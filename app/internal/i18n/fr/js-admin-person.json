@@ -1,0 +1,10 @@
+{
+  "Make a new link for %s? The one they have stops working.": "Créer un nouveau lien pour %s ? Celui qu’il ou elle a cessera de fonctionner.",
+  "Couldn’t make the link. Try again.": "Impossible de créer le lien. Réessayez.",
+  "Revoke %s’s invite link? It stops working; you can make a new one.": "Révoquer le lien d’invitation de %s ? Il cessera de fonctionner ; vous pourrez en créer un nouveau.",
+  "Couldn’t revoke the link. Try again.": "Impossible de révoquer le lien. Réessayez.",
+  "The community must keep someone who can manage it: give that role to another member first.": "La communauté doit garder quelqu’un qui peut la gérer : donnez d’abord ce rôle à un autre membre.",
+  "Role": "Rôle",
+  "Make %s a site admin? They’ll see and change every account, band and community.": "Faire de %s un admin du site ? Il ou elle pourra voir et modifier tous les comptes, groupes et communautés.",
+  "Remove site admin rights from %s?": "Retirer les droits d’admin du site à %s ?"
+}

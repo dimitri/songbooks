@@ -171,19 +171,20 @@ type CommunityAdminRow struct {
 	StaffCount  int
 	MemberCount int
 	CreatedAt   time.Time
+	Kind        string // as Community.Kind
 }
 
 // ListAllCommunitiesWithCounts lists every community on the instance, newest
 // first — the site admin panel's "Communities" tab.
 func (st *Store) ListAllCommunitiesWithCounts(ctx context.Context) ([]CommunityAdminRow, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT sc.id, sc.name, sc.created_at,
+		SELECT sc.id, sc.name, sc.created_at, sc.kind,
 		       count(*) FILTER (WHERE cr.builtin_key = 'staff' AND upper_inf(sm.validity)),
 		       count(*) FILTER (WHERE cr.builtin_key != 'staff' AND upper_inf(sm.validity))
 		FROM communities sc
 		LEFT JOIN community_members sm ON sm.community_id = sc.id
 		LEFT JOIN community_roles cr ON cr.id = sm.role_id
-		GROUP BY sc.id, sc.name, sc.created_at
+		GROUP BY sc.id, sc.name, sc.created_at, sc.kind
 		ORDER BY sc.created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -192,7 +193,7 @@ func (st *Store) ListAllCommunitiesWithCounts(ctx context.Context) ([]CommunityA
 	var out []CommunityAdminRow
 	for rows.Next() {
 		var r CommunityAdminRow
-		if err := rows.Scan(&r.ID, &r.Name, &r.CreatedAt, &r.StaffCount, &r.MemberCount); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.CreatedAt, &r.Kind, &r.StaffCount, &r.MemberCount); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

@@ -10307,3 +10307,67 @@ button.ytpick-pick:hover:not(:disabled) { background: var(--bg-sunken); }
 button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
 .reference-section-minor { font-size: 0.78rem; }
 .reference-page .catalogue-label-row { margin-top: 0.8rem; }
+
+/* ---- A site admin's page for one person (admin_person.html) ----
+   The admin pages' cards and the roster's rows: a head (initial, state
+   chips, email), then memberships beside their way in and site admin on
+   a wide screen; on a phone their way in first. */
+.person-head { display: flex; align-items: center; gap: 0.9rem; margin: 0.2rem 0 1.25rem; }
+.person-avatar { flex: none; width: 3.2rem; height: 3.2rem; border-radius: 50%; display: grid; place-items: center; font-size: 1.35rem; font-weight: 700; background: var(--accent-bg); color: var(--accent-ink); }
+.person-head-text { min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.person-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.person-chip { font-size: 0.78rem; font-weight: 600; border-radius: 999px; padding: 0.15rem 0.6rem; background: var(--bg-sunken); color: var(--fg-muted); border: 1px solid var(--border); white-space: nowrap; }
+.person-chip.is-active { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.person-chip.is-pending { background: var(--bg-raised); color: var(--fg-muted); border-style: dashed; }
+.person-chip.is-blocked { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.person-meta { margin: 0; display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; font-size: 0.9rem; overflow-wrap: anywhere; }
+
+.person-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem); grid-template-areas: "members access" "members admin" "members ."; gap: 1.25rem 1.75rem; align-items: start; }
+.person-access { grid-area: access; }
+.person-memberships { grid-area: members; min-width: 0; }
+.person-admin { grid-area: admin; }
+.admin-person .card h3 { margin-bottom: 0.35rem; }
+.admin-person .card .hint { margin: 0 0 0.7rem; }
+.person-link-row { display: flex; gap: 0.5rem; margin: 0.2rem 0 0.4rem; }
+.person-link-row input { flex: 1; min-width: 0; font-family: var(--mono, ui-monospace, monospace); font-size: 0.82rem; padding: 0.35rem 0.55rem; }
+.admin-person .card .person-link-meta { font-size: 0.82rem; margin-bottom: 0.6rem; }
+.person-qr { margin-top: 0.8rem; }
+.person-qr summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
+.person-qr-img { margin-top: 0.6rem; width: min(12rem, 100%); }
+.person-qr-img svg { display: block; width: 100%; height: auto; border-radius: 6px; }
+.admin-person .card .person-cli { margin: 0.8rem 0 0; font-size: 0.8rem; }
+.admin-person .card .form-status:empty { display: none; }
+
+.membership-row .roster-name a { color: inherit; }
+.membership-row .roster-name a:hover { color: var(--accent); }
+.membership-kind { font-size: 0.78rem; }
+.membership-row select { padding: 0.3rem 0.5rem; font-size: 0.88rem; width: 11rem; }
+.membership-remove-btn { font-size: 0.82rem; padding: 0.3rem 0.7rem; }
+.membership-add { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; background: var(--bg-sunken); }
+.membership-add select { padding: 0.3rem 0.5rem; font-size: 0.88rem; min-width: 0; }
+.membership-add .form-status { grid-column: 1 / -1; margin: 0; font-size: 0.8rem; }
+.membership-add .form-status:empty { display: none; }
+
+/* A switch: a checkbox drawn as a track and a knob. */
+.person-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.admin-person .person-switch-row .hint { margin: 0; }
+.switch { position: relative; flex: none; display: inline-flex; width: 2.9rem; height: 1.7rem; cursor: pointer; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; width: 100%; height: 100%; cursor: inherit; }
+.switch-track { width: 100%; height: 100%; border-radius: 999px; background: var(--border); box-shadow: inset 0 0 0 1px var(--fg-faint); transition: background 120ms; position: relative; }
+.switch-track::after { content: ""; position: absolute; top: 0.2rem; left: 0.2rem; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--bg-raised); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: transform 120ms; }
+.switch input:checked + .switch-track { background: var(--accent); box-shadow: none; }
+.switch input:checked + .switch-track::after { transform: translateX(1.2rem); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch input:disabled + .switch-track { opacity: 0.5; }
+.switch:has(input:disabled) { cursor: default; }
+
+@media (max-width: 900px) {
+  .person-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "access" "members" "admin"; }
+}
+@media (max-width: 600px) {
+  .person-avatar { width: 2.6rem; height: 2.6rem; font-size: 1.1rem; }
+  .membership-row .roster-row-actions { flex-basis: 100%; }
+  .membership-row select { flex: 1; width: auto; }
+  .membership-add { grid-template-columns: minmax(0, 1fr) auto; }
+  .membership-add #add-membership-target { grid-column: 1 / -1; }
+}

@@ -718,13 +718,15 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/admin/people/{personID}/login-link", s.requireAdmin(s.handleAdminCreateLoginLink))
 	mux.HandleFunc("POST /api/admin/people/{personID}/login-link/email", s.requireAdmin(s.handleAdminSendLoginLink))
 	mux.HandleFunc("POST /api/admin/people/{personID}/login-link/status", s.requireAdmin(s.handleAdminLoginLinkStatus))
-	// Per-person profile review: memberships across every band/community,
-	// with role adjustment, all from one page — see handlers_admin.go's
-	// handleAdminPersonPage doc comment.
+	// One person's page: their state, their way in, memberships across
+	// every band/community with their roles, site admin (admin_person.go).
 	mux.HandleFunc("GET /admin/people/{personID}", s.requireAdmin(s.handleAdminPersonPage))
 	mux.HandleFunc("POST /admin/people/{personID}/memberships", s.requireAdmin(s.handleAdminAddMembership))
 	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/role", s.requireAdmin(s.handleAdminSetMembershipRole))
 	mux.HandleFunc("POST /admin/people/{personID}/memberships/{kind}/{targetID}/remove", s.requireAdmin(s.handleAdminRemoveMembership))
+	// Their personal invite link while they haven't joined (admin_person.go).
+	mux.HandleFunc("POST /api/admin/people/{personID}/invite", s.requireAdmin(s.handleAdminNewPersonalInvite))
+	mux.HandleFunc("DELETE /api/admin/people/{personID}/invite", s.requireAdmin(s.handleAdminRevokePersonalInvite))
 
 	mux.HandleFunc("GET /setlists", libraryRedirect(libraryViewSetlists))
 
