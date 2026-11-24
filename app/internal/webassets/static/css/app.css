@@ -6581,6 +6581,10 @@ img.list-card-mark { object-fit: cover; border: none; }
 .band-link-get-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.9rem; }
 .band-link-status:not(:empty) { margin-top: 0.6rem; }
 .band-link-get-actions:not(:has(button:not([hidden]))) { display: none; }
+/* A role to pick, then its link: side by side, on a phone too. */
+.band-link-get-actions.form-actions { flex-direction: row; flex-wrap: nowrap; align-items: stretch; }
+.band-link-get-actions select { flex: 1 1 auto; min-width: 0; max-width: 16rem; }
+.band-link-get-actions.form-actions > button { width: auto; flex: none; }
 /* Inviting is for core members: a guest on the members page doesn't get
    the placeholder rows' buttons that make a new invite link. */
 .band-members-not-core ~ .home-section .create-shell-invite-btn,
