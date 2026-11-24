@@ -325,8 +325,9 @@ func layoutJazzChart(sg *song.Song, sections []viewerSection, measures map[int][
 		Compact:  res.compact,
 		Bars:     len(res.played),
 	}
-	num, den := timeSigParts(globalTime)
-	ch.Compound = den == "8" && (num == "6" || num == "9" || num == "12")
+	// The tempo counts dotted quarters in a compound meter, as everywhere
+	// (song.CompoundTime): "♩. = 72".
+	ch.Compound = song.CompoundTime(globalTime)
 	ch.Key = jzKeyHTML(sg.Get("key"))
 	if k, ok := chordsym.ParseKey(sg.Get("key")); ok {
 		ch.KeySayRoot = jzNoteWords(k.Root)
