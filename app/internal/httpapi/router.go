@@ -603,23 +603,23 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("DELETE /api/communities/{id}/exercise-sessions/{sessionID}", s.requireCommunityMember(s.handleDeleteExerciseSession))
 	// An online lesson's join link (live.go): the logged-in coach or
 	// student, or one known by their calendar feed's address (?f=).
-	mux.HandleFunc("GET /communities/{id}/lessons/{eventID}/join", s.optionalPerson(s.handleLessonJoin))
+	mux.HandleFunc("GET /communities/{id}/lessons/{eventID}/join", s.optionalPerson(s.eventOfCommunity(s.handleLessonJoin)))
 	mux.HandleFunc("PUT /api/me/live-headphones", s.requireAuth(s.handlePutLiveHeadphones))
 	// The repertoire: every song the students and groups have, in their
 	// keys; an event's program, planned from it (coach_program.go).
 	mux.HandleFunc("GET /communities/{id}/student-songs", s.requireCommunityMember(s.handleCoachRepertoirePage))
 	mux.HandleFunc("POST /api/communities/{id}/program-plan", s.requireCommunityMember(s.handlePostProgramPlan))
-	mux.HandleFunc("GET /communities/{id}/events/{eventID}/program", s.requireCommunityMember(s.handleEventProgramPage))
-	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/program", s.requireCommunityMember(s.handlePostProgramSongs))
-	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/key", s.requireCommunityMember(s.handlePutProgramKey))
-	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/lead", s.requireCommunityMember(s.handlePutProgramLead))
-	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/backing", s.requireCommunityMember(s.handlePutProgramBacking))
-	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/program/{programID}/move", s.requireCommunityMember(s.handlePostProgramMove))
-	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/program/{programID}", s.requireCommunityMember(s.handleDeleteProgramSong))
+	mux.HandleFunc("GET /communities/{id}/events/{eventID}/program", s.requireCommunityMember(s.eventOfCommunity(s.handleEventProgramPage)))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/program", s.requireCommunityMember(s.eventOfCommunity(s.handlePostProgramSongs)))
+	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/key", s.requireCommunityMember(s.eventOfCommunity(s.handlePutProgramKey)))
+	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/lead", s.requireCommunityMember(s.eventOfCommunity(s.handlePutProgramLead)))
+	mux.HandleFunc("PUT /api/communities/{id}/events/{eventID}/program/{programID}/backing", s.requireCommunityMember(s.eventOfCommunity(s.handlePutProgramBacking)))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/program/{programID}/move", s.requireCommunityMember(s.eventOfCommunity(s.handlePostProgramMove)))
+	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/program/{programID}", s.requireCommunityMember(s.eventOfCommunity(s.handleDeleteProgramSong)))
 	mux.HandleFunc("POST /api/communities/{id}/lessons", s.requireCommunityMember(s.handlePostCoachingLesson))
-	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/students", s.requireCommunityMember(s.handlePutCoachingLessonStudents))
-	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/mode", s.requireCommunityMember(s.handlePutCoachingLessonMode))
-	mux.HandleFunc("DELETE /api/communities/{id}/lessons/{eventID}", s.requireCommunityMember(s.handleDeleteCoachingLesson))
+	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/students", s.requireCommunityMember(s.eventOfCommunity(s.handlePutCoachingLessonStudents)))
+	mux.HandleFunc("PUT /api/communities/{id}/lessons/{eventID}/mode", s.requireCommunityMember(s.eventOfCommunity(s.handlePutCoachingLessonMode)))
+	mux.HandleFunc("DELETE /api/communities/{id}/lessons/{eventID}", s.requireCommunityMember(s.eventOfCommunity(s.handleDeleteCoachingLesson)))
 	mux.HandleFunc("POST /api/communities/{id}/rename", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleRenameCommunity))
 	mux.HandleFunc("GET /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleGetBrand("community")))
 	mux.HandleFunc("POST /api/communities/{id}/brand", s.requireCommunityPrivilege(store.PrivManageSettings, s.handleSetBrand("community")))
@@ -666,8 +666,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// a band-scoped manager-assignment route to add.
 	mux.HandleFunc("GET /communities/{id}/events", s.optionalPerson(s.handleCommunityEventsPage))
 	mux.HandleFunc("POST /api/communities/{id}/events", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleCreateCommunityEvent))
-	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleAssignEventManager))
-	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityPrivilege(store.PrivManageEvents, s.handleRemoveEventManager))
+	mux.HandleFunc("POST /api/communities/{id}/events/{eventID}/managers", s.requireCommunityPrivilege(store.PrivManageEvents, s.eventOfCommunity(s.handleAssignEventManager)))
+	mux.HandleFunc("DELETE /api/communities/{id}/events/{eventID}/managers/{personID}", s.requireCommunityPrivilege(store.PrivManageEvents, s.eventOfCommunity(s.handleRemoveEventManager)))
 	mux.HandleFunc("GET /bands/{id}/events", s.requireBandMember(s.handleBandEventsPage))
 	// A band's recordings, from the folder it shares (band_recordings.go).
 	// Rehearsals and concerts are the band's Recordings (menu PR 5a).
