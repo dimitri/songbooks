@@ -15,7 +15,7 @@ import (
 // change. Adding a gated action means a constant here, a check at its
 // call site (HasBandPrivilege, or requireBandPrivilege on its route) and
 // its default in BandRoleDefaults and seed_band_roles (its latest
-// version: migration 0132).
+// version: migration 0137).
 const (
 	BandPrivEditSongbook     = "edit_songbook"     // add, remove, arrange songs; make and edit the band's songs and arrangements; the band's songbooks
 	BandPrivPublish          = "publish"           // make the band's songs, songbooks and recordings public
@@ -30,8 +30,8 @@ const (
 	BandPrivRemoveMembers    = "remove_members"    // remove someone from the band
 	BandPrivManageRoles      = "manage_roles"      // give members a role, edit the band's roles
 	BandPrivRenameArchive    = "rename_archive"    // rename the band, archive and unarchive it (still granted while archived)
-	BandPrivEditBand         = "edit_band"         // say what the band plays (covers or original music)
-	BandPrivEditLook         = "edit_look"         // the band's look, logo, card picture and language
+	BandPrivEditBand         = "edit_band"         // say what the band plays (covers or original music), its tagline and website, the language of its pages
+	BandPrivEditLook         = "edit_look"         // the band's look: logo, card picture, colours and fonts
 )
 
 // AllBandPrivileges is the catalog, in the roles editor's order.
@@ -47,15 +47,17 @@ var AllBandPrivileges = []string{
 // docs/band-roles.md), but renaming and archiving, core's only,
 // deleting, site admins' only, editing the band's songs and removing
 // members, no longer a guest's (migration 0132), and removing others'
-// Discover and Influences entries, new and core's. A guest doesn't vote
-// (vote: counted), but rates proposals all the same, listed apart. seed_band_roles (migration 0132) seeds the
-// same (TestBandRoleDefaultsMatchSeed).
+// Discover and Influences entries, new and core's; saying what the band
+// plays, no longer a guest's either (migration 0137: a set-once choice,
+// and the only one that gave every guest the band's ⚙). A guest doesn't
+// vote (vote: counted), but rates proposals all the same, listed apart.
+// seed_band_roles (migration 0137) seeds the same
+// (TestBandRoleDefaultsMatchSeed).
 var BandRoleDefaults = map[string][]string{
 	"core": AllBandPrivileges,
 	"guest": {
 		BandPrivManageSetlists, BandPrivManageEvents, BandPrivManageRecordings,
 		BandPrivPropose, BandPrivDecideProposals,
-		BandPrivEditBand,
 	},
 }
 

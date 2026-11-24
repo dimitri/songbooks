@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -396,7 +397,7 @@ func TestMigration0132(t *testing.T) {
 		`ALTER TABLE group_invite_slots DROP COLUMN band_role_id`,
 		`DELETE FROM band_role_privileges WHERE privilege = 'curate_listen'`,
 		`INSERT INTO band_role_privileges (role_id, privilege)
-		   SELECT id, p FROM band_roles, unnest(ARRAY['edit_songbook', 'remove_members']) p WHERE builtin_key = 'guest'
+		   SELECT id, p FROM band_roles, unnest(ARRAY['edit_songbook', 'remove_members', 'edit_band']) p WHERE builtin_key = 'guest'
 		   ON CONFLICT DO NOTHING`,
 	} {
 		if _, err := tx.Exec(ctx, q); err != nil {
@@ -436,7 +437,8 @@ func TestMigration0132(t *testing.T) {
 		sort.Strings(list)
 		return strings.Join(list, " ")
 	}
-	if got := privs(guestRole); got != want(BandRoleDefaults["guest"]...) {
+	// What 0132 left a guest: today's default and edit_band (0137 took it).
+	if got := privs(guestRole); got != want(append([]string{BandPrivEditBand}, BandRoleDefaults["guest"]...)...) {
 		t.Errorf("a default guest role: %s", got)
 	}
 	if got, w := privs(editedGuest), want(BandPrivManageSetlists, BandPrivManageRecordings, BandPrivPropose, BandPrivDecideProposals, BandPrivEditBand, BandPrivPublish); got != w {
@@ -455,5 +457,69 @@ func TestMigration0132(t *testing.T) {
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM information_schema.columns WHERE column_name = 'band_role_id' AND table_schema = current_schema()
 		AND table_name IN ('invites', 'group_invites', 'group_invite_slots')`).Scan(&cols); err != nil || cols != 3 {
 		t.Errorf("band_role_id columns: %d %v", cols, err)
+	}
+}
+
+// TestMigration0137: a band's guest role that still grants exactly what
+// migration 0132 gave it loses edit_band; one a band changed keeps it,
+// as does core; a new band's guest starts without it.
+func TestMigration0137(t *testing.T) {
+	f := newBandRolesFixture(t)
+	ctx := context.Background()
+	edited, err := f.st.CreateBand(ctx, "Edited 0137", f.other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	editedGuest, _ := builtinBandRoleID(ctx, f.st.db, edited, "guest")
+	guestRole, coreRole := f.role(t, "guest").ID, f.role(t, "core").ID
+	raw, err := migrationsFS.ReadFile("migrations/0137_guest_settings.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := f.st.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	// Back to before 0137: every guest says what the band plays; the
+	// edited band's guests also publish.
+	for _, q := range []string{
+		`INSERT INTO band_role_privileges (role_id, privilege) SELECT id, 'edit_band' FROM band_roles WHERE builtin_key = 'guest' ON CONFLICT DO NOTHING`,
+		fmt.Sprintf(`INSERT INTO band_role_privileges (role_id, privilege) VALUES (%d, 'publish')`, editedGuest),
+	} {
+		if _, err := tx.Exec(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, string(raw)); err != nil {
+		t.Fatal(err)
+	}
+	has := func(roleID int64, p string) bool {
+		t.Helper()
+		var ok bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM band_role_privileges WHERE role_id = $1 AND privilege = $2)`, roleID, p).Scan(&ok); err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	if has(guestRole, BandPrivEditBand) {
+		t.Error("a default guest role keeps edit_band")
+	}
+	if !has(editedGuest, BandPrivEditBand) || !has(editedGuest, BandPrivPublish) {
+		t.Error("an edited guest role lost its choices")
+	}
+	if !has(coreRole, BandPrivEditBand) {
+		t.Error("core lost edit_band")
+	}
+	var fresh int64
+	if err := tx.QueryRow(ctx, `INSERT INTO bands (name) VALUES ('Fresh 0137') RETURNING id`).Scan(&fresh); err != nil {
+		t.Fatal(err)
+	}
+	freshGuest, err := builtinBandRoleID(ctx, tx, fresh, "guest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if has(freshGuest, BandPrivEditBand) {
+		t.Error("a new band's guest says what it plays")
 	}
 }

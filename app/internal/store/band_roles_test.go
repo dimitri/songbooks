@@ -117,7 +117,8 @@ func TestBandRoleDefaultsMatchSeed(t *testing.T) {
 // TestBandBuiltinRolesReproduceTodaysRights: every inventoried action
 // (docs/band-roles.md), as the built-in roles leave it — core may do
 // everything; guest set lists, the calendar, recordings, proposing and
-// deciding, what the band plays, but not the songs (migration 0132),
+// deciding, but not the songs (migration 0132), what the band plays
+// (migration 0137),
 // removing people, the look, inviting, roles, publishing, voting (counted)
 // nor tidying Discover; someone outside nothing — through the store's
 // own checks, not only HasBandPrivilege.
@@ -128,6 +129,7 @@ func TestBandBuiltinRolesReproduceTodaysRights(t *testing.T) {
 		BandPrivPublish: true, BandPrivVote: true, BandPrivManageMembers: true,
 		BandPrivManageRoles: true, BandPrivEditLook: true, BandPrivRenameArchive: true,
 		BandPrivEditSongbook: true, BandPrivRemoveMembers: true, BandPrivCurateListen: true,
+		BandPrivEditBand: true,
 	}
 	for _, p := range AllBandPrivileges {
 		if !f.can(t, f.core, p) {
