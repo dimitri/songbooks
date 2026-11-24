@@ -54,6 +54,7 @@ func jazzPDFChart(sg *song.Song, ch *jazzChart, lang string) *pdfnative.JazzChar
 		KeyWord:         i18n.T(lang, "Key"),
 		WithRepeatsWord: i18n.T(lang, "with repeats"),
 		LeadWord:        i18n.T(lang, "lead"),
+		ContWord:        i18n.T(lang, "page|cont."),
 	}
 	if key := strings.TrimSpace(sg.Get("key")); key != "" {
 		if p := chordsym.Split(key); p.Root != "" {

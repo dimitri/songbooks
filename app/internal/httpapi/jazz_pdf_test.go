@@ -121,7 +121,7 @@ func TestJazzPDFEndingsSimileCompound(t *testing.T) {
 }
 
 // A form too long for one page runs on over pages (full size, more than
-// one page), with more than one line on the last.
+// one page), each continued page under the song's title and "(cont.)".
 func TestJazzPDFLongForm(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("title: Long Form\ntempo: 120\n\n")
@@ -142,6 +142,13 @@ func TestJazzPDFLongForm(t *testing.T) {
 	text := pdfText(t, data)
 	if strings.Contains(text, "Zebrafinch") {
 		t.Error("PDF prints a lyric")
+	}
+	// Each continued page opens with the title, small: "Long Form (cont.)".
+	if got, want := strings.Count(text, "Long Form (cont.)"), pdfPageCount(data)-1; got != want {
+		t.Errorf("%d continued titles, want %d", got, want)
+	}
+	if fr := jazzPDFChart(song.Parse("title: X\n"), nil, "fr"); fr.ContWord != "suite" || fr.KeyWord != "Tonalité" {
+		t.Errorf("fr words: %q %q", fr.ContWord, fr.KeyWord)
 	}
 }
 
