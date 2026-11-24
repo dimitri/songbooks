@@ -1179,10 +1179,16 @@ const ICONS = {
     const variantId = block.dataset.variantId;
     const embedEl = document.getElementById('reference-embed');
     const linkEl = document.getElementById('reference-link');
-    const editBtn = document.getElementById('reference-edit-btn');
-    const editRow = document.getElementById('reference-edit-row');
-    const urlInput = document.getElementById('reference-url-input');
-    const saveBtn = document.getElementById('reference-save-btn');
+    const currentEl = document.getElementById('reference-current');
+    const whyEl = document.getElementById('reference-why');
+    const moreEl = document.getElementById('reference-more');
+    const changeBtn = document.getElementById('reference-change-btn');
+    const pickBox = document.getElementById('reference-picker-box');
+    const pickEl = document.getElementById('reference-picker');
+    const cancelBtn = document.getElementById('reference-picker-cancel');
+    const changeHint = document.getElementById('reference-url-hint');
+    const removeBtn = document.getElementById('reference-remove-btn');
+    const statusEl = document.getElementById('reference-status');
 
     // Always rendered now (no more show/hide tap) — Reference is its own
     // dedicated page (data-render-mode="reference"), not a cramped drawer
@@ -1205,26 +1211,42 @@ const ICONS = {
       iframe.allowFullscreen = true;
       embedEl.appendChild(iframe);
     }
-    function ensureEmbedBuilt() {
-      if (embedBuilt) return;
-      embedBuilt = true;
-      renderEmbed(block.dataset.url);
-    }
-    if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
-    new MutationObserver(() => {
-      if (sheet.dataset.renderMode === 'reference') ensureEmbedBuilt();
-    }).observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
 
-    function setEditOpen(open) {
-      editRow.hidden = !open;
-      editBtn.setAttribute('aria-expanded', String(open));
-      if (open) urlInput.focus();
+    // The YouTube picker (yt-picker.js, the "yt-picker" partial): open
+    // at once while the song has no reference, behind "Change the video"
+    // once it has; its search runs the first time it shows.
+    const picker = pickEl && window.YTPicker ? YTPicker.mount(pickEl, { onUse: (c) => save(c.url) }) : null;
+    let searched = false;
+    function showPicker(open) {
+      if (!pickBox) return;
+      const has = !!block.dataset.url;
+      pickBox.hidden = has && !open;
+      changeBtn?.setAttribute('aria-expanded', String(!pickBox.hidden && has));
+      if (changeBtn) changeBtn.hidden = !pickBox.hidden;
+      if (pickBox.hidden) { picker?.stop(); return; }
+      if (picker && !searched) { searched = true; picker.search(); }
     }
-    editBtn.addEventListener('click', () => setEditOpen(editRow.hidden));
+    function shown() {
+      if (sheet.dataset.renderMode !== 'reference') return;
+      if (!embedBuilt) { embedBuilt = true; renderEmbed(block.dataset.url); }
+      if (!block.dataset.url) showPicker(true);
+    }
+    shown();
+    // Leaving the view: the preview stops.
+    new MutationObserver(() => { if (sheet.dataset.renderMode === 'reference') shown(); else picker?.stop(); })
+      .observe(sheet, { attributes: true, attributeFilter: ['data-render-mode'] });
+    changeBtn?.addEventListener('click', () => { showPicker(true); picker?.focus(); });
+    cancelBtn?.addEventListener('click', () => { showPicker(false); changeBtn?.focus(); });
+    // The video's sound asked for with no video: the picker.
+    document.addEventListener('songbooks:reference-pick', () => {
+      document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
+      showPicker(true);
+      picker?.focus();
+    });
 
     // The reference in the header's third column (play.html
     // "song-ref-head"): opens this view, the ⋯ menu's Reference;
-    // "+ Reference" opens it on the link field. Kept in step with the link
+    // "+ Reference" opens it on the picker. Kept in step with the link
     // saved below and with the recordings (a band recording is the
     // reference when there's no link). Its name is the link's site, as
     // the server names it (song_ref_head.go refLinkName).
@@ -1274,39 +1296,69 @@ const ICONS = {
     headBtn?.addEventListener('click', () => {
       const add = head.dataset.kind === '';
       document.querySelector('#mode-segmented button[data-value="reference"]')?.click();
-      if (add) setEditOpen(true);
+      if (add) { showPicker(true); picker?.focus(); }
     });
     document.addEventListener('songbooks:audio-categories', (e) => {
       hasBand = (e.detail?.categories || []).includes('band');
       renderHead();
     });
-    // A real <form>: Enter in the field saves, and forms.js checks the
-    // type="url" before this runs.
-    editRow.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const url = urlInput.value.trim();
-      await Forms.run(editRow, saveBtn, async () => {
-        const res = await fetch(`/api/songs/${variantId}/meta`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: 'reference', value: url }),
-        });
-        if (res.status === 403) throw new Error(t("You can't change this song's reference video."));
-        if (res.status === 409) throw new Error(t('This song changed since you opened it. Reload the page, then save the link again.'));
-        if (!res.ok) throw new Error(t("Couldn't save the link. Try again."));
-        const saved = await res.json().catch(() => ({}));
-        refTitle = (url && saved.referenceTitle) || '';
-        block.dataset.url = url;
-        linkEl.href = url;
-        linkEl.hidden = !url;
-        linkEl.textContent = (refTitle || linkEl.dataset.defaultLabel || '') + ' \u2197';
-        const label = url ? t('Change the reference video') : t('Add a reference video');
-        editBtn.title = label;
-        editBtn.setAttribute('aria-label', label);
-        renderEmbed(url);
-        embedBuilt = true;
-        renderHead();
-        setEditOpen(false);
-      });
+
+    // Saved as the song's "reference:" line (PUT meta): on The Big
+    // Songbook's song, catalogue-edit.js asks first whether a new video
+    // is a fix or another recording, and says what happened when it
+    // waits for review or makes another song (the page moves on then).
+    async function save(url) {
+      const res = await fetch(`/api/songs/${variantId}/meta`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'reference', value: url }),
+      }).catch(() => null);
+      if (!res) throw new Error(t('Couldn’t reach the server. Check your connection and try again.'));
+      const saved = await res.json().catch(() => ({}));
+      if (res.status === 403) throw new Error(t("You can't change this song's reference video."));
+      if (res.status === 409) throw new Error(t('This song changed since you opened it. Reload the page, then save the link again.'));
+      if (!res.ok) throw new Error(saved.error || t("Couldn't save the link. Try again."));
+      apply(url, (url && saved.referenceTitle) || '', saved.referenceLabel || '');
+      return true;
+    }
+    function apply(url, title, label) {
+      refTitle = title;
+      block.dataset.url = url;
+      linkEl.href = url;
+      linkEl.textContent = (refTitle || linkEl.dataset.defaultLabel || '') + ' \u2197';
+      currentEl.hidden = !url;
+      if (whyEl) whyEl.hidden = !!url;
+      if (moreEl) moreEl.hidden = !url;
+      if (changeHint) changeHint.hidden = !url;
+      if (cancelBtn) cancelBtn.hidden = !url;
+      renderEmbed(url);
+      embedBuilt = true;
+      renderHead();
+      picker?.setCurrent(url);
+      // The reference label (The Big Songbook's), filled from the video's
+      // title while it had none (#180).
+      const labelIn = document.getElementById('catalogue-label-input');
+      if (label && labelIn && !labelIn.value.trim()) labelIn.value = label;
+      const artist = document.querySelector('.topbar-artist');
+      if (label && artist && !artist.querySelector('.topbar-label')) {
+        const span = document.createElement('span');
+        span.className = 'topbar-label';
+        span.textContent = ' · ' + label;
+        artist.appendChild(span);
+      }
+      showPicker(false);
+      if (url) changeBtn?.focus({ preventScroll: true });
+    }
+    removeBtn?.addEventListener('click', async () => {
+      if (!confirm(t('Remove the reference video from this song?'))) return;
+      Forms.busy(removeBtn, true);
+      Forms.status(statusEl, '');
+      try {
+        await save('');
+      } catch (e) {
+        Forms.status(statusEl, e.message, 'error');
+      } finally {
+        Forms.busy(removeBtn, false);
+      }
     });
   })();
 
@@ -2722,12 +2774,12 @@ const ICONS = {
     }
 
     // ---- 4. Recording: YouTube's candidates, listened to, starred -------
-    const ytStatus = $id('import-yt-status');
+    // The YouTube picker (yt-picker.js), as on the Reference view: the
+    // chart's title and artist searched, each result previewed in place;
+    // the stars beside each are the wizard's own.
     const ytCurrent = $id('import-yt-current');
-    const ytList = $id('import-yt-candidates');
     const ytSort = $id('import-yt-sort');
     const stemWords = { queued: () => t('waiting to be split into voice and backing'), running: () => t('being split into voice and backing'), done: () => t('split into voice and backing'), failed: () => t("couldn't be split into voice and backing") };
-    let candidates = null; // this opening's search results
     let currentURL = '';
     let stemTimer = null;
     // Stars are this browser's notes while choosing (localStorage, per
@@ -2736,9 +2788,39 @@ const ICONS = {
     function loadStars() { try { return JSON.parse(localStorage.getItem(starsKey) || '{}'); } catch (e) { return {}; } }
     function saveStars(st) { try { localStorage.setItem(starsKey, JSON.stringify(st)); } catch (e) { /* stars just don't stick */ } }
     let stars = loadStars();
+    function starsFor(c) {
+      const rate = document.createElement('span');
+      rate.className = 'import-stars';
+      rate.setAttribute('role', 'group');
+      rate.setAttribute('aria-label', t('Stars'));
+      for (let n = 1; n <= 3; n++) {
+        const s = document.createElement('button');
+        s.type = 'button';
+        s.className = 'import-star' + ((stars[c.id] || 0) >= n ? ' on' : '');
+        s.textContent = (stars[c.id] || 0) >= n ? '★' : '☆';
+        s.setAttribute('aria-label', tn(n, '%d star', '%d stars'));
+        s.setAttribute('aria-pressed', (stars[c.id] || 0) >= n);
+        s.addEventListener('click', () => {
+          stars[c.id] = stars[c.id] === n ? 0 : n;
+          if (!stars[c.id]) delete stars[c.id];
+          saveStars(stars);
+          ytPicker.render(); refreshNav();
+        });
+        rate.appendChild(s);
+      }
+      return rate;
+    }
+    const ytPicker = YTPicker.mount($id('import-yt-picker'), {
+      onUse: async (c) => { if (!(await useRecording(c))) return false; return true; },
+      extras: starsFor,
+      order: (list) => (ytSort.checked ? list.sort((a, b) => (stars[b.id] || 0) - (stars[a.id] || 0)) : list),
+      // Next may now use a starred one.
+      onResults: () => { if (current === 'recording') refreshNav(); },
+    });
     function bestUnused() {
-      if (!candidates) return null;
-      const best = candidates.filter(c => stars[c.id]).sort((a, b) => stars[b.id] - stars[a.id])[0];
+      const list = ytPicker.candidates;
+      if (!list) return null;
+      const best = list.filter(c => stars[c.id]).sort((a, b) => stars[b.id] - stars[a.id])[0];
       return best && best.url !== currentURL ? best : null;
     }
     async function showRecording() {
@@ -2749,6 +2831,7 @@ const ICONS = {
         const yt = (data.categories || []).find(c => c.category === 'youtube');
         if (!yt) { currentURL = ''; ytCurrent.textContent = t('No reference recording yet.'); return; }
         currentURL = yt.sourceUrl || '';
+        ytPicker.setCurrent(currentURL);
         ytCurrent.textContent = t('Current recording: %s, %s.', yt.sourceUrl || t('uploaded'), (stemWords[yt.stemStatus] || (() => yt.stemStatus || ''))());
         if (yt.stemStatus === 'queued' || yt.stemStatus === 'running') stemTimer = setTimeout(showRecording, 15000);
       } catch (e) { /* the list still works */ }
@@ -2756,84 +2839,15 @@ const ICONS = {
     }
     function enterRecording() {
       showRecording();
-      if (!candidates) findRecordings();
+      if (!ytPicker.candidates) findRecordings();
     }
-    async function findRecordings() {
+    function findRecordings() {
       const { title, artist } = titleArtist();
-      if (!title) { ytStatus.textContent = t('Give the song a title first (in the Chart tab), then search.'); ytStatus.className = 'err'; return; }
-      ytStatus.textContent = t('Searching YouTube…'); ytStatus.className = 'hint';
-      ytList.innerHTML = '';
-      try {
-        const res = await fetch(`/api/import/youtube/find?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error();
-        candidates = data.candidates || [];
-        ytStatus.textContent = candidates.length ? '' : t('Nothing found on YouTube.');
-        renderCandidates();
-        if (current === 'recording') refreshNav(); // Next may now use a starred one
-      } catch (err) {
-        ytStatus.textContent = t("Couldn't search YouTube just now."); ytStatus.className = 'err';
-      }
+      if (!title) { Forms.status(ytCurrent, t('Give the song a title first (in the Chart tab), then search.'), 'error'); return; }
+      ytPicker.setQuery(title, artist);
+      ytPicker.search();
     }
-    $id('import-yt-find-btn').addEventListener('click', findRecordings);
-    ytSort.addEventListener('change', renderCandidates);
-    function renderCandidates() {
-      ytList.innerHTML = '';
-      const list = (candidates || []).slice();
-      if (ytSort.checked) list.sort((a, b) => (stars[b.id] || 0) - (stars[a.id] || 0));
-      list.forEach(c => {
-        const li = document.createElement('li');
-        li.className = 'import-yt-candidate' + (c.official ? ' is-official' : '') + (c.url === currentURL ? ' is-current' : '');
-        const title = document.createElement('a');
-        title.href = c.url; title.target = '_blank'; title.rel = 'noopener'; title.className = 'import-yt-title';
-        title.textContent = c.title;
-        const meta = document.createElement('div');
-        meta.className = 'hint';
-        meta.textContent = [c.channel + (c.official ? ' — ' + t("the artist's channel") : ''), fmtTime(c.duration), c.note ? t(c.note) : '', c.url === currentURL ? t('in use') : ''].filter(Boolean).join(' · ');
-        const actions = document.createElement('div');
-        actions.className = 'import-yt-actions';
-        const listen = document.createElement('button');
-        listen.type = 'button'; listen.textContent = '▶ ' + t('Listen');
-        const embed = document.createElement('div');
-        embed.className = 'reference-embed import-yt-embed';
-        listen.addEventListener('click', () => {
-          if (embed.firstChild) { embed.innerHTML = ''; listen.textContent = '▶ ' + t('Listen'); return; }
-          const iframe = document.createElement('iframe');
-          iframe.src = `https://www.youtube-nocookie.com/embed/${c.id}?autoplay=1`;
-          iframe.title = c.title;
-          iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
-          iframe.allowFullscreen = true;
-          embed.appendChild(iframe);
-          listen.textContent = '■ ' + t('Stop');
-        });
-        const rate = document.createElement('span');
-        rate.className = 'import-stars';
-        rate.setAttribute('role', 'group');
-        rate.setAttribute('aria-label', t('Stars'));
-        for (let n = 1; n <= 3; n++) {
-          const s = document.createElement('button');
-          s.type = 'button';
-          s.className = 'import-star' + ((stars[c.id] || 0) >= n ? ' on' : '');
-          s.textContent = (stars[c.id] || 0) >= n ? '★' : '☆';
-          s.setAttribute('aria-label', tn(n, '%d star', '%d stars'));
-          s.setAttribute('aria-pressed', (stars[c.id] || 0) >= n);
-          s.addEventListener('click', () => {
-            stars[c.id] = stars[c.id] === n ? 0 : n;
-            if (!stars[c.id]) delete stars[c.id];
-            saveStars(stars);
-            renderCandidates(); refreshNav();
-          });
-          rate.appendChild(s);
-        }
-        const use = document.createElement('button');
-        use.type = 'button'; use.textContent = t('Use this one');
-        use.disabled = c.url === currentURL;
-        use.addEventListener('click', () => useRecording(c, use));
-        actions.append(listen, rate, use);
-        li.append(title, meta, actions, embed);
-        ytList.appendChild(li);
-      });
-    }
+    ytSort.addEventListener('change', () => ytPicker.render());
     async function useRecording(c, btn) {
       if (btn) Forms.busy(btn, true);
       busy(true, t('Downloading the sound… (up to a minute)'));
@@ -2843,11 +2857,11 @@ const ICONS = {
         const m = rawTextarea.value.match(/^reference:.*$/m);
         setText(rawTextarea, m ? rawTextarea.value.replace(/^reference:.*$/m, `reference: ${c.url}`) : rawTextarea.value.replace(/^(title:.*\n(?:[a-z][\w-]*:.*\n)*)/, `$1reference: ${c.url}\n`));
         currentURL = c.url;
+        ytPicker.setCurrent(currentURL);
         // The player picks the new recording up (the Sync sheet opens on it).
         document.dispatchEvent(new CustomEvent('songbooks:audio-changed'));
         busy(false, t('Downloaded: its voice and backing are being split, then the sync can place the sections.'));
         await showRecording();
-        renderCandidates();
         return true;
       } catch (err) {
         busy(false);
@@ -3008,8 +3022,8 @@ const ICONS = {
     // hasn't already).
     wizard.addEventListener('close', () => {
       clearTimeout(stemTimer); clearTimeout(auditionTimer); audio.pause();
-      wizard.querySelectorAll('.import-yt-embed').forEach(e => { e.innerHTML = ''; });
-      passed.clear(); hasDraft = false; candidates = null; proposal = null;
+      ytPicker.reset();
+      passed.clear(); hasDraft = false; proposal = null;
       if (isDirty) showInSource();
     });
     // The Import tab's buttons open the wizard at their step.

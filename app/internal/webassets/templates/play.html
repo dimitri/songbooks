@@ -406,14 +406,15 @@
      link's site; a band recording). It opens the Reference view, the ⋯
      menu's (song.js initReference keeps it in step when the link changes
      there). No reference: "+ Reference" for the song's editors (it opens
-     the link field), nothing for others. */}}
-<div class="topbar-ref" id="topbar-ref" data-band-label="{{t "Band recording"}}" data-kind="{{.Kind}}"{{if .CanEdit}} data-can-edit="1"{{end}}{{if and (not .Kind) (not .CanEdit)}} hidden{{end}}>
+     the view's YouTube picker), nothing for others. Band: a band's place,
+     where an uploaded recording is the band's. */}}
+<div class="topbar-ref" id="topbar-ref" data-band-label="{{if .Band}}{{t "Band recording"}}{{else}}{{t "Your recording"}}{{end}}" data-kind="{{.Kind}}"{{if .CanEdit}} data-can-edit="1"{{end}}{{if and (not .Kind) (not .CanEdit)}} hidden{{end}}>
   <button type="button" class="topbar-ref-btn" id="topbar-ref-btn" data-add-label="{{t "Add a reference"}}" data-open-label="{{t "Open the song's reference"}}" aria-label="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}" title="{{if .Kind}}{{t "Open the song's reference"}}{{else}}{{t "Add a reference"}}{{end}}">
     <span class="topbar-ref-thumb">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="96" height="54" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}{{template "icon-play"}}</span>
     <span class="topbar-ref-icon is-link">{{template "icon-ref-link"}}</span>
     <span class="topbar-ref-icon is-band">{{template "icon-speaker"}}</span>
     <span class="topbar-ref-icon is-add" aria-hidden="true">+</span>
-    <span class="topbar-ref-text"><span class="topbar-ref-label">{{t "Reference"}}</span><span class="topbar-ref-name" id="topbar-ref-name" data-title="{{.Title}}"{{if .Title}} title="{{.Title}}"{{end}}>{{if eq .Kind "band"}}{{t "Band recording"}}{{else if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</span></span>
+    <span class="topbar-ref-text"><span class="topbar-ref-label">{{t "Reference"}}</span><span class="topbar-ref-name" id="topbar-ref-name" data-title="{{.Title}}"{{if .Title}} title="{{.Title}}"{{end}}>{{if eq .Kind "band"}}{{if .Band}}{{t "Band recording"}}{{else}}{{t "Your recording"}}{{end}}{{else if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</span></span>
   </button>
 </div>
 {{end}}
@@ -1384,10 +1385,10 @@
         <p id="import-yt-current" class="import-current"></p>
         <div class="import-tools">
           <label><input type="checkbox" id="import-yt-sort"> {{t "Starred first"}}</label>
-          <button type="button" id="import-yt-find-btn">{{t "Search again"}}</button>
         </div>
-        <p id="import-yt-status" class="hint" role="status"></p>
-        <ol id="import-yt-candidates" class="import-yt-candidates"></ol>
+        {{/* The YouTube picker (yt-picker.js), the Reference view's: song.js
+             adds the stars and says what using a video does here. */}}
+        {{template "yt-picker" (dict "ID" "import-yt-picker")}}
       </div>
 
       <div class="import-step" data-step="sync" hidden>
@@ -1728,7 +1729,7 @@
       <div id="audio-category-toggle" class="audio-category-toggle" hidden>
         <button type="button" data-category="gp">Guitar Pro</button>
         <button type="button" data-category="youtube">YouTube</button>
-        <button type="button" data-category="band">{{t "Band recording"}}</button>
+        <button type="button" data-category="band">{{if eq .BrandKind "band"}}{{t "Band recording"}}{{else}}{{t "Your recording"}}{{end}}</button>
       </div>
       <div id="audio-empty-state" class="audio-empty-state" hidden>
         <span class="hint">{{t "No reference audio yet — add one from the"}} <button type="button" id="audio-empty-reference-link" class="link-btn">{{t "Reference"}}</button> {{t "tab."}}</span>
@@ -2266,64 +2267,77 @@
          field (handlePutMeta), not the raw-source editor — this is a
          field every song has a reason to set, not an advanced edit. */}}
     <div class="reference-page" id="reference-page">
-      {{/* Two reference CATEGORIES, not one blended thing — "a personal
-           choice of reference version (yt video, band recording: two
-           categories only)". This section is the YouTube one: the video
-           link itself plus the button that downloads that SAME video's
-           audio as this song's "youtube" category MP3
-           (app/docs/mp3-reference-audio.md §1). One URL field serves both:
-           there's no reason to type the same link twice. */}}
-      <h3 class="reference-section-head">{{t "YouTube video"}}</h3>
-      <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-variant-id="{{.VariantID}}">
-        <div class="reference-row">
-          <a id="reference-link" class="meta-row" href="{{.Reference}}" target="_blank" rel="noopener" data-default-label="{{t "reference"}}"{{if not .Reference}} hidden{{end}}>{{if .RefTitle}}{{.RefTitle}}{{else}}{{t "reference"}}{{end}} &#8599;</a>
-          <button id="reference-edit-btn" type="button" class="icon-btn" aria-expanded="false" aria-controls="reference-edit-row" title="{{if .Reference}}{{t "Change the reference video"}}{{else}}{{t "Add a reference video"}}{{end}}" aria-label="{{if .Reference}}{{t "Change the reference video"}}{{else}}{{t "Add a reference video"}}{{end}}">{{template "icon-edit"}}</button>
-        </div>
-        <form class="reference-edit-row form-stack" id="reference-edit-row" hidden>
-          <div class="field">
-            <label for="reference-url-input">{{t "YouTube link"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-            <p class="field-hint" id="reference-url-hint">{{if .Catalogue}}{{t "The Big Songbook’s song follows this recording. A new link asks first: a fix (the same recording: a dead link, a typo), or another recording (live, a cover…), which becomes another song of The Big Songbook with this chart to start from."}}{{else}}{{t "So the whole band listens to the same version. Clear it and save to remove the video."}}{{end}}</p>
-            <input type="url" id="reference-url-input" aria-describedby="reference-url-hint" placeholder="{{t "e.g. https://youtube.com/watch?v=…"}}" value="{{.Reference}}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done">
+      {{/* The reference (ref-picker): the song's recording, its video
+           played here. Who changes it (CanEditChart) picks it with the
+           YouTube picker (yt-picker.js, the "yt-picker" partial: a search
+           prefilled with the title and artist, results, a pasted link, a
+           preview, "Use this video"), open at once while there's none,
+           behind "Change the video" once there is; song.js saves it (PUT
+           meta), so a Big Songbook song asks "a fix, or another
+           recording" (catalogue-edit.js). The words fit the place: the
+           band's ("the whole band"), anyone else's plain. Downloading the
+           video's sound and an uploaded recording come after, smaller. */}}
+      {{$band := eq .BrandKind "band"}}
+      <h3 class="reference-section-head">{{t "Reference recording"}}</h3>
+      <div class="reference-block" id="reference-block" data-url="{{.Reference}}" data-variant-id="{{.VariantID}}"{{if .Catalogue}} data-catalogue="1"{{end}}>
+        <p class="reference-why hint" id="reference-why"{{if .Reference}} hidden{{end}}>{{if .Catalogue}}{{t "The recording this song follows: its chart, its key and the sync."}}{{else if $band}}{{t "The recording the whole band listens to, so everyone learns the same version."}}{{else}}{{t "The recording you learn the song from: the player and the sync follow it."}}{{end}}</p>
+        <div class="reference-current" id="reference-current"{{if not .Reference}} hidden{{end}}>
+          <div class="reference-embed" id="reference-embed"></div>
+          <div class="reference-row">
+            <a id="reference-link" class="reference-link" href="{{.Reference}}" target="_blank" rel="noopener" data-default-label="{{t "reference"}}">{{if .RefTitle}}{{.RefTitle}}{{else}}{{t "reference"}}{{end}} &#8599;</a>
+            {{if .CanEditChart}}<button type="button" id="reference-change-btn" aria-expanded="false" aria-controls="reference-picker-box">{{t "Change the video"}}</button>{{end}}
           </div>
-          <p class="form-status" role="status"></p>
-          <div class="form-actions"><button id="reference-save-btn" type="submit" class="primary">{{t "Save link"}}</button></div>
-        </form>
+        </div>
+        {{if .CanEditChart}}
+        <div class="reference-picker-box" id="reference-picker-box"{{if .Reference}} hidden{{end}}>
+          {{if .Catalogue}}<p class="field-hint reference-change-hint" id="reference-url-hint"{{if not .Reference}} hidden{{end}}>{{t "The Big Songbook’s song follows this recording. A new link asks first: a fix (the same recording: a dead link, a typo), or another recording (live, a cover…), which becomes another song of The Big Songbook with this chart to start from."}}</p>{{end}}
+          {{template "yt-picker" (dict "ID" "reference-picker" "Title" .Title "Artist" .Artist "Current" .Reference "Use" (t "Use this video"))}}
+          <div class="reference-picker-foot"><button type="button" class="link-like" id="reference-picker-cancel"{{if not .Reference}} hidden{{end}}>{{t "Keep the current video"}}</button></div>
+        </div>
+        {{else if not .Reference}}
+        <p class="hint">{{t "No reference yet."}}</p>
+        {{end}}
         {{if and .Catalogue .CanEditChart}}{{template "catalogue-reference-label" .}}{{end}}
-        <div class="reference-embed" id="reference-embed"></div>
-        {{if .CanEdit}}
-        <div class="audio-category-upload" id="audio-youtube-controls">
-          <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{template "icon-reference"}} {{t "Download audio from this video (MP3)"}}</button>
-          <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>{{t "Download the audio again"}}</button>
-          <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>{{t "Remove audio"}}</button>
-          <span id="audio-youtube-status" class="hint form-status" role="status"></span>
+        {{if or .CanEdit .CanEditChart}}
+        <div class="reference-more" id="reference-more"{{if not .Reference}} hidden{{end}}>
+          {{if .CanEdit}}
+          <div class="audio-category-upload" id="audio-youtube-controls">
+            <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{t "Download audio from this video (MP3)"}}</button>
+            <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>{{t "Download the audio again"}}</button>
+            <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>{{t "Remove audio"}}</button>
+            <span id="audio-youtube-status" class="hint form-status" role="status"></span>
+          </div>
+          {{end}}
+          {{if .CanEditChart}}<button type="button" class="link-like reference-remove" id="reference-remove-btn">{{t "Remove the reference"}}</button>
+          <p class="form-status" id="reference-status" role="status"></p>{{end}}
         </div>
         {{end}}
       </div>
 
-      {{/* The other category: the band's own practice/live recording — a
-           plain file upload, nothing YouTube-specific about it. */}}
-      <h3 class="reference-section-head">{{t "Band recording"}}</h3>
-      <div class="reference-block" id="band-audio-block">
+      {{/* The other category: a recording of the song's own, uploaded (the
+           band's practice or live take; anyone else's own) — a plain file
+           upload, nothing YouTube-specific about it. */}}
+      <h3 class="reference-section-head reference-section-minor">{{if $band}}{{t "Band recording"}}{{else}}{{t "Your recording"}}{{end}}</h3>
+      <div class="reference-block" id="band-audio-block"{{if not $band}} data-own="1"{{end}}>
         {{if .CanEdit}}
         <input type="file" id="audio-band-file" accept="audio/*" hidden>
         <div class="audio-category-upload" id="audio-band-controls">
-          <button type="button" id="audio-band-upload-btn" class="audio-pill-btn">{{template "icon-reference"}} {{t "Upload a recording (MP3)"}}</button>
+          <button type="button" id="audio-band-upload-btn" class="audio-pill-btn">{{t "Upload a recording (MP3)"}}</button>
           <button type="button" id="audio-band-replace-btn" class="audio-pill-btn" hidden>{{t "Replace recording"}}</button>
           <button type="button" id="audio-band-delete-btn" class="audio-pill-btn danger" hidden>{{t "Remove recording"}}</button>
           <span id="audio-band-status" class="hint form-status" role="status"></span>
         </div>
         {{else}}
-        <span class="hint">{{t "No band recording uploaded yet."}}</span>
+        <span class="hint">{{if $band}}{{t "No band recording uploaded yet."}}{{else}}{{t "No recording uploaded yet."}}{{end}}</span>
         {{end}}
       </div>
       {{if .CanEdit}}
       {{/* What each recording is, shown in song listings and used by the
            player: the whole song, or a backing track with the practised
            part left out (audio-player.js fills this in). */}}
-      <h3 class="reference-section-head">{{t "What's in each recording"}}</h3>
+      <h3 class="reference-section-head reference-section-minor">{{t "What's in each recording"}}</h3>
       <div class="reference-block audio-kind-list" id="audio-kind-list"><span class="hint">{{t "No recording yet."}}</span></div>
       {{end}}
-      <p class="hint">{{t "The reference-audio player above (under the structure strip) plays whichever category you pick — useful here to validate an upload right after it finishes."}}</p>
     </div>
 
     {{/* Mixer: a DAW-style multitrack view (Audacity 4 / GarageBand
@@ -2575,6 +2589,7 @@
 <script src="/static/js/practice-time.js?v={{staticVersion}}"></script>
 {{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/bar-rows.js?v={{staticVersion}}"></script>
+<script src="/static/js/yt-picker.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-shell.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-mix.js?v={{staticVersion}}"></script>

@@ -246,7 +246,7 @@
     if (d.reference) say('');
     else {
       say(t('Looking for its video…'));
-      fetch(`/api/import/youtube/find?title=${encodeURIComponent(d.title || '')}&artist=${encodeURIComponent(d.artist || '')}`)
+      fetch(`/api/youtube/find?title=${encodeURIComponent(d.title || '')}&artist=${encodeURIComponent(d.artist || '')}`)
         .then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((x) => {
           const c = x && x.candidates && x.candidates[0];

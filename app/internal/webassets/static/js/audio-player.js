@@ -3319,16 +3319,20 @@ window.songbooksDecodable = function (buf) {
     const f = bandFileInput.files && bandFileInput.files[0];
     if (f) uploadBand(f);
   });
+  // Outside a band's place, the uploaded recording is the person's own
+  // (play.html, data-own): its words aren't the band's.
+  const ownRecording = document.getElementById('band-audio-block')?.dataset.own === '1';
   bandDeleteBtn?.addEventListener('click', async () => {
-    if (!confirm(t("Remove the band recording from %s? This can't be undone.", songName))) return;
+    if (!confirm(ownRecording ? t("Remove your recording from %s? This can't be undone.", songName) : t("Remove the band recording from %s? This can't be undone.", songName))) return;
     const res = await fetch(`/api/songs/${variantId}/audio/band`, { method: 'DELETE' });
-    if (res.ok) { say(bandStatus, t('Band recording removed.'), 'ok'); loadMeta(); }
+    if (res.ok) { say(bandStatus, ownRecording ? t('Recording removed.') : t('Band recording removed.'), 'ok'); loadMeta(); }
     else say(bandStatus, t("Couldn't remove the recording. Try again."), 'error');
   });
 
   // YouTube: downloads audio from the video URL already saved as this
   // song's reference (see #reference-block's data-url, kept current by
-  // song.js's own initReference) — no second URL field to fill in.
+  // song.js's own initReference, the YouTube picker's) — no second URL
+  // field to fill in.
   const ytDownloadBtn = document.getElementById('audio-youtube-download-btn');
   const ytReplaceBtn = document.getElementById('audio-youtube-replace-btn');
   const ytDeleteBtn = document.getElementById('audio-youtube-delete-btn');
@@ -3338,11 +3342,9 @@ window.songbooksDecodable = function (buf) {
   async function downloadFromReference() {
     const url = referenceBlock && referenceBlock.dataset.url;
     if (!url) {
-      // No link saved yet: open the link field above instead of a popup.
+      // No video yet: the Reference view's picker (song.js).
       say(ytStatus, t('Add the YouTube link first, then download its audio.'), 'error');
-      const editRow = document.getElementById('reference-edit-row');
-      if (editRow && editRow.hidden) document.getElementById('reference-edit-btn')?.click();
-      document.getElementById('reference-url-input')?.focus();
+      document.dispatchEvent(new CustomEvent('songbooks:reference-pick'));
       return;
     }
     ytDownloadBtn && (ytDownloadBtn.disabled = true);
@@ -3390,7 +3392,7 @@ window.songbooksDecodable = function (buf) {
     if (!kindList) return;
     const cats = Object.keys(categories).filter((c) => c !== 'synth');
     if (!cats.length) { kindList.innerHTML = `<span class="hint">${t('No recording yet.')}</span>`; return; }
-    const names = { gp: t('Guitar Pro recording'), youtube: t('YouTube recording'), band: t('Band recording') };
+    const names = { gp: t('Guitar Pro recording'), youtube: t('YouTube recording'), band: ownRecording ? t('Your recording') : t('Band recording') };
     kindList.innerHTML = '';
     for (const cat of cats) {
       // A div, not a wrapping <label>: the status text beside the select

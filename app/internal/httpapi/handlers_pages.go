@@ -3261,6 +3261,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		data["StudentKeyName"] = chordsym.KeyIn(songKeyName(sg), n)
 	}
 	data["BrandKind"], data["BrandID"] = s.songBrandContext(r, data, variant)
+	// A band's place (its song, or opened from its songbook or set list):
+	// the reference's words say "the band" — the header's uploaded
+	// recording, the Reference view's (play.html); anyone else's are plain.
+	if rh, ok := data["RefHead"].(songRefHead); ok {
+		rh.Band = data["BrandKind"] == "band"
+		data["RefHead"] = rh
+	}
 	// A coaching community's key per student (store/vocal_slider.go), in
 	// the key's panel: that community's students, the coming week's
 	// lessons first, when the song was opened in that community. (The

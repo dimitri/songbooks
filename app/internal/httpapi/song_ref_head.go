@@ -11,7 +11,7 @@ import (
 // video, or an icon, and "Reference"; a click opens the Reference view
 // (the video embedded, the recordings), the one the ⋯ menu opens. With no
 // reference, the song's editors get "+ Reference", which opens that
-// view's link field; others see nothing.
+// view's YouTube picker; others see nothing.
 type songRefHead struct {
 	// Kind is "youtube" (a YouTube link: its thumbnail), "link" (any
 	// other link), "band" (no link, a band recording) or "" (none).
@@ -25,6 +25,9 @@ type songRefHead struct {
 	// (reference_title.go), shown in place of Name.
 	Title   string
 	CanEdit bool
+	// Band: a band's place — its uploaded recording is "Band recording",
+	// anyone else's "Your recording".
+	Band bool
 }
 
 // A YouTube video id as it goes into the thumbnail's address.

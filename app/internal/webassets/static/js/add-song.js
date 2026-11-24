@@ -19,6 +19,31 @@
 // Both build their own <dialog> once per page; strings through t() (the
 // js-ownership catalog).
 (function () {
+  // The YouTube picker (yt-picker.js), loaded the first time it's asked
+  // for: the reference video of a song created here, chosen from YouTube's
+  // results rather than only guessed.
+  const pickerSrc = (document.currentScript && document.currentScript.src || '').replace(/add-song\.js/, 'yt-picker.js') || '/static/js/yt-picker.js';
+  let pickerLoad = null;
+  function ytPicker() {
+    if (window.YTPicker) return Promise.resolve(window.YTPicker);
+    pickerLoad = pickerLoad || new Promise((resolve, reject) => {
+      const sc = document.createElement('script');
+      sc.src = pickerSrc;
+      sc.onload = () => resolve(window.YTPicker);
+      sc.onerror = () => { pickerLoad = null; reject(new Error(t('Couldn’t reach the server. Check your connection and try again.'))); };
+      document.head.append(sc);
+    });
+    return pickerLoad;
+  }
+  // Opens it on title and artist; resolves with the video chosen, or null.
+  async function chooseVideo(title, artist, current) {
+    try {
+      return await (await ytPicker()).open({ title, artist, current });
+    } catch (e) {
+      return null;
+    }
+  }
+
   const el = (tag, cls, text) => {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -146,8 +171,17 @@
     actions.append(createBtn);
     const createStatus = el('p', 'form-status');
     createStatus.setAttribute('role', 'status');
+    const refField = field('addsong-ref-in', t('Reference video'), ref, true);
+    const findRef = el('button', 'link-like addsong-find-video', t('Find it on YouTube'));
+    findRef.type = 'button';
+    findRef.addEventListener('click', async () => {
+      const c = await chooseVideo(title.value.trim(), artist.value.trim(), ref.value.trim());
+      if (c) ref.value = c.url;
+      ref.focus();
+    });
+    refField.append(findRef);
     form.append(field('addsong-title-in', t('Title'), title), field('addsong-artist-in', t('Artist'), artist, true),
-      field('addsong-ref-in', t('Reference video'), ref, true), field('addsong-goes', t('Goes into'), goes), who, whoHint, actions, createStatus);
+      refField, field('addsong-goes', t('Goes into'), goes), who, whoHint, actions, createStatus);
     create.append(sum, form);
     goes.addEventListener('change', showWho);
     form.addEventListener('submit', (e) => { e.preventDefault(); doCreate(); });
@@ -289,17 +323,26 @@
       notes.textContent = [video, d.lyrics ? t('Its lyrics are fetched.') : ''].filter(Boolean).join(' ');
     };
     say(d.reference ? t('Its video is the reference.') : t('Looking for its video…'));
-    card.append(notes);
+    // Another video than the one found: the YouTube picker.
+    const other = el('button', 'link-like addsong-find-video', t('Choose another video'));
+    other.type = 'button';
+    other.hidden = true;
+    other.addEventListener('click', async () => {
+      const c = await chooseVideo(ti.value.trim(), ar.value.trim(), d.reference || '');
+      if (c && c.url) { d.reference = c.url; say(t('Its video: %s', c.title || c.url)); }
+    });
+    card.append(notes, other);
     // Typed: its video found on YouTube, the best candidate the reference
-    // (the editor's own finder); Create doesn't wait for it.
+    // (the picker's search); Create doesn't wait for it.
     if (!d.reference) {
-      fetch(`/api/import/youtube/find?title=${encodeURIComponent(d.title || '')}&artist=${encodeURIComponent(d.artist || '')}`)
+      fetch(`/api/youtube/find?title=${encodeURIComponent(d.title || '')}&artist=${encodeURIComponent(d.artist || '')}`)
         .then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((x) => {
           const c = x && x.candidates && x.candidates[0];
           if (c && c.url) { d.reference = c.url; say(t('Its video: %s', c.title)); } else say(t('No video: add its reference later.'));
+          other.hidden = false;
         });
-    }
+    } else other.hidden = false;
     const b = el('button', 'primary', t('Create'));
     b.type = 'button';
     b.addEventListener('click', () => {
