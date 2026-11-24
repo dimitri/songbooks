@@ -1,5 +1,16 @@
 # Songs, songbooks and who owns them — the model
 
+**Why.** Musicians still share chord charts and scores by email, in
+group chats or on paper. Every copy drifts, and nobody knows which one
+is current. This sharing model brings the "Google Docs / Office 365"
+way of working to that domain:
+
+- **one shared, live, editable chart or score per song**, which everyone
+  who plays it opens;
+- **its history** kept, so any edit can be seen and reverted;
+- **keys per place**: a band's, a student's or an event's key is kept
+  where the song is played, not in another copy of the song.
+
 Status: **agreed** (2026-11-22), ready to implement; §10 records the
 last decisions. Replaces the
 ad-hoc rules that grew around `variant_visibility` (global / user / band
