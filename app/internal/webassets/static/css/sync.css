@@ -156,9 +156,22 @@ html.sync-sheet-open { overflow: hidden; }
 .sync-row-note.flag { color: var(--danger); }
 .sync-row-note.bars { color: var(--warn); }
 .sync-row-note.bpm { color: var(--danger); }
-.sync-warn:not([hidden]) { flex: none; font-size: 0.8rem; line-height: 1.4; color: var(--danger); padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--danger-bg, var(--warn-bg)); }
+.sync-warn-box:not([hidden]) { flex: none; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; line-height: 1.4; color: var(--danger); padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--danger-bg, var(--warn-bg)); }
 .sync-warn summary { font-weight: 700; cursor: pointer; }
 .sync-warn p { margin: 0.35rem 0 0; }
+.sync-warn-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.sync-warn-actions .audio-pill-btn { min-height: 2.2rem; }
+
+/* The chart's tempo (sync-sheet.js "The chart's tempo"): typed, picked
+   in a compound metre's note, tapped, set. */
+.sync-tempo { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.sync-tempo-label { font-weight: 600; }
+.sync-tempo-input { width: 4.5rem; min-height: 2.2rem; box-sizing: border-box; padding: 0 0.45rem; font: inherit; font-variant-numeric: tabular-nums; }
+.sync-tempo-unit { color: var(--fg-muted); }
+.sync-tempo-unit .tempo-unit { min-height: 2.2rem; }
+.sync-tempo .sync-btn, .sync-tempo .audio-pill-btn { min-height: 2.2rem; }
+.sync-tempo-now { flex-basis: 100%; margin: 0; font-size: 0.78rem; }
+.sync-tempo-now:empty { display: none; }
 .sync-suggest-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: none; }
 .sync-suggest-bar .audio-pill-btn { min-height: 2.2rem; }
 .sync-suggest-notes:not([hidden]) { flex-basis: 100%; margin: 0; font-size: 0.78rem; line-height: 1.35; }

@@ -125,9 +125,16 @@ window.songbooksDecodable = function (buf) {
   const beatsPerBar = transportEl ? parseInt(transportEl.dataset.beatsPerBar, 10) || 4 : 4;
   const timeNum = transportEl ? parseInt(transportEl.dataset.timeNum, 10) || 4 : 4;
   const timeDen = transportEl ? parseInt(transportEl.dataset.timeDen, 10) || 4 : 4;
-  // 6/8, 9/8, 12/8: each main pulse is a dotted quarter, clicked with its
-  // two softer eighths like the metronome does.
-  const isCompound = timeDen === 8 && [6, 9, 12].includes(timeNum);
+  // 6/8, 9/8, 12/8 (15/8…): each main pulse is a dotted quarter, clicked
+  // with its two softer eighths like the metronome does; the song's tempo
+  // counts it (tempo-units.js, song/tempo.go).
+  const isCompound = timeDen === 8 && timeNum >= 6 && timeNum % 3 === 0;
+  // How many quarter notes one beat of the tempo lasts: Guitar Pro's and
+  // the auto-align's tempo count quarters (1.5 of them a beat in 6/8).
+  const beatQuarters = isCompound ? 1.5 : 4 / timeDen;
+  // A bpm said so it can't be read in another note ("♩. = 46 (♪ = 138)"
+  // in 6/8, "46 bpm" elsewhere).
+  const bpmText = (v, opts) => (window.SongbooksTempoUnits ? window.SongbooksTempoUnits.text(v, timeNum, timeDen, opts) : t('%d bpm', Math.round(v)));
   let secondsPerBar = bpm > 0 ? (60 / bpm) * beatsPerBar : 0;
   // The beats in bar b: the song's metre, or the Guitar Pro file's own,
   // bar by bar, when its synthesizer plays.
@@ -295,7 +302,7 @@ window.songbooksDecodable = function (buf) {
       const barTicks = [];
       for (let b = 0; b <= total; b++) barTicks.push(b * ticksPerBar);
       const res = window.SongbooksAutoAlign.analyze(analysisInput, {
-        tempo: bpm, barTicks, onsets: [], barChords: [],
+        tempo: bpm * beatQuarters, barTicks, onsets: [], barChords: [],
         firstFull: leadIn(),
         lead: leadBarCount(),
       });
@@ -487,7 +494,7 @@ window.songbooksDecodable = function (buf) {
       syncBadge.dataset.state = info.state;
       syncBadge.classList.toggle('warn', tempos.off);
       syncBadge.textContent = s === 'estimated' ? t('sync estimated') : t('Sync set');
-      syncBadge.title = tempos.off ? t('Here the counter runs at about %d bpm, but the chart says %d bpm', Math.round(tempos.median), Math.round(bpm))
+      syncBadge.title = tempos.off ? t('Here the counter runs at about %s, but the chart says %s', bpmText(tempos.median), bpmText(bpm))
         : s === 'estimated' ? t('the chart follows an estimated sync: check it by ear') : t('the chart follows a sync checked by ear');
     }
     const text = $('audio-sync-text');
@@ -510,8 +517,8 @@ window.songbooksDecodable = function (buf) {
     const say = (cls, line) => { const p = document.createElement('p'); p.className = cls; p.textContent = line; return p; };
     const out = [];
     if (tempos.off) {
-      out.push(say('audio-sync-warn', t('Here the counter runs at about %d bpm, but the chart says %d bpm: some sections must have more or fewer bars in the chart than in the recording. Count them while listening, then fix the chart or the sync.', Math.round(tempos.median), Math.round(bpm))));
-      const odd = tempos.per.filter((p) => p.off).slice(0, 4).map((p) => t('%s: %d bpm', p.label, Math.round(p.bpm)));
+      out.push(say('audio-sync-warn', t('Here the counter runs at about %s, but the chart says %s: the chart’s tempo is off, or some sections have more or fewer bars in the chart than in the recording. Fix the tempo in the Sync sheet, or count the bars while listening and fix the chart.', bpmText(tempos.median), bpmText(bpm))));
+      const odd = tempos.per.filter((p) => p.off).slice(0, 4).map((p) => `${p.label}: ${bpmText(p.bpm, { short: true })}`);
       if (odd.length) out.push(say('hint', odd.join(' · ')));
     }
     if (!canEdit && s && s !== 'set') out.push(say('hint', t('Someone who can edit this song can correct it.')));
@@ -769,7 +776,7 @@ window.songbooksDecodable = function (buf) {
     const on = pct !== 100;
     speedBtn?.classList.toggle('active', on);
     speedBtn?.setAttribute('aria-pressed', String(on));
-    const bpmNow = bpm ? `${Math.round(bpm * prefs.speed)} bpm` : '';
+    const bpmNow = bpm ? (isCompound ? bpmText(bpm * prefs.speed, { short: true }) : `${Math.round(bpm * prefs.speed)} bpm`) : '';
     if (speedLabel) speedLabel.textContent = on ? [pctText(pct), bpmNow].filter(Boolean).join(' · ') : t('Speed');
     if (speedAmount) speedAmount.textContent = pctText(pct);
     if (speedBpm) speedBpm.textContent = bpmNow;
@@ -2734,7 +2741,7 @@ window.songbooksDecodable = function (buf) {
       if (playBtn && playBtn.dataset.state !== String(playing)) { playBtn.innerHTML = playing ? iconPause : iconPlay; playBtn.dataset.state = String(playing); }
       lcdPos.textContent = c.bar !== '' ? `${Number(c.bar) + 1}` : '1';
       lcdSection.textContent = c.section || '';
-      if (timeLabel) timeLabel.textContent = t('click alone · %d bpm', Math.round(c.bpm || bpm));
+      if (timeLabel) timeLabel.textContent = isCompound ? t('click alone · %s', bpmText(c.bpm || bpm, { short: true })) : t('click alone · %d bpm', Math.round(c.bpm || bpm));
       const sw = $('audio-click-switch');
       if (sw && sw.checked !== playing) sw.checked = playing;
       const amount = $('audio-tempo-amount');
@@ -2932,7 +2939,8 @@ window.songbooksDecodable = function (buf) {
       const fc = window.songbooksFollowClock;
       if (fc && fc.state().running) fc.toggle(false);
       clearInterval(noneTimer);
-      if (src.bpm) { bpm = src.bpm; secondsPerBar = (60 / bpm) * beatsPerBar; }
+      // The file's tempo counts quarter notes; the bar grid, the song's beat.
+      if (src.bpm) { bpm = src.bpm / beatQuarters; secondsPerBar = (60 / bpm) * beatsPerBar; }
       root.dataset.source = 'synth';
       $('audio-add-recording')?.setAttribute('hidden', '');
       if (playerBody) playerBody.hidden = false;
@@ -2968,7 +2976,7 @@ window.songbooksDecodable = function (buf) {
       clearInterval(noneTimer);
       const fc = window.songbooksFollowClock;
       if (fc && fc.state().running) fc.toggle(false);
-      if (synth.bpm) { bpm = synth.bpm; secondsPerBar = (60 / bpm) * beatsPerBar; }
+      if (synth.bpm) { bpm = synth.bpm / beatQuarters; secondsPerBar = (60 / bpm) * beatsPerBar; }
       root.dataset.source = 'synth';
       if (playerBody) playerBody.hidden = false;
       selectCategory('synth');
@@ -3221,6 +3229,8 @@ window.songbooksDecodable = function (buf) {
     seek: (t) => seek(t),
     sections,
     beatsPerBar, barLabel,
+    // The song's metre, and a bpm said in its beat (tempo-units.js).
+    timeNum, timeDen, isCompound, bpmText,
     // Each section's start as the chart follows it now, with its origin
     // ("auto" for the detection's).
     syncMarkers: currentSyncMarkers,
@@ -3267,8 +3277,10 @@ window.songbooksDecodable = function (buf) {
     if (activeCategory === 'synth') return; // the file's own tempo plays
     bpm = v;
     secondsPerBar = (60 / bpm) * beatsPerBar;
+    // The downbeats found by ear start from the tempo: found again (the
+    // Sync sheet snaps to them), and the estimate shown without a sync.
+    detectedFull = null;
     if (detected) {
-      detectedFull = null;
       const times = runDetection();
       detected = times ? times.map((t, i) => ({ barIndex: i, timeSeconds: t })) : null;
     }

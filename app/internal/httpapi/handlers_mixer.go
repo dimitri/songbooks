@@ -54,7 +54,10 @@ func (s *Server) handleGetSongMixer(w http.ResponseWriter, r *http.Request) {
 	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
 	num, den := timeSigParts(orDefault(sg.Get("time"), "4/4"))
 	timeNum, timeDen := atoiOr(num, 4), atoiOr(den, 4)
-	tempo := atoiOr(orDefault(sg.Get("tempo"), "120"), 120)
+	// The Mixer, its auto-align and alphaTab count quarter notes: the
+	// chart's tempo counts its beat, a dotted quarter in 6/8
+	// (song.BeatQuarters). "tempo" in the answer is in quarters.
+	tempo := song.QuarterTempo(float64(atoiOr(orDefault(sg.Get("tempo"), "120"), 120)), orDefault(sg.Get("time"), "4/4"))
 
 	outSections := make([]mixerSectionJSON, 0, len(sections))
 	totalBars := 0

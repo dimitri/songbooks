@@ -252,7 +252,8 @@ func (s *Server) handleGPEditPage(w http.ResponseWriter, r *http.Request) {
 			parts = []string{"guitar"}
 		}
 		data["Blank"] = true
-		data["Tempo"] = atoiOr(orDefault(sg.Get("tempo"), "120"), 120)
+		// A Guitar Pro file's tempo counts quarter notes.
+		data["Tempo"] = song.QuarterTempo(float64(atoiOr(orDefault(sg.Get("tempo"), "120"), 120)), orDefault(sg.Get("time"), "4/4"))
 		data["Num"], data["Den"] = atoiOr(num, 4), atoiOr(den, 4)
 		data["Bars"] = max(bars, 4)
 		data["Parts"] = strings.Join(parts, ",")

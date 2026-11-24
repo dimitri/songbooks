@@ -209,5 +209,55 @@
     return { rows: out, refused };
   }
 
-  return { MIN_SPAN, clampView, fit, tToX, xToT, zoomAt, pan, pinch, follow, reveal, buildPeaks, levelFor, columns, barTimes, timeAt, barAt, labelEvery, snap, between, acceptPicks, REACH };
+  // ---- The counter's tempo -------------------------------------------------
+  // The chart's bars are spread evenly between two starts, so the bar.beat
+  // counter runs at the tempo they make: per row (rows: [{startBar, t}] in
+  // chart order), from its start to the next one placed, in the chart's
+  // beat (beatsPerBar of them a bar: 2 in 6/8, its dotted quarters, 4 in
+  // 12/8), 0 where it can't be told. audio-player.js' syncTempos says the
+  // same for the saved sync.
+  function rowTempos(rows, beatsPerBar) {
+    return rows.map((r, i) => {
+      if (!r || r.t === null || r.t === undefined) return 0;
+      const next = rows.slice(i + 1).find((x) => x && x.t !== null && x.t !== undefined);
+      if (!next || next.t <= r.t || next.startBar <= r.startBar) return 0;
+      return (60 * beatsPerBar * (next.startBar - r.startBar)) / (next.t - r.t);
+    });
+  }
+  // The tempo most of the bars run at: the median weighted by bars (the
+  // player's badge's figure), 0 without one.
+  function medianTempo(rows, beatsPerBar) {
+    const per = rowTempos(rows, beatsPerBar).map((bpm, i) => {
+      if (!bpm) return null;
+      const next = rows.slice(i + 1).find((x) => x && x.t !== null && x.t !== undefined);
+      return { bpm, bars: next.startBar - rows[i].startBar };
+    }).filter(Boolean).sort((a, b) => a.bpm - b.bpm);
+    const total = per.reduce((s, p) => s + p.bars, 0);
+    let acc = 0;
+    for (const p of per) { acc += p.bars; if (acc >= total / 2) return p.bpm; }
+    return 0;
+  }
+  // More than 8 % from the chart's: flagged.
+  const offTempo = (v, chart) => chart > 0 && v > 0 && Math.abs(v / chart - 1) > 0.08;
+  // The one-click fix: the tempo to give the chart so the counter is at
+  // it (the median, whole), or 0 when it already is or can't be told.
+  function tempoFix(rows, beatsPerBar, chart) {
+    const m = medianTempo(rows, beatsPerBar);
+    return m && (!(chart > 0) || offTempo(m, chart)) ? Math.round(m) : 0;
+  }
+  // One bar's length around row i: its own span when the next start is
+  // known; for the last one placed, the one before it (the recording's
+  // pace, not a chart tempo that may be off); else secondsPerBar.
+  function barLength(rows, i, secondsPerBar) {
+    const placed = (x) => x && x.t !== null && x.t !== undefined;
+    const r = rows[i];
+    if (!placed(r)) return secondsPerBar || 2;
+    const next = rows.slice(i + 1).find(placed);
+    if (next && next.startBar > r.startBar && next.t > r.t) return (next.t - r.t) / (next.startBar - r.startBar);
+    const prev = rows.slice(0, i).reverse().find(placed);
+    if (!next && prev && r.startBar > prev.startBar && r.t > prev.t) return (r.t - prev.t) / (r.startBar - prev.startBar);
+    return secondsPerBar || 2;
+  }
+
+  return { rowTempos, medianTempo, offTempo, tempoFix, barLength, MIN_SPAN, clampView, fit, tToX, xToT, zoomAt, pan, pinch, follow, reveal, buildPeaks, levelFor, columns, barTimes, timeAt, barAt, labelEvery, snap, between, acceptPicks, REACH };
 });

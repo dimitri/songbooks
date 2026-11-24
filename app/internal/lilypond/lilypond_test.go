@@ -54,3 +54,11 @@ func TestRenderNoLyrics(t *testing.T) {
 		t.Errorf("expected an f:maj7 chord atom with its duration spliced in before the colon:\n%s", out)
 	}
 }
+
+// A compound metre's tempo counts dotted quarters: LilyPond is told so.
+func TestRenderCompoundTempo(t *testing.T) {
+	out := Render(song.Parse("title: T\ntempo: 46\ntime: 6/8\n\n[Verse]\ngrid: | A | D |\n"))
+	if !strings.Contains(out, `\tempo 4. = 46`) {
+		t.Errorf("no dotted-quarter tempo in:\n%s", out)
+	}
+}

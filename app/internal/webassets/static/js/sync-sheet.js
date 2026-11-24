@@ -49,7 +49,7 @@
   const playBtn = $('sync-play');
   const timeEl = $('sync-time');
   const nowEl = $('sync-now');
-  const warnEl = $('sync-warn');
+  const warnEl = $('sync-warn-box');
   const chip = $('sync-state-chip');
   const saveBtn = $('sync-save');
   const undoBtn = $('sync-undo');
@@ -260,18 +260,16 @@
   }
 
   // A bar's length around row i: from its own span when the next start
-  // is known, else the chart's tempo.
-  function barLen(i) {
-    const r = rows[i], next = rows.slice(i + 1).find((x) => x.t !== null);
-    if (r && r.t !== null && next && next.startBar > r.startBar) return (next.t - r.t) / (next.startBar - r.startBar);
-    return P.bpm > 0 ? (60 / P.bpm) * P.beatsPerBar : 2;
-  }
-  function rowBpm(i) {
-    const r = rows[i], next = rows.slice(i + 1).find((x) => x.t !== null);
-    if (!r || r.t === null || !next || next.t <= r.t) return 0;
-    return (60 * P.beatsPerBar * (next.startBar - r.startBar)) / (next.t - r.t);
-  }
-  const offTempo = (v) => P.bpm > 0 && v > 0 && Math.abs(v / P.bpm - 1) > 0.08;
+  // is known, the last one placed from the span before it (±1 bar on it
+  // follows the recording, not a chart tempo that's off), else the
+  // chart's tempo (sync-wave-math.js barLength).
+  const chartBar = () => (P.bpm > 0 ? (60 / P.bpm) * P.beatsPerBar : 2);
+  const barLen = (i) => WM.barLength(rows, i, chartBar());
+  // The tempo the counter runs at between the starts, in the chart's
+  // beat (a dotted quarter in 6/8), and whether it's off the chart's.
+  const offTempo = (v) => WM.offTempo(v, P.bpm);
+  // A bpm said in the chart's beat: "♩. = 46 (♪ = 138)" in 6/8.
+  const bpmText = (v, o) => (P.bpmText ? P.bpmText(v, o) : t('%d bpm', Math.round(v)));
 
   // ---- Tapping ---------------------------------------------------------------
   function snap(x) {
@@ -387,7 +385,7 @@
   }
   function render() { keepFocus(renderNow); }
   function renderNow() {
-    const tempos = rows.map((_, i) => rowBpm(i));
+    const tempos = WM.rowTempos(rows, P.beatsPerBar);
     rowsEl.replaceChildren(...rows.map((r, i) => {
       const li = document.createElement('li');
       const state = r.t === null ? 'unset' : r.origin === 'set' ? 'set' : 'auto';
@@ -409,7 +407,7 @@
       if (fl.length) { li.classList.add('is-flagged'); note('flag', '⚑', fl.join(' · ')); }
       const as = anaSection(r.index);
       if (as && !as.last && as.played && as.played !== as.written) note('bars', t('%d → %d bars', as.written, as.played), t('written %d · played %d', as.written, as.played));
-      if (offTempo(tempos[i])) note('bpm', t('%d bpm', Math.round(tempos[i])), t('the chart’s %d bars here make the counter run at %d bpm; the chart says %d', r.barCount, Math.round(tempos[i]), Math.round(P.bpm)));
+      if (offTempo(tempos[i])) note('bpm', bpmText(tempos[i], { short: true }), t('the chart’s %d bars here make the counter run at %s; the chart says %s', r.barCount, bpmText(tempos[i]), bpmText(P.bpm)));
       main.addEventListener('click', () => select(i));
       li.appendChild(main);
       return li;
@@ -433,12 +431,19 @@
     const off = tempos.filter(offTempo);
     warnEl.hidden = !off.length;
     if (off.length) {
-      // The player's figure (bar-weighted), the one its badge gives.
-      const sorted = tempos.filter(Boolean).sort((a, b) => a - b);
-      const mid = Math.round(P.syncTempos().median || sorted[sorted.length >> 1]);
-      $('sync-warn-sum').textContent = t('The counter isn’t at the chart’s tempo: %d bpm, not %d', mid, Math.round(P.bpm));
-      $('sync-warn-text').textContent = t('The counter runs at about %d bpm between these starts, the chart says %d: where a section is marked, the chart has more or fewer bars than the recording plays. Count its bars while listening and fix the chart.', mid, Math.round(P.bpm));
+      // The figure most bars run at (bar-weighted, as the player's badge),
+      // over the starts as they are now, saved or not.
+      const mid = WM.medianTempo(rows, P.beatsPerBar);
+      const fix = WM.tempoFix(rows, P.beatsPerBar, P.bpm);
+      $('sync-warn-sum').textContent = t('The counter isn’t at the chart’s tempo: %s, not %s', bpmText(mid), bpmText(P.bpm));
+      $('sync-warn-text').textContent = t('Between these starts the counter runs at about %s, the chart says %s. If the recording plays at about %s throughout, the chart’s tempo is off: set it to that. If it plays at the chart’s tempo, the chart has more or fewer bars than the recording plays where a section is marked: count its bars while listening and fix the chart.', bpmText(mid), bpmText(P.bpm), bpmText(mid, { short: true }));
+      const use = $('sync-warn-use');
+      use.hidden = !fix;
+      use.textContent = t('Use %s as the chart’s tempo', bpmText(fix, { short: true }));
+      use.dataset.bpm = String(fix);
+      use.disabled = tempoBusy;
     }
+    renderTempo();
     waveChanged();
   }
   const stateText = (r) => (r.t === null ? t('sync|not placed') : r.origin === 'set' ? t('sync|set') : t('sync|estimated'));
@@ -459,7 +464,7 @@
     if (fl.length) out.push(el('p', 'sync-row-flag', fl.join(' · ')));
     const as = anaSection(r.index);
     if (as && !as.last && as.played && as.played !== as.written) out.push(el('p', 'sync-row-bars', t('written %d · played %d', as.written, as.played)));
-    if (offTempo(tempos[cursor])) out.push(el('p', 'sync-row-bpm', t('the chart’s %d bars here make the counter run at %d bpm; the chart says %d', r.barCount, Math.round(tempos[cursor]), Math.round(P.bpm))));
+    if (offTempo(tempos[cursor])) out.push(el('p', 'sync-row-bpm', t('the chart’s %d bars here make the counter run at %s; the chart says %s', r.barCount, bpmText(tempos[cursor]), bpmText(P.bpm))));
     hereMore.replaceChildren(...out);
   }
   // One suggestion for row i: its time and where it comes from, ▶ to
@@ -755,6 +760,109 @@
     detectTimer = window.requestIdleCallback ? requestIdleCallback(run, { timeout: 1500 }) : setTimeout(run, 200);
   }
 
+  // ---- The chart's tempo -----------------------------------------------------------
+  // What the counter goes by outside the starts (before the first, after
+  // the last), what ±1 bar moves on a row it can't measure, and what the
+  // "off tempo" checks compare with: the chart's "tempo:". Typed — in a
+  // compound metre in the note picked (tempo-units.js), the chart keeping
+  // its beat — tapped while the recording plays, or the counter's own
+  // taken from the warning in one click. Saved as any edit of the song is
+  // (tap-tempo.js saveSong: PUT …/meta, its rights, The Big Songbook's
+  // review, a revision); the player, the counter, the click and this
+  // sheet follow at once ('songbooks:tempo-saved'), the sync as it is.
+  const tempoInput = $('sync-tempo-input');
+  const tempoSaveBtn = $('sync-tempo-save');
+  const TU = window.SongbooksTempoUnits;
+  let tempoUnit = 'beat';
+  let tempoEdited = false; // the field holds what the person typed or tapped
+  let tempoBusy = false;
+  let tempoTapper = null;
+  const unitPick = TU && TU.picker(P.timeNum, P.timeDen, (id, prev) => {
+    tempoUnit = id;
+    // The figure typed stays the same tempo, said in the new note.
+    const v = parseFloat(tempoInput.value);
+    if (v > 0) tempoInput.value = String(Math.round(TU.fromBeat(TU.toBeat(v, prev, P.timeNum, P.timeDen), id, P.timeNum, P.timeDen)));
+    tempoTapper?.reset();
+    renderTempo();
+  });
+  if (unitPick) {
+    tempoUnit = unitPick.value;
+    $('sync-tempo-unit').replaceChildren(unitPick);
+  }
+  // The field's tempo in the chart's beat, whole; null when unusable.
+  function typedTempo() {
+    const v = parseFloat(tempoInput.value);
+    if (!(v > 0)) return null;
+    const beat = Math.round(TU ? TU.toBeat(v, tempoUnit, P.timeNum, P.timeDen) : v);
+    return beat >= 20 && beat <= 400 ? beat : null;
+  }
+  const inUnit = (bpm) => Math.round(TU ? TU.fromBeat(bpm, tempoUnit, P.timeNum, P.timeDen) : bpm);
+  function renderTempo() {
+    if (!tempoEdited && document.activeElement !== tempoInput) tempoInput.value = P.bpm > 0 ? String(inUnit(P.bpm)) : '';
+    const v = typedTempo();
+    tempoSaveBtn.disabled = tempoBusy || v === null || v === Math.round(P.bpm);
+    tempoInput.disabled = tempoBusy;
+    const mid = WM.medianTempo(rows, P.beatsPerBar);
+    $('sync-tempo-now').textContent = mid ? t('The counter runs at %s between the starts.', bpmText(mid)) : '';
+  }
+  const editorDirty = () => document.documentElement.classList.contains('is-dirty') || !!(window.songbooksEditorDirty && window.songbooksEditorDirty());
+  async function saveTempo(value) {
+    const TT = window.SongbooksTapTempo;
+    if (tempoBusy || !(value > 0) || !TT || !TT.saveSong) return;
+    if (editorDirty()) { say(t('Save or discard your edits to the song first.'), 'error'); return; }
+    tempoBusy = true;
+    render();
+    say(t('Saving…'));
+    const r = await TT.saveSong(P.variantId, value);
+    tempoBusy = false;
+    if (r.error) say(r.error, 'error');
+    else if (r.pending) say(r.message, 'ok');
+    else {
+      tempoEdited = false;
+      say(t('The chart’s tempo is now %s: the counter follows it.', bpmText(value)), 'ok');
+    }
+    render();
+  }
+  tempoInput.addEventListener('input', () => { tempoEdited = true; renderTempo(); });
+  tempoInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); const v = typedTempo(); if (v !== null && v !== Math.round(P.bpm)) saveTempo(v); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tempoEdited = false; tempoInput.blur(); renderTempo(); }
+  });
+  tempoInput.addEventListener('blur', () => { if (!tempoInput.value.trim()) tempoEdited = false; renderTempo(); });
+  tempoSaveBtn.addEventListener('click', () => { const v = typedTempo(); if (v !== null) saveTempo(v); });
+  // Tap: the beat tapped (in the note picked) fills the field, from the
+  // second tap (tap-tempo.js' arithmetic); set to save it.
+  const tempoTap = $('sync-tempo-tap');
+  let tempoTappedAt = -Infinity;
+  function tapTempo() {
+    const TT = window.SongbooksTapTempo;
+    if (!TT) return;
+    tempoTapper = tempoTapper || TT.create();
+    tempoTappedAt = performance.now();
+    const v = tempoTapper.tap(tempoTappedAt);
+    tempoTap.classList.remove('flash');
+    void tempoTap.offsetWidth;
+    tempoTap.classList.add('flash');
+    if (v === null || !TT.usable(v)) return;
+    tempoInput.value = String(v);
+    tempoEdited = true;
+    renderTempo();
+  }
+  tempoTap.addEventListener('pointerdown', (e) => { if (e.button === 0) { e.preventDefault(); tapTempo(); } });
+  tempoTap.addEventListener('click', () => { if (performance.now() - tempoTappedAt > 400) tapTempo(); });
+  // The warning's one click: the counter's tempo as the chart's.
+  $('sync-warn-use').addEventListener('click', (e) => { const v = +e.currentTarget.dataset.bpm; if (v > 0) saveTempo(v); });
+  // The tempo saved (here, Tap tempo, the editor): the counter's bars
+  // outside the starts and the checks follow; the downbeats found by ear
+  // start from it, found again; the analysis' proposals weigh it.
+  document.addEventListener('songbooks:tempo-saved', () => {
+    if (!isOpen()) return;
+    tempoEdited = false;
+    beatsFor = null;
+    render();
+    loadAnalysis();
+  });
+
   // ---- Saving, history -----------------------------------------------------------
   // A Guitar Pro file's own sync places every bar: section starts placed
   // here don't change what the chart follows.
@@ -871,6 +979,8 @@
     if (s < 129600) return t('%d h ago', Math.round(s / 3600));
     return t('%d days ago', Math.round(s / 86400));
   }
+  // The analysis' tempo, counted in the beat of the metre it heard.
+  const anaBpm = (v, sig, short) => (TU ? TU.text(v, sig, undefined, { short }) : t('%d bpm', Math.round(v)));
   // Why the analysis is less sure than its chords' fit says.
   const whyText = (p) => ({
     'too-long': t('the chart has far more bars than the recording plays'),
@@ -921,7 +1031,7 @@
     const why = whyText(p);
     sum.textContent = p.state === 'unsure'
       ? (why || t('the beat is unclear'))
-      : t('%d bpm · %s · bar 1 at %s · %s sure', Math.round(p.tempo), p.timeSig, fmt(p.firstDownbeat), `${pct(p.confidence)}%`);
+      : t('%s · %s · bar 1 at %s · %s sure', anaBpm(p.tempo, p.timeSig, true), p.timeSig, fmt(p.firstDownbeat), `${pct(p.confidence)}%`);
     renderAnaChip(p.state, p.state === 'good' ? t('analysis|good') : p.state === 'check' ? t('analysis|to check') : t('analysis|unsure'));
     if (review) { renderReview(); return; }
     const out = [];
@@ -982,7 +1092,7 @@
       if (extra) li.append(el('code', 'sync-ana-grid', extra));
       props.append(li);
     };
-    if (p.proposeTempo) item(picks.tempo, (v) => { picks.tempo = v; }, t('Tempo: %s → %d bpm', p.chartTempo || t('none'), p.proposeTempo));
+    if (p.proposeTempo) item(picks.tempo, (v) => { picks.tempo = v; }, t('Tempo: %s → %s', +p.chartTempo > 0 ? bpmText(+p.chartTempo) : t('none'), bpmText(p.proposeTempo)));
     if (p.proposeTime) item(picks.time, (v) => { picks.time = v; }, t('Time signature: %s → %s', p.chartTimeSig || t('none'), p.proposeTime));
     if (p.intro) item(picks.intro, (v) => { picks.intro = v; }, tn(p.intro.bars, 'Add an intro of %d bar before the first section', 'Add an intro of %d bars before the first section'), p.intro.grid, p.firstDownbeat);
     for (const s of p.sections || []) {
@@ -1099,7 +1209,7 @@
   }
   async function saveReview(e) {
     const editor = document.getElementById('editor');
-    if (document.documentElement.classList.contains('is-dirty') || (window.songbooksEditorDirty && window.songbooksEditorDirty())) {
+    if (editorDirty()) {
       say(t('Save or discard your edits to the song first.'), 'error');
       return;
     }
@@ -1162,6 +1272,7 @@
     statusEl.textContent = '';
     history = [];
     lags = [];
+    tempoEdited = false;
     load(P.syncMarkers());
     markSaved();
     beatsFor = null;

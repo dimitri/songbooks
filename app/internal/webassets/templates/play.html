@@ -543,7 +543,7 @@
     <h1>{{.Title}}</h1>
     <div class="topbar-meta">
       {{if .Artist}}<span class="topbar-artist">{{.Artist}}{{with .VersionName}}<span class="topbar-label"> · {{.}}</span>{{end}}</span>{{end}}
-      {{if .Tempo}}<span class="topbar-meta-item topbar-tempo">{{.Tempo}} bpm</span>{{end}}
+      {{if .Tempo}}<span class="topbar-meta-item topbar-tempo">{{if .TempoCompound}}&#9833;. = {{.Tempo}}{{else}}{{.Tempo}} bpm{{end}}</span>{{end}}
       {{if and .Time (ne .Time "4/4")}}<span class="topbar-meta-item topbar-time">{{.Time}}</span>{{end}}
       {{if .Key}}<span class="topbar-meta-item topbar-key">
         {{/* View-only transpose: shifts the chords on screen for tonight,
@@ -2164,7 +2164,25 @@
           </section>
           <div class="sync-list">
             <p class="hint sync-gp-note" id="sync-gp-note" hidden>{{t "The Guitar Pro file places every bar itself: section starts placed here don’t change what the chart follows."}}</p>
-            <details class="sync-warn" id="sync-warn" hidden><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+            {{/* The chart's tempo, which the counter's bars outside the
+                 starts and the "off tempo" checks go by: typed (in a
+                 compound metre, in the note picked), tapped while the
+                 recording plays, or the counter's own taken in one click
+                 from the warning; saved as any edit of the song (PUT
+                 …/meta), the counter following at once (sync-sheet.js
+                 "The chart's tempo"). */}}
+            <div class="sync-tempo" id="sync-tempo">
+              <label class="sync-tempo-label" for="sync-tempo-input">{{t "Chart tempo"}}</label>
+              <input type="number" class="sync-tempo-input" id="sync-tempo-input" inputmode="numeric" min="20" max="400" step="1" autocomplete="off">
+              <span class="sync-tempo-unit" id="sync-tempo-unit">bpm</span>
+              <button type="button" class="sync-btn sync-tempo-tap" id="sync-tempo-tap" title="{{t "tap the beat while the recording plays: the tempo fills in"}}">{{t "Tap"}}</button>
+              <button type="button" class="audio-pill-btn" id="sync-tempo-save" disabled>{{t "Set the tempo"}}</button>
+              <span class="hint sync-tempo-now" id="sync-tempo-now"></span>
+            </div>
+            <div class="sync-warn-box" id="sync-warn-box" hidden>
+              <details class="sync-warn" id="sync-warn"><summary id="sync-warn-sum"></summary><p id="sync-warn-text"></p></details>
+              <div class="sync-warn-actions"><button type="button" class="audio-pill-btn" id="sync-warn-use"></button></div>
+            </div>
             <ol class="sync-rows" id="sync-rows"></ol>
             <div class="sync-suggest-bar">
               <button type="button" class="audio-pill-btn" id="sync-suggest-btn" title="{{t "where the singing starts, and the downbeats: each to accept or reject"}}">{{t "Suggest"}}</button>
@@ -2587,7 +2605,8 @@
 
 {{if .SongbookRef}}<script>window.songbooksPracticeContext = { songbookId: {{.SongbookRef}}, variantId: {{.VariantID}} };</script>
 <script src="/static/js/practice-time.js?v={{staticVersion}}"></script>
-{{end}}<script src="/static/js/clock.js?v={{staticVersion}}"></script>
+{{end}}<script src="/static/js/tempo-units.js?v={{staticVersion}}"></script>
+<script src="/static/js/clock.js?v={{staticVersion}}"></script>
 <script src="/static/js/bar-rows.js?v={{staticVersion}}"></script>
 <script src="/static/js/yt-picker.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>

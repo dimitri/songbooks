@@ -120,3 +120,34 @@ func TestWithGPNotes(t *testing.T) {
 		t.Error("the song itself must not change")
 	}
 }
+
+// A compound song's tempo counts dotted quarters, the file's quarters:
+// 6/8 at 46 is the file's 69, in step; a file at 72 is 48 here, taken as
+// 48 and pushed back as 72 quarters.
+func TestDriftTempoCompound(t *testing.T) {
+	text := "title: X\ntempo: 46\ntime: 6/8\nkey: E\nswing: 8\nchord: A7 XO(2223)\n\n[Verse]\ngp[Lead]: 1-4\ngrid: |E7 | A7 | . | E7 B7 |\n"
+	f := func(tempo int) map[string]driftItem {
+		sg := song.Parse(text)
+		facts := driftFacts()
+		facts.Tempo = tempo
+		facts.Time = []gpfacts.TimeSig{{Bar: 1, Num: 6, Den: 8}}
+		out := map[string]driftItem{}
+		for _, it := range computeDrift(sg, buildSections(withGPOnlyBars(sg, facts)), facts, nil) {
+			out[it.Fact] = it
+		}
+		return out
+	}
+	if it, ok := f(69)["tempo"]; ok {
+		t.Errorf("6/8 at 46 against a file at 69 quarters: %+v", it)
+	}
+	it, ok := f(72)["tempo"]
+	if !ok {
+		t.Fatal("a file at 72 quarters (48 dotted) against 46: no difference")
+	}
+	if it.File != "48" || it.Text != "46" {
+		t.Errorf("tempo item = %+v, want here 46, file 48", it)
+	}
+	if it.Push == nil || it.Push.Tempo != 69 {
+		t.Errorf("push = %+v, want 69 quarters", it.Push)
+	}
+}
