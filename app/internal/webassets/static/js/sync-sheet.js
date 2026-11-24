@@ -31,8 +31,10 @@
 // the voice; Alt to place it freely), the bars between following.
 //
 // It works on the player's recording (audio-player.js,
-// window.songbooksPlayer); opened from the player's sync badge, or by
-// the import wizard with its proposal (songbooksSyncSheet.open).
+// window.songbooksPlayer); opened from the player's sync badge and its
+// panel's Sync line, the song's ⋯ menu ("Sync…", always there for an
+// editor once there's a recording), or by the import wizard with its
+// proposal (songbooksSyncSheet.open).
 (function () {
   const sheet = document.getElementById('sync-sheet');
   const P = window.songbooksPlayer;
@@ -268,6 +270,10 @@
   // The tempo the counter runs at between the starts, in the chart's
   // beat (a dotted quarter in 6/8), and whether it's off the chart's.
   const offTempo = (v) => WM.offTempo(v, P.bpm);
+  // Only a span set by ear at both ends warns (sync-wave-math.js
+  // spanByEar); one touching an estimate shows its tempo, marked as
+  // estimated, and stays quiet.
+  const byEar = (i) => WM.spanByEar(rows, i);
   // A bpm said in the chart's beat: "♩. = 46 (♪ = 138)" in 6/8.
   const bpmText = (v, o) => (P.bpmText ? P.bpmText(v, o) : t('%d bpm', Math.round(v)));
 
@@ -407,7 +413,8 @@
       if (fl.length) { li.classList.add('is-flagged'); note('flag', '⚑', fl.join(' · ')); }
       const as = anaSection(r.index);
       if (as && !as.last && as.played && as.played !== as.written) note('bars', t('%d → %d bars', as.written, as.played), t('written %d · played %d', as.written, as.played));
-      if (offTempo(tempos[i])) note('bpm', bpmText(tempos[i], { short: true }), t('the chart’s %d bars here make the counter run at %s; the chart says %s', r.barCount, bpmText(tempos[i]), bpmText(P.bpm)));
+      if (offTempo(tempos[i]) && byEar(i)) note('bpm', bpmText(tempos[i], { short: true }), t('the chart’s %d bars here make the counter run at %s; the chart says %s', r.barCount, bpmText(tempos[i]), bpmText(P.bpm)));
+      else if (offTempo(tempos[i])) note('bpm-est', `≈ ${bpmText(tempos[i], { short: true })}`, t('between estimated starts the counter runs at %s (the chart says %s): check the starts by ear before trusting it', bpmText(tempos[i]), bpmText(P.bpm)));
       main.addEventListener('click', () => select(i));
       li.appendChild(main);
       return li;
@@ -428,14 +435,18 @@
     chip.textContent = set === rows.length && rows.length ? t('Sync set')
       : placed ? t('%d of %d set · %d to check', set, rows.length, rows.length - set) : t('Not synced');
     chip.dataset.state = set === rows.length && rows.length ? 'set' : 'auto';
-    const off = tempos.filter(offTempo);
+    // The warning: spans set by ear at both ends only.
+    const off = WM.offSpans(rows, P.beatsPerBar, P.bpm);
     warnEl.hidden = !off.length;
     if (off.length) {
       // The figure most bars run at (bar-weighted, as the player's badge),
-      // over the starts as they are now, saved or not.
-      const mid = WM.medianTempo(rows, P.beatsPerBar);
+      // over the starts set by ear as they are now, saved or not.
+      const mid = WM.medianTempo(rows, P.beatsPerBar, { byEar: true });
       const fix = WM.tempoFix(rows, P.beatsPerBar, P.bpm);
-      $('sync-warn-sum').textContent = t('The counter isn’t at the chart’s tempo: %s, not %s', bpmText(mid), bpmText(P.bpm));
+      // Most bars at the chart's tempo, a few sections off: those
+      // sections' bars, not the tempo.
+      $('sync-warn-sum').textContent = offTempo(mid) ? t('The counter isn’t at the chart’s tempo: %s, not %s', bpmText(mid), bpmText(P.bpm))
+        : tn(off.length, '%d section makes the counter run off the chart’s tempo', '%d sections make the counter run off the chart’s tempo');
       $('sync-warn-text').textContent = t('Between these starts the counter runs at about %s, the chart says %s. If the recording plays at about %s throughout, the chart’s tempo is off: set it to that. If it plays at the chart’s tempo, the chart has more or fewer bars than the recording plays where a section is marked: count its bars while listening and fix the chart.', bpmText(mid), bpmText(P.bpm), bpmText(mid, { short: true }));
       const use = $('sync-warn-use');
       use.hidden = !fix;
@@ -464,7 +475,8 @@
     if (fl.length) out.push(el('p', 'sync-row-flag', fl.join(' · ')));
     const as = anaSection(r.index);
     if (as && !as.last && as.played && as.played !== as.written) out.push(el('p', 'sync-row-bars', t('written %d · played %d', as.written, as.played)));
-    if (offTempo(tempos[cursor])) out.push(el('p', 'sync-row-bpm', t('the chart’s %d bars here make the counter run at %s; the chart says %s', r.barCount, bpmText(tempos[cursor]), bpmText(P.bpm))));
+    if (offTempo(tempos[cursor]) && byEar(cursor)) out.push(el('p', 'sync-row-bpm', t('the chart’s %d bars here make the counter run at %s; the chart says %s', r.barCount, bpmText(tempos[cursor]), bpmText(P.bpm))));
+    else if (offTempo(tempos[cursor])) out.push(el('p', 'sync-row-bpm is-est', t('between estimated starts the counter runs at %s (the chart says %s): check the starts by ear before trusting it', bpmText(tempos[cursor]), bpmText(P.bpm))));
     hereMore.replaceChildren(...out);
   }
   // One suggestion for row i: its time and where it comes from, ▶ to
@@ -802,8 +814,11 @@
     const v = typedTempo();
     tempoSaveBtn.disabled = tempoBusy || v === null || v === Math.round(P.bpm);
     tempoInput.disabled = tempoBusy;
-    const mid = WM.medianTempo(rows, P.beatsPerBar);
-    $('sync-tempo-now').textContent = mid ? t('The counter runs at %s between the starts.', bpmText(mid)) : '';
+    // Between the starts set by ear; else, said as such, the estimates'.
+    const mid = WM.medianTempo(rows, P.beatsPerBar, { byEar: true });
+    const est = mid ? 0 : WM.medianTempo(rows, P.beatsPerBar);
+    $('sync-tempo-now').textContent = mid ? t('The counter runs at %s between the starts set by ear.', bpmText(mid))
+      : est ? t('Between estimated starts the counter runs at about %s: not checked by ear yet.', bpmText(est)) : '';
   }
   const editorDirty = () => document.documentElement.classList.contains('is-dirty') || !!(window.songbooksEditorDirty && window.songbooksEditorDirty());
   async function saveTempo(value) {
@@ -1358,6 +1373,22 @@
   $('sync-suggest-btn').addEventListener('click', suggest);
   $('sync-accept-all').addEventListener('click', acceptAll);
   sheet.querySelectorAll('[data-sync-close]').forEach((el) => el.addEventListener('click', close));
+  // "Sync…" (the ⋯ menu, the phone's Morceau sheet): the sheet whatever
+  // the sync's state, set by ear included, to review and adjust it. The
+  // recording the player plays; while it plays the Guitar Pro file's
+  // synthesizer (the Score view), the song's first recording.
+  document.querySelectorAll('[data-sync-open]').forEach((b) => b.addEventListener('click', () => {
+    const recs = P.categories().filter((c) => c !== 'synth');
+    if (!recs.length) return;
+    const cur = P.category();
+    const opener = b.closest('[role="menu"]') ? $('song-more-btn') : b.closest('.stack-sheet') ? $(`${b.closest('.stack-sheet').id}-btn`) : b;
+    // The menu and the sheet close on the click: focus goes back to
+    // their button when the Sync sheet closes.
+    setTimeout(() => {
+      open(cur && cur !== 'synth' ? {} : { category: recs[0] });
+      lastFocus = opener;
+    }, 0);
+  }));
   $('sync-zoom-in').addEventListener('click', () => wave && wave.zoom(2));
   $('sync-zoom-out').addEventListener('click', () => wave && wave.zoom(0.5));
   $('sync-zoom-fit').addEventListener('click', () => wave && wave.fit());

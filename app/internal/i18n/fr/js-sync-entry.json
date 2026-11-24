@@ -1,0 +1,11 @@
+{
+  "%d to check": "%d à vérifier",
+  "set by ear": "réglée à l’oreille",
+  "the Guitar Pro file’s": "celle du fichier Guitar Pro",
+  "Review or adjust…": "Revoir ou ajuster…",
+  "between estimated starts the counter runs at %s (the chart says %s): check the starts by ear before trusting it": "entre des débuts estimés, le compteur va à %s (la grille dit %s) : vérifiez les débuts à l’oreille avant de vous y fier",
+  "The counter runs at %s between the starts set by ear.": "Entre les débuts réglés à l’oreille, le compteur va à %s.",
+  "Between estimated starts the counter runs at about %s: not checked by ear yet.": "Entre des débuts estimés, le compteur va à environ %s : pas encore vérifié à l’oreille.",
+  "%d section makes the counter run off the chart’s tempo": "%d partie fait aller le compteur hors du tempo de la grille",
+  "%d sections make the counter run off the chart’s tempo": "%d parties font aller le compteur hors du tempo de la grille"
+}

@@ -224,11 +224,25 @@
       return (60 * beatsPerBar * (next.startBar - r.startBar)) / (next.t - r.t);
     });
   }
+  // Whether row i's span was set by ear at both ends: its start and the
+  // next one placed both "set" (a person placed or checked them). Only
+  // those spans say what the recording plays: a span touching an
+  // estimate (the import wizard's, Auto-align's) may be off by a section
+  // (Wake Up Alone: six unchecked estimates made the counter run at
+  // ♩. = 46 against a chart's right 72), so it never warns nor proposes
+  // a tempo.
+  function spanByEar(rows, i) {
+    const r = rows[i];
+    if (!r || r.t === null || r.t === undefined || r.origin !== 'set') return false;
+    const next = rows.slice(i + 1).find((x) => x && x.t !== null && x.t !== undefined);
+    return !!next && next.origin === 'set';
+  }
   // The tempo most of the bars run at: the median weighted by bars (the
-  // player's badge's figure), 0 without one.
-  function medianTempo(rows, beatsPerBar) {
+  // player's badge's figure), 0 without one. byEar: over the spans set by
+  // ear at both ends only (the warning's and the one-click fix's figure).
+  function medianTempo(rows, beatsPerBar, opts = {}) {
     const per = rowTempos(rows, beatsPerBar).map((bpm, i) => {
-      if (!bpm) return null;
+      if (!bpm || (opts.byEar && !spanByEar(rows, i))) return null;
       const next = rows.slice(i + 1).find((x) => x && x.t !== null && x.t !== undefined);
       return { bpm, bars: next.startBar - rows[i].startBar };
     }).filter(Boolean).sort((a, b) => a.bpm - b.bpm);
@@ -239,10 +253,15 @@
   }
   // More than 8 % from the chart's: flagged.
   const offTempo = (v, chart) => chart > 0 && v > 0 && Math.abs(v / chart - 1) > 0.08;
+  // The spans whose tempo is off the chart's, set by ear at both ends:
+  // [row index, …]. A span touching an estimate is never one.
+  const offSpans = (rows, beatsPerBar, chart) => rowTempos(rows, beatsPerBar)
+    .map((v, i) => (offTempo(v, chart) && spanByEar(rows, i) ? i : -1)).filter((i) => i >= 0);
   // The one-click fix: the tempo to give the chart so the counter is at
-  // it (the median, whole), or 0 when it already is or can't be told.
+  // it (the median of the spans set by ear, whole), or 0 when it already
+  // is, can't be told, or would come from estimates.
   function tempoFix(rows, beatsPerBar, chart) {
-    const m = medianTempo(rows, beatsPerBar);
+    const m = medianTempo(rows, beatsPerBar, { byEar: true });
     return m && (!(chart > 0) || offTempo(m, chart)) ? Math.round(m) : 0;
   }
   // One bar's length around row i: its own span when the next start is
@@ -259,5 +278,5 @@
     return secondsPerBar || 2;
   }
 
-  return { rowTempos, medianTempo, offTempo, tempoFix, barLength, MIN_SPAN, clampView, fit, tToX, xToT, zoomAt, pan, pinch, follow, reveal, buildPeaks, levelFor, columns, barTimes, timeAt, barAt, labelEvery, snap, between, acceptPicks, REACH };
+  return { rowTempos, spanByEar, medianTempo, offTempo, offSpans, tempoFix, barLength, MIN_SPAN, clampView, fit, tToX, xToT, zoomAt, pan, pinch, follow, reveal, buildPeaks, levelFor, columns, barTimes, timeAt, barAt, labelEvery, snap, between, acceptPicks, REACH };
 });

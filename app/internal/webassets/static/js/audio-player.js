@@ -456,26 +456,33 @@ window.songbooksDecodable = function (buf) {
   // a section with more bars written than the recording plays runs fast
   // (song 334: 23 bars written, 17 played, the counter at 122 bpm over a
   // 90 bpm recording). Per section, and the bar-weighted median.
+  // Only a span whose two starts were set by ear (origin "set") says what
+  // the recording plays: one touching an estimate may be a section off
+  // (Wake Up Alone: six unchecked estimates gave ♩. = 46 against the
+  // chart's right 72), so it's kept (byEar false) but never makes the
+  // median, a section "off", nor the badge's warning (sync-wave-math.js
+  // spanByEar says the same for the Sync sheet).
   function syncTempos() {
     const secs = sections();
     const marks = currentMarkers()
-      .map((m) => ({ t: m.timeSeconds, sec: secs.find((s) => s.index === m.sectionIndex) }))
+      .map((m) => ({ t: m.timeSeconds, set: (m.origin || 'set') === 'set', sec: secs.find((s) => s.index === m.sectionIndex) }))
       .filter((m) => m.sec)
       .sort((a, b) => a.sec.startBar - b.sec.startBar);
     const per = [];
     for (let i = 0; i + 1 < marks.length; i++) {
       const bars = marks[i + 1].sec.startBar - marks[i].sec.startBar, dt = marks[i + 1].t - marks[i].t;
-      if (bars > 0 && dt > 0) per.push({ index: marks[i].sec.index, label: marks[i].sec.label, bars, bpm: (60 * beatsPerBar * bars) / dt });
+      if (bars > 0 && dt > 0) per.push({ index: marks[i].sec.index, label: marks[i].sec.label, bars, bpm: (60 * beatsPerBar * bars) / dt, byEar: marks[i].set && marks[i + 1].set });
     }
     let median = 0;
-    if (per.length) {
-      const sorted = per.slice().sort((a, b) => a.bpm - b.bpm);
+    const heard = per.filter((p) => p.byEar);
+    if (heard.length) {
+      const sorted = heard.slice().sort((a, b) => a.bpm - b.bpm);
       const total = sorted.reduce((s, p) => s + p.bars, 0);
       let acc = 0;
       for (const p of sorted) { acc += p.bars; if (acc >= total / 2) { median = p.bpm; break; } }
     }
     const off = (v) => bpm > 0 && v > 0 && Math.abs(v / bpm - 1) > 0.08;
-    return { per: per.map((p) => ({ ...p, off: off(p.bpm) })), median, off: off(median) };
+    return { per: per.map((p) => ({ ...p, off: p.byEar && off(p.bpm) })), median, off: off(median) };
   }
   // One indicator (player-proposal.md §3.6 with #74's states): the
   // player's data-sync — "estimated" (detected, or saved by a program and
@@ -509,8 +516,30 @@ window.songbooksDecodable = function (buf) {
         : info.state === 'auto' ? (info.auto === info.total ? t('Each section’s start was placed automatically (the import wizard or Auto-align) and nobody has checked it by ear yet.') : t('%d of %d section starts are still automatic estimates, not checked by ear.', info.auto, info.total))
         : t('Each section’s start was placed or checked by ear.');
     }
+    // The line's state, for everyone (the line is always there with a
+    // recording): set by ear, so many starts to check, or estimated — the
+    // Guitar Pro file's own sync said as such.
+    const stateEl = $('audio-sync-state');
+    const meta = categories[activeCategory] || {};
+    const said = synth || !s || s === 'none' ? ''
+      : info.source === 'markers' && info.auto && info.auto < info.total ? tn(info.auto, '%d to check', '%d to check')
+      : s === 'estimated' ? t('sync|estimated')
+      : info.source === 'points' && activeCategory === 'gp' && (meta.barSyncPoints || []).length > 1 ? t('the Guitar Pro file’s')
+      : t('set by ear');
+    if (stateEl) {
+      stateEl.textContent = said;
+      stateEl.hidden = !said;
+      stateEl.dataset.state = s === 'estimated' ? (info.source === 'markers' && info.auto < info.total ? 'check' : 'estimated') : 'set';
+      stateEl.classList.toggle('warn', tempos.off);
+    }
+    // For an editor, the Sync sheet is always a tap away (the ⋯ menu's
+    // "Sync…" too): to correct an estimate, or to review a sync set by
+    // ear and adjust it.
     const fix = $('audio-sync-fix');
-    if (fix) fix.hidden = !canEdit || synth;
+    if (fix) {
+      fix.hidden = !canEdit || synth;
+      fix.textContent = s === 'set' && !tempos.off ? t('Review or adjust…') : t('Correct the sync');
+    }
     const confirm = $('audio-sync-confirm');
     if (confirm) confirm.hidden = synth || !(canEdit && info.state === 'auto' && (info.source !== 'points' || (categories[activeCategory] || {}).markers?.length) && hasBars());
     if (!syncPop) return;

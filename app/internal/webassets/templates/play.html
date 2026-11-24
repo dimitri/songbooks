@@ -617,6 +617,10 @@
         {{if .WorkID}}<a role="menuitem" href="/works/{{.WorkID}}" title="{{t "this song’s recordings and arrangements"}}">{{template "icon-mode-map"}} {{t "Recordings and arrangements"}}</a>{{end}}
         {{if .VariantID}}<a role="menuitem" href="/variants/{{.VariantID}}/history" title="{{t "revision history"}}">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
         <button type="button" role="menuitem" id="reference-toggle" title="{{t "the reference video and recordings"}}">{{template "icon-reference"}} {{t "Reference"}}</button>
+        {{/* The Sync sheet (sync-sheet.js), always within reach of who may
+             edit the song, once the song has a recording (CSS: shown with
+             #audio-player[data-recording="yes"]). */}}
+        {{if .CanEdit}}<button type="button" role="menuitem" class="song-sync-open" id="song-sync-open" data-sync-open aria-haspopup="dialog" title="{{t "the chart’s sections on the recording: check them by ear, adjust them"}}">{{template "icon-sync"}} {{t "Sync…"}}</button>{{end}}
         <button type="button" role="menuitem" data-pdf-dialog aria-haspopup="dialog">{{template "icon-download"}} {{t "Export as PDF…"}}</button>
         {{if .GPFileName}}<a role="menuitem" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
         {{if .HasAnyScore}}<a role="menuitem" class="gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
@@ -1538,6 +1542,7 @@
     <a class="stack-sheet-row" id="song-tuner-row" data-tuner-open aria-haspopup="dialog" href="/tuner?song={{.VariantID}}&amp;title={{.Title | urlquery}}&amp;back={{printf "/song/%d" .VariantID | urlquery}}">{{template "icon-tuner"}} {{t "Tuner"}}</a>
     <button type="button" class="stack-sheet-row" data-tap-tempo-open aria-haspopup="dialog">{{template "icon-tap"}} {{t "Tap tempo"}}</button>
     <button type="button" class="stack-sheet-row" data-forward="reference">{{template "icon-reference"}} {{t "Reference"}}</button>
+    {{if .CanEdit}}<button type="button" class="stack-sheet-row song-sync-open" data-sync-open aria-haspopup="dialog">{{template "icon-sync"}} {{t "Sync…"}}</button>{{end}}
     <button type="button" class="stack-sheet-row" data-pdf-dialog aria-haspopup="dialog">{{template "icon-download"}} {{t "Export as PDF…"}}</button>
     {{if .GPFileName}}<a class="stack-sheet-row" href="/song/{{.VariantID}}/gp-file" title="{{t "download the original Guitar Pro file (%s)" .GPFileName}}" download>{{template "icon-download"}} {{t "Guitar Pro file"}}</a>{{end}}
     {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
@@ -2066,6 +2071,7 @@
                      "Sync state"), what's off (a section whose tempo isn't
                      the recording's), and for an editor the Sync sheet or
                      "it's right". */}}
+                <span class="audio-sync-state" id="audio-sync-state" hidden></span>
                 <span class="hint" id="audio-sync-text"></span>
                 <div class="audio-sync-detail" id="audio-pop-sync"></div>
                 <div class="audio-pop-row">

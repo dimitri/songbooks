@@ -571,3 +571,6 @@
      internal/httpapi/editmode.go). */}}
 {{define "edit-toggle"}}<button type="button" class="edit-toggle{{if .}} on{{end}}" aria-pressed="{{if .}}true{{else}}false{{end}}" onclick="document.cookie='sb_edit={{if .}}0{{else}}1{{end}}; path=/; max-age=31536000; samesite=lax'; location.reload()">{{template "icon-edit"}}<span>{{if .}}{{t "Done"}}{{else}}{{t "Edit"}}{{end}}</span></button>{{end}}
 {{define "icon-tuner"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14a7 7 0 0 1 14 0"/><path d="M10 14l3-5"/><path d="M5 9.5l.9.9M10 6.5V7.8M15 9.5l-.9.9"/></svg>{{end}}
+{{/* The Sync sheet (the ⋯ menu's "Sync…"): a waveform, a section's start
+     marked on it. */}}
+{{define "icon-sync"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9v2M6 7v6M9 9v2M14 7.5v5M17 9v2"/><path d="M11.5 3v14"/><path d="M11.5 3h3l-1 1.5 1 1.5h-3"/></svg>{{end}}
