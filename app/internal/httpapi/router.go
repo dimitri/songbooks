@@ -416,7 +416,6 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// Who may edit whose instruments is checked inside (store.MayEditMemberInstruments).
 	mux.HandleFunc("PUT /api/bands/{id}/members/{personID}/instruments", s.requireBandMember(s.handleSetBandMemberInstruments))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/invite-link", s.requireBandInviter(s.handleNewBandMemberInviteLink))
-	mux.HandleFunc("POST /api/bands/{id}/invites", s.requireBandInviter(s.handleCreateBandInvite))
 	// Group invites (roster link, multi-use — see
 	// internal/store/group_invites.go and join.go). Inviting someone, in
 	// any of these ways, is for manage_members (requireBandInviter).

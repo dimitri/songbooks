@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/internal/i18n"
+	"app/internal/mailer"
 	"app/internal/store"
 )
 
@@ -163,8 +164,16 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "login", map[string]any{
 		"Error":              r.URL.Query().Get("error") != "",
 		"InvalidCredentials": r.URL.Query().Get("badlogin") != "",
+		"LoginEmails":        s.loginEmails(),
 	})
 }
+
+// loginEmails says whether an emailed login link reaches anyone: only
+// with a mailer that delivers (mailer.Delivers), not the console one
+// this deployment has (no SMTP yet). Without it, the pages don't offer
+// "a link we send you" as a way back in, and the login page puts the
+// password first.
+func (s *Server) loginEmails() bool { return mailer.Delivers(s.mailer) }
 
 // handleLogin is POST /login, and branches cleanly on which of the two,
 // equally first-class login forms the visitor submitted (see login.html):

@@ -6,7 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>
 {{if eq .Kind "personal"}}{{t "Welcome, %s" .DisplayName}}
-{{else if eq .Kind "band"}}{{t "Join %s" .BandName}}
 {{else}}{{t "Create your account"}}{{end}} — Songbooks</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
 {{template "pwa-head"}}
@@ -22,9 +21,6 @@
         {{range .Memberships}}<li>{{.Name}} <span class="hint">({{t .Status}})</span></li>{{end}}
         </ul>
         <p class="hint">{{t "Join with your email: a new account, or the one you already have. Nothing else changes, these memberships are already yours."}}</p>
-      {{else if eq .Kind "band"}}
-        <h2>{{t "Join %s" .BandName}}</h2>
-        <p>{{t "You've been invited as a"}} <strong>{{t .BandStatus}}</strong>{{t " member."}}</p>
       {{else}}
         <h2>{{t "Create your account"}}</h2>
         <p>{{t "You've been invited to join Songbooks."}}</p>
@@ -40,12 +36,10 @@
       {{if .Error}}<p class="form-status is-error" role="alert">{{.Error}}</p>{{end}}
       <p>
       {{if eq .Kind "personal"}}{{t "Join as"}} <strong>{{.LoggedInAs}}</strong>{{t "?"}} <span class="hint">{{t "Your account takes the place on the roster kept for %s." .DisplayName}}</span>
-      {{else if eq .Kind "band"}}{{t "Join %s as" .BandName}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}
       {{else}}{{t "Continue as"}} <strong>{{.LoggedInAs}}</strong>{{t "?"}}{{end}}
       </p>
       <button type="submit" class="primary">
       {{if eq .Kind "personal"}}{{t "Join"}}
-      {{else if eq .Kind "band"}}{{t "Join %s" .BandName}}
       {{else}}{{t "Continue"}}{{end}}
       </button>
     {{else}}
@@ -90,7 +84,7 @@
     </form>
   {{else}}
     <form class="card" method="get" action="/invite/{{.Token}}/login">
-      <p class="hint">{{t "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after."}}</p>
+      <p class="hint">{{if .LoginEmails}}{{t "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after."}}{{else}}{{t "Already have an account? Log in with your email and password, and you’ll join right after."}}{{end}}</p>
       <div class="form-actions form-actions--start"><button type="submit" id="login-instead-btn">{{t "Log in to join"}}</button></div>
     </form>
   {{end}}
@@ -109,20 +103,16 @@
   const errEl = document.getElementById('invite-error');
   if (!errEl) return;
   const msg = errEl.textContent.trim();
-  const byField = [
-    [/email is already registered/, 'f-email', t('That email already has an account. Use “Log in to join” below instead.')],
-    [/valid email/, 'f-email', t('Enter an email address like name@example.com.')],
-    [/at least 8/, 'f-password', t('Use at least %d characters.', 8)],
-    [/didn't match/, 'f-confirm', t('The two passwords didn’t match. Type the same one in both.')],
-  ];
-  for (const [re, id, text] of byField) {
-    const input = document.getElementById(id);
-    if (re.test(msg) && input) {
-      errEl.remove();
-      Forms.fieldError(input, text);
-      input.focus();
-      return;
-    }
+  const email = document.getElementById('f-email');
+  if (/email is already registered/.test(msg) && email) {
+    errEl.remove();
+    Forms.fieldError(email, t('That email already has an account. Use “Log in to join” below instead.'));
+    email.focus();
+    return;
+  }
+  if (newAccountFieldError(msg, {email: 'f-email', password: 'f-password', confirm: 'f-confirm'})) {
+    errEl.remove();
+    return;
   }
   errEl.textContent = msg.charAt(0).toUpperCase() + msg.slice(1) + (/[.!?]$/.test(msg) ? '' : '.');
 })();

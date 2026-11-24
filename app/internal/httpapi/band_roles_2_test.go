@@ -30,8 +30,8 @@ func currentRole(t *testing.T, st *store.Store, bandID, personID int64) int64 {
 }
 
 // TestInviteIntoCustomRoleHTTP: the members page offers the band's own
-// roles; the open link, the one-off link, adding an account and a
-// placeholder each take a roleId and give that role; an older client's
+// roles; the open link, adding an account and a placeholder each take
+// a roleId and give that role; an older client's
 // core/guest still works; another band's role is refused.
 func TestInviteIntoCustomRoleHTTP(t *testing.T) {
 	e := newInviteEnv(t)
@@ -94,14 +94,6 @@ func TestInviteIntoCustomRoleHTTP(t *testing.T) {
 	}
 	if got := currentRole(t, e.st, bandID, addedID); got != roadie {
 		t.Errorf("added as a Roadie: role %d", got)
-	}
-	// A one-off link, by form.
-	if w := e.do("POST", b+"/invites", fmt.Sprintf("roleId=%d", roadie), core); w.Code != http.StatusOK {
-		t.Fatalf("a Roadie one-off link: %d %s", w.Code, w.Body)
-	}
-	open, _ := e.st.ListOpenBandInvites(ctx, bandID)
-	if len(open) != 1 || open[0].RoleID != roadie {
-		t.Errorf("the one-off link's role: %+v", open)
 	}
 	// A placeholder.
 	w = e.do("POST", b+"/personal-invites", fmt.Sprintf(`{"displayName":"Pending","roleId":%d}`, roadie), core)

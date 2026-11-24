@@ -369,7 +369,7 @@ func (s *Server) handleEventPage(w http.ResponseWriter, r *http.Request) {
 	choices := playChoices(myPlays)
 	s.render(w, "event", map[string]any{
 		"Me": person, "Event": ev, "NavSection": eventNavSection(r, ev), "Attendees": attendees, "AlreadyRegistered": alreadyRegistered,
-		"SongRows": songRows, "MyBands": myBands,
+		"SongRows": songRows, "MyBands": myBands, "LoginEmails": s.loginEmails(),
 		"Playing": playing, "Plays": plays, "PlayChoices": choices, "PlayChoiceSet": stringSet(choices), "MyPlays": stringSet(myPlays),
 	})
 }
@@ -567,17 +567,20 @@ func (s *Server) handleRegisterForEvent(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusBadRequest, "enter a valid email address")
 		return
 	}
-	var hash string
-	if password != "" {
-		h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			log.Printf("hashing event-registration password: %v", err)
-			httpError(w, http.StatusInternalServerError, "couldn't register — try again")
-			return
-		}
-		hash = string(h)
+	// A password too, as on every other way in (password_rule.go): no
+	// login email is sent yet, so without one the account would be
+	// locked out once this session ends.
+	if msg := newPasswordProblem(password, r.FormValue("confirm")); msg != "" {
+		httpError(w, http.StatusBadRequest, msg)
+		return
 	}
-	personID, err := s.store.CreatePersonAndRegisterForEvent(r.Context(), eventID, displayName, email, hash, bandID)
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("hashing event-registration password: %v", err)
+		httpError(w, http.StatusInternalServerError, "couldn't register — try again")
+		return
+	}
+	personID, err := s.store.CreatePersonAndRegisterForEvent(r.Context(), eventID, displayName, email, string(h), bandID)
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrEmailTaken):

@@ -85,7 +85,7 @@
     </form>
 
     <div class="card card--narrow">
-      <p class="hint">{{t "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after."}}</p>
+      <p class="hint">{{if .LoginEmails}}{{t "Already have an account? Log in with your email, by password or a link we send you, and you’ll join right after."}}{{else}}{{t "Already have an account? Log in with your email and password, and you’ll join right after."}}{{end}}</p>
       <button type="button" id="login-instead-btn">{{t "Log in to join"}}</button>
     </div>
     <script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
@@ -127,11 +127,8 @@
           // Busy until the next page arrives.
           if (res.redirected || res.ok) { location.href = res.url; return new Promise(() => {}); }
           const text = (await res.text()).toLowerCase();
-          if (email && text.includes('valid email')) {
-            Forms.fieldError(email, t('Enter an email address like name@example.com.'));
-            email.focus();
-            return;
-          }
+          // A refusal about the email or the password goes under it.
+          if (email && res.status === 400 && newAccountFieldError(text, {email: 'join-email', password: 'join-password', confirm: 'join-confirm'})) return;
           if (email && text.includes('email already')) {
             Forms.fieldError(email, t('That email already has an account. Use “Log in to join” below instead.'));
             email.focus();

@@ -12,7 +12,9 @@ import (
 
 // handleAdminPage is the site-wide admin panel: every person (name,
 // email, created date, is_admin), and the accounts that can't log in
-// any more (a password but no email: store.ListPasswordNoEmail). Gated by requireAdmin (router.go) — this is
+// any more (a password but no email: store.ListPasswordNoEmail; an email
+// but no password nor passkey while no login email is sent:
+// store.ListEmailNoPassword). Gated by requireAdmin (router.go) — this is
 // instance-wide, not scoped to any one songbook/band.
 func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 	people, err := s.store.ListAllPeople(r.Context())
@@ -51,8 +53,17 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Without a mailer that delivers, an account with only an email (no
+	// password, no passkey) can't log back in either.
+	var noPassword []store.PersonAdminRow
+	if !s.loginEmails() {
+		if noPassword, err = s.store.ListEmailNoPassword(r.Context()); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	s.render(w, "admin", map[string]any{
-		"Me": personFromContext(r), "People": people, "LockedOut": noEmail,
+		"Me": personFromContext(r), "People": people, "LockedOut": noEmail, "NoPassword": noPassword,
 		"AdminCount": adminCount, "Communities": communities,
 		"GroupInvites": groupInvites, "PlainInvites": plainInvites,
 		"ShellPeople": shellPeople,

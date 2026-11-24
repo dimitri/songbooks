@@ -57,6 +57,16 @@
         <p class="hint">{{t "Give each an email to log in with: songbooks --set-email <id> <email> on the server."}}</p>
       </div>
       {{end}}
+      {{/* An email but no password nor passkey, while no login email
+           reaches anyone (store.ListEmailNoPassword; event registration
+           made them before a password was required). */}}
+      {{if .NoPassword}}
+      <div class="admin-locked-out" role="note">
+        <p><strong>{{tn (len .NoPassword) "%d account has an email but no password: it can’t log back in, as login emails aren’t sent yet." "%d accounts have an email but no password: they can’t log back in, as login emails aren’t sent yet."}}</strong></p>
+        <ul>{{range .NoPassword}}<li><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a> <span class="hint">({{.Email}}, id {{.ID}})</span></li>{{end}}</ul>
+        <p class="hint">{{t "Give each a login link (Login link on their band’s or community’s Members page), then they set a password on their profile; or set one on the server: songbooks --set-password <id>."}}</p>
+      </div>
+      {{end}}
       <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>{{t "Name"}}</th><th>{{t "Email"}}</th><th>{{t "Created"}}</th><th>{{t "Admin"}}</th><th></th></tr></thead>
         <tbody>

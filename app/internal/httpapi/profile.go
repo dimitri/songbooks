@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -54,6 +55,7 @@ func (s *Server) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "profile", map[string]any{
 		"Me": p, "Instruments": card,
 		"HasPassword": p.PasswordHash != "",
+		"LoginEmails": s.loginEmails(),
 		"PwError":     r.URL.Query().Get("pwerror"),
 		"PwSaved":     r.URL.Query().Get("pwsaved") != "",
 		"Passkeys":    passkeys,
@@ -142,12 +144,8 @@ func (s *Server) handleSetPasswordProfile(w http.ResponseWriter, r *http.Request
 	}
 	password := r.FormValue("password")
 	confirm := r.FormValue("confirm")
-	if len(password) < 8 {
-		http.Redirect(w, r, "/profile?pwerror=password+must+be+at+least+8+characters", http.StatusFound)
-		return
-	}
-	if password != confirm {
-		http.Redirect(w, r, "/profile?pwerror=passwords+didn%27t+match", http.StatusFound)
+	if msg := newPasswordProblem(password, confirm); msg != "" {
+		http.Redirect(w, r, "/profile?pwerror="+url.QueryEscape(msg), http.StatusFound)
 		return
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

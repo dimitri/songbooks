@@ -81,7 +81,13 @@
     {{if .HasPassword}}
       <p class="hint">{{t "A password is set — you can log in with it, a passkey, or a login link."}}</p>
     {{else}}
+      {{if .LoginEmails}}
       <p class="hint">{{t "No password yet — you log in with emailed login links. Set one to log in with a password too."}}</p>
+      {{else}}
+      {{/* No login email reaches anyone yet (no SMTP): without a
+           password or a passkey, this session is the only way in. */}}
+      <p class="form-status is-error" role="alert">{{t "No password yet. Set one now: login emails aren’t sent yet, so without a password (or a passkey) you can’t log back in once this session ends."}}</p>
+      {{end}}
     {{end}}
     <form method="post" action="/profile/password" class="form-stack" id="password-form">
       {{if .PwSaved}}<p class="form-status is-ok" role="status">{{t "Password saved."}}</p>{{end}}
@@ -274,7 +280,9 @@ if (new URLSearchParams(location.search).has('instsaved')) {
   const byField = [
     [/already registered/, 'profile-email', t('That email already belongs to another account. Use a different one.')],
     [/valid email/, 'profile-email', t('Enter an email address like name@example.com.')],
+    [/password is required/, 'profile-password', t('Choose a password of at least %d characters.', 8)],
     [/at least 8/, 'profile-password', t('Use at least %d characters.', 8)],
+    [/too long/, 'profile-password', t('That password is too long. Use a shorter one.')],
     [/didn't match/, 'profile-confirm', t('The two passwords didn\u2019t match. Type the same one in both.')],
   ];
   document.querySelectorAll('.server-error').forEach(el => {

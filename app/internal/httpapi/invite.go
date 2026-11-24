@@ -84,10 +84,10 @@ func (s *Server) handleInviteLoginRedirect(w http.ResponseWriter, r *http.Reques
 func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, loggedInAs, formErr, displayName, email string) {
 	s.render(w, "invite", map[string]any{
 		"Token": inv.Token, "Kind": inv.Kind(),
-		"BandName": inv.BandName, "BandStatus": inv.BandStatus,
 		"LoggedInAs":  loggedInAs,
 		"Error":       formErr,
 		"DisplayName": displayName, "Email": email,
+		"LoginEmails": s.loginEmails(),
 	})
 }
 
@@ -99,9 +99,10 @@ func (s *Server) renderPersonalInvitePage(w http.ResponseWriter, pv *store.Perso
 	s.render(w, "invite", map[string]any{
 		"Token": pv.Token, "Kind": "personal",
 		"DisplayName": pv.DisplayName, "Memberships": pv.Memberships,
-		"LoggedInAs": loggedInAs,
-		"Error":      formErr,
-		"Email":      email,
+		"LoggedInAs":  loggedInAs,
+		"Error":       formErr,
+		"Email":       email,
+		"LoginEmails": s.loginEmails(),
 	})
 }
 
@@ -167,12 +168,8 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 		s.renderInvitePage(w, inv, "", "enter a valid email address", displayName, email)
 		return
 	}
-	if len(password) < 8 {
-		s.renderInvitePage(w, inv, "", "password must be at least 8 characters", displayName, email)
-		return
-	}
-	if password != confirm {
-		s.renderInvitePage(w, inv, "", "passwords didn't match", displayName, email)
+	if msg := newPasswordProblem(password, confirm); msg != "" {
+		s.renderInvitePage(w, inv, "", msg, displayName, email)
 		return
 	}
 
@@ -265,12 +262,8 @@ func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request
 	// requirement as handlePostInvite's brand-new-account branch; the
 	// passkey offered right after (via /welcome?step=2) is step two, not a
 	// substitute for having a working credential at all.
-	if len(password) < 8 {
-		s.renderPersonalInvitePage(w, pv, "", "password must be at least 8 characters", email)
-		return
-	}
-	if password != confirm {
-		s.renderPersonalInvitePage(w, pv, "", "passwords didn't match", email)
+	if msg := newPasswordProblem(password, confirm); msg != "" {
+		s.renderPersonalInvitePage(w, pv, "", msg, email)
 		return
 	}
 	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

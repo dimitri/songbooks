@@ -80,10 +80,19 @@
         <p class="field-hint" id="reg-email-hint">{{t "What you'll log in with."}}</p>
         <input type="email" id="reg-email" name="email" required autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="reg-email-hint">
       </div>
+      {{/* Required, as on every way in (password_rule.go): no login
+           email is sent yet. */}}
       <div class="field">
-        <label for="reg-password">{{t "Password"}} <span class="field-optional">{{t "(optional)"}}</span></label>
-        <p class="field-hint" id="reg-password-hint">{{t "Leave it empty to log in with a link sent to your email instead."}}</p>
-        <input type="password" id="reg-password" name="password" autocomplete="new-password" aria-describedby="reg-password-hint">
+        <label for="reg-password">{{t "Password"}}</label>
+        <p class="field-hint" id="reg-password-hint">{{t "At least 8 characters."}}</p>
+        <div class="pw-field">
+          <input type="password" id="reg-password" name="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="reg-password-hint" required minlength="8">
+          <button type="button" class="pw-toggle" aria-controls="reg-password reg-confirm" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "passwords"}}</span></button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-confirm">{{t "Password again"}}</label>
+        <input type="password" id="reg-confirm" name="confirm" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-match="reg-password" required minlength="8">
       </div>
       {{end}}
       {{if .Playing}}{{template "event-plays-fields" .}}{{end}}
@@ -103,7 +112,7 @@
     {{/* An account already: log in (password or emailed link), then
          back here to register as themselves (pendingJoinCookie). */}}
     <form method="get" action="/events/{{.Event.ID}}/login" class="form-stack">
-      <p class="hint">{{t "Already have an account? Log in with your email, by password or a link we send you, then register."}}</p>
+      <p class="hint">{{if .LoginEmails}}{{t "Already have an account? Log in with your email, by password or a link we send you, then register."}}{{else}}{{t "Already have an account? Log in with your email and password, then register."}}{{end}}</p>
       <div class="form-actions form-actions--start"><button type="submit">{{t "Log in to register"}}</button></div>
     </form>
     {{end}}
@@ -159,6 +168,7 @@
   {{end}}
   {{end}}
 </main>
+<script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
 <script>
 // The handler's own refusals ("that email is already registered to
 // another account") are written for people; a 500's text isn't.
@@ -175,6 +185,9 @@ registerForm?.addEventListener('submit', (e) => {
     if (res.ok) { location.reload(); return; }
     if (res.status === 409) throw new Error(t('That email already has an account. Use “Log in to register” below instead.'));
     const data = await res.json().catch(() => ({}));
+    // A refusal about one field goes under that field.
+    const field = res.status === 400 && newAccountFieldError(data.error || '', {email: 'reg-email', password: 'reg-password', confirm: 'reg-confirm'});
+    if (field) return;
     throw new Error(errText(res, data, t('Couldn’t register you. Try again.')));
   });
 });

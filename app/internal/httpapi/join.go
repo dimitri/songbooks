@@ -126,6 +126,7 @@ func (s *Server) handleJoinPage(w http.ResponseWriter, r *http.Request) {
 		"Token": token, "Kind": gi.TargetKind, "TargetName": gi.TargetName,
 		"Slots": gi.Slots, "Closed": gi.ClosedAt != nil, "Open": open,
 		"LoggedIn": loggedIn, "LoggedInAs": loggedInAs,
+		"LoginEmails": s.loginEmails(),
 	})
 }
 
@@ -181,12 +182,8 @@ func (s *Server) handlePostJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := r.FormValue("password")
-	if len(password) < 8 {
-		httpError(w, http.StatusBadRequest, "password must be at least 8 characters")
-		return
-	}
-	if password != r.FormValue("confirm") {
-		httpError(w, http.StatusBadRequest, "passwords didn't match")
+	if msg := newPasswordProblem(password, r.FormValue("confirm")); msg != "" {
+		httpError(w, http.StatusBadRequest, msg)
 		return
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

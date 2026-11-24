@@ -187,9 +187,10 @@ func TestInviteByNameJoinExistingAccount(t *testing.T) {
 	}
 }
 
-// TestEveryLinkOffersLogInToJoin: the one-off invite link, a band's open
-// link and an event's registration each offer someone with an account to
-// log in, and land them in (or back on the event, to register).
+// TestEveryLinkOffersLogInToJoin: a band's open link and an event's
+// registration (a personal link: TestInviteByNameJoinExistingAccount)
+// each offer someone with an account to log in, and land them in (or
+// back on the event, to register).
 func TestEveryLinkOffersLogInToJoin(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
@@ -202,31 +203,9 @@ func TestEveryLinkOffersLogInToJoin(t *testing.T) {
 	ollieEmail := "Ollie" + e.sfx + "@example.test"
 	e.withPassword(ollieID, "correct horse")
 
-	// A one-off link.
-	w := e.do("POST", fmt.Sprintf("/api/bands/%d/invites", bandID), url.Values{"status": {"guest"}}.Encode(), core)
-	if w.Code != http.StatusOK {
-		t.Fatalf("a one-off link: %d %s", w.Code, w.Body)
-	}
-	var res struct{ URL string }
-	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
-		t.Fatal(err)
-	}
-	if page := e.do("GET", res.URL, "", nil).Body.String(); !strings.Contains(page, `action="`+res.URL+`/login"`) || !strings.Contains(page, `name="email"`) {
-		t.Errorf("the one-off link's page: no email, or no log in to join")
-	}
-	if dest := e.logInToJoin(res.URL+"/login", ollieEmail, "correct horse"); dest != fmt.Sprintf("/bands/%d", bandID) {
-		t.Errorf("one-off link, after logging in: sent to %q", dest)
-	}
-	if ok, _ := e.st.IsCurrentBandMember(ctx, bandID, ollieID); !ok {
-		t.Errorf("Ollie isn't in the band")
-	}
-
 	// A band's open link.
-	other, err := e.st.CreateBand(ctx, "Open Band "+e.sfx, coreID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	w = e.do("POST", fmt.Sprintf("/api/bands/%d/band-link", other), `{"status":"guest"}`, core)
+	other := bandID
+	w := e.do("POST", fmt.Sprintf("/api/bands/%d/band-link", other), `{"status":"guest"}`, core)
 	if w.Code != http.StatusOK {
 		t.Fatalf("an open link: %d %s", w.Code, w.Body)
 	}

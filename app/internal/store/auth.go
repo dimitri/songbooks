@@ -88,35 +88,36 @@ type Member struct {
 	Role        string
 }
 
-// Invite is a pending, single-use invitation. It targets exactly one of:
-// a band (BandID/BandStatus set), or neither — a "plain" invite that
-// just lets its holder create an account with no membership attached
-// (see Kind).
+// Invite is a pending, single-use invitation: a personal one (PersonID
+// set: a placeholder's link, see CreateShellPerson), or a "plain" one
+// that just lets its holder create an account with no membership
+// attached (see Kind).
+//
+// A band's nameless one-off link (band_id set, no person) is gone
+// (decided 2026-11-24: invites are made by name, or by the band's open
+// link): GetInvite and accepting no longer take one still in the
+// table (notNamelessBandInvite).
 type Invite struct {
-	Token      string
-	BandID     int64
-	BandName   string
-	BandStatus string
-	PersonID   int64 // set for a personal invite — see Kind, CreateShellPerson
-	CreatedBy  int64 // 0/unknown for invites predating this column
-	ExpiresAt  time.Time
+	Token     string
+	PersonID  int64 // set for a personal invite — see Kind, CreateShellPerson
+	CreatedBy int64 // 0/unknown for invites predating this column
+	ExpiresAt time.Time
 }
 
 // Kind reports which shape inv is, for templates and handlers that need
 // to branch on it: "personal" (PersonID set — completes an existing
-// shell person's account, see ClaimPersonalInvite) takes priority over
-// the older "band" (BandID set, no shell — grants the given account
-// membership in one band directly) and "plain" (neither — just an
-// account with no attached membership) shapes.
+// shell person's account, see ClaimPersonalInvite) or "plain" (just an
+// account with no attached membership).
 func (inv Invite) Kind() string {
 	if inv.PersonID != 0 {
 		return "personal"
 	}
-	if inv.BandID != 0 {
-		return "band"
-	}
 	return "plain"
 }
+
+// notNamelessBandInvite is the condition on invites i that leaves out a
+// band's nameless one-off link, made until 2026-11-24 (see Invite).
+const notNamelessBandInvite = `(i.band_id IS NULL OR i.person_id IS NOT NULL)`
 
 func randomToken() (string, error) {
 	b := make([]byte, 32)
@@ -261,6 +262,36 @@ func (st *Store) ListPasswordNoEmail(ctx context.Context) ([]PersonAdminRow, err
 	for rows.Next() {
 		var p PersonAdminRow
 		if err := rows.Scan(&p.ID, &p.DisplayName, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ListEmailNoPassword lists the accounts with an email but neither a
+// password nor a passkey: registering for an event used to make them
+// (the password was optional until 2026-11-24). Their only way in is an
+// emailed login link, and no login email reaches anyone yet (the console
+// mailer, no SMTP): once their session ends they can't log in, until
+// they get a login link from a site admin (a members page's "Login
+// link") and set a password on their profile, or someone sets one
+// (songbooks --set-password). Placeholders aren't in it. For the admin
+// panel and a line at startup, as ListPasswordNoEmail.
+func (st *Store) ListEmailNoPassword(ctx context.Context) ([]PersonAdminRow, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT p.id, p.display_name, p.email, p.is_admin, p.is_shell, p.created_at FROM people p
+		WHERE p.email IS NOT NULL AND coalesce(p.password_hash, '') = '' AND NOT p.is_shell
+		  AND NOT EXISTS (SELECT 1 FROM webauthn_credentials w WHERE w.person_id = p.id)
+		ORDER BY p.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PersonAdminRow
+	for rows.Next() {
+		var p PersonAdminRow
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Email, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -434,63 +465,6 @@ func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg 
 		return nil, err
 	}
 	return &p, nil
-}
-
-// CreateBandInvite makes a single-use, time-limited invite to join a band
-// with roleID, one of its roles (ResolveBandInviteRole) — the band
-// equivalent of CreateInvite.
-func (st *Store) CreateBandInvite(ctx context.Context, bandID, roleID, createdBy int64, ttl time.Duration) (string, error) {
-	status, err := bandInviteStatus(ctx, st.db, bandID, roleID)
-	if err != nil {
-		return "", err
-	}
-	token, err := randomToken()
-	if err != nil {
-		return "", err
-	}
-	_, err = st.db.Exec(ctx,
-		`INSERT INTO invites (token, band_id, band_status, band_role_id, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-		token, bandID, status, roleID, nullableID(createdBy), time.Now().Add(ttl))
-	if err != nil {
-		return "", err
-	}
-	return token, nil
-}
-
-// OpenBandInvite is one still-redeemable single-use band invite: just
-// enough for a page to show "here's a link you can still share" and let
-// it be copied again, without re-running the full Invite/project/band
-// join resolution GetInvite does for the /join landing page itself.
-type OpenBandInvite struct {
-	Token     string
-	Status    string
-	RoleID    int64 // the role it gives, 0 for an invite made before roles (its Status's)
-	ExpiresAt time.Time
-}
-
-// ListOpenBandInvites lists bandID's still-redeemable single-use invites
-// — any row currently in `invites` for this band hasn't been accepted
-// yet (AcceptInvite deletes its row on accept, single-use by design; see
-// that doc comment), so "not expired" is the only filter needed. Fills
-// the same "show a link I already made, don't force a new one" gap
-// ListGroupInvitesForTarget fills for the reusable roster-link kind.
-func (st *Store) ListOpenBandInvites(ctx context.Context, bandID int64) ([]OpenBandInvite, error) {
-	rows, err := st.db.Query(ctx, `
-		SELECT token, band_status::text, coalesce(band_role_id, 0), expires_at FROM invites
-		WHERE band_id = $1 AND expires_at > now() ORDER BY expires_at DESC`, bandID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []OpenBandInvite
-	for rows.Next() {
-		var inv OpenBandInvite
-		if err := rows.Scan(&inv.Token, &inv.Status, &inv.RoleID, &inv.ExpiresAt); err != nil {
-			return nil, err
-		}
-		out = append(out, inv)
-	}
-	return out, rows.Err()
 }
 
 // CreatePlainInvite makes a single-use, time-limited invite that carries
@@ -851,96 +825,49 @@ func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error)
 }
 
 // GetInvite resolves a token to its still-valid invite, or ErrNotFound if
-// missing/expired. BandID is set, or not, for a plain invite — see
-// Invite.Kind.
+// missing/expired, or a band's nameless one-off link (see Invite).
 func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	var inv Invite
-	var bandID, personID sql.NullInt64
-	var bandName, bandStatus sql.NullString
+	var personID sql.NullInt64
 	var createdBy sql.NullInt64
 	err := st.db.QueryRow(ctx, `
-		SELECT i.token, i.band_id, b.name, i.band_status::text,
-		       i.person_id, i.created_by_person_id, i.expires_at
+		SELECT i.token, i.person_id, i.created_by_person_id, i.expires_at
 		FROM invites i
-		LEFT JOIN bands b ON b.id = i.band_id
-		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&inv.Token, &bandID, &bandName, &bandStatus, &personID, &createdBy, &inv.ExpiresAt)
+		WHERE i.token = $1 AND i.expires_at > now() AND `+notNamelessBandInvite, token).
+		Scan(&inv.Token, &personID, &createdBy, &inv.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, err
 	}
-	inv.BandID, inv.BandName, inv.BandStatus = bandID.Int64, bandName.String, bandStatus.String
 	inv.PersonID = personID.Int64
 	inv.CreatedBy = createdBy.Int64
 	return &inv, nil
 }
 
 // acceptInviteTx is the shared body of AcceptInvite/CreatePersonAndAcceptInvite:
-// given the invite row (already locked/read inside tx) and the person now
-// accepting it, grants the right membership (band, or none for a plain
-// invite), deletes the invite, and — for a band invite — notifies
-// whoever created it. dest is where the browser should be redirected
-// afterwards.
+// a plain invite, the only kind accepted this way (a personal one is
+// ClaimPersonalInvite's; a band's nameless one-off link isn't taken any
+// more, see Invite), has no membership to grant: it is deleted, and the
+// browser goes home (dest). accepterName is unused since the band
+// one-off link went (it named the accepter in the inviter's
+// notification).
 func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, personID int64, accepterName string) (dest string, err error) {
-	var bandID, createdBy sql.NullInt64
-	var bandName sql.NullString
-	err = tx.QueryRow(ctx, `
-		SELECT i.band_id, b.name, i.created_by_person_id
-		FROM invites i LEFT JOIN bands b ON b.id = i.band_id
-		WHERE i.token = $1 AND i.expires_at > now()`, token).
-		Scan(&bandID, &bandName, &createdBy)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("no such invite: %w", ErrNotFound)
-	}
+	tag, err := tx.Exec(ctx, `
+		DELETE FROM invites i
+		WHERE i.token = $1 AND i.expires_at > now() AND i.band_id IS NULL AND i.person_id IS NULL`, token)
 	if err != nil {
 		return "", err
 	}
-
-	switch {
-	case bandID.Valid:
-		var invitedBy *int64
-		if createdBy.Valid {
-			invitedBy = &createdBy.Int64
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO band_members (band_id, person_id, status, role_id, invited_by_person_id)
-			SELECT $1, $2, band_status, band_role_id, $4 FROM invites WHERE token = $3`,
-			bandID.Int64, personID, token, invitedBy); err != nil {
-			return "", err
-		}
-		dest = fmt.Sprintf("/bands/%d", bandID.Int64)
-
-		// First real use case for the notification plumbing: tell the
-		// inviter their invite was accepted. A plain invite has nothing to
-		// notify about (no inviter is even meaningfully "waiting" on it),
-		// and a project invite is unchanged existing behavior — this is
-		// deliberately band-invite-only for now.
-		if createdBy.Valid && createdBy.Int64 != personID {
-			body := fmt.Sprintf("%s accepted your invite to join %s", accepterName, bandName.String)
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO notifications (person_id, kind, body, link) VALUES ($1, $2, $3, $4)`,
-				createdBy.Int64, "band_invite_accepted", body, fmt.Sprintf("/bands/%d", bandID.Int64)); err != nil {
-				return "", err
-			}
-		}
-
-	default:
-		// Plain invite: no membership to grant, just the fresh account.
-		dest = "/"
+	if tag.RowsAffected() == 0 {
+		return "", fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
-
-	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE token = $1`, token); err != nil {
-		return "", err
-	}
-	return dest, nil
+	return "/", nil
 }
 
-// AcceptInvite grants an already-logged-in person (personID, display name
-// accepterName — used in the accept notification) the invite's membership
-// (project role, band status, or nothing for a plain invite), and deletes
-// the invite — single-use by design, so a link can't be replayed to add an
+// AcceptInvite takes a plain invite for an already-logged-in person
+// (personID, display name accepterName), and deletes the invite — single-use by design, so a link can't be replayed to add an
 // unbounded number of people (anyone wanting more invitees gets a fresh
 // invite instead). dest is where the browser should land afterwards.
 func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64, accepterName string) (dest string, err error) {

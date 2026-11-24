@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 )
 
 // Band roles, round 2 (docs/band-roles.md, migration 0132): invites into
@@ -36,7 +35,7 @@ func (f *bandRolesFixture) newPerson(t *testing.T, name string) int64 {
 }
 
 // TestInviteIntoCustomRole: every way of inviting gives one of the
-// band's own roles — the open link, a roster slot, a one-off link, an
+// band's own roles — the open link, a roster slot, an
 // account added by name, a placeholder (personal invite) — and the claim
 // assigns it; another band's role is refused.
 func TestInviteIntoCustomRole(t *testing.T) {
@@ -100,23 +99,6 @@ func TestInviteIntoCustomRole(t *testing.T) {
 		t.Errorf("claimed a Roadie slot: role %d", got)
 	}
 
-	// A one-off link.
-	tok, err := f.st.CreateBandInvite(ctx, f.band, roadie, f.core, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	open, err := f.st.ListOpenBandInvites(ctx, f.band)
-	if err != nil || len(open) != 1 || open[0].RoleID != roadie {
-		t.Errorf("open one-off links: %+v %v", open, err)
-	}
-	c := f.newPerson(t, "viaOneOff")
-	if _, err := f.st.AcceptInvite(ctx, tok, c, "C"); err != nil {
-		t.Fatal(err)
-	}
-	if got := f.roleOf(t, c); got != roadie {
-		t.Errorf("accepted a Roadie one-off link: role %d", got)
-	}
-
 	// An account added by name; a placeholder.
 	d := f.newPerson(t, "byName")
 	if _, err := f.st.AddBandMemberWithRole(ctx, f.band, d, roadie, f.core); err != nil {
@@ -174,14 +156,9 @@ func TestOldInvitesKeepWorking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, err := f.st.CreateBandInvite(ctx, f.band, f.role(t, "core").ID, f.core, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, q := range []string{
 		`UPDATE group_invites SET band_role_id = NULL WHERE band_id = $1`,
 		`UPDATE group_invite_slots s SET band_role_id = NULL FROM group_invites gi WHERE gi.id = s.group_invite_id AND gi.band_id = $1`,
-		`UPDATE invites SET band_role_id = NULL WHERE band_id = $1`,
 	} {
 		if _, err := f.st.db.Exec(ctx, q, f.band); err != nil {
 			t.Fatal(err)
@@ -189,7 +166,7 @@ func TestOldInvitesKeepWorking(t *testing.T) {
 	}
 	core := f.role(t, "core").ID
 	guest := f.role(t, "guest").ID
-	a, b, c, d := f.newPerson(t, "a"), f.newPerson(t, "b"), f.newPerson(t, "c"), f.newPerson(t, "d")
+	a, b, c := f.newPerson(t, "a"), f.newPerson(t, "b"), f.newPerson(t, "c")
 	if _, err := f.st.ClaimGroupInviteUnlisted(ctx, coreLink, a, "A"); err != nil {
 		t.Fatal(err)
 	}
@@ -200,18 +177,15 @@ func TestOldInvitesKeepWorking(t *testing.T) {
 	if _, err := f.st.ClaimGroupInviteUnlisted(ctx, roster, c, "C"); err != nil { // someone else on a roster: guest
 		t.Fatal(err)
 	}
-	if _, err := f.st.AcceptInvite(ctx, tok, d, "D"); err != nil {
-		t.Fatal(err)
-	}
-	for who, want := range map[int64]int64{a: core, b: core, c: guest, d: core} {
+	for who, want := range map[int64]int64{a: core, b: core, c: guest} {
 		if got := f.roleOf(t, who); got != want {
 			t.Errorf("person %d: role %d, want %d", who, got, want)
 		}
 	}
 }
 
-// TestArchiveClosesInvites: archiving closes the band's open links, its
-// roster links and its one-off links; unarchiving reopens none.
+// TestArchiveClosesInvites: archiving closes the band's open links and
+// its roster links; unarchiving reopens none.
 func TestArchiveClosesInvites(t *testing.T) {
 	f := newBandRolesFixture(t)
 	ctx := context.Background()
@@ -220,10 +194,6 @@ func TestArchiveClosesInvites(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, roster, err := f.st.CreateGroupInvite(ctx, "band", f.band, f.core, []GroupInviteSlotInput{{DisplayName: "Zed"}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	oneOff, err := f.st.CreateBandInvite(ctx, f.band, f.role(t, "core").ID, f.core, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,12 +220,6 @@ func TestArchiveClosesInvites(t *testing.T) {
 	}
 	if _, err := f.st.ClaimGroupInviteUnlisted(ctx, roster, p, "Late"); !errors.Is(err, ErrForbidden) {
 		t.Errorf("the roster link after archiving: %v, want closed", err)
-	}
-	if _, err := f.st.AcceptInvite(ctx, oneOff, p, "Late"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("the one-off link after archiving: %v, want gone", err)
-	}
-	if open, _ := f.st.ListOpenBandInvites(ctx, f.band); len(open) != 0 {
-		t.Errorf("one-off links still listed: %+v", open)
 	}
 	if f.roleOf(t, p) != 0 {
 		t.Error("joined an archived (since unarchived) band through an old link")

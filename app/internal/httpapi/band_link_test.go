@@ -298,7 +298,6 @@ func TestBandInvitesAreCoreOnly(t *testing.T) {
 	}
 
 	call("add someone known", "POST", b+"/members", fmt.Sprintf(`{"personId":%d,"status":"guest"}`, someoneID))
-	call("one-off link", "POST", b+"/invites", "status=guest")
 	shell := call("personal invite", "POST", b+"/personal-invites", `{"displayName":"Placeholder","status":"guest"}`)
 	shellID := int64(shell["personId"].(float64))
 	call("new link for a placeholder", "POST", fmt.Sprintf("/api/people/%d/personal-invites", shellID), "")

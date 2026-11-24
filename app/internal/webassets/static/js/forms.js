@@ -26,8 +26,9 @@
       el = document.createElement('p');
       el.className = 'field-error';
       el.id = id;
-      // Under the control, or under the group for a radio/checkbox set.
-      const anchor = input.closest('fieldset.field-group') || input.closest('label.check') || input;
+      // Under the control, or under the group for a radio/checkbox set,
+      // or under a password field's row (the field and its Show button).
+      const anchor = input.closest('fieldset.field-group') || input.closest('label.check') || input.closest('.pw-field') || input;
       anchor.insertAdjacentElement('afterend', el);
     }
     const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);

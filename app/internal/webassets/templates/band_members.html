@@ -114,43 +114,38 @@
 
   <div class="home-section-head" style="margin-top:0.4rem;"><h3>{{t "Add people to this band"}}</h3></div>
   {{if .IsCore}}
-  <p class="hint">{{t "Someone you already play with, a link anyone can use once, or one open link for a rehearsal or a gig. Whoever joins by a link does it with their email."}}</p>
+  {{/* Invites are made by name (the roster's "Add someone by name":
+       a placeholder with a personal link) or by the band link below;
+       the nameless one-off link is gone (decided 2026-11-24). */}}
+  <p class="hint">{{t "Someone by name on the roster above, someone you already play with, or one open link for a rehearsal or a gig. Whoever joins by a link does it with their email."}}</p>
   <div class="card-grid">
+    {{if .KnownPeople}}
     <div class="card">
-      <h2>{{if .KnownPeople}}{{t "Someone you already play with, or a one-off link"}}{{else}}{{t "A one-off link"}}{{end}}</h2>
-      {{range .OpenInvites}}
-      <div class="invite-link-row">
-        <code class="invite-link-url" data-url="/invite/{{.Token}}">/invite/{{.Token}}</code>
-        <button type="button" class="copy-link-btn" data-url="/invite/{{.Token}}">{{t "Copy"}}</button>
-        <button type="button" class="qr-link-btn" data-url="/invite/{{.Token}}">{{t "QR code"}}</button>
-        <span class="hint">({{template "band-role-name" .Role}}, {{t "expires %s" (.ExpiresAt.Format "2006-01-02")}})</span>
-      </div>
-      {{end}}
+      <h2>{{t "Someone you already play with"}}</h2>
       <form class="form-stack" id="add-member-form">
         {{/* Someone with an account is picked among the people the
              viewer already plays with (add_person.go); anyone else is
-             added by name on the roster above, or gets a link. */}}
-        {{if .KnownPeople}}
+             added by name on the roster above. */}}
         <div class="field">
-          <label for="add-known">{{t "Someone you already play with"}}</label>
-          <p class="field-hint" id="add-known-hint">{{t "They’re added straight away. Pick nobody to get a one-time link to send instead."}}</p>
-          <select id="add-known" aria-describedby="add-known-hint">
-            <option value="">{{t "Nobody here"}}</option>
+          <label for="add-known">{{t "Who"}}</label>
+          <p class="field-hint" id="add-known-hint">{{t "They’re added straight away."}}</p>
+          <select id="add-known" aria-describedby="add-known-hint" required>
+            <option value="">{{t "Pick someone"}}</option>
             {{range .KnownPeople}}<option value="{{.ID}}">{{.DisplayName}} · {{.Where}}</option>{{end}}
           </select>
         </div>
-        {{end}}
         <div class="field">
           <label for="add-status">{{t "Role"}}</label>
           <p class="field-hint" id="add-status-hint">{{t "Any of the band’s roles: what each allows is in Settings."}}</p>
           <select id="add-status" aria-describedby="add-status-hint">{{template "band-invite-role-options" $.Roles}}</select>
         </div>
         <div class="form-actions">
-          <button type="submit" id="add-member-btn" class="primary">{{t "Create invite link"}}</button>
+          <button type="submit" id="add-member-btn" class="primary">{{t "Add to band"}}</button>
         </div>
         <p id="add-member-result" class="form-status" role="status"></p>
       </form>
     </div>
+    {{end}}
     {{/* The band link: one open link per role, no names, for a rehearsal
          or a gig (handleCreateBandLink). Its markup and script stay in
          this one block. */}}
@@ -290,35 +285,24 @@ document.getElementById('show-past-toggle').addEventListener('change', (e) => {
   document.getElementById('past-members-wrap').hidden = !e.target.checked;
 });
 
-// One form, two outcomes: someone picked is added now; nobody picked
-// makes a one-time link instead. The button says which it's about to do.
+// Someone the viewer already plays with, added straight away.
 (function () {
   const form = document.getElementById('add-member-form');
-  if (!form) return; // a guest: no inviting
+  if (!form) return; // a guest (no inviting), or nobody to pick
   const knownSel = document.getElementById('add-known');
   const btn = document.getElementById('add-member-btn');
-  const label = () => { btn.textContent = knownSel?.value ? t('Add to band') : t('Create invite link'); };
-  knownSel?.addEventListener('change', label);
-  label();
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const personId = Number(knownSel?.value || 0);
+    const personId = Number(knownSel.value || 0);
+    if (!personId) return; // required: forms.js says so under the field
     const roleId = Number(document.getElementById('add-status').value);
+    const who = knownSel.selectedOptions[0].textContent.split(' · ')[0];
     Forms.run(form, btn, async () => {
-      if (personId) {
-        const who = knownSel.selectedOptions[0].textContent.split(' · ')[0];
-        const res = await fetch(`/api/bands/${bandId}/members`, {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({personId, roleId}),
-        });
-        if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', who));
-        location.reload();
-        return;
-      }
-      // Nobody named — same action, send a link instead ("we send a link,
-      // that's it").
-      const res = await fetch(`/api/bands/${bandId}/invites`, {method: 'POST', body: new URLSearchParams({roleId})});
-      if (!res.ok) throw new Error(t('Couldn’t create the link. Try again.'));
+      const res = await fetch(`/api/bands/${bandId}/members`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({personId, roleId}),
+      });
+      if (!res.ok) throw new Error(t('Couldn’t add %s. Try again.', who));
       location.reload();
     });
   });

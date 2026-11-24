@@ -39,7 +39,6 @@ func main() {
 	grantAdminUser := flag.String("grant-admin", "", "one-time bootstrap: grant this person (an email or a numeric id) site-wide admin (is_admin), then exit — the only way to create the first admin, since there's no self-serve path")
 	setEmailUser := flag.String("set-email", "", "one-time bootstrap: set (or change) an account's email, the account's identity and what it logs in with — pass the person here (their numeric id, or their current email) and the new email as the one remaining positional argument, e.g. songbooks --set-email 3 me@example.com")
 	createPersonalInviteUser := flag.String("create-personal-invite", "", "one-time bootstrap: mint a fresh /invite/{token} link for an existing shell account (one created via the band/community roster's quick-add, is_shell=true, not yet logged in) and print it, then exit — the admin-panel equivalent of the roster page's 'Get invite link' button, for an account that has no admin band/community member around to click it. Pass the shell account's numeric id (it has no email yet).")
-	createBandInviteID := flag.Int64("create-band-invite", 0, "one-time bootstrap: mint a fresh single-use /invite/{token} band invite link (see handleCreateBandInvite) for this band ID and print it, then exit — the admin-panel equivalent of the band members page's 'Add to band' action with no email typed in. Status defaults to \"core\"; pass \"guest\" as the one positional argument to override.")
 	smtpURL := flag.String("smtp-url", "", "real SMTP endpoint for outbound mail — NOT YET IMPLEMENTED; if set, this is logged and the server falls back to the console/outbox mailer. Swapping in a real mailer.Mailer implementation here is the contained follow-up change this flag is a placeholder for.")
 	devAutoLoginUser := flag.String("dev-auto-login", envOr("SONGBOOKS_DEV_AUTO_LOGIN", ""), "DEV/TESTING ONLY, DEFAULT OFF: if set to a person (an email or a numeric id), every single HTTP request is automatically authenticated as that person — /login is skipped entirely, no cookie, no session. This completely disables authentication for anyone who can reach the server. NEVER set this (as a flag or as the SONGBOOKS_DEV_AUTO_LOGIN env var) on a production or otherwise publicly-reachable deployment. Leave it unset (the default) everywhere except your own local dev loop.")
 	webauthnRPID := flag.String("webauthn-rp-id", envOr("SONGBOOKS_WEBAUTHN_RP_ID", ""), "passkey (WebAuthn) Relying Party ID — the bare hostname passkeys are bound to (e.g. songbooks.tapoueh.org). MUST be set explicitly in production: a passkey only ever works against the exact RPID it was registered under, and defaulting this is a dev-only convenience (see below). Left unset (the default), the RPID/origin are instead derived per-request from that request's own Host header — fine for bouncing between localhost:8080 and a LAN IP while developing, but wrong for a real deployment, which should pin one fixed hostname here instead of trusting whatever Host a request arrived with.")
@@ -134,27 +133,6 @@ func main() {
 		return
 	}
 
-	if *createBandInviteID != 0 {
-		status := "core"
-		args := flag.Args()
-		if len(args) > 1 {
-			log.Fatalf("--create-band-invite takes at most one positional argument (\"core\" or \"guest\"), got %d", len(args))
-		}
-		if len(args) == 1 {
-			status = args[0]
-		}
-		roleID, err := st.ResolveBandInviteRole(ctx, *createBandInviteID, 0, status)
-		if err != nil {
-			log.Fatalf("creating band invite for band %d: %v", *createBandInviteID, err)
-		}
-		token, err := st.CreateBandInvite(ctx, *createBandInviteID, roleID, 0, 7*24*time.Hour)
-		if err != nil {
-			log.Fatalf("creating band invite for band %d: %v", *createBandInviteID, err)
-		}
-		fmt.Printf("/invite/%s\n", token)
-		return
-	}
-
 	// SMTP isn't wired up yet (out of scope for this phase — no mail
 	// server exists in this environment); the console/outbox mailer
 	// below is the deliverable. Swapping in a real mailer.Mailer
@@ -192,6 +170,20 @@ func main() {
 	} else if len(locked) > 0 {
 		for _, p := range locked {
 			log.Printf("account %d (%q) has a password but no email: it can't log in — songbooks --set-email %d <email>", p.ID, p.DisplayName, p.ID)
+		}
+	}
+
+	// No login email reaches anyone (the console mailer): an account with
+	// an email but no password nor passkey (event registration made them
+	// until a password was required) can't log back in once its session
+	// ends. Said at every start, like the admin page does.
+	if !mailer.Delivers(m) {
+		if locked, err := st.ListEmailNoPassword(ctx); err != nil {
+			log.Printf("listing the accounts without a password: %v", err)
+		} else {
+			for _, p := range locked {
+				log.Printf("account %d (%q) has an email but no password nor passkey, and no login email is sent: it can't log back in — an admin's login link, then a password on its profile, or songbooks --set-password %d", p.ID, p.DisplayName, p.ID)
+			}
 		}
 	}
 

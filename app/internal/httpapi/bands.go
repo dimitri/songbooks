@@ -347,13 +347,6 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The band's still-shareable one-off links, shown up front rather
-	// than only right after creating one (see ListOpenBandInvites).
-	openInvites, err := s.store.ListOpenBandInvites(r.Context(), bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	// Placeholders' personal links, to show on their own roster row.
 	shellPeople, err := s.store.ListShellPeopleForBand(r.Context(), bandID)
 	if err != nil {
@@ -405,10 +398,6 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invites := make([]bandInviteRow, len(openInvites))
-	for i, inv := range openInvites {
-		invites[i] = bandInviteRow{OpenBandInvite: inv, Role: inviteRoleOf(roles, inv.RoleID, inv.Status)}
-	}
 	linkRows := []bandLinkRow{}
 	for _, gi := range bandLinks(groupInvites) {
 		linkRows = append(linkRows, bandLinkRow{GroupInviteView: gi, Role: inviteRoleOf(roles, gi.RoleID, gi.DefaultStatus)})
@@ -431,20 +420,12 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": rows, "KnownPeople": known,
-		"OpenInvites": invites,
 		// IsCore: may invite people (manage_members), as before roles.
 		"IsCore":    privs.Can(store.BandPrivManageMembers),
 		"Privs":     privs,
 		"Roles":     roles,
 		"BandLinks": linkRows,
 	})
-}
-
-// bandInviteRow is one of the band's one-off links on its Members page,
-// with the role it gives.
-type bandInviteRow struct {
-	store.OpenBandInvite
-	Role store.BandRole
 }
 
 // bandLinkRow is one of the band's open links (QR codes) on its Members
@@ -750,26 +731,6 @@ func (s *Server) handleSetBandArchived(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"archived": req.Archived})
-}
-
-// handleCreateBandInvite makes a single-use band invite link, valid for 7
-// days, giving one of the band's roles (form roleId, or status: core or
-// guest) — the band equivalent of handleCreateInvite (members.go).
-// manage_members.
-func (s *Server) handleCreateBandInvite(w http.ResponseWriter, r *http.Request) {
-	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	formRole, _ := strconv.ParseInt(r.FormValue("roleId"), 10, 64)
-	roleID, ok := s.inviteRole(w, r, bandID, formRole, r.FormValue("status"), "")
-	if !ok {
-		return
-	}
-	actor := personFromContext(r)
-	token, err := s.store.CreateBandInvite(r.Context(), bandID, roleID, actor.ID, 7*24*time.Hour)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"url": "/invite/" + token})
 }
 
 // handleCreateBandGroupInvite makes a brand-new, reusable group invite

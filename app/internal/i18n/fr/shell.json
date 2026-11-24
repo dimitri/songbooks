@@ -1,5 +1,4 @@
 {
-  " member.": ".",
   " — backing track": " — accompagnement",
   " — full performance": " — version complète",
   "%d KB": "%d Ko",
@@ -131,7 +130,6 @@
   "Jam (white, teal and slate)": "Jam (blanc, bleu canard et ardoise)",
   "Jazz chart": "Grille jazz",
   "Join %s": "Rejoindre %s",
-  "Join %s as": "Rejoindre %s en tant que",
   "Join a band": "Rejoindre un groupe",
   "Kind": "Type",
   "Language": "Langue",
@@ -328,7 +326,6 @@
   "You're already in %d bands": "Vous êtes déjà dans %d groupes",
   "You're already on the roster for:": "Vous figurez déjà dans :",
   "You're set": "Vous êtes prêt",
-  "You've been invited as a": "Vous êtes invité comme membre",
   "You've been invited to join Songbooks.": "Vous êtes invité à rejoindre Songbooks.",
   "YouTube recording": "Enregistrement YouTube",
   "Your Songbooks login link": "Votre lien de connexion à Songbooks",
