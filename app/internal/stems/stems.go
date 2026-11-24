@@ -146,7 +146,7 @@ func DecodeWAVs(ctx context.Context, dir string, mix, backing, vocals []byte) (W
 func run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	cmd.Stderr = stderrFor(ctx, &stderr)
 	if err := cmd.Run(); err != nil {
 		msg := stderr.String()
 		if len(msg) > 2000 {

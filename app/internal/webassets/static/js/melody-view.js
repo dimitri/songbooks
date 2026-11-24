@@ -50,6 +50,80 @@
     page.classList.toggle('is-waiting', !!text);
   }
 
+  // ---- Until it's ready (melody-status.js, melody_status.go) --------------
+  // The view is always there: until the melody can be drawn, its tab is
+  // dimmed and says why, and the view shows how far along it is; asked
+  // again while it can change, drawn as soon as it's ready.
+
+  const tab = document.getElementById('melody-tab');
+  const box = $('.melody-status');
+  const MS = window.MelodyStatus;
+  let status = null;
+  try { status = page.dataset.status ? JSON.parse(page.dataset.status) : null; } catch (e) { status = null; }
+
+  function applyStatus(st) {
+    status = st;
+    const ready = !st || st.state === 'ready';
+    page.classList.toggle('is-empty', !ready);
+    if (box) {
+      box.hidden = ready;
+      box.dataset.state = st ? st.state : '';
+      box.querySelector('.melody-status-msg').textContent = ready ? '' : st.message || tr(WAIT[st.state] || WAIT.sync);
+      const bar = box.querySelector('.melody-status-bar');
+      const p = st && typeof st.progress === 'number' ? st.progress : null;
+      bar.hidden = ready || p === null;
+      if (p !== null) bar.firstElementChild.style.width = `${Math.round(p * 100)}%`;
+      box.querySelector('.melody-retry').hidden = !(st && st.state === 'failed' && st.canRetry);
+    }
+    if (tab) {
+      tab.classList.toggle('is-unready', !ready);
+      tab.title = ready ? tab.dataset.titleReady || '' : st.message || '';
+      const why = tab.querySelector('#melody-tab-why');
+      if (why) why.textContent = ready ? '' : st.message || '';
+      if (ready) tab.removeAttribute('aria-describedby'); else tab.setAttribute('aria-describedby', 'melody-tab-why');
+    }
+    // The tab, and the phone's View sheet's row: dimmed, "42%" while
+    // the voice is split.
+    document.querySelectorAll('.melody-tab-progress').forEach((note) => { note.textContent = MS ? MS.tabNote(st) : ''; });
+    document.querySelector('#view-stack .melody-row')?.classList.toggle('is-unready', !ready);
+  }
+
+  async function fetchStatus() {
+    const res = await fetch(`/api/songs/${variantId}/melody/status`, { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    return res.json();
+  }
+
+  const poll = MS ? MS.poller({
+    fetch: fetchStatus,
+    hidden: () => document.hidden,
+    onStatus(st, prev) {
+      applyStatus(st);
+      if (st.state === 'ready' && (!prev || prev.state !== 'ready')) {
+        // Ready now: drawn at once when the view is shown, else the next
+        // time it is.
+        loading = null;
+        if (sheet.dataset.renderMode === 'melody') loading = load();
+      }
+    },
+  }) : null;
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && poll) poll.resume(); });
+
+  box?.querySelector('.melody-retry')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (!status || !status.category) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/songs/${variantId}/audio/${status.category}/stems`, { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) throw new Error(await res.text());
+      if (poll) poll.now();
+    } catch (err) {
+      showWait(tr('Could not queue the split again.'));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // The page's size (gp-view.js geometry): an A4 sheet at most 860 px
   // wide, the whole width on a phone; bars a line as leave room for the
   // words (alphaTab spaces the notes, not the syllables).
@@ -200,7 +274,16 @@
     // The lyrics are held to the bars the sync gives: an estimate places
     // them only as well as it places the bars.
     if (data.syncSource === 'analysis' || data.syncEstimated) bits.push(tr('placement depends on the sync — save the sync for better results'));
+    // The key signature: the chart's key:, else found (said so); an editor
+    // is told when the melody and chords point to another key.
+    if (data.keySource === 'melody') bits.push(tr('key %s, estimated from the melody and chords (the chart has no key)', data.key));
+    else if (data.keySource === 'recording') bits.push(tr('key %s, from the recording (the chart has no key)', data.key));
     conf.textContent = bits.join(' · ');
+    const check = $('.melody-key-check');
+    if (check) {
+      check.hidden = !data.keyCheck;
+      check.textContent = data.keyCheck ? tr('The melody and chords sound like %s, the chart says %s: check its key.', data.keyCheck.found, data.keyCheck.chart) : '';
+    }
     const xml = $('.melody-xml');
     if (xml) xml.href = `/api/songs/${variantId}/melody.musicxml${offset ? `?transpose=${offset}` : ''}`;
     if (canEdit) renderFixes(data);
@@ -357,12 +440,14 @@
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       if (data.state !== 'ready') {
-        showWait(tr(WAIT[data.state] || WAIT.sync));
-        page.classList.add('is-empty');
+        // Not drawable after all (no bars for it, say): the status says
+        // why, and is asked again while it can change.
+        applyStatus({ state: data.state, message: tr(WAIT[data.state] || WAIT.sync), category: data.category });
+        if (poll) poll.now();
         return;
       }
       await loadAlphaTab();
-      page.classList.remove('is-empty');
+      applyStatus({ state: 'ready' });
       showWait('');
       draw(data);
     } catch (e) {
@@ -373,6 +458,9 @@
   }
   function onMode() {
     if (sheet.dataset.renderMode !== 'melody') return;
+    // Not ready: the view shows where it stands (applyStatus) until the
+    // poller finds it ready.
+    if (status && status.state !== 'ready') return;
     if (!loading) loading = load();
     else if (view) { relayout(); startFollowing(); }
   }
@@ -394,6 +482,8 @@
     clearTimeout(keyTimer);
     keyTimer = setTimeout(() => { loading = load(); }, 200);
   });
+  applyStatus(status);
+  if (poll && status && !MS.done(status)) poll.start(status);
   onMode();
 
   window.MelodyView = { api: () => view && view.api, data: () => view && view.data, reload: () => (loading = load()) };

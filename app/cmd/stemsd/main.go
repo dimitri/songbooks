@@ -127,6 +127,7 @@ func main() {
 
 func process(ctx context.Context, st *store.Store, split stems.Splitter, an stems.Analyzer, job store.StemJob, timeout time.Duration) {
 	start := time.Now()
+	ctx = withProgress(ctx, st, job) // how far Demucs is, for the Melody view
 	audio, _, err := st.GetSongAudioData(ctx, job.SongAudioID)
 	if err != nil {
 		fail(st, job, err)

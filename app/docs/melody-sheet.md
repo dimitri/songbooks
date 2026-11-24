@@ -103,7 +103,8 @@ lyrics lines ─syllables─▶ chords on the bars (anchors) ─▶ syllables on
 
 5. **Writing it** (`melody/alphatex.go`, `melody/musicxml.go`). alphaTex
    for the page (one voice, treble clef — an octave down, `8vb`, when the
-   voice's median is under C4 — the chart's key signature, its sections,
+   voice's median is under C4 — the key signature ("Key signature"
+   below), its sections,
    tempo, the lyrics as alphaTex lays them: a token per note, `-` inside a
    word, `_` for a held or tied note, `+` for two syllables on one note);
    MusicXML 4.0 for download (unsure notes in parentheses, syllabic
@@ -119,11 +120,92 @@ the score on A4 pages like the Score view (one line never split across
 two pages), puts a shaded cursor on the bar the player is in (the score's
 bars are the played bars, so repeats follow) and keeps it in sight while
 playing; a click on a note plays from its bar. Until there's a melody it
-says why: "available once the recording is split and synced" (no split,
-or no sync and no confident analysis), the voice being read (the job
-hasn't reached it), or too little singing. The view is offered on a song
-with lyrics and a YouTube or band recording, and on any song whose melody
-was found.
+says why (below, "Until it's ready"). The view is on every song.
+
+### Until it's ready
+
+The view is always there (hiding it was confusing): until the melody can
+be drawn its tab is dimmed, its tooltip says why, and "42%" follows
+"Mélodie" while the voice is split (on a phone, the View sheet's row);
+the view itself shows the state in one line, a progress bar, and for an
+editor a failed split's *Split the recording again*. The page is made
+with the state (`data-status`); `melody-status.js` asks again while it
+can change (`GET /api/songs/{id}/melody/status`, same rights as the song:
+`melody_status.go`), after the server's `poll` seconds, half as long again
+each time nothing moved (a minute at most), paused while the page is
+hidden, stopped on a state that won't change by itself; when it turns
+`ready` the sheet is drawn without a reload.
+
+| state | when | says |
+|---|---|---|
+| `none` | no YouTube or band recording | add one |
+| `unavailable` | not split, and no stems worker at work on this server (none seen for 15 min, no split started in the last 40: staging has none) | not available here |
+| `queued` | its split is waiting | how many before it, and an estimate |
+| `running` | its split is being made | the worker's % and what's left |
+| `failed` | its split failed three times | an editor may queue it again |
+| `notes` | split; its notes are being found (the app's job, woken by the split) | an estimate |
+| `analysis` | notes, no sync saved, the recording's analysis (beats, bars) to come from a worker | — |
+| `unsung` | too little singing | — |
+| `sync` | notes, no bars for them | save the sync |
+| `ready` | drawable | (the sheet) |
+
+The **wait**: from the worker's progress when it reports it (`etaSource:
+"worker"`: Demucs's elapsed time ÷ its share done, plus 8 % for the
+parts' encoding), else estimated (`"estimate"`, said so): the
+recording's size × the worker's median time per MB on its last 20 splits
+(a split is "done" when its parts are saved, before the analysis), for
+the splits before it (those running: what's left of theirs), its own,
+and the melody's notes (their recent average). The page's first drawing
+doesn't look for bars (a found melody is taken as ready; the view says
+"sync" when it's opened if there are none).
+
+**The worker** (`cmd/stemsd`, migration 0134): it notes itself in
+`stem_workers` each time it looks for a job (`store.ClaimStemJob`, at
+least once a minute); while Demucs runs, its progress bar on standard
+error is read as it's written (`stems.WithProgress`) and every 5 % saved
+in `song_audio_stem_jobs.progress` / `progress_at` (meaningful while the
+job runs, `progress_at` after `started_at`). A worker that doesn't report
+only loses the %: the estimate stands in.
+
+### Key signature
+
+The chart's `key:`, at the page's key (the songbook entry's or the
+coach's key, the −/+: `?transpose=`), as the chords are. A chart without
+one gets the key its **melody and chords** point to (`melody/key.go`,
+Krumhansl–Schmuckler): the melody's pitch classes (each note's length ×
+confidence, the recording's tuning offset taken out) and the chart's
+chord tones as played (root, third, fifth, seventh or sixth, the bass),
+each normalized and weighted 0.3 / 0.7, correlated with the
+Krumhansl–Kessler profiles in the 24 keys, a key whose tonic chord ends
+the chart (half as much: starts it) given 0.06 more. The page says "key
+Eb, estimated from the melody and chords". Without notes or chords, the
+recording's analysis' key; else none (C). An **editor** is told when the
+chart's key and the guess write different signatures and the guess leads
+the best key of another signature by 0.25 or more ("The melody and
+chords sound like Cm, the chart says C: check its key"); a relative
+major or minor writes the same signature: no disagreement for the sheet.
+
+Measured on the demo songs with a melody (47; 23 with a `key:`), the
+header against the guess:
+
+| evidence | same key | relative | a fifth off | other |
+|---|---:|---:|---:|---:|
+| melody alone | 5 | 1 | 4 | 13 |
+| chords alone | 16 | 0 | 5 | 2 |
+| both, 0.5 / 0.5 | 13 | 0 | 6 | 4 |
+| both, 0.3 / 0.7 | 16 | 0 | 4 | 3 |
+| both, 0.3 / 0.7, last/first chord | **17** | 0 | 4 | 2 |
+
+The melody alone is weak there because in 12 of the 23 the recording
+isn't in the chart's key (its notes match the chords best moved by 1 to
+11 semitones: another recording, a guitar tuned down); where they agree
+(11), the melody alone found 4, the relative major once and the parallel
+major or minor 3 times (blue thirds). The six misses with the chords: a
+chart marked C whose chords are C minor's (the check is right), two
+mixolydian songs (a ♭VII: read as the key a fourth up, or its relative),
+a modulating song (verse in D minor, chorus in A minor), and two between
+I and iii or V. The check would have told the editor about four of them
+(leads 0.30–0.81), not the two closest calls (0.06, 0.12).
 
 Editors correct a line: *Lyrics placement* lists the lines (section, the
 bar its first note is in, how sure) with ◀ ▶ to start its syllables a
@@ -157,6 +239,8 @@ when the line is edited it lapses.
 - **Syllables by rule**: compounds and borrowed words are cut wrong now
   and then ("so-meone's"); the count is what matters for placing them,
   and it's right more often than the cut.
-- **Key**: the key signature is the chart's `key:` (else the analysis');
-  a recording in another key than the chart shows its own pitches under
-  the chart's signature.
+- **Key**: the key signature is the chart's `key:` (else the melody's
+  and chords' key, else the analysis'); a recording in another key than
+  the chart shows its own pitches under the chart's signature. Modal and
+  blues songs (a ♭VII, dominant sevenths everywhere) and songs that
+  modulate are where the guess goes wrong.

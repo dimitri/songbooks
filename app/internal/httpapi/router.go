@@ -244,6 +244,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /api/songs/{id}/melody", s.requireVariantRole("viewer", s.handleGetSongMelody))
 	mux.HandleFunc("GET /api/songs/{id}/melody.musicxml", s.requireVariantRole("viewer", s.handleGetSongMelodyMusicXML))
 	mux.HandleFunc("PUT /api/songs/{id}/melody/lyrics-shift", s.requireVariantRole("editor", s.handlePutMelodyLyricShift))
+	// Where the melody stands until it can be drawn: the voice separation's
+	// progress (melody_status.go).
+	mux.HandleFunc("GET /api/songs/{id}/melody/status", s.requireVariantRole("viewer", s.handleGetSongMelodyStatus))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file", s.requireVariantRole("editor", s.handlePutSongGPFile))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/facts", s.requireVariantRole("viewer", s.handlePutSongGPFileFacts))
 	mux.HandleFunc("PUT /api/songs/{id}/gp-file/instruments", s.requireVariantRole("editor", s.handlePutSongGPFileInstruments))
