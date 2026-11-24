@@ -42,9 +42,20 @@ that list carries where the two share a group ("Marc · Nord Express"),
 which also tells two people of the same name apart. They're added
 straight away.
 
-The other ways in stay: a band's one-off link (`/invite/…`, nameless,
-single use), a band or community open link or QR code, a community's
-group invite with names to pick (`/join/…`), registering for an event.
+The other ways in stay: a band or community open link or QR code, a
+community's group invite with names to pick (`/join/…`), registering
+for an event, a site admin's plain invite (`/invite/…`, from the admin
+page: an account with no membership).
+
+A band's **nameless one-off link** is gone (decided 2026-11-24): the
+Members page made one when nobody was picked ("Create invite link"), an
+`/invite/…` with no name, single use, 7 days. Invites are made by name
+(a placeholder and its personal link) or with the band's open link or
+QR code, per role. Its route (`POST /api/bands/{id}/invites`) and
+`songbooks --create-band-invite` went with it, and one made before
+isn't taken any more (`GetInvite` and accepting skip an `invites` row
+with a band and no person; staging had none unused that day). A
+community never had one.
 
 ## Joining: an email
 
@@ -67,10 +78,36 @@ Every link asks the person to **sign up or sign in with their email**:
   an account is never taken for a new one: the form says to log in to
   join instead.
 
-A new account from a link needs a password: no login email is actually
-sent yet (the console mailer, `--smtp-url` isn't built), so an account
-without one would be locked out once its session ends. Registering for
-an event is the exception (its password is optional, as before).
+## A password, while no login email is sent
+
+No login email actually reaches anyone yet (the console mailer: it
+logs, and keeps a copy in the outbox; `--smtp-url` isn't built), so an
+account without a password would be locked out once its session ends
+(decided 2026-11-24: no email capabilities yet). So:
+
+- **Every way to make an account or claim a placeholder asks for a
+  password**, typed twice: a personal link, a band or community open
+  link, a community's group invite (a name or "someone else"), a site
+  admin's plain invite, and **registering for an event** (optional
+  until then). The rule (`password_rule.go`, the profile page's too):
+  at least 8 characters, at most 72 bytes (bcrypt's limit), the two
+  the same. The server checks it, whatever the form did; the pages put
+  its answer under the field it's about.
+- **The login page leads with the password** (then the passkey, then
+  "Email me a login link", which still works as before). The check is
+  the mailer's (`mailer.Delivers`: the console one doesn't), so a real
+  SMTP mailer, once built, puts the passkey first again and brings back
+  "a link we send you" on the join pages, "Forgot your password?" by
+  email, and the profile's "you log in with emailed links". Until then,
+  a forgotten password is a site admin's login link (a Members page's
+  "Login link"), then a new password on the profile page.
+- **Accounts with an email but no password nor passkey** (event
+  registration made them) can't log back in: the admin page lists them
+  at the top of *People*, and the server says so in its log at every
+  start, while no login email is sent. A site admin's login link gets
+  them in to set a password on their profile, or `songbooks
+  --set-password <id>`. Staging had none on 2026-11-24. Their profile
+  page says to set one now.
 
 ## Showing people
 

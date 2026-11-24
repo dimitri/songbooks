@@ -58,7 +58,7 @@ privilege.
 | `vote` | One's votes count: in a proposal's average, for/against, "n of m voted", who hasn't voted, the list's order. Without it a member still votes, listed apart ("Guests"), counted in none of it | ✓ | |
 | `decide_proposals` | Add a proposed song, or turn it down | ✓ | ✓ |
 | `curate_listen` | Remove anyone's songs from Discover and Influences (whoever added one always removes it) | ✓ | |
-| `manage_members` | Invite people (every way: someone they play with, picked by name, one-off and personal links, the roster link and its names, the band's open link and QR code); change others' instruments | ✓ | |
+| `manage_members` | Invite people (every way: someone they play with, picked by name, personal links, the roster link and its names, the band's open link and QR code); change others' instruments | ✓ | |
 | `remove_members` | Remove a member (leaving the band oneself is every member's) | ✓ | not since 0132 |
 | `manage_roles` | Give members a role; create, rename, delete roles, change what they allow | ✓ | |
 | `rename_archive` | Rename the band; archive and unarchive it (the one privilege an archived band still grants) | ✓ | |
@@ -100,7 +100,7 @@ that gates it now.
 | Language | `PUT …/locale` | core | `edit_look` |
 | Delete the band | `DELETE /api/bands/{id}` | any member | site admins only (the user's decision; no privilege) |
 | Add someone they play with, picked by name | `POST …/members` (`personId`; `roleId`, or `status`) | core | `manage_members`; any of the band's roles (0132) |
-| One-off link, personal invite, new link for a placeholder | `POST …/invites`, `…/personal-invites`, `…/members/{p}/invite-link`, `/api/people/{p}/personal-invites` (`CanInvitePerson`) | core | `manage_members` |
+| Personal invite, new link for a placeholder | `POST …/personal-invites`, `…/members/{p}/invite-link`, `/api/people/{p}/personal-invites` (`CanInvitePerson`) | core | `manage_members` |
 | Roster link and its names, close it | `POST …/group-invites…` | core | `manage_members` |
 | The band's open link / QR code (#129) | `POST …/band-link`, close | core | `manage_members` |
 | Someone else's instruments (a joined member) | `PUT …/members/{p}/instruments` (`MayEditMemberInstruments`) | core (anyone for a placeholder, oneself) | `manage_members` (same exceptions) |
@@ -182,7 +182,7 @@ The user's decisions:
   possible while archived.
 - **Archiving asks first** (Settings: a dialog saying what it does) and
   **closes every invite into the band still open** — its open links and
-  QR codes, its roster links, its one-off links (`SetBandArchived`).
+  QR codes, its roster links (`SetBandArchived`).
   Unarchiving reopens none of them; new ones can be made. A
   placeholder's personal link stays (it lets no one new in). No one
   leaves an archived band; personal things stay a member's own: their
@@ -193,7 +193,8 @@ The user's decisions:
 The user's decisions (2026-11-24):
 
 - **Invites into any role.** Every way of inviting — an account by
-  email or by name, a one-off link, a placeholder's personal link, a roster
+  email or by name, a one-off link (removed since, see accounts.md), a
+  placeholder's personal link, a roster
   link's names, the open link and its QR code — takes one of the band's
   roles (`roleId`; `store.ResolveBandInviteRole`), a band's own
   included, and the claim gives it. An invite keeps its role
