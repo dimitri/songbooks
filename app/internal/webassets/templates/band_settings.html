@@ -1,5 +1,6 @@
 {{define "band_settings"}}
 {{$brand := brandFor "band" .Band.ID}}
+{{$s := .Settings}}{{$a := $s.Access}}
 <!doctype html>
 <html lang="{{lang}}">
 <head>
@@ -20,215 +21,289 @@
 <main class="index">
   {{template "space-nav" .Space}}
 
-  <div class="card card--md">
-    <h2>{{t "The band"}}</h2>
-    <form class="form-stack" id="band-settings-form">
-      {{/* The name: rename_archive; what it plays: edit_band
-           (docs/band-roles.md). */}}
-      {{$rename := .BandRoles.Privs.Can "rename_archive"}}{{$edit := .BandRoles.Privs.Can "edit_band"}}
-      <fieldset class="band-settings-fields"{{if not (or $rename $edit)}} disabled{{end}}>
-      <div class="field">
-        <label for="settings-name">{{t "Band name"}}</label>
-        <input type="text" id="settings-name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done"{{if not $rename}} readonly aria-describedby="settings-name-hint"{{end}}>
-        {{if not $rename}}<p class="field-hint" id="settings-name-hint">{{if .Band.Archived}}{{t "The band is archived: read only."}}{{else}}{{t "Your role doesn’t let you rename the band."}}{{end}}</p>{{end}}
-      </div>
-      <fieldset class="field-group"{{if not $edit}} disabled{{end}}>
-        <legend>{{t "What the band plays"}}</legend>
-        <p class="field-hint" id="music-type-hint">{{t "An original band’s songbook is grouped by album."}}</p>
-        <label class="check"><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> {{t "Covers"}}</label>
-        <label class="check"><input type="radio" name="musicType" value="original" aria-describedby="music-type-hint"{{if eq .Band.MusicType "original"}} checked{{end}}> {{t "Original music"}}</label>
-        <label class="check"><input type="radio" name="musicType" value="" aria-describedby="music-type-hint"{{if eq .Band.MusicType ""}} checked{{end}}> {{t "Not set"}}</label>
-      </fieldset>
-      <div class="form-actions">
-        <button type="submit" id="band-settings-save" class="primary">{{t "Save changes"}}</button>
-      </div>
-      </fieldset>
-      <p class="form-status" role="status"></p>
-    </form>
-  </div>
+  {{/* The band's Settings in the settings shell (settings_shell.html,
+       httpapi/band_settings.go): the sections the viewer may change, in
+       order — The band, Look, Roles, the pages run elsewhere, and last,
+       apart, Archive or delete. */}}
+  <div class="admin-layout band-settings" data-admin-layout{{with .Shell.Default}} data-default-section="{{.}}"{{end}}>
+    {{template "settings-nav" .Shell}}
 
-  {{if .IsCore}}
-  {{/* The band's card picture on everyone's home page (card-image.js,
-       store.CardImage): its logo, a mosaic of its songs' covers, or the
-       covers it picks; the card beside the choices shows it live. */}}
-  <div class="card card--md card-image-editor" id="card-image" data-endpoint="/api/bands/{{.Band.ID}}" data-kind="{{t "Band"}}">
-    <h2>{{t "Logo / image"}}</h2>
-    <p class="hint">{{t "The picture on the band’s card, on every member’s home page."}}</p>
-    <div class="card-image-layout">
-      <form class="form-stack" id="card-image-form">
-        <fieldset class="field-group">
-          <legend>{{t "The card shows"}}</legend>
-          <label class="check"><input type="radio" name="mode" value=""> {{t "Automatic: the logo, else our songs’ covers"}}</label>
-          <label class="check"><input type="radio" name="mode" value="logo"> {{t "Our logo"}}</label>
-          <div class="card-image-logo" id="card-image-logo">
-            <img id="card-image-logo-preview" alt="{{t "The logo"}}" hidden>
-            <input type="file" id="card-image-logo-file" accept="image/png,image/jpeg,image/webp" hidden>
-            <button type="button" id="card-image-logo-upload">{{t "Upload a logo"}}</button>
-            <span class="field-hint" id="card-image-logo-status" role="status"></span>
+    <div class="admin-sections">
+
+    {{if $a.Band}}
+    {{/* ---- The band: its name (rename_archive); what it plays, its
+         tagline and website (kept in its brand) and its language
+         (edit_band). One Save; nothing reloads. ---- */}}
+    <section class="admin-section" id="band" aria-labelledby="band-title">
+      {{template "settings-back" .Shell.Back}}
+      <h2 class="admin-section-title" id="band-title">{{t "The band"}}</h2>
+      <p class="hint">{{t "Who the band is: its name, what it plays, the line under its name and the language of its pages."}}</p>
+      <div class="settings-split">
+        <form class="card form-stack settings-form" id="band-form" data-band-id="{{.Band.ID}}" data-kind="{{t "Band"}}">
+          {{if $a.Name}}
+          <div class="field">
+            <label for="band-name">{{t "Band name"}}</label>
+            <input type="text" id="band-name" name="name" value="{{.Band.Name}}" required maxlength="120" autocomplete="off" enterkeyhint="done">
           </div>
-          <label class="check"><input type="radio" name="mode" value="mosaic"> {{t "A mosaic of our songs’ covers"}}</label>
-          <label class="check"><input type="radio" name="mode" value="picked"> {{t "Album covers we pick"}}</label>
-        </fieldset>
-        <div class="card-image-picker" id="card-image-picker" hidden>
-          <p class="field-hint" id="card-image-picker-hint">{{t "Pick 1, 4 or 9 covers, in the order they show."}}</p>
-          <ul class="card-image-covers" id="card-image-covers" aria-describedby="card-image-picker-hint"></ul>
-        </div>
-        <p class="field-hint" id="card-image-none" hidden>{{t "No covers found for the band’s songs yet: they’re looked up when its songbook is opened."}}</p>
-        <div class="form-actions"><button type="submit" class="primary" id="card-image-save">{{t "Save the picture"}}</button></div>
-        <p class="form-status" role="status"></p>
-      </form>
-      <figure class="card-image-preview">
-        <figcaption class="field-hint">{{t "Preview"}}</figcaption>
-        <div class="group-card" aria-hidden="true">
-          <div class="home-pic group-pic" id="card-image-pic"></div>
-          <div class="group-card-text">
-            <h4><span class="group-card-link">{{.Band.Name}}</span></h4>
-            <p class="group-card-kind">{{t "Band"}}</p>
+          {{else}}
+          <div class="field settings-text"><span class="settings-text-label">{{t "Band name"}}</span><span>{{.Band.Name}}</span></div>
+          {{end}}
+
+          {{if $a.Plays}}
+          <fieldset class="field-group">
+            <legend>{{t "What the band plays"}}</legend>
+            <div class="settings-choice">
+              <label><input type="radio" name="musicType" value="covers" aria-describedby="music-type-hint"{{if eq .Band.MusicType "covers"}} checked{{end}}> {{t "Covers"}}</label>
+              <label><input type="radio" name="musicType" value="original" aria-describedby="music-type-hint"{{if eq .Band.MusicType "original"}} checked{{end}}> {{t "Original music"}}</label>
+              <label><input type="radio" name="musicType" value="" aria-describedby="music-type-hint"{{if eq .Band.MusicType ""}} checked{{end}}> {{t "Not set"}}</label>
+            </div>
+            <p class="field-hint" id="music-type-hint">{{t "An original band’s songbook is grouped by album."}}</p>
+          </fieldset>
+          {{else if .Band.MusicType}}
+          <div class="field settings-text"><span class="settings-text-label">{{t "What the band plays"}}</span><span>{{$s.PlaysLabel}}</span></div>
+          {{end}}
+
+          {{if $a.Words}}
+          <div class="settings-row2">
+            <div class="field"><label for="band-tagline">{{t "Tagline"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="band-tagline" name="tagline" value="{{$s.Brand.Tagline}}" maxlength="140" autocomplete="off"></div>
+            <div class="field"><label for="band-website">{{t "Website"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="url" id="band-website" name="website" value="{{$s.Brand.Website}}" placeholder="https://…" autocomplete="off" autocapitalize="none" spellcheck="false" pattern="https://.+" title="{{t "A web address that starts with https://"}}"></div>
           </div>
+          {{else}}
+          {{with $s.Brand.Tagline}}<div class="field settings-text"><span class="settings-text-label">{{t "Tagline"}}</span><span>{{.}}</span></div>{{end}}
+          {{with $s.Brand.Website}}<div class="field settings-text"><span class="settings-text-label">{{t "Website"}}</span><span>{{.}}</span></div>{{end}}
+          {{end}}
+
+          {{if $a.Plays}}
+          <div class="field">
+            <label for="band-locale">{{t "Language of the band’s pages"}}</label>
+            <select id="band-locale" name="locale" aria-describedby="band-locale-hint">
+              <option value=""{{if eq $s.Locale ""}} selected{{end}}>{{t "Automatic (each member’s own)"}}</option>
+              <option value="en"{{if eq $s.Locale "en"}} selected{{end}}>English</option>
+              <option value="fr"{{if eq $s.Locale "fr"}} selected{{end}}>Français</option>
+            </select>
+            <p class="field-hint" id="band-locale-hint">{{t "For members who haven’t picked a language in their profile."}}</p>
+          </div>
+          {{end}}
+
+          <div class="settings-savebar">
+            <span class="settings-savebar-state" data-changes aria-live="polite">{{t "No changes"}}</span>
+            <button type="submit" class="primary" id="band-save" disabled>{{t "Save"}}</button>
+          </div>
+          <p class="form-status" role="status"></p>
+        </form>
+        <aside class="settings-preview" aria-label="{{t "How it shows"}}">
+          <p class="settings-preview-cap">{{t "How it shows"}}</p>
+          <div class="settings-preview-head">
+            <span class="settings-preview-av" aria-hidden="true">{{with $brand}}{{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{else if .Mark}}{{.Mark}}{{else}}{{$.Space.Initials}}{{end}}{{else}}{{$.Space.Initials}}{{end}}</span>
+            <span><strong data-preview="name">{{.Band.Name}}</strong><small data-preview="tagline">{{with $s.Brand.Tagline}}{{.}}{{else}}{{t "Band"}}{{end}}</small></span>
+          </div>
+          <p class="field-hint">{{t "The band’s header, on every page of the band."}}</p>
+        </aside>
+      </div>
+    </section>
+    {{end}}
+
+    {{if $a.Look}}
+    {{/* ---- Look (edit_look): one logo, what the band's card shows, the
+         style, folded fine-tuning, a live preview, one Save
+         (band-look.js). ---- */}}
+    <section class="admin-section" id="look" aria-labelledby="look-title">
+      {{template "settings-back" .Shell.Back}}
+      <h2 class="admin-section-title" id="look-title">{{t "Look"}}</h2>
+      <p class="hint">{{t "How the band looks to everyone in it: its pages, its songbooks and set lists, the songs opened from them, and its card on every member’s home page."}}</p>
+      <div class="settings-split">
+        <form class="card form-stack settings-form look-form" id="look-form" data-endpoint="/api/bands/{{.Band.ID}}" novalidate data-novalidate-js>
+          <fieldset class="field-group">
+            <legend>{{t "Logo"}}</legend>
+            <div class="look-logo">
+              <span class="look-logo-pic" id="look-logo-pic" aria-hidden="true"><img id="look-logo-img" alt="" hidden><span class="look-logo-empty">+</span></span>
+              <input type="file" id="look-logo-file" accept="image/png,image/jpeg,image/webp" aria-describedby="look-logo-hint" hidden>
+              <button type="button" id="look-logo-upload">{{t "Upload a logo"}}</button>
+              <button type="button" class="danger" id="look-logo-remove" hidden>{{t "Remove"}}</button>
+            </div>
+            <p class="field-hint" id="look-logo-hint">{{t "A PNG, JPEG or WebP image, best square. It shows on the band’s card and in its header."}}</p>
+            <p class="field-hint" id="look-logo-status" role="status"></p>
+            <details class="look-logo-url">
+              <summary>{{t "or an https address"}}</summary>
+              <label class="sr-only" for="look-logo-url">{{t "Logo address"}}</label>
+              <input type="url" id="look-logo-url" name="logoURL" placeholder="https://…" autocomplete="off" autocapitalize="none" spellcheck="false">
+              <p class="field-hint">{{t "An uploaded logo comes first."}}</p>
+            </details>
+          </fieldset>
+
+          <fieldset class="field-group">
+            <legend>{{t "The card shows"}}</legend>
+            <div class="settings-choice">
+              <label><input type="radio" name="mode" value=""> {{t "Automatic"}}</label>
+              <label><input type="radio" name="mode" value="logo"> {{t "Our logo"}}</label>
+              <label><input type="radio" name="mode" value="mosaic"> {{t "Covers mosaic"}}</label>
+              <label><input type="radio" name="mode" value="picked"> {{t "Covers we pick"}}</label>
+            </div>
+            <p class="field-hint">{{t "Automatic: the logo, else a mosaic of our songs’ covers."}}</p>
+            <div class="card-image-picker" id="card-image-picker" hidden>
+              <p class="field-hint" id="card-image-picker-hint">{{t "Pick 1, 4 or 9 covers, in the order they show."}}</p>
+              <ul class="card-image-covers" id="card-image-covers" aria-describedby="card-image-picker-hint"></ul>
+            </div>
+            <p class="field-hint" id="card-image-none" hidden>{{t "No covers found for the band’s songs yet: they’re looked up when its songbook is opened."}}</p>
+          </fieldset>
+
+          <fieldset class="field-group">
+            <legend>{{t "Style"}}</legend>
+            <div class="look-swatches">
+              <label class="look-swatch" title="{{t "The app’s own look"}}"><input type="radio" name="preset" value=""><span class="look-swatch-pic look-swatch-app" aria-hidden="true"></span><span class="look-swatch-name">{{t "The app’s own"}}</span></label>
+              {{range $s.Presets}}<label class="look-swatch" title="{{.Label}}"><input type="radio" name="preset" value="{{.Key}}" data-background="{{.Background}}" data-surface="{{.Surface}}" data-text="{{.Text}}" data-muted="{{.Muted}}" data-accent="{{.Accent}}" data-accent2="{{.Accent2}}" data-header="{{.Header}}" data-font-display="{{.FontDisplay}}" data-font-ui="{{.FontUI}}" data-shape="{{.Shape}}" data-mark="{{.Mark}}"><span class="look-swatch-pic" aria-hidden="true" style="--sw-a: {{.Background}}; --sw-b: {{.Accent}}; --sw-c: {{.Header}}"></span><span class="look-swatch-name">{{.Name}}</span></label>{{end}}
+            </div>
+            <div class="look-from-songs">
+              <button type="button" id="look-from-songs">✦ {{t "From our songs’ covers"}}</button>
+              <span class="field-hint" id="look-from-songs-status" role="status"></span>
+            </div>
+          </fieldset>
+
+          <details class="look-fine" id="look-fine">
+            <summary>{{t "Fine-tune: colours, fonts, buttons, mark"}}</summary>
+            <p class="field-hint">{{t "Each one changes the style’s; leave it empty to keep the style’s. Picking a style starts over from it."}}</p>
+            <div class="brand-colors">
+              {{range brandColorFields}}
+              <div class="brand-color"><label for="look-color-{{index . 0}}">{{t (index . 1)}}</label><input type="color" data-color-for="{{index . 0}}" aria-label="{{t "%s: pick a color" (t (index . 1))}}"><input type="text" id="look-color-{{index . 0}}" name="{{index . 0}}" placeholder="#rrggbb" maxlength="7" pattern="#[0-9a-fA-F]{6}" title="{{t "Enter a color like #3a6ea5, or leave it empty."}}" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+              {{end}}
+            </div>
+            <div class="settings-row2">
+              <div class="field"><label for="look-font-display">{{t "Title font"}}</label>
+                <select id="look-font-display" name="fontDisplay"><option value="">{{t "The style’s"}}</option>{{range brandFonts}}<option value="{{.}}">{{t (brandFont .).Label}}</option>{{end}}</select></div>
+              <div class="field"><label for="look-font-ui">{{t "Text font"}}</label>
+                <select id="look-font-ui" name="fontUI"><option value="">{{t "The style’s"}}</option>{{range brandFonts}}<option value="{{.}}">{{t (brandFont .).Label}}</option>{{end}}</select></div>
+            </div>
+            <div class="settings-row2">
+              <div class="field"><label for="look-shape">{{t "Buttons"}}</label>
+                <select id="look-shape" name="shape"><option value="">{{t "The style’s"}}</option><option value="square">{{t "Square"}}</option><option value="soft">{{t "Rounded"}}</option><option value="pill">{{t "Pills"}}</option></select></div>
+              <div class="field"><label for="look-mark">{{t "Mark"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+                <input type="text" id="look-mark" name="mark" maxlength="3" placeholder="{{t "e.g. ☾"}}" aria-describedby="look-mark-hint" autocomplete="off">
+                <p class="field-hint" id="look-mark-hint">{{t "A letter or symbol shown beside the name when there's no logo."}}</p></div>
+            </div>
+          </details>
+
+          <div class="settings-savebar">
+            <button type="button" class="link-like look-reset" id="look-reset">{{t "Back to the app’s look"}}</button>
+            <span class="settings-savebar-state" data-changes aria-live="polite">{{t "No changes"}}</span>
+            <button type="submit" class="primary" id="look-save" disabled>{{t "Save the look"}}</button>
+          </div>
+          <p class="form-status" role="status"></p>
+        </form>
+        <aside class="settings-preview look-preview" aria-label="{{t "Preview"}}">
+          <p class="settings-preview-cap">{{t "Preview"}}</p>
+          <div class="group-card" aria-hidden="true">
+            <div class="home-pic group-pic" id="card-image-pic"></div>
+            <div class="group-card-text">
+              <h4><span class="group-card-link">{{.Band.Name}}</span></h4>
+              <p class="group-card-kind">{{t "Band"}}</p>
+            </div>
+          </div>
+          <div class="look-preview-head" id="look-preview-head" aria-hidden="true">
+            <span class="look-preview-mark" id="look-preview-mark">{{.Space.Initials}}</span>
+            <span class="look-preview-name">{{.Band.Name}}</span>
+            <span class="look-preview-button">{{t "Play"}}</span>
+          </div>
+          <p class="field-hint">{{t "The band’s card on the home page, and its header."}}</p>
+        </aside>
+      </div>
+      <script type="application/json" id="look-fonts">{{$s.Fonts}}</script>
+    </section>
+    {{end}}
+
+    {{if $a.Roles}}
+    {{/* ---- Roles (manage_roles): band_roles.html. ---- */}}
+    <section class="admin-section" id="roles" aria-labelledby="roles-title">
+      {{template "settings-back" .Shell.Back}}
+      <h2 class="admin-section-title" id="roles-title">{{t "Roles"}}</h2>
+      {{template "band-roles-editor" $s.BandRoles}}
+    </section>
+    {{end}}
+
+    {{if $a.Danger}}
+    {{/* ---- Archive or delete, last and apart: archiving (rename_archive)
+         asks in a dialog that says what it does; deleting (site admins)
+         asks for the band's name to be typed. ---- */}}
+    <section class="admin-section settings-danger" id="danger" aria-labelledby="danger-title">
+      {{template "settings-back" .Shell.Back}}
+      <h2 class="admin-section-title" id="danger-title">{{if $a.Archive}}{{t "Archive or delete"}}{{else}}{{t "Delete the band"}}{{end}}</h2>
+      {{if $a.Archive}}<p class="hint">{{if .Band.Archived}}{{t "The band is archived: read only for every member, out of the menus and the home page; its members find it in All my groups."}}{{else}}{{t "For a band that has stopped. Archiving can be undone; deleting can’t."}}{{end}}</p>{{end}}
+      <div class="card danger-zone settings-danger-list">
+        {{if $a.Archive}}
+        <div class="settings-danger-row">
+          <div>
+            <strong>{{if .Band.Archived}}{{t "Unarchive %s" .Band.Name}}{{else}}{{t "Archive %s" .Band.Name}}{{end}}</strong>
+            <p class="hint">{{if .Band.Archived}}{{t "Its members can use it again. Its invite links were closed when it was archived; unarchiving doesn’t reopen them: make new ones from Members."}}{{else}}{{t "Read only for every member, out of the menus and the home page, its invite links closed. Unarchive it here any time."}}{{end}}</p>
+          </div>
+          <button type="button" id="archive-band-btn"{{if .Band.Archived}} class="primary" data-archived="1"{{else}} class="danger" aria-haspopup="dialog"{{end}}>{{if .Band.Archived}}{{t "Unarchive"}}{{else}}{{t "Archive…"}}{{end}}</button>
         </div>
-      </figure>
+        <p id="archive-band-result" class="form-status" role="status"></p>
+        {{end}}
+        {{if $a.Delete}}
+        <div class="settings-danger-row">
+          <div>
+            <strong>{{t "Delete %s" .Band.Name}}</strong> <span class="settings-who">{{t "site admins"}}</span>
+            <p class="hint">{{t "Its songbook, set lists and calendar, for every member. This can’t be undone."}}</p>
+          </div>
+          <button type="button" class="danger" id="delete-band-btn" aria-haspopup="dialog">{{t "Delete…"}}</button>
+        </div>
+        {{end}}
+      </div>
+
+      {{if and $a.Archive (not .Band.Archived)}}
+      {{/* What archiving does, asked before (store.SetBandArchived). */}}
+      <dialog class="edit-offer-dialog settings-sheet" id="archive-dialog" aria-labelledby="archive-dialog-title" aria-describedby="archive-dialog-text">
+        <form method="dialog">
+          <h2 id="archive-dialog-title">{{t "Archive %s?" .Band.Name}}</h2>
+          <div id="archive-dialog-text">
+            <ul class="archive-dialog-list">
+              <li>{{t "Read only for every member: no song, set list, event, vote or role changes; members can’t leave it either."}}</li>
+              <li>{{t "Out of the menus and off every member’s home page; they still find it in All my groups."}}</li>
+              <li>{{t "Every invite link is turned off: the band’s open links and QR codes, the personal links of those who haven’t joined yet. Unarchiving doesn’t turn them back on; you can make new ones."}}{{if $s.OpenLinks}} {{tn $s.OpenLinks "%d open link stops working now." "%d open links stop working now."}}{{end}}</li>
+            </ul>
+            <p class="hint">{{t "You can unarchive it here at any time."}}</p>
+          </div>
+          <p class="form-status" id="archive-dialog-status" role="status"></p>
+          <div class="form-actions">
+            <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
+            <button type="button" class="danger" id="archive-dialog-go">{{t "Archive the band"}}</button>
+          </div>
+        </form>
+      </dialog>
+      {{end}}
+
+      {{if $a.Delete}}
+      {{/* Deleting: the band's name typed to confirm. */}}
+      <dialog class="edit-offer-dialog settings-sheet" id="delete-dialog" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-text">
+        <form method="dialog" id="delete-form">
+          <h2 id="delete-dialog-title">{{t "Delete %s?" .Band.Name}}</h2>
+          <ul class="archive-dialog-list" id="delete-dialog-text">
+            <li>{{t "Its songbook, its set lists (%d), its calendar and its %d members’ access go, for good." $s.Setlists $s.Members}}</li>
+            {{if and $a.Archive (not .Band.Archived)}}<li>{{t "Archiving keeps all of it, read only:"}} <button type="button" class="link-like" id="delete-archive-instead">{{t "archive instead"}}</button></li>{{end}}
+          </ul>
+          <div class="field">
+            <label for="delete-confirm">{{t "Type %s to confirm" .Band.Name}}</label>
+            <input type="text" id="delete-confirm" autocomplete="off" autocapitalize="none" spellcheck="false" data-name="{{.Band.Name}}">
+          </div>
+          <p class="form-status" id="delete-dialog-status" role="status"></p>
+          <div class="form-actions">
+            <button type="submit" value="cancel">{{t "Cancel"}}</button>
+            <button type="button" class="danger" id="delete-dialog-go" disabled>{{t "Delete the band"}}</button>
+          </div>
+        </form>
+      </dialog>
+      {{end}}
+    </section>
+    {{end}}
+
     </div>
   </div>
-  <script src="/static/js/image-shrink.js?v={{staticVersion}}"></script>
-  <script src="/static/js/card-image.js?v={{staticVersion}}"></script>
-  {{end}}
-
-  {{if .IsCore}}
-  <div class="card card--md">
-    <h2>{{t "Language"}}</h2>
-    <form class="form-stack" id="band-locale-form">
-      <div class="field">
-        <label for="band-locale">{{t "Language of the band’s pages"}}</label>
-        <select id="band-locale" aria-describedby="band-locale-hint">
-          <option value=""{{if eq .Locale ""}} selected{{end}}>{{t "Automatic (from each member’s settings and browser)"}}</option>
-          <option value="en"{{if eq .Locale "en"}} selected{{end}}>English</option>
-          <option value="fr"{{if eq .Locale "fr"}} selected{{end}}>Français</option>
-        </select>
-        <p class="field-hint" id="band-locale-hint">{{t "The language of the band’s pages for members who haven’t chosen theirs in their profile."}}</p>
-      </div>
-      <p class="form-status" id="band-locale-status" role="status"></p>
-    </form>
-  </div>
-  {{end}}
-
-  {{if .IsCore}}{{template "brand-editor" (printf "/api/bands/%d/brand" .Band.ID)}}{{else}}
-  <p class="hint">{{t "Your role doesn’t let you change the band’s look."}}</p>
-  {{end}}
-
-  {{/* Who may do what (band_roles.html, docs/band-roles.md). */}}
-  {{template "band-roles-editor" .BandRoles}}
-
-  {{/* Archiving (rename_archive): read only for everyone, out of the
-       menus and the home page, still reachable from All my groups. */}}
-  {{if .BandRoles.Privs.Can "rename_archive"}}
-  <div class="card card--narrow" id="archive">
-    <h2>{{if .Band.Archived}}{{t "Archived band"}}{{else}}{{t "Archive the band"}}{{end}}</h2>
-    <p class="hint">{{if .Band.Archived}}{{t "Read only for every member, and out of the menus and the home page; its members find it in All my groups. Unarchive it to use it again."}}{{else}}{{t "For a band that has stopped: it becomes read only for every member, and leaves the menus and the home page; its members still find it in All my groups. You can unarchive it."}}{{end}}</p>
-    {{if .Band.Archived}}<p class="hint">{{t "Its invite links were closed when it was archived; unarchiving doesn’t reopen them: make new ones from Members."}}</p>{{end}}
-    <button type="button" id="archive-band-btn" data-archived="{{if .Band.Archived}}1{{end}}"{{if not .Band.Archived}} aria-haspopup="dialog"{{end}}>{{if .Band.Archived}}{{t "Unarchive %s" .Band.Name}}{{else}}{{t "Archive %s" .Band.Name}}{{end}}</button>
-    <p id="archive-band-result" class="form-status" role="status"></p>
-  </div>
-  {{/* What archiving does, asked before (store.SetBandArchived). */}}
-  {{if not .Band.Archived}}
-  <dialog class="edit-offer-dialog" id="archive-dialog" aria-labelledby="archive-dialog-title" aria-describedby="archive-dialog-text">
-    <form method="dialog">
-      <h2 id="archive-dialog-title">{{t "Archive %s?" .Band.Name}}</h2>
-      <div id="archive-dialog-text">
-        <ul class="archive-dialog-list">
-          <li>{{t "Read only for every member: no song, set list, event, vote or role changes; members can’t leave it either."}}</li>
-          <li>{{t "Out of the menus and off every member’s home page; they still find it in All my groups."}}</li>
-          <li>{{t "Every invite link is turned off: the band’s open links and QR codes, its one-off links. Unarchiving doesn’t turn them back on; you can make new ones."}}</li>
-        </ul>
-        <p class="hint">{{t "You can unarchive it here at any time."}}</p>
-      </div>
-      <p class="form-status" id="archive-dialog-status" role="status"></p>
-      <div class="form-actions">
-        <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
-        <button type="button" class="primary" id="archive-dialog-go">{{t "Archive the band"}}</button>
-      </div>
-    </form>
-  </dialog>
-  {{end}}
-  {{end}}
-
-  {{/* Deleting a band: site admins only, for now. */}}
-  {{if .Me.IsAdmin}}
-  <div class="card card--narrow danger-zone">
-    <h2>{{t "Delete the band"}}</h2>
-    <p class="hint">{{t "Deletes %s, its songbook, set lists and calendar, for every member. This can’t be undone." .Band.Name}}</p>
-    <button type="button" id="delete-band-btn" class="danger">{{t "Delete %s" .Band.Name}}</button>
-    <p id="delete-band-result" class="form-status" role="status"></p>
-  </div>
-  {{end}}
 </main>
-<script>
-const bandId = {{.Band.ID}};
-const bandName = {{.Band.Name}};
-document.getElementById('band-settings-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const name = document.getElementById('settings-name').value.trim();
-  const musicType = form.querySelector('input[name="musicType"]:checked')?.value ?? '';
-  Forms.run(form, document.getElementById('band-settings-save'), async () => {
-    const post = (path, body) => fetch(`/api/bands/${bandId}/${path}`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
-    }).catch(() => null);
-    if (name !== bandName) {
-      const res = await post('name', {name});
-      if (!res || !res.ok) throw new Error(t('Couldn’t rename the band. Try again.'));
-    }
-    if (musicType !== {{.Band.MusicType}}) {
-      const res = await post('music-type', {musicType});
-      if (!res || !res.ok) throw new Error(t('Couldn’t save what the band plays. Try again.'));
-    }
-    location.reload();
-  });
-});
-const localeSelect = document.getElementById('band-locale');
-if (localeSelect) localeSelect.addEventListener('change', async () => {
-  const locale = localeSelect.value;
-  const status = document.getElementById('band-locale-status');
-  const res = await fetch('/api/bands/' + bandId + '/locale', {
-    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({locale}),
-  }).catch(() => null);
-  if (res && res.ok) { location.reload(); return; }
-  Forms.status(status, t('Couldn’t save the language. Try again.'), 'error');
-});
-// Archiving asks first, in a dialog that says what it does; unarchiving
-// doesn't.
-(function () {
-  const btn = document.getElementById('archive-band-btn');
-  if (!btn) return;
-  const dialog = document.getElementById('archive-dialog');
-  async function send(archived, busyBtn, statusEl) {
-    Forms.busy(busyBtn, true);
-    const res = await fetch(`/api/bands/${bandId}/archive`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({archived}),
-    }).catch(() => null);
-    if (res && res.ok) { location.reload(); return; }
-    Forms.busy(busyBtn, false);
-    Forms.status(statusEl, t('Couldn’t change that. Try again.'), 'error');
-  }
-  btn.addEventListener('click', () => {
-    if (btn.dataset.archived) { send(false, btn, document.getElementById('archive-band-result')); return; }
-    Forms.status(document.getElementById('archive-dialog-status'), '');
-    dialog.showModal();
-  });
-  document.getElementById('archive-dialog-go')?.addEventListener('click', (e) => {
-    send(true, e.currentTarget, document.getElementById('archive-dialog-status'));
-  });
-  dialog?.addEventListener('close', () => btn.focus());
-})();
-document.getElementById('delete-band-btn')?.addEventListener('click', async (e) => {
-  if (!confirm(t('Delete %s and its whole songbook for every member? This can’t be undone.', bandName))) return;
-  const btn = e.currentTarget;
-  Forms.busy(btn, true);
-  const res = await fetch(`/api/bands/${bandId}`, {method: 'DELETE'}).catch(() => null);
-  if (res && res.ok) { location.href = '/bands'; return; }
-  Forms.busy(btn, false);
-  Forms.status(document.getElementById('delete-band-result'), t('Couldn’t delete %s. Try again.', bandName), 'error');
-});
-</script>
+<script src="/static/js/settings-shell.js?v={{staticVersion}}"></script>
+<script src="/static/js/band-settings.js?v={{staticVersion}}"></script>
+{{if $a.Look}}
+<script src="/static/js/image-shrink.js?v={{staticVersion}}"></script>
+<script src="/static/js/band-look.js?v={{staticVersion}}"></script>
+{{end}}
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}

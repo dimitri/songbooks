@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 
 	"app/internal/brand"
 	"app/internal/store"
@@ -31,6 +32,60 @@ func (s *Server) handleSetBrand(kind string) http.HandlerFunc {
 		}
 		// The uploaded logo isn't the form's to set (handlePutBrandLogo).
 		b = brand.Clean(b)
+		b.LogoImage = ""
+		// A band's tagline and website are The band section's
+		// (handleSetBrandWords, edit_band), not its Look's: the stored
+		// ones stay.
+		if kind == "band" {
+			stored, _, err := s.store.GetBrand(r.Context(), kind, id)
+			if err != nil {
+				httpError(w, http.StatusNotFound, "not found")
+				return
+			}
+			b.Tagline, b.Website = stored.Tagline, stored.Website
+		}
+		if err := s.store.SetBrand(r.Context(), kind, id, b); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if saved, _, err := s.store.GetBrand(r.Context(), kind, id); err == nil {
+			b = saved
+		}
+		writeJSON(w, http.StatusOK, b)
+	}
+}
+
+// handleSetBrandWords is POST /api/bands/{id}/brand/words {"tagline",
+// "website"}: the words of a brand (the line under the name, the
+// website), changed alone, the look kept as it is — The band section of
+// a band's Settings. A website that isn't an https address is refused,
+// not dropped. The saved brand comes back.
+func (s *Server) handleSetBrandWords(kind string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		var req struct {
+			Tagline string `json:"tagline"`
+			Website string `json:"website"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+			httpError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		b, _, err := s.store.GetBrand(r.Context(), kind, id)
+		if err != nil {
+			httpError(w, http.StatusNotFound, "not found")
+			return
+		}
+		b.Tagline, b.Website = req.Tagline, strings.TrimSpace(req.Website)
+		b = brand.Clean(b)
+		if b.Website == "" && strings.TrimSpace(req.Website) != "" {
+			httpError(w, http.StatusBadRequest, "the website must be an address that starts with https://")
+			return
+		}
 		b.LogoImage = ""
 		if err := s.store.SetBrand(r.Context(), kind, id, b); err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())

@@ -127,14 +127,17 @@ func TestInviteIntoCustomRoleHTTP(t *testing.T) {
 }
 
 // TestBandSettingsTabByPrivilege: the band's ⚙ Settings shows to whoever
-// holds one of the privileges it changes, not to a role with none of
-// them; the page itself stays open to every member, ⚙ in its header.
+// may change one of its sections — core, not a guest (no edit_band since
+// migration 0137), not a role with none of them; its page lists only
+// the sections one may change (a role with only edit_look: Look alone),
+// and anyone else opening it goes to Members.
 func TestBandSettingsTabByPrivilege(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
 	coreID, core := e.person("Core")
 	fanID, fan := e.person("Fan")
 	guestID, guest := e.person("Guest")
+	lookerID, looker := e.person("Looker")
 	bandID, err := e.st.CreateBand(ctx, "Nav Band "+e.sfx, coreID)
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +146,11 @@ func TestBandSettingsTabByPrivilege(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []int64{fanID, guestID} {
+	lookers, err := e.st.GroupRoles("band").Create(ctx, bandID, "Lookers", []string{store.BandPrivEditLook})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{fanID, guestID, lookerID} {
 		if _, err := e.st.AddBandMember(ctx, bandID, id, "guest", coreID); err != nil {
 			t.Fatal(err)
 		}
@@ -151,19 +158,52 @@ func TestBandSettingsTabByPrivilege(t *testing.T) {
 	if err := e.st.SetBandMemberRole(ctx, bandID, fanID, fans, coreID); err != nil {
 		t.Fatal(err)
 	}
+	if err := e.st.SetBandMemberRole(ctx, bandID, lookerID, lookers, coreID); err != nil {
+		t.Fatal(err)
+	}
 	gear := fmt.Sprintf(`href="/bands/%d/settings"`, bandID)
 	overview := fmt.Sprintf("/bands/%d/members", bandID)
 	for who, c := range map[string]struct {
 		cookie *http.Cookie
 		want   bool
-	}{"core": {core, true}, "guest (edit_band)": {guest, true}, "a role with no setting": {fan, false}} {
+	}{"core": {core, true}, "a guest": {guest, false}, "a role with no setting": {fan, false}, "a role with edit_look": {looker, true}} {
 		page := e.do("GET", overview, "", c.cookie).Body.String()
 		if got := strings.Contains(page, `class="space-gear`) && strings.Contains(page, gear); got != c.want {
 			t.Errorf("%s: Settings in the header %v, want %v", who, got, c.want)
 		}
 	}
-	if w := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", fan); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `class="space-gear active"`) {
-		t.Errorf("the settings page, for a role with no setting: %d", w.Code)
+	for who, c := range map[string]*http.Cookie{"a guest": guest, "a role with no setting": fan} {
+		if w := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", c); w.Code != http.StatusSeeOther || w.Header().Get("Location") != overview {
+			t.Errorf("the settings page, for %s: %d %s", who, w.Code, w.Header().Get("Location"))
+		}
+	}
+	sections := func(page string) []string {
+		var out []string
+		for _, id := range []string{"band", "look", "roles", "danger"} {
+			if strings.Contains(page, `<section class="admin-section`) && strings.Contains(page, `id="`+id+`" aria-labelledby="`+id+`-title"`) {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	page := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", looker).Body.String()
+	if got := strings.Join(sections(page), " "); got != "look" {
+		t.Errorf("a role with only edit_look sees the sections %q, want look", got)
+	}
+	if !strings.Contains(page, `class="space-gear active"`) || strings.Contains(page, "doesn’t let you") {
+		t.Error("the Look-only settings page")
+	}
+	page = e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", core).Body.String()
+	if got := strings.Join(sections(page), " "); got != "band look roles danger" {
+		t.Errorf("core sees the sections %q", got)
+	}
+	for _, want := range []string{"On other pages", fmt.Sprintf(`href="/bands/%d/members"`, bandID), fmt.Sprintf(`href="/bands/%d/recordings/rehearsals"`, bandID), `class="admin-nav-danger"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("core's settings have no %s", want)
+		}
+	}
+	if strings.Contains(page, "doesn’t let you") {
+		t.Error("a line telling core what it can't do")
 	}
 }
 
@@ -250,7 +290,7 @@ func TestArchiveDialog(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", core).Body.String()
-	if !strings.Contains(page, `<dialog class="edit-offer-dialog" id="archive-dialog"`) || !strings.Contains(page, "Every invite link is turned off") {
+	if !strings.Contains(page, `<dialog class="edit-offer-dialog settings-sheet" id="archive-dialog"`) || !strings.Contains(page, "Every invite link is turned off") {
 		t.Error("no archive dialog saying what it does")
 	}
 	if err := e.st.SetBandArchived(ctx, bandID, true); err != nil {
@@ -259,6 +299,11 @@ func TestArchiveDialog(t *testing.T) {
 	page = e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", core).Body.String()
 	if strings.Contains(page, `id="archive-dialog"`) || !strings.Contains(page, "unarchiving doesn’t reopen them") {
 		t.Error("the archived band's settings")
+	}
+	// Archived, the settings open on Archive or delete, with The band
+	// (its name) and nothing else.
+	if !strings.Contains(page, `data-default-section="danger"`) || strings.Contains(page, `id="look"`) || strings.Contains(page, `id="band-roles"`) || !strings.Contains(page, `id="band-name"`) {
+		t.Error("the archived band's sections")
 	}
 }
 

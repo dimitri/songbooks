@@ -403,7 +403,12 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/brand", s.requireBandPrivilege(store.BandPrivEditLook, s.handleSetBrand("band")))
 	mux.HandleFunc("PUT /api/bands/{id}/brand/logo", s.requireBandPrivilege(store.BandPrivEditLook, s.handlePutBrandLogo("band")))
 	mux.HandleFunc("DELETE /api/bands/{id}/brand/logo", s.requireBandPrivilege(store.BandPrivEditLook, s.handleDeleteBrandLogo("band")))
-	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandPrivilege(store.BandPrivEditLook, s.handlePutBandLocale))
+	// The band's tagline and website, saved from The band section (kept
+	// in its brand): edit_band, with what it plays and its language.
+	mux.HandleFunc("POST /api/bands/{id}/brand/words", s.requireBandPrivilege(store.BandPrivEditBand, s.handleSetBrandWords("band")))
+	// The language of the band's pages sits with what it plays (The band
+	// section of its Settings): edit_band.
+	mux.HandleFunc("PUT /api/bands/{id}/locale", s.requireBandPrivilege(store.BandPrivEditBand, s.handlePutBandLocale))
 	mux.HandleFunc("GET /api/bands/{id}/brand/from-songs", s.requireBandMember(s.handleBrandFromSongs("band")))
 	mux.HandleFunc("GET /api/bands/{id}/card-image", s.requireBandMember(s.handleGetCardImage("band")))
 	mux.HandleFunc("POST /api/bands/{id}/card-image", s.requireBandPrivilege(store.BandPrivEditLook, s.handleSetCardImage("band")))

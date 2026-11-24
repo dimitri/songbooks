@@ -11,9 +11,9 @@ import (
 )
 
 // A band's card picture, chosen in its settings (band_settings.html,
-// card-image.js): its logo, a mosaic of its songs' covers, or the covers
-// it picks (store.CardImage). Every member may see the choice; its core
-// members (and site admins) may change it, as they may change its look.
+// band-look.js): its logo, a mosaic of its songs' covers, or the covers
+// it picks (store.CardImage). Every member may see the choice; whoever
+// may change its look (edit_look) changes it, from the Look section.
 
 // cardImageChoice is one cover to pick from.
 type cardImageChoice struct {

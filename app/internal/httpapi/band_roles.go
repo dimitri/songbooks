@@ -2,15 +2,15 @@ package httpapi
 
 import (
 	"net/http"
-	"sort"
-	"strings"
 
 	"app/internal/store"
 )
 
-// The band's roles editor (band_roles.html, on the band's Settings;
-// docs/band-roles.md): the band's roles as columns, the privileges as
-// rows grouped by what they're about, and who holds which role.
+// The band's roles editor (band_roles.html, the Roles section of the
+// band's Settings, for whoever manages roles; docs/band-roles.md): the
+// band's roles as columns, the privileges as rows grouped by what
+// they're about, each role's count of members. Who holds which role is
+// given on Members.
 
 // bandPrivilegeInfo is one privilege as the editor shows it (Label and
 // Hint are English, translated in the template).
@@ -46,9 +46,9 @@ var bandPrivilegeGroups = []bandPrivilegeGroup{
 		{store.BandPrivManageRoles, "Manage roles", "Give members a role, change what each role allows."},
 	}},
 	{"The band", []bandPrivilegeInfo{
-		{store.BandPrivRenameArchive, "Rename and archive the band", "Archived, it’s read only and out of the menus; unarchive it here."},
-		{store.BandPrivEditBand, "Say what it plays", "Covers or original music."},
-		{store.BandPrivEditLook, "Change its look", "Colours, logo, card picture and language."},
+		{store.BandPrivRenameArchive, "Rename and archive the band", "Archived, it’s read only and out of the menus; unarchive it from Settings."},
+		{store.BandPrivEditBand, "Say what it plays", "Covers or original music; its tagline, website and the language of its pages."},
+		{store.BandPrivEditLook, "Change its look", "Logo, card picture, colours and fonts."},
 	}},
 }
 
@@ -58,46 +58,18 @@ type bandRolesData struct {
 	Roles   []store.BandRole
 	Holders map[int64]int // current members per role id
 	Groups  []bandPrivilegeGroup
-	Members []store.BandMember // current ones, for "who has which role"
-	Privs   store.BandPrivs    // the viewer's
-	CanEdit bool               // manage_roles
 }
 
 // RoleCount is how many current members hold roleID.
 func (d bandRolesData) RoleCount(roleID int64) int { return d.Holders[roleID] }
 
-// ColSpan is the table's width: the privilege column and one per role.
-func (d bandRolesData) ColSpan() int { return len(d.Roles) + 1 }
+// ColSpan is the table's width: the privilege column, one per role and
+// "+ New role".
+func (d bandRolesData) ColSpan() int { return len(d.Roles) + 2 }
 
-// RoleOf is the role roleID (zero if not the band's).
-func (d bandRolesData) RoleOf(roleID int64) store.BandRole {
-	for _, r := range d.Roles {
-		if r.ID == roleID {
-			return r
-		}
-	}
-	return store.BandRole{}
-}
-
-// Custom is the band's own roles (not the built-ins).
-func (d bandRolesData) Custom() []store.BandRole {
-	var out []store.BandRole
-	for _, r := range d.Roles {
-		if !r.IsBuiltin() {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-// bandRolesEditor loads the roles editor's data for the signed-in
-// person.
+// bandRolesEditor loads the roles editor's data.
 func (s *Server) bandRolesEditor(r *http.Request, bandID int64) (*bandRolesData, error) {
 	ctx := r.Context()
-	privs, err := s.bandPrivs(r, bandID)
-	if err != nil {
-		return nil, err
-	}
 	roles, err := s.store.ListBandRoles(ctx, bandID)
 	if err != nil {
 		return nil, err
@@ -106,15 +78,5 @@ func (s *Server) bandRolesEditor(r *http.Request, bandID int64) (*bandRolesData,
 	if err != nil {
 		return nil, err
 	}
-	members, err := s.store.ListBandMembers(ctx, bandID, false)
-	if err != nil {
-		return nil, err
-	}
-	sort.SliceStable(members, func(i, j int) bool {
-		return strings.ToLower(members[i].DisplayName) < strings.ToLower(members[j].DisplayName)
-	})
-	return &bandRolesData{
-		BandID: bandID, Roles: roles, Holders: holders, Groups: bandPrivilegeGroups,
-		Members: members, Privs: privs, CanEdit: privs.Can(store.BandPrivManageRoles),
-	}, nil
+	return &bandRolesData{BandID: bandID, Roles: roles, Holders: holders, Groups: bandPrivilegeGroups}, nil
 }

@@ -98,25 +98,22 @@ func TestBandRolesEditorAccess(t *testing.T) {
 		t.Errorf("the last core member made a guest: %d %s", w.Code, w.Body)
 	}
 
-	// The settings page: the editor for core, read only for the others.
+	// The settings page: the editor for core; a role that manages no
+	// setting (Staff here) has no settings page, it goes to Members.
 	page := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", core).Body.String()
-	for _, want := range []string{`id="roles"`, `id="band-role-new-form"`, `class="band-member-role"`, "Staff"} {
+	for _, want := range []string{`id="band-roles"`, `id="band-role-new-form"`, `id="band-role-rename-dialog"`, "Staff", fmt.Sprintf(`href="/bands/%d/members?role=%d"`, bandID, created.RoleID)} {
 		if !strings.Contains(page, want) {
 			t.Errorf("core's settings page has no %s", want)
 		}
 	}
+	if strings.Contains(page, `class="band-member-role"`) || strings.Contains(page, "Who has which role") {
+		t.Error("who has which role is still on Settings: it's given on Members")
+	}
 	if n := disabledTicks(page); n != 0 {
 		t.Errorf("%d of core's ticks are disabled", n)
 	}
-	page = e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", guest).Body.String()
-	if !strings.Contains(page, `id="roles"`) || strings.Contains(page, `id="band-role-new-form"`) || strings.Contains(page, `class="band-member-role"`) {
-		t.Error("Staff (no manage_roles) sees the editor's controls")
-	}
-	if strings.Contains(page, `class="band-role-priv"`) || !strings.Contains(page, `class="band-role-yes"`) {
-		t.Error("Staff (no manage_roles) gets ticks, not marks")
-	}
-	if !strings.Contains(page, "Only members whose role lets them manage roles can change these.") {
-		t.Error("the read-only editor doesn't say why")
+	if w := e.do("GET", fmt.Sprintf("/bands/%d/settings", bandID), "", guest); w.Code != http.StatusSeeOther || w.Header().Get("Location") != fmt.Sprintf("/bands/%d/members", bandID) {
+		t.Errorf("Staff (no setting) opens the settings: %d %s", w.Code, w.Header().Get("Location"))
 	}
 }
 
@@ -137,14 +134,16 @@ func TestBandPrivilegesGateRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := fmt.Sprintf("/api/bands/%d", bandID)
-	// Renaming is rename_archive, core's; what it plays stays every member's.
+	// Renaming is rename_archive, core's; what it plays and the language
+	// are edit_band, core's by default (migration 0137), a guest's once
+	// the band gives it.
 	if w := e.do("POST", b+"/name", `{"name":"Renamed `+e.sfx+`"}`, guest); w.Code != http.StatusForbidden {
 		t.Errorf("a guest renames the band: %d %s", w.Code, w.Body)
 	}
 	if w := e.do("POST", b+"/name", `{"name":"Renamed `+e.sfx+`"}`, core); w.Code != http.StatusOK {
 		t.Errorf("core renames the band: %d %s", w.Code, w.Body)
 	}
-	if w := e.do("POST", b+"/music-type", `{"musicType":"covers"}`, guest); w.Code != http.StatusOK {
+	if w := e.do("POST", b+"/music-type", `{"musicType":"covers"}`, guest); w.Code != http.StatusForbidden {
 		t.Errorf("a guest says what the band plays: %d %s", w.Code, w.Body)
 	}
 	if w := e.do("PUT", b+"/locale", `{"locale":"fr"}`, guest); w.Code != http.StatusForbidden {
@@ -161,7 +160,7 @@ func TestBandPrivilegesGateRoutes(t *testing.T) {
 	}
 
 	_, guestRole := bandRoleIDs(t, e.st, bandID)
-	keep := []string{`"` + store.BandPrivEditSongbook + `"`}
+	keep := []string{`"` + store.BandPrivEditSongbook + `"`, `"` + store.BandPrivEditBand + `"`}
 	for _, p := range store.BandRoleDefaults["guest"] {
 		keep = append(keep, `"`+p+`"`)
 	}
@@ -170,6 +169,12 @@ func TestBandPrivilegesGateRoutes(t *testing.T) {
 	}
 	if w := e.do("POST", b+"/variants", `{"title":"Another","artist":"X"}`, guest); w.Code != http.StatusOK {
 		t.Errorf("a guest given the songbook adds a song: %d %s", w.Code, w.Body)
+	}
+	if w := e.do("POST", b+"/music-type", `{"musicType":"original"}`, guest); w.Code != http.StatusOK {
+		t.Errorf("a guest given edit_band says what the band plays: %d %s", w.Code, w.Body)
+	}
+	if w := e.do("PUT", b+"/locale", `{"locale":"en"}`, guest); w.Code/100 != 2 {
+		t.Errorf("a guest given edit_band sets the language: %d %s", w.Code, w.Body)
 	}
 	if w := e.do("POST", b+"/variants", `{"title":"Core's","artist":"X"}`, core); w.Code != http.StatusOK {
 		t.Errorf("core adds a song: %d %s", w.Code, w.Body)

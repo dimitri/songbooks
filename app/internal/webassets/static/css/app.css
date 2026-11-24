@@ -6041,13 +6041,7 @@ input.matrix-slot:hover, input.matrix-slot:focus {
   .home-lesson-actions { grid-column: 2; justify-content: flex-start; }
   .home-row-hint { flex-basis: 100%; }
 }
-/* A band's settings: its card picture (card-image.js), the choices
-   beside a live preview of its home card. */
-.card-image-layout { display: grid; grid-template-columns: minmax(0, 1fr) 14rem; gap: 1.2rem; align-items: start; }
-.card-image-editor label.check { display: flex; margin-left: 0; }
-.card-image-logo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 0.3rem 1.75rem; }
-.card-image-logo[hidden] { display: none; }
-.card-image-logo img { width: 3.5rem; height: 3.5rem; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-sunken); }
+/* A band's Look: the covers its card may show (band-look.js). */
 .card-image-covers { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr)); gap: 0.45rem; }
 .card-image-cover { position: relative; display: block; width: 100%; min-height: 0; aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: 6px; overflow: hidden; background: var(--bg-sunken); }
 .card-image-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -6055,12 +6049,6 @@ input.matrix-slot:hover, input.matrix-slot:focus {
 .card-image-cover[aria-pressed="false"] img { opacity: 0.75; }
 .card-image-order { position: absolute; top: 0.2rem; left: 0.2rem; min-width: 1.3rem; padding: 0 0.25rem; border-radius: 999px; background: var(--accent); color: var(--accent-contrast); font-size: 0.75rem; font-weight: 700; line-height: 1.3rem; text-align: center; }
 .card-image-order:empty { display: none; }
-.card-image-preview { margin: 0; position: sticky; top: 1rem; }
-.card-image-preview figcaption { margin-bottom: 0.4rem; }
-@media (max-width: 700px) {
-  .card-image-layout { grid-template-columns: minmax(0, 1fr); }
-  .card-image-preview { position: static; max-width: 14rem; order: -1; }
-}
 .calendar-page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .calendar-page-head h2 { margin: 0; }
 
@@ -6479,8 +6467,6 @@ img.list-card-mark { object-fit: cover; border: none; }
 .band-link-get-actions.form-actions > button { width: auto; flex: none; }
 /* Inviting is for core members: a guest on the members page doesn't get
    the placeholder rows' buttons that make a new invite link. */
-.band-members-not-core ~ .home-section .create-shell-invite-btn,
-.band-members-not-core ~ .home-section .new-link-btn { display: none; }
 
 .qr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
 .qr-modal { background: var(--bg); border-radius: 12px; padding: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 0.7rem; max-width: 90vw; }
@@ -10025,40 +10011,190 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
    title, the key pill staying beside the title. */
 .cbook-song:has(.row-voice) { flex-wrap: wrap; row-gap: 0; }
 .cbook-song .row-voice { order: 3; flex-basis: 100%; margin: 0 0 0.4rem; }
-/* ---- Band roles (band_roles.html, docs/band-roles.md): the band's
-   roles as columns, what they may do as rows, a tick per cell. The
-   first column wraps; the role columns stay narrow and centred, the
-   table scrolls sideways on a phone when a band has many roles. ---- */
-.band-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: inherit; }
-.band-roles h3 { margin: 1.1rem 0 0.4rem; font-size: 1rem; }
+/* ---- The settings shell (settings_shell.html): a row's group heading,
+   the divider before the danger zone, the danger row in its colour. The
+   rest is .admin-layout's (a community's Admin). ---- */
+.admin-nav-group { margin: 0.9rem 0 0.2rem; padding: 0 0.75rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-muted); }
+.admin-nav-divider { height: 1px; margin: 0.6rem 0.75rem; background: var(--border); }
+.admin-nav a.admin-nav-danger, .admin-nav a.admin-nav-danger .icon { color: var(--danger); }
+.admin-nav a.admin-nav-danger.active { background: var(--danger-bg); color: var(--danger); }
+@media (max-width: 720px) {
+  .admin-nav-group { margin: 0; padding: 0.9rem 0.9rem 0.3rem; background: var(--bg); }
+  .admin-nav-divider { margin: 0; height: 0.75rem; background: var(--bg); }
+  .admin-nav li.admin-nav-group + li, .admin-nav li.admin-nav-divider + li { border-top: 1px solid var(--border); }
+  .admin-nav li + li.admin-nav-group, .admin-nav li + li.admin-nav-divider { border-top: 1px solid var(--border); }
+}
+
+/* ---- A band's Settings (band_settings.html): a form beside what it
+   will look like; fields one may not change read as text; one Save in a
+   bar under the form (at the bottom of the screen on a phone). ---- */
+.settings-split { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 1.25rem; align-items: start; max-width: 64rem; }
+.admin-section .settings-split .card { max-width: none; }
+.settings-form { gap: 1rem; }
+.settings-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem 1rem; }
+.settings-text { display: flex; flex-direction: column; gap: 0.15rem; }
+.settings-text-label { font-weight: 600; font-size: 0.9rem; }
+.settings-choice { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
+.settings-choice label { position: relative; display: inline-flex; align-items: center; min-height: 2.4rem; padding: 0.3rem 0.85rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg-raised); cursor: pointer; font-size: 0.9rem; }
+.settings-choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.settings-choice label:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
+.settings-choice label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings-savebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.settings-savebar-state { color: var(--fg-muted); font-size: 0.88rem; }
+.settings-savebar .look-reset { margin-right: auto; font-size: 0.88rem; }
+.settings-form .form-status:empty { display: none; }
+.settings-preview { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.settings-preview-cap { margin: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-muted); }
+.settings-preview .field-hint { margin: 0; }
+.settings-preview-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.8rem; border-radius: var(--radius); background: var(--bg-raised); border: 1px solid var(--border); }
+.settings-preview-head strong, .settings-preview-head small { display: block; overflow-wrap: anywhere; }
+.settings-preview-head small { color: var(--fg-muted); font-size: 0.8rem; }
+.settings-preview-av { flex: none; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 8px; background: var(--accent); color: var(--accent-contrast); font-weight: 700; font-size: 0.85rem; overflow: hidden; }
+.settings-preview-av img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.settings-callout { max-width: 46rem; padding: 0.6rem 0.8rem; border-radius: var(--radius); background: var(--accent-bg); font-size: 0.88rem; }
+.settings-who { display: inline-block; padding: 0 0.4rem; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); font-size: 0.72rem; font-weight: 600; vertical-align: middle; }
+
+/* Look: one logo, the card's choice, swatches, Fine-tune folded. */
+.look-logo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.look-logo-pic { display: grid; place-items: center; width: 3.2rem; height: 3.2rem; border-radius: 10px; border: 1px dashed var(--border-strong); background: var(--bg-sunken); overflow: hidden; color: var(--fg-muted); font-size: 1.3rem; }
+.look-logo-pic img { width: 100%; height: 100%; object-fit: contain; }
+.look-logo-pic img:not([hidden]) + .look-logo-empty { display: none; }
+.look-logo-url { margin-top: 0.3rem; font-size: 0.88rem; }
+.look-logo-url summary { cursor: pointer; color: var(--fg-muted); }
+.look-logo-url[open] summary { margin-bottom: 0.35rem; }
+.look-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.6rem, 1fr)); gap: 0.5rem; }
+.look-swatch { position: relative; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.35rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-raised); cursor: pointer; font-size: 0.8rem; }
+.look-swatch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.look-swatch-pic { display: block; height: 2.6rem; border-radius: 6px; border: 1px solid var(--border); background: linear-gradient(135deg, var(--sw-a) 0 50%, var(--sw-b) 50% 78%, var(--sw-c) 78%); }
+.look-swatch-app { background: linear-gradient(135deg, #f6f1e7 0 50%, #af4e39 50% 78%, #241e18 78%); }
+.look-swatch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.look-swatch:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); font-weight: 600; }
+.look-swatch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.look-from-songs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin-top: 0.5rem; }
+.look-fine { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.55rem 0.8rem; }
+.look-fine > summary { cursor: pointer; font-weight: 600; min-height: 2rem; display: flex; align-items: center; }
+.look-fine[open] { display: flex; flex-direction: column; gap: 0.75rem; }
+.look-fine[open] > summary { margin-bottom: 0; }
+.look-fine .field-hint { margin: 0; }
+.look-fine .brand-colors { grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); gap: 0.6rem 0.8rem; }
+.look-fine .brand-color { grid-template-columns: 2.4rem minmax(0, 1fr); }
+.look-preview .group-card { max-width: 15rem; }
+.look-preview-head { --pv-bg: var(--bg-raised); display: flex; align-items: center; gap: 0.55rem; padding: 0.6rem 0.7rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--pv-bg, var(--bg-raised)); color: var(--pv-fg, var(--fg)); font-family: var(--pv-font-ui, inherit); }
+.look-preview-head[style*="--pv-bg: #"] { border-color: transparent; }
+.look-preview-mark { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 7px; background: rgba(127, 127, 127, 0.18); font-weight: 700; font-size: 0.85rem; overflow: hidden; }
+.look-preview-mark img { width: 100%; height: 100%; object-fit: contain; }
+.look-preview-name { flex: 1; min-width: 0; font-family: var(--pv-font, inherit); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.look-preview-button { flex: none; padding: 0.25rem 0.65rem; border-radius: 8px; background: var(--pv-accent, var(--accent)); color: var(--pv-accent-fg, var(--accent-contrast)); font-size: 0.78rem; font-weight: 600; }
+.look-preview-head[data-shape="square"] .look-preview-button { border-radius: 0; }
+.look-preview-head[data-shape="pill"] .look-preview-button { border-radius: 999px; }
+
+/* Members: what one's own role allows, a plain list under a line. */
+.band-my-role { margin: 0 0 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); max-width: 46rem; }
+.band-my-role > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 1rem; min-height: 2.75rem; padding: 0.5rem 0.9rem; cursor: pointer; list-style: none; }
+.band-my-role > summary::-webkit-details-marker { display: none; }
+.band-my-role-more { color: var(--accent-ink); font-weight: 600; font-size: 0.88rem; }
+.band-my-role-more::after { content: " ›"; }
+.band-my-role[open] .band-my-role-more::after { content: " ⌄"; }
+.band-my-role-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem 1.5rem; padding: 0 0.9rem 0.4rem; }
+.band-my-role-list h4 { margin: 0.4rem 0 0.2rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-muted); }
+.band-my-role-list ul { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; }
+.band-my-role-list li { padding: 0.12rem 0; }
+.band-my-role-list li.is-no { color: var(--fg-faint); }
+.band-my-role-list li.is-yes span[aria-hidden] { color: var(--accent-ink); font-weight: 700; }
+.band-my-role > .hint { margin: 0; padding: 0.3rem 0.9rem 0.7rem; }
+.band-role-filter { margin-left: auto; }
+
+/* One section at a time: no gap above the one shown (a community's
+   Admin keeps its own). */
+.band-settings.is-sectioned .admin-section + .admin-section { margin-top: 0; }
+.band-roles > .hint:first-child { margin-top: 0; }
+.band-roles { display: flex; flex-direction: column; gap: 0.6rem; }
+.band-roles .form-status:empty { display: none; }
+
+/* Archive or delete: last, apart, in the danger colour. */
+/* In its dialogs the destructive button is the one asked about: last,
+   solid. */
+dialog.settings-sheet .form-actions > .danger { order: 10; margin: 0; background: var(--danger); border-color: var(--danger); color: #fff; }
+dialog.settings-sheet .form-actions > .danger:disabled { opacity: 0.45; }
+.settings-danger .admin-section-title { color: var(--danger); }
+.settings-danger-list { display: flex; flex-direction: column; gap: 0; padding: 0; border-color: var(--danger); }
+.settings-danger-row { display: flex; align-items: center; gap: 0.75rem 1.25rem; padding: 0.9rem 1rem; }
+.settings-danger-row + .form-status:empty { display: none; }
+.settings-danger-row + .form-status { margin: 0 1rem 0.75rem; }
+.settings-danger-list > * + .settings-danger-row { border-top: 1px solid var(--border); }
+.settings-danger-row > div { flex: 1; min-width: 0; }
+.settings-danger-row p { margin: 0.2rem 0 0; }
+.settings-danger-row > button { flex: none; }
+
+/* ---- Band roles (band_roles.html, docs/band-roles.md): on a wide
+   screen the band's roles as columns, what they may do as rows, a tick
+   per cell, "+ New role" the last column; on a phone one role at a
+   time, its privileges as switches. ---- */
 .band-roles-scroll { margin-top: 0.6rem; }
 .band-roles-table { width: 100%; border-collapse: collapse; }
 .band-roles-table th, .band-roles-table td { padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
 .band-roles-table thead th { vertical-align: bottom; font-size: 0.85rem; border-bottom: 1px solid var(--border-strong); }
 .band-roles-table .band-roles-what { min-width: 11rem; font-weight: 400; }
 .band-roles-table thead .band-roles-what { color: var(--fg-muted); font-weight: 600; }
-.band-roles-table .band-roles-role { text-align: center; width: 5.5rem; min-width: 4.5rem; }
-.band-roles-table .band-role-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
-.band-roles-table .band-role-count { display: block; font-weight: 400; font-size: 0.78rem; color: var(--fg-muted); }
+.band-roles-table .band-roles-role { text-align: center; width: 6rem; min-width: 4.5rem; }
+.band-role-head { display: inline-flex; align-items: center; justify-content: center; gap: 0.15rem; max-width: 100%; }
+.band-roles-table .band-role-title { font-weight: 600; overflow-wrap: anywhere; }
+.band-roles-table .band-role-count { display: block; font-weight: 400; font-size: 0.78rem; color: var(--accent-ink); }
 .band-roles-table .band-roles-group th { padding-top: 0.9rem; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); border-bottom: 0; }
 .band-roles-table .band-priv-label { display: block; }
 .band-roles-table .band-priv-hint { display: block; color: var(--fg-muted); font-size: 0.8rem; line-height: 1.3; }
 .band-roles-table input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; }
-.band-roles-own, .band-roles-members { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
-.band-roles-own li, .band-roles-members li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
-.band-roles-own .band-role-rename { flex: 1 1 12rem; max-width: 20rem; }
-.band-roles-members .band-roles-member { flex: 1 1 10rem; }
-.band-role-new { margin-top: 0.4rem; }
-.band-role-new h3 { margin-bottom: 0; }
-@media (max-width: 600px) {
-  .band-roles-table .band-roles-what { min-width: 7.5rem; }
-  .band-roles-table .band-roles-role { width: 3.8rem; min-width: 3.4rem; padding-left: 0.2rem; padding-right: 0.2rem; }
-  .band-roles-table .band-priv-hint { display: none; }
-  .band-roles-table .band-role-count { font-size: 0.7rem; }
-  .band-roles-table thead .band-roles-role { vertical-align: top; }
+.band-roles-table .band-roles-add { width: 7rem; text-align: center; border-bottom-color: transparent; }
+.band-roles-table thead .band-roles-add { border-bottom: 1px solid var(--border-strong); }
+.band-role-new-btn { white-space: nowrap; font-size: 0.85rem; }
+.band-role-menu { position: relative; display: inline-block; }
+.band-role-menu > summary { list-style: none; cursor: pointer; padding: 0 0.35rem; border-radius: 6px; color: var(--fg-muted); font-weight: 700; line-height: 1.4; }
+.band-role-menu > summary::-webkit-details-marker { display: none; }
+.band-role-menu > summary:hover { background: var(--bg-sunken); }
+.band-role-menu-panel { position: absolute; z-index: 5; top: 100%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.3rem; min-width: 9rem; margin-top: 0.25rem; padding: 0.4rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-raised); box-shadow: var(--shadow); text-align: left; }
+.band-role-menu-panel button { justify-content: flex-start; width: 100%; font-size: 0.85rem; }
+.band-roles-phone { display: none; }
+.band-role-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0 0.6rem; }
+.band-role-chip { position: relative; display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0.25rem 0.85rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg-raised); font-size: 0.9rem; cursor: pointer; }
+.band-role-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.band-role-chip:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
+.band-role-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.band-role-chip { color: var(--accent-ink); }
+.band-role-panel + .band-role-panel { margin-top: 1.5rem; }
+.band-roles.is-picking .band-role-panel-title { display: none; }
+.band-role-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; }
+.band-role-group { margin-top: 0.7rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+.band-role-group h4 { margin: 0; padding: 0.55rem 0.8rem 0.3rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-muted); }
+.band-role-switch { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 3rem; padding: 0.45rem 0.8rem; border-top: 1px solid var(--border); cursor: pointer; }
+.band-role-switch small { display: block; color: var(--fg-muted); font-size: 0.78rem; line-height: 1.3; }
+.band-role-switch input { flex: none; appearance: none; -webkit-appearance: none; position: relative; width: 2.6rem; height: 1.5rem; margin: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background 0.15s; }
+.band-role-switch input::after { content: ""; position: absolute; top: 0.15rem; left: 0.15rem; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s; }
+.band-role-switch input:checked { background: var(--accent); }
+.band-role-switch input:checked::after { transform: translateX(1.1rem); }
+.band-role-switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .settings-split { grid-template-columns: minmax(0, 1fr); }
+  .settings-preview { position: static; order: -1; }
+  .settings-row2 { grid-template-columns: minmax(0, 1fr); }
+  .look-preview { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .look-preview .settings-preview-cap, .look-preview .field-hint { flex-basis: 100%; }
+  .look-preview .group-card { flex: 0 0 7.5rem; }
+  #band .settings-preview { display: none; }
+  .look-fine .brand-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .look-preview-head { flex: 1 1 10rem; }
+  /* The Save stays in reach, at the bottom of the screen, above the tab
+     bar. */
+  .settings-savebar { position: sticky; bottom: calc(var(--tabbar-h, 4rem) + env(safe-area-inset-bottom, 0px)); z-index: 4; margin: 0 -1rem -1rem; padding: 0.65rem 1rem; border-radius: 0 0 var(--radius) var(--radius); background: var(--bg-raised); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06); }
+  .settings-savebar .look-reset { flex-basis: 100%; order: 3; margin: 0; text-align: left; }
+  .settings-danger-row { flex-wrap: wrap; }
+  .settings-danger-row > button { min-height: 2.75rem; }
+  .band-roles-scroll { display: none; }
+  .band-roles-phone { display: block; }
+  /* Dialogs come up from the bottom, their buttons thumb-sized. */
+  dialog.settings-sheet { width: 100%; max-width: none; margin: auto 0 0; border-radius: 16px 16px 0 0; border-bottom: 0; padding-bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); }
+  dialog.settings-sheet .form-actions button { min-height: 2.75rem; }
 }
-.band-roles-table .band-role-yes { color: var(--accent-ink); font-weight: 700; }
-.band-roles-table .band-role-no { color: var(--fg-faint); }
 
 /* ---- An archived band (docs/band-roles.md): its badge, the note on
    each of its pages, its line in All my groups. ---- */

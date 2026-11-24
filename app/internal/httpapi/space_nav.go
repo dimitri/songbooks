@@ -32,20 +32,15 @@ const (
 
 // spaceRole is who is looking, as far as a space's sections care: whether
 // they run it (a community's staff or a coach, the site admin), whether
-// they may change one of a band's settings (BandSettings: its privileges,
-// bandSettingsPrivileges), whether they may see its members, and who
+// they may change one of a band's settings (BandSettings: one of its
+// Settings' sections is theirs, bandSettingsFor), whether they may see
+// its members, and who
 // they are (a student's own page is theirs).
 type spaceRole struct {
 	Staff        bool
 	BandSettings bool
 	SeeMembers   bool
 	PersonID     int64
-}
-
-// bandSettingsPrivileges are what a band's Settings change (docs/
-// band-roles.md): its ⚙ shows to whoever holds one of them.
-var bandSettingsPrivileges = []string{
-	store.BandPrivRenameArchive, store.BandPrivEditBand, store.BandPrivEditLook, store.BandPrivManageRoles,
 }
 
 // SpaceSection is one section of a space: a tab on a wide screen, a row
@@ -145,11 +140,11 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 }
 
 // spaceGear is the space's ⚙: its settings, for whoever may change them
-// (nil for the others). A band's Settings are for whoever holds one of
-// the privileges they change (bandSettingsPrivileges: its name and
-// archive, what it plays, its look, its roles); every member may still
-// open them (the roles, read only), from the Members page. A
-// community's Admin is its staff's.
+// (nil for the others). A band's Settings are for whoever may change one
+// of their sections (bandSettingsFor: its name and archive, what it
+// plays, its look, its roles; deleting it, a site admin); what one's
+// own role allows is read on Members. A community's Admin is its
+// staff's.
 func spaceGear(kind string, role spaceRole) *SpaceSection {
 	switch kind {
 	case spaceBand:
@@ -395,10 +390,7 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		if !person.IsAdmin {
 			privs, _ = s.store.BandPrivileges(ctx, band.ID, person.ID)
 		}
-		settings := false
-		for _, p := range bandSettingsPrivileges {
-			settings = settings || privs.Can(p)
-		}
+		settings := bandSettingsFor(privs, person.IsAdmin).Any()
 		nav := newSpaceNav(spaceBand, band.ID, band.Name, spaceRole{BandSettings: settings, SeeMembers: true, PersonID: person.ID}, section)
 		nav.Brand = webassets.BrandLookupFor("band", band.ID)
 		nav.Archived = band.Archived()

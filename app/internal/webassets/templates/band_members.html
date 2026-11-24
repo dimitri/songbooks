@@ -20,15 +20,29 @@
 <main class="index">
   {{template "space-nav" .Space}}
 
-  {{/* band-members-not-core also hides the placeholder rows' link
-       buttons for a guest (app.css). */}}
-  <p class="hint{{if not .IsCore}} band-members-not-core{{end}}">{{t "What each member may do here is their role’s: by default, core members invite and remove people and give roles; anyone may leave the band. The band’s roles are in its settings."}}</p>
+  {{/* What one's own role allows, as a plain list (docs/band-roles.md):
+       read here, where it's used; the roles side by side are in
+       Settings › Roles, for whoever manages them. */}}
+  {{with .MyRole}}
+  <details class="band-my-role">
+    <summary><span>{{t "Your role:"}} <strong>{{template "band-role-name" .}}</strong></span><span class="band-my-role-more">{{t "What it allows"}}</span></summary>
+    <div class="band-my-role-list">
+      {{range $.MyAllows}}
+      <div>
+        <h4>{{t .Label}}</h4>
+        <ul>{{range .Items}}<li class="{{if .Yes}}is-yes{{else}}is-no{{end}}"><span aria-hidden="true">{{if .Yes}}✓{{else}}–{{end}}</span> {{t .Label}}<span class="sr-only">: {{if .Yes}}{{t "yes"}}{{else}}{{t "no"}}{{end}}</span></li>{{end}}</ul>
+      </div>
+      {{end}}
+    </div>
+    <p class="hint">{{t "Anyone may leave the band."}}{{if $.Privs.Can "manage_roles"}} <a href="/bands/{{$.Band.ID}}/settings#roles">{{t "Every role side by side, in Settings ›"}}</a>{{end}}</p>
+  </details>
+  {{end}}
 
   {{/* One roster, one row per person: name, instruments and role, and
        for someone who hasn't joined yet their personal invite link on
        that same row. */}}
   <section class="home-section">
-    <div class="home-section-head"><h3>{{t "Roster"}}</h3></div>
+    <div class="home-section-head"><h3>{{t "Roster"}}</h3>{{with .RoleFilter}}<a class="chip-link band-role-filter" href="/bands/{{$.Band.ID}}/members">{{template "band-role-name" .}} · {{t "Show everyone"}} ×</a>{{end}}</div>
     <div class="roster-list">
     {{range .Members}}
       {{if .IsCurrent}}
@@ -136,7 +150,7 @@
         </div>
         <div class="field">
           <label for="add-status">{{t "Role"}}</label>
-          <p class="field-hint" id="add-status-hint">{{t "Any of the band’s roles: what each allows is in Settings."}}</p>
+          <p class="field-hint" id="add-status-hint">{{t "Any of the band’s roles."}}{{if $.Privs.Can "manage_roles"}} <a href="/bands/{{$.Band.ID}}/settings#roles">{{t "What each allows"}} ›</a>{{end}}</p>
           <select id="add-status" aria-describedby="add-status-hint">{{template "band-invite-role-options" $.Roles}}</select>
         </div>
         <div class="form-actions">
@@ -268,7 +282,6 @@
   <p class="hint">{{t "Your role doesn’t let you invite people."}}</p>
   {{end}}
 
-  <p class="hint">{{t "The band’s name, look and deletion are in"}} <a href="/bands/{{.Band.ID}}/settings">{{t "Settings"}}</a>.</p>
 </main>
 <script src="/static/js/qr.js?v={{staticVersion}}"></script>
 <script>

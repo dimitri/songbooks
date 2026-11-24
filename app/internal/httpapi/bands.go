@@ -266,7 +266,12 @@ func (s *Server) handleBandPage(w http.ResponseWriter, r *http.Request) {
 		"events":     {Text: i18n.T(lang, "plan a rehearsal")},
 		"recordings": {Text: i18n.T(lang, "rehearsals, concerts")},
 		"members":    {Text: strconv.Itoa(len(members))},
-		"settings":   {Text: i18n.T(lang, "name, look")},
+	}
+	// The ⚙'s row says where the settings stand (shown to whoever has it).
+	if look, _, err := s.store.GetBrand(r.Context(), "band", bandID); err == nil {
+		if roles, err := s.store.ListBandRoles(r.Context(), bandID); err == nil {
+			hints["settings"] = spaceHint{Text: bandSettingsHint(lang, band.MusicType, look, len(roles))}
+		}
 	}
 	if nextUp != nil {
 		hints["events"] = spaceHint{Text: dayHint(lang, nextUp.Starts)}
@@ -374,10 +379,27 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		roleByID[role.ID] = role
 	}
 
+	// ?role=: the roster of one role's members (a role's count, in
+	// Settings › Roles, links here).
+	var roleFilter *store.BandRole
+	if id, err := strconv.ParseInt(r.URL.Query().Get("role"), 10, 64); err == nil {
+		if role, ok := roleByID[id]; ok {
+			roleFilter = &role
+		}
+	}
+
 	// One row per person: a placeholder's invite link sits on the same
 	// row as their name, instruments and role.
 	rows := make([]bandRosterRow, 0, len(members))
+	var myRole *store.BandRole
 	for _, m := range members {
+		if m.IsCurrent() && m.PersonID == person.ID {
+			role := roleByID[m.RoleID]
+			myRole = &role
+		}
+		if roleFilter != nil && m.IsCurrent() && m.RoleID != roleFilter.ID {
+			continue
+		}
 		row := bandRosterRow{
 			BandMember:         m,
 			Role:               roleByID[m.RoleID],
@@ -425,7 +447,40 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		"Privs":     privs,
 		"Roles":     roles,
 		"BandLinks": linkRows,
+		// What the viewer's own role allows, as a plain list (the roles
+		// side by side are in Settings, for whoever manages them).
+		"MyRole": myRole, "MyAllows": roleAllows(myRole),
+		"RoleFilter": roleFilter,
 	})
+}
+
+// roleAllowsGroup is one heading of "What it allows" on Members: each
+// privilege of the group, yes or no.
+type roleAllowsGroup struct {
+	Label string
+	Items []roleAllowsItem
+}
+
+type roleAllowsItem struct {
+	Label string
+	Yes   bool
+}
+
+// roleAllows is what role grants, in the roles editor's words and order
+// (nil without a role).
+func roleAllows(role *store.BandRole) []roleAllowsGroup {
+	if role == nil {
+		return nil
+	}
+	var out []roleAllowsGroup
+	for _, g := range bandPrivilegeGroups {
+		group := roleAllowsGroup{Label: g.Label}
+		for _, p := range g.Privileges {
+			group.Items = append(group.Items, roleAllowsItem{Label: p.Label, Yes: role.HasPrivilege(p.Key)})
+		}
+		out = append(out, group)
+	}
+	return out
 }
 
 // bandLinkRow is one of the band's open links (QR codes) on its Members
@@ -1354,38 +1409,4 @@ func (s *Server) writeLinkErr(w http.ResponseWriter, r *http.Request, err error)
 		httpError(w, http.StatusInternalServerError, err.Error())
 	}
 	return false
-}
-
-// handleBandSettingsPage is the band's Settings section: its name, what
-// it plays, its look (core members) and deleting it.
-func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) {
-	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	person := personFromContext(r)
-	band, err := s.store.GetBand(r.Context(), bandID)
-	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	// The roles editor (docs/band-roles.md) and what the viewer may
-	// change; isCore: the band's look and language (edit_look).
-	roles, err := s.bandRolesEditor(r, bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	isCore := roles.Privs.Can(store.BandPrivEditLook)
-	locale, err := s.store.BandLocale(r.Context(), bandID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	s.render(w, "band_settings", map[string]any{
-		"BandRoles": roles,
-		"Me": person, "Band": band, "IsCore": isCore || person.IsAdmin,
-		"Locale": locale,
-	})
 }
