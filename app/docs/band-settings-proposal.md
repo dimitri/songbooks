@@ -1,6 +1,9 @@
 # A band's Settings: review and proposal
 
-Status: proposal (2026-11-24), nothing built. Scope: the band's ⚙
+Status: **implemented** (2026-11-24; the user: "Go ahead with the band
+settings proposal"), with the deviations listed in "6. As built" at the
+end; the open questions (§5) were answered by default, there too.
+Scope: the band's ⚙
 Settings page (`/bands/{id}/settings`) as it is on `review` after #179
 (band-roles) and #184 (band-roles-2), the band's Members page around it,
 and how comparable products organise the same thing.
@@ -371,3 +374,63 @@ Not in the repository (session scratchpad):
   `current-members-{desktop,phone}.png`, `current-home-{desktop,phone}.png`;
   the community's Admin for reference:
   `reference-community-admin-{desktop,phone}.png`.
+
+## 6. As built
+
+The recommendation and the plan's steps 1–7 and 9 are built (step 8:
+the phone hub's state is, the checklist isn't). Where it differs from
+the text above:
+
+- **Open questions, answered by default** (the user may overturn any):
+  1. `edit_band` leaves the guest role **only where it's still exactly
+     the default** (migration 0137); a band that changed its guest role
+     keeps its choice. A guest has no ⚙ by default.
+  2. **Language goes with `edit_band`** (The band section), not
+     `edit_look`.
+  3. The community's ⚙ keeps its name **"Admin"**; only the layout is
+     shared.
+  4. **No first-run checklist** yet (a follow-up).
+  5. Members' **"What it allows" is a plain list** (✓ / –).
+- **Tagline and website are `edit_band`'s too**, not `edit_look`'s
+  (§3.2 said `edit_look`): with them under `edit_look`, a role with only
+  `edit_look` would have had The band section for two fields; now The
+  band is `rename_archive` (the name) + `edit_band` (what it plays,
+  tagline, website, language) and Look is `edit_look` alone. They're
+  still stored in the brand: `POST /api/bands/{id}/brand/words`
+  (`edit_band`); the band's `POST …/brand` (the Look) keeps them.
+- **The read-only matrix is gone** for whoever can't manage roles
+  (§3.3 kept it at `settings#roles`): Settings is only for someone with a
+  section; anyone else opening `/bands/{id}/settings` lands on Members,
+  where "Your role: … · What it allows" is.
+- **The shell's breakpoint stays the community's 720 px** (§3.4 said
+  900): one shell, the community's page unchanged (its DOM compared
+  before and after, identical). A gap above any section but the first,
+  the community's, is removed on the band's page only.
+- **Look**: picking a style's swatch starts over from it (Fine-tune's
+  colours, fonts and buttons emptied, the mark kept); Fine-tune opens by
+  itself when something in it is set. The logo picked is kept on Save
+  with the rest (it was uploaded as soon as picked); "or an https
+  address" is folded under the upload. The live preview is the home card
+  and a small header (its colour, title font, a button in the accent).
+  A new look reloads the page (drawn in it); the card's picture alone
+  doesn't.
+- **The band**: one Save, "No changes" / "n changes", nothing reloads
+  (the header, the back link, the switcher, the sidebar, the tab's title
+  and the section's row take the new values). Its preview is hidden on
+  a phone.
+- **Roles**: Rename asks in a dialog (it was an inline field), Delete
+  still in `confirm()`. Counts link to `members?role=`; Members shows
+  that role's rows with "Staff · Show everyone ×".
+- **Archive or delete**: the archive dialog counts the open links ("1
+  open link stops working now."); Delete's dialog counts the set lists
+  and members, offers "archive instead", and its button stays off until
+  the band's name is typed (case and spaces aside). Both are bottom
+  sheets on a phone. Named "Delete the band" for someone who may delete
+  but not archive.
+- **The phone hub's ⚙ row**: "Covers · Paper · 3 roles".
+- `IsCore` is gone from the page (`Settings.Access`, `bandSettingsFor`);
+  `card-image.js` is folded into `band-look.js`.
+
+Not done, worth a pass of its own: the first-run checklist (§3.6); the
+community's ⚙ renamed "Settings"; Members itself (out of scope here; its
+"Your role doesn't let you invite people." line stays).

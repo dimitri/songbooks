@@ -31,7 +31,7 @@ every band by migration 0130, and by a trigger for every new band). They
 can't be renamed or deleted; what they grant can be changed. Their
 defaults were what core and guest members could do before roles (the
 inventory below), then the user's decisions changed a few (migrations
-0131, 0132: below). `store.BandRoleDefaults` and the latest
+0131, 0132, 0137: below). `store.BandRoleDefaults` and the latest
 `seed_band_roles` say the same (a test checks it).
 
 `band_members.role_id` is what a member may do. `band_members.status`
@@ -62,8 +62,8 @@ privilege.
 | `remove_members` | Remove a member (leaving the band oneself is every member's) | ✓ | not since 0132 |
 | `manage_roles` | Give members a role; create, rename, delete roles, change what they allow | ✓ | |
 | `rename_archive` | Rename the band; archive and unarchive it (the one privilege an archived band still grants) | ✓ | |
-| `edit_band` | Say what the band plays (covers or original music) | ✓ | ✓ |
-| `edit_look` | The band's look (colours, fonts), logo, card picture, language | ✓ | |
+| `edit_band` | Say what the band plays (covers or original music); its tagline and website; the language of its pages (The band section of its Settings) | ✓ | not since 0137 |
+| `edit_look` | The band's look: its logo, card picture, style, colours and fonts (the Look section of its Settings) | ✓ | |
 
 Proposals (docs/band-votes.md): `store.MayPropose`, `MayVote`,
 `MayDecideProposal` and `MayShareListen` ask `HasBandPrivilege` (propose,
@@ -97,7 +97,7 @@ that gates it now.
 | What it plays | `POST …/music-type` | any member | `edit_band` |
 | Look (brand), logo | `POST …/brand`, `PUT/DELETE …/brand/logo` | core | `edit_look` |
 | Card picture | `POST …/card-image` | core | `edit_look` |
-| Language | `PUT …/locale` | core | `edit_look` |
+| Language | `PUT …/locale` | core | `edit_look`; `edit_band` since 0137 |
 | Delete the band | `DELETE /api/bands/{id}` | any member | site admins only (the user's decision; no privilege) |
 | Add someone they play with, picked by name | `POST …/members` (`personId`; `roleId`, or `status`) | core | `manage_members`; any of the band's roles (0132) |
 | Personal invite, new link for a placeholder | `POST …/personal-invites`, `…/members/{p}/invite-link`, `/api/people/{p}/personal-invites` (`CanInvitePerson`) | core | `manage_members` |
@@ -129,14 +129,24 @@ that gates it now.
 
 ## The roles editor
 
-On the band's **Settings**, "Roles": the band's roles as columns (core,
-guest, then its own), what they may do as rows in four groups (Songs,
-Proposals, Members, The band), a tick per cell that saves at once. Below,
-for whoever may manage roles: the band's own roles (rename, delete — not
-one a current member holds), a new role (empty, or starting with another
-role's ticks), and who has which role (a select per member, saving as it
-changes). The Members page's role select offers the same roles. Anyone in
-the band sees the table (read only without `manage_roles`).
+The Roles section of the band's **Settings** (docs/band-settings-proposal.md),
+for whoever may manage roles only. On a wide screen the band's roles as
+columns (core, guest, then its own), what they may do as rows in four
+groups (Songs, Proposals, Members, The band), a tick per cell that saves
+at once. Each column head says how many members hold the role, a link to
+Members showing only them (`/bands/{id}/members?role={roleID}`); a
+band's own role has ⋯ on its head (Rename, in a dialog; Delete — not one
+a current member holds); the last column is "+ New role" (a dialog: a
+name, starting empty or with another role's ticks). On a phone, one
+role at a time: a chip per role (with its count) and "+ New", the chosen
+role's privileges as switches, Rename and Delete under a band's own
+role's chips.
+
+**Giving someone a role** is done on Members, on their row (a select,
+saving as it changes, for `manage_roles`); Settings no longer has a
+"Who has which role" list. A member who can't manage roles doesn't see
+the matrix: Members says **"Your role: … · What it allows"**, a plain
+list (✓ / –) of what their own role grants (`roleAllows`).
 
 Someone must keep `manage_roles`: a change that would leave no current
 member with it (a role's ticks, a member's role, the core/guest switch)
@@ -164,11 +174,13 @@ The user's decisions:
 
 - **Deleting a band is for site admins only**, for now: no privilege,
   `requireAdmin` on `DELETE /api/bands/{id}`, the button on the band's
-  Settings only for them. `delete_band` was dropped from every role.
+  Settings only for them (Archive or delete: a dialog asking for the
+  band's name, typed, since the Settings in sections). `delete_band` was
+  dropped from every role.
 - **Renaming and archiving** is `rename_archive`, the core role's by
   default (migration 0131 also gave it to every band's own role holding
   `manage_roles`, its staff). `edit_band` keeps what the band plays.
-- **Archiving** (`bands.archived_at`; the Settings' "Archive the band",
+- **Archiving** (`bands.archived_at`; the Settings' "Archive or delete",
   `POST /api/bands/{id}/archive {archived}`): an archived band is read
   only for everyone — `has_band_privilege` grants nothing but
   `rename_archive` while it is, site admins included (`bandPrivilege`,
@@ -224,9 +236,33 @@ The user's decisions (2026-11-24):
   did for `rename_archive`); the author always removes their own.
 - **The band's ⚙ Settings** shows to whoever holds one of the
   privileges it changes (`rename_archive`, `edit_band`, `edit_look`,
-  `manage_roles`; `bandSettingsPrivileges`), not by status
-  (`IsCurrentBandCore` is gone); the page stays open to every member
-  (the roles, read only), from the Members page.
+  `manage_roles`), not by status (`IsCurrentBandCore` is gone). Since
+  the Settings in sections (below), the page itself is theirs only.
+
+## The Settings in sections (migration 0137)
+
+The user's decisions (2026-11-24, docs/band-settings-proposal.md, its
+open questions answered by default):
+
+- **The band's Settings** share the community's Admin shell
+  (`settings_shell.html`, `settings-shell.js`): The band (name:
+  `rename_archive`; what it plays, tagline, website, language:
+  `edit_band`), Look (`edit_look`), Roles (`manage_roles`), links to
+  Members (`manage_members`) and the recordings' source
+  (`manage_recordings`), and last Archive or delete (`rename_archive`;
+  Delete: site admins). Each person sees the sections they may change
+  (`bandSettingsFor`); a field of a section they open but may not change
+  reads as text; no "your role doesn't let you" lines. The ⚙ shows when
+  one section is theirs; `/bands/{id}/settings` sends anyone else to
+  Members. An archived band's Settings open on Archive or delete.
+- **Guests lose `edit_band` by default** (migration 0137): the guest
+  role of every band that still granted exactly what 0132 left it loses
+  it; a band that changed its guest role keeps its choice. A new band's
+  guest starts without it. So a guest has no ⚙ by default.
+- **The language** of the band's pages, its **tagline and website** go
+  with what it plays: `edit_band` (`PUT …/locale`, `POST …/brand/words`).
+  The Look (`POST …/brand`, `edit_look`) keeps the stored tagline and
+  website of a band whatever it's sent.
 
 ## The status that remains
 
