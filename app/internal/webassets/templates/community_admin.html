@@ -20,29 +20,21 @@
 <main class="index">
   {{template "space-nav" .Space}}
 
-  {{/* Running the community itself, in sections: a sidebar of them on a
-       wide screen, a list to tap into on a phone (admin.js below shows
-       one at a time, by the URL's #hash; without scripts they all show).
+  {{/* Running the community itself, in sections: the settings shell
+       (settings_shell.html, its rows built by communityAdminShell) — a
+       sidebar of them on a wide screen, a list to tap into on a phone,
+       one at a time by the URL's #hash; without scripts they all show.
        Songbooks are run on the Songbooks tab (members' submissions on the
        default songbook's page) and events on the Events tab and each
        event's Manage page, not here. */}}
   <div class="admin-layout" data-admin-layout>
-    <nav class="admin-nav" aria-label="{{t "Admin sections"}}">
-      <ul>
-        <li><a href="#identity" data-section-link="identity">{{template "icon-community"}}<span class="admin-nav-label">{{t "Name and look"}}</span><span class="admin-nav-state">{{.Community.Name}}</span></a></li>
-        <li><a href="#members" data-section-link="members">{{template "icon-bands"}}<span class="admin-nav-label">{{t "Members"}}</span><span class="admin-nav-state">{{tn .CurrentMembers "%d member" "%d members"}}{{with .ShellPeople}} · {{tn (len .) "%d invite pending" "%d invites pending"}}{{end}}</span></a></li>
-        <li><a href="#joining" data-section-link="joining">{{template "icon-plus"}}<span class="admin-nav-label">{{t "Joining and invites"}}</span><span class="admin-nav-state">{{t "links, QR codes, adding people"}}</span></a></li>
-        <li><a href="#roles" data-section-link="roles">{{template "icon-profile"}}<span class="admin-nav-label">{{t "Roles and staff"}}</span><span class="admin-nav-state">{{tn (len .Roles) "%d role" "%d roles"}}</span></a></li>
-        <li><a href="#options" data-section-link="options">{{template "icon-settings"}}<span class="admin-nav-label">{{t "Options"}}</span><span class="admin-nav-state">{{if eq .Locale "fr"}}Français{{else if eq .Locale "en"}}English{{else}}{{t "Language: automatic"}}{{end}}</span></a></li>
-        <li><a href="/communities/{{.Community.ID}}/admin/stats">{{template "icon-view"}}<span class="admin-nav-label">{{t "Activity"}}</span><span class="admin-nav-state">{{t "who viewed and downloaded what"}}</span></a></li>
-      </ul>
-    </nav>
+    {{template "settings-nav" .Shell}}
 
     <div class="admin-sections">
 
     {{/* ---- Name and look ---- */}}
     <section class="admin-section" id="identity" aria-labelledby="identity-title">
-      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      {{template "settings-back" .Shell.Back}}
       <h2 class="admin-section-title" id="identity-title">{{t "Name and look"}}</h2>
       <div class="card">
         <h3>{{t "Community name"}}</h3>
@@ -57,7 +49,7 @@
 
     {{/* ---- Members ---- */}}
     <section class="admin-section" id="members" aria-labelledby="members-title">
-      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      {{template "settings-back" .Shell.Back}}
       <div class="admin-section-head">
         <h2 class="admin-section-title" id="members-title">{{t "Members"}}</h2>
         <a class="chip-link" href="#joining">{{template "icon-plus"}} {{t "Add people"}}</a>
@@ -144,7 +136,7 @@
 
     {{/* ---- Joining and invites ---- */}}
     <section class="admin-section" id="joining" aria-labelledby="joining-title">
-      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      {{template "settings-back" .Shell.Back}}
       <h2 class="admin-section-title" id="joining-title">{{t "Joining and invites"}}</h2>
 
       <div class="card">
@@ -258,7 +250,7 @@
          their OWN privilege sets are editable here too, same as a custom
          role's. A role's checkbox state saves immediately on toggle. */}}
     <section class="admin-section" id="roles" aria-labelledby="roles-title">
-      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      {{template "settings-back" .Shell.Back}}
       <h2 class="admin-section-title" id="roles-title">{{t "Roles and staff"}}</h2>
       <p class="hint">{{t "A role is a name plus what it lets people do. The 3 built-in roles always exist; create more for anything in between. Changes here save straight away."}}</p>
       <div class="table-scroll"><table class="card table-stack roles-table" style="width:100%" id="roles-table">
@@ -297,7 +289,7 @@
          .field or a label.check with its .field-hint, then its own
          .form-status line, inside #community-options). */}}
     <section class="admin-section" id="options" aria-labelledby="options-title">
-      <a class="admin-section-back" href="#">{{template "icon-back"}} {{t "All sections"}}</a>
+      {{template "settings-back" .Shell.Back}}
       <h2 class="admin-section-title" id="options-title">{{t "Options"}}</h2>
       <div class="card">
         <div class="form-stack" id="community-options">
@@ -330,31 +322,8 @@
     </div>
   </div>
 </main>
+<script src="/static/js/settings-shell.js?v={{staticVersion}}"></script>
 <script>
-// One section at a time, by the URL's #hash: the first one on a wide
-// screen when there's none, the list of sections on a phone.
-(function () {
-  const layout = document.querySelector('[data-admin-layout]');
-  const sections = [...layout.querySelectorAll('.admin-section')];
-  const links = [...layout.querySelectorAll('[data-section-link]')];
-  const phone = matchMedia('(max-width: 720px)');
-  function show() {
-    let id = decodeURIComponent(location.hash.slice(1));
-    if (!sections.some(s => s.id === id)) id = phone.matches ? '' : sections[0].id;
-    layout.classList.add('is-sectioned');
-    layout.classList.toggle('has-section', !!id);
-    sections.forEach(s => { s.hidden = s.id !== id; });
-    links.forEach(a => {
-      const on = a.dataset.sectionLink === id;
-      a.classList.toggle('active', on);
-      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
-    });
-  }
-  window.addEventListener('hashchange', () => { show(); window.scrollTo(0, 0); });
-  phone.addEventListener('change', show);
-  show();
-})();
-
 // Scoped: the brand-editor partial shares this page's global scope.
 (function () {
 const communityId = {{.Community.ID}};

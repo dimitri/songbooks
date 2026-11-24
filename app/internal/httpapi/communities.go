@@ -907,7 +907,8 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 		}
 	}
 	s.render(w, "community_admin", map[string]any{
-		"Me": person, "Person": person, "Community": community, "IsStaff": true, "KnownPeople": known,
+		"Shell": communityAdminShell(s.langOf(w), community, current, len(shellPeople), len(roles), locale),
+		"Me":    person, "Person": person, "Community": community, "IsStaff": true, "KnownPeople": known,
 		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople, "MemberFaces": faces,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges, "RoleLabels": roleLabels,
 		"Locale": locale, "MembersVisibility": membersVisibility,
