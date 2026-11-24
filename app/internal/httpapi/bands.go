@@ -405,15 +405,78 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	invites := make([]bandInviteRow, len(openInvites))
+	for i, inv := range openInvites {
+		invites[i] = bandInviteRow{OpenBandInvite: inv, Role: inviteRoleOf(roles, inv.RoleID, inv.Status)}
+	}
+	linkRows := []bandLinkRow{}
+	for _, gi := range bandLinks(groupInvites) {
+		linkRows = append(linkRows, bandLinkRow{GroupInviteView: gi, Role: inviteRoleOf(roles, gi.RoleID, gi.DefaultStatus)})
+	}
+
 	s.render(w, "band_members", map[string]any{
 		"Me": person, "Band": band, "Members": rows,
-		"OpenInvites": openInvites,
+		"OpenInvites": invites,
 		// IsCore: may invite people (manage_members), as before roles.
 		"IsCore":    privs.Can(store.BandPrivManageMembers),
 		"Privs":     privs,
 		"Roles":     roles,
-		"BandLinks": bandLinks(groupInvites),
+		"BandLinks": linkRows,
 	})
+}
+
+// bandInviteRow is one of the band's one-off links on its Members page,
+// with the role it gives.
+type bandInviteRow struct {
+	store.OpenBandInvite
+	Role store.BandRole
+}
+
+// bandLinkRow is one of the band's open links (QR codes) on its Members
+// page, with the role it gives.
+type bandLinkRow struct {
+	store.GroupInviteView
+	Role store.BandRole
+}
+
+// inviteRoleOf is the role an invite gives, among the band's roles: its
+// own (roleID), else the built-in of its status ("core"; anything else
+// guest) — an invite made before roles, or one whose role was deleted.
+func inviteRoleOf(roles []store.BandRole, roleID int64, status string) store.BandRole {
+	key := "guest"
+	if status == "core" {
+		key = "core"
+	}
+	var builtin store.BandRole
+	for _, r := range roles {
+		if roleID != 0 && r.ID == roleID {
+			return r
+		}
+		if r.BuiltinKey == key {
+			builtin = r
+		}
+	}
+	return builtin
+}
+
+// inviteRole is the role an invite request gives in bandID: roleId, one
+// of the band's roles (a band's own included), else status, "core" or
+// "guest" (an older client's), else def ("" for none). It answers 400
+// and false when that names none of the band's roles.
+func (s *Server) inviteRole(w http.ResponseWriter, r *http.Request, bandID, roleID int64, status, def string) (int64, bool) {
+	if roleID == 0 && status == "" {
+		status = def
+	}
+	id, err := s.store.ResolveBandInviteRole(r.Context(), bandID, roleID, status)
+	switch {
+	case errors.Is(err, store.ErrInvalid):
+		httpError(w, http.StatusBadRequest, "roleId must be one of the band's roles (or status \"core\" or \"guest\")")
+		return 0, false
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return 0, false
+	}
+	return id, true
 }
 
 // bandRosterRow is one person's line on the band's Members page: their
@@ -531,20 +594,22 @@ func (s *Server) handleBandSetlistsPage(w http.ResponseWriter, r *http.Request) 
 
 // handleAddBandMember adds an existing person (by username — this is a
 // local single-instance app, so a direct add action stands in for an
-// email-invite flow) to a band as core or guest. Core members only
-// (requireBandInviter), like every other way of inviting someone.
+// email-invite flow) to a band with one of its roles ({roleId}, or
+// {status}: core or guest). manage_members, like every other way of
+// inviting someone.
 func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
 		Username string `json:"username"`
 		Status   string `json:"status"`
+		RoleID   int64  `json:"roleId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
 		httpError(w, http.StatusBadRequest, "missing username")
 		return
 	}
-	if req.Status != "core" && req.Status != "guest" {
-		httpError(w, http.StatusBadRequest, "status must be \"core\" or \"guest\"")
+	roleID, ok := s.inviteRole(w, r, bandID, req.RoleID, req.Status, "")
+	if !ok {
 		return
 	}
 	target, err := s.store.GetPersonByUsername(r.Context(), req.Username)
@@ -557,7 +622,7 @@ func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor := personFromContext(r)
-	memberID, err := s.store.AddBandMember(r.Context(), bandID, target.ID, req.Status, actor.ID)
+	memberID, err := s.store.AddBandMemberWithRole(r.Context(), bandID, target.ID, roleID, actor.ID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -567,8 +632,9 @@ func (s *Server) handleAddBandMember(w http.ResponseWriter, r *http.Request) {
 
 // handleRemoveBandMember ends personID's current membership in the band
 // (closes the validity range — history is kept, see migrations 0010 and
-// 0059). For a member whose role grants remove_members (by default any
-// member), of any other member or themselves.
+// 0059). Someone else: a member whose role grants remove_members (by
+// default, core). Oneself — leaving the band —: any member, as long as
+// the band isn't archived (read only: no one leaves it either).
 func (s *Server) handleRemoveBandMember(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
@@ -577,6 +643,20 @@ func (s *Server) handleRemoveBandMember(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	actor := personFromContext(r)
+	may, err := s.bandPrivilege(r, bandID, store.BandPrivRemoveMembers)
+	if err == nil && !may && personID == actor.ID {
+		var archived bool
+		archived, err = s.store.BandArchived(r.Context(), bandID)
+		may = !archived
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !may {
+		httpError(w, http.StatusForbidden, "your role in this band doesn't let you remove people")
+		return
+	}
 	if err := s.store.RemoveBandMember(r.Context(), bandID, personID, actor.ID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			httpError(w, http.StatusNotFound, err.Error())
@@ -663,18 +743,18 @@ func (s *Server) handleSetBandArchived(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCreateBandInvite makes a single-use band invite link, valid for 7
-// days — the band equivalent of handleCreateInvite (members.go). Any
-// current band member may generate one, same as any other band-scoped
-// mutation.
+// days, giving one of the band's roles (form roleId, or status: core or
+// guest) — the band equivalent of handleCreateInvite (members.go).
+// manage_members.
 func (s *Server) handleCreateBandInvite(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	status := r.FormValue("status")
-	if status != "core" && status != "guest" {
-		httpError(w, http.StatusBadRequest, "status must be \"core\" or \"guest\"")
+	formRole, _ := strconv.ParseInt(r.FormValue("roleId"), 10, 64)
+	roleID, ok := s.inviteRole(w, r, bandID, formRole, r.FormValue("status"), "")
+	if !ok {
 		return
 	}
 	actor := personFromContext(r)
-	token, err := s.store.CreateBandInvite(r.Context(), bandID, status, actor.ID, 7*24*time.Hour)
+	token, err := s.store.CreateBandInvite(r.Context(), bandID, roleID, actor.ID, 7*24*time.Hour)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -703,14 +783,20 @@ func (s *Server) handleCreateBandPersonalInvite(w http.ResponseWriter, r *http.R
 		DisplayName string `json:"displayName"`
 		Instrument  string `json:"instrument"`
 		Status      string `json:"status"`
+		RoleID      int64  `json:"roleId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.DisplayName == "" {
 		httpError(w, http.StatusBadRequest, "displayName is required")
 		return
 	}
-	status := req.Status
-	if status != "core" && status != "guest" {
-		status = "guest"
+	// One of the band's roles; an older client's status, guest when it
+	// names neither.
+	if req.RoleID == 0 && req.Status != "core" {
+		req.Status = "guest"
+	}
+	roleID, ok := s.inviteRole(w, r, bandID, req.RoleID, req.Status, "guest")
+	if !ok {
+		return
 	}
 	actor := personFromContext(r)
 
@@ -726,7 +812,7 @@ func (s *Server) handleCreateBandPersonalInvite(w http.ResponseWriter, r *http.R
 			return
 		}
 	}
-	if _, err := s.store.AddBandMember(r.Context(), bandID, personID, status, actor.ID); err != nil {
+	if _, err := s.store.AddBandMemberWithRole(r.Context(), bandID, personID, roleID, actor.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -784,6 +870,7 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 			DisplayName string `json:"displayName"`
 			Instrument  string `json:"instrument"`
 			Status      string `json:"status"`
+			RoleID      int64  `json:"roleId"`
 		} `json:"slots"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -792,10 +879,14 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 	}
 	slots := make([]store.GroupInviteSlotInput, 0, len(req.Slots))
 	for _, sl := range req.Slots {
-		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName, Instrument: sl.Instrument, Status: sl.Status})
+		slots = append(slots, store.GroupInviteSlotInput{DisplayName: sl.DisplayName, Instrument: sl.Instrument, Status: sl.Status, RoleID: sl.RoleID})
 	}
 	actor := personFromContext(r)
 	groupInviteID, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, slots, "")
+	if errors.Is(err, store.ErrInvalid) {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -803,29 +894,29 @@ func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{"id": groupInviteID, "url": "/join/" + token})
 }
 
-// handleCreateBandLink returns the band's open link for one status —
-// the "Band link or QR code" card on the members page, for a rehearsal
-// or a gig where handing out personal links one by one isn't practical.
-// No names: anyone who follows it creates an account (or logs in) and
-// joins straight away with the link's status, core or guest (see
-// store.grantGroupInviteMembershipTx). Internally a GroupInvite with no
-// slots and DefaultStatus set, same as a community link
-// (handleCreateCommunityLink). One link per status: an open one is
-// handed back rather than minting another, so the members page lists
-// at most two, each closable; closing one and asking again makes a
-// fresh link. Core members only (requireBandInviter), like every other
-// band invite.
+// handleCreateBandLink returns the band's open link for one of its roles
+// ({roleId}, or {status}: core or guest) — the "Band link or QR code"
+// card on the members page, for a rehearsal or a gig where handing out
+// personal links one by one isn't practical. No names: anyone who
+// follows it creates an account (or logs in) and joins straight away
+// with the link's role (see store.grantGroupInviteMembershipTx).
+// Internally a GroupInvite with no slots and its role set, as a
+// community link (handleCreateCommunityLink). One link per role: an open
+// one is handed back rather than minting another, each closable; closing
+// one and asking again makes a fresh link. manage_members, like every
+// other band invite.
 func (s *Server) handleCreateBandLink(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
 		Status string `json:"status"`
+		RoleID int64  `json:"roleId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if req.Status != "core" && req.Status != "guest" {
-		httpError(w, http.StatusBadRequest, "status must be \"core\" or \"guest\"")
+	roleID, ok := s.inviteRole(w, r, bandID, req.RoleID, req.Status, "")
+	if !ok {
 		return
 	}
 	invites, err := s.store.ListGroupInvitesForTarget(r.Context(), "band", bandID)
@@ -833,30 +924,39 @@ func (s *Server) handleCreateBandLink(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	for _, gi := range bandLinks(invites) {
-		if gi.DefaultStatus == req.Status {
-			writeJSON(w, http.StatusOK, map[string]any{"id": gi.ID, "url": "/join/" + gi.Token, "status": req.Status})
-			return
-		}
-	}
-	actor := personFromContext(r)
-	id, token, err := s.store.CreateGroupInvite(r.Context(), "band", bandID, actor.ID, nil, req.Status)
+	roles, err := s.store.ListBandRoles(r.Context(), bandID)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "url": "/join/" + token, "status": req.Status})
+	for _, gi := range bandLinks(invites) {
+		if role := inviteRoleOf(roles, gi.RoleID, gi.DefaultStatus); role.ID == roleID {
+			writeJSON(w, http.StatusOK, map[string]any{"id": gi.ID, "url": "/join/" + gi.Token, "roleId": roleID, "status": gi.DefaultStatus})
+			return
+		}
+	}
+	actor := personFromContext(r)
+	id, token, err := s.store.CreateBandLink(r.Context(), bandID, actor.ID, roleID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	status := inviteRoleOf(roles, roleID, "").BuiltinKey
+	if status != "core" {
+		status = "guest"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "url": "/join/" + token, "roleId": roleID, "status": status})
 }
 
 // bandLinks keeps the band's still-open open links (handleCreateBandLink)
-// out of all its group invites: open, with a status on the link, and no
-// named slot left to pick — what the members page lists under "Band
-// link or QR code". A slot on such a link is someone who joined through
-// it (ClaimGroupInviteUnlisted records one per join).
+// out of all its group invites: open, with a role or a status on the
+// link, and no named slot left to pick — what the members page lists
+// under "Band link or QR code". A slot on such a link is someone who
+// joined through it (ClaimGroupInviteUnlisted records one per join).
 func bandLinks(invites []store.GroupInviteView) []store.GroupInviteView {
 	var out []store.GroupInviteView
 	for _, gi := range invites {
-		if gi.ClosedAt != nil || (gi.DefaultStatus != "core" && gi.DefaultStatus != "guest") {
+		if gi.ClosedAt != nil || (gi.RoleID == 0 && gi.DefaultStatus != "core" && gi.DefaultStatus != "guest") {
 			continue
 		}
 		if !hasWaitingSlot(gi) {
@@ -893,13 +993,14 @@ func (s *Server) handleAddGroupInviteSlot(w http.ResponseWriter, r *http.Request
 		DisplayName string `json:"displayName"`
 		Instrument  string `json:"instrument"`
 		Status      string `json:"status"`
+		RoleID      int64  `json:"roleId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 	slotID, err := s.store.AddGroupInviteSlot(r.Context(), groupInviteID, "band", bandID, store.GroupInviteSlotInput{
-		DisplayName: req.DisplayName, Instrument: req.Instrument, Status: req.Status,
+		DisplayName: req.DisplayName, Instrument: req.Instrument, Status: req.Status, RoleID: req.RoleID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -930,12 +1031,13 @@ func (s *Server) handleUpdateGroupInviteSlot(w http.ResponseWriter, r *http.Requ
 		DisplayName string `json:"displayName"`
 		Instrument  string `json:"instrument"`
 		Status      string `json:"status"`
+		RoleID      int64  `json:"roleId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if err := s.store.UpdateGroupInviteSlot(r.Context(), groupInviteID, slotID, bandID, req.DisplayName, req.Instrument, req.Status); err != nil {
+	if err := s.store.UpdateGroupInviteSlot(r.Context(), groupInviteID, slotID, bandID, req.DisplayName, req.Instrument, req.Status, req.RoleID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			httpError(w, http.StatusNotFound, err.Error())
 			return

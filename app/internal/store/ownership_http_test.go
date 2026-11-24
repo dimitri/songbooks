@@ -23,6 +23,7 @@ func TestMakeTheBandsVersionFromItsSongbook(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	book, err := st.GetDefaultSongbook(ctx, "band", f.Band)
 	if err != nil {
 		t.Fatal(err)

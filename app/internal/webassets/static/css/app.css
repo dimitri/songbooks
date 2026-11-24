@@ -9460,6 +9460,9 @@ html.search-open { overflow: hidden; }
 .edit-offer-dialog p { margin: 0 0 0.6rem; }
 .edit-offer-dialog .form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 .edit-offer-dialog .form-status:empty { display: none; }
+/* Archiving a band, asked (band_settings.html): what it does. */
+.archive-dialog-list { margin: 0 0 0.6rem; padding-left: 1.2rem; }
+.archive-dialog-list li { margin: 0 0 0.35rem; }
 @media (max-width: 480px) {
   .edit-offer-dialog .form-actions { flex-direction: column-reverse; align-items: stretch; }
 }
@@ -9841,7 +9844,9 @@ a.cbook-song-title:hover strong { text-decoration: underline; }
 .vote-chip.is-no { background: var(--danger-bg); color: var(--danger); }
 .vote-chip.is-wait { background: transparent; border: 1px dashed var(--border); }
 .vote-hidden { font-size: 0.85rem; color: var(--fg-muted); font-style: italic; }
-.vote-chip.is-liked { background: var(--ok-bg); color: var(--ok); }
+/* The guests' votes, listed apart: never counted (band-votes.js). */
+.vote-chip.is-guest { background: transparent; border: 1px solid var(--border); color: var(--fg-muted); }
+.vote-guests-note { font-size: 0.8em; color: var(--fg-muted); }
 /* A veto standing: the card flagged, the strongest no in sight. */
 .vote-card.is-vetoed { border-left: 4px solid var(--danger); }
 .vote-group { margin: 0.6rem 0 0; font: 700 0.8rem/1.3 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }

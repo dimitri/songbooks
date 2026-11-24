@@ -120,9 +120,10 @@ func TestBandRolesEditorAccess(t *testing.T) {
 	}
 }
 
-// TestBandPrivilegesGateRoutes: a guest renames the band, adds songs,
-// makes set lists (as before roles), not the look; once the band takes
-// adding songs from guests, the route refuses them.
+// TestBandPrivilegesGateRoutes: a guest says what the band plays and
+// makes set lists, doesn't rename it, set its look nor (since migration
+// 0132) add songs; once the band gives guests the songbook, the route
+// lets them.
 func TestBandPrivilegesGateRoutes(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
@@ -152,7 +153,7 @@ func TestBandPrivilegesGateRoutes(t *testing.T) {
 	if w := e.do("PUT", b+"/locale", `{"locale":"fr"}`, core); w.Code/100 != 2 {
 		t.Errorf("core sets the language: %d %s", w.Code, w.Body)
 	}
-	if w := e.do("POST", b+"/variants", `{"title":"Guest Song","artist":"X"}`, guest); w.Code != http.StatusOK {
+	if w := e.do("POST", b+"/variants", `{"title":"Guest Song","artist":"X"}`, guest); w.Code != http.StatusForbidden {
 		t.Errorf("a guest adds a song: %d %s", w.Code, w.Body)
 	}
 	if w := e.do("POST", "/api/setlists", fmt.Sprintf(`{"scope":"band","band_id":%d,"title":"Set"}`, bandID), guest); w.Code != http.StatusOK && w.Code != http.StatusCreated {
@@ -160,17 +161,15 @@ func TestBandPrivilegesGateRoutes(t *testing.T) {
 	}
 
 	_, guestRole := bandRoleIDs(t, e.st, bandID)
-	var keep []string
+	keep := []string{`"` + store.BandPrivEditSongbook + `"`}
 	for _, p := range store.BandRoleDefaults["guest"] {
-		if p != store.BandPrivEditSongbook {
-			keep = append(keep, `"`+p+`"`)
-		}
+		keep = append(keep, `"`+p+`"`)
 	}
 	if w := e.do("POST", fmt.Sprintf("%s/roles/%d/privileges", b, guestRole), `{"privileges":[`+strings.Join(keep, ",")+`]}`, core); w.Code != http.StatusOK {
-		t.Fatalf("core takes the songbook from guests: %d %s", w.Code, w.Body)
+		t.Fatalf("core gives guests the songbook: %d %s", w.Code, w.Body)
 	}
-	if w := e.do("POST", b+"/variants", `{"title":"Another","artist":"X"}`, guest); w.Code != http.StatusForbidden {
-		t.Errorf("a guest still adds a song: %d %s", w.Code, w.Body)
+	if w := e.do("POST", b+"/variants", `{"title":"Another","artist":"X"}`, guest); w.Code != http.StatusOK {
+		t.Errorf("a guest given the songbook adds a song: %d %s", w.Code, w.Body)
 	}
 	if w := e.do("POST", b+"/variants", `{"title":"Core's","artist":"X"}`, core); w.Code != http.StatusOK {
 		t.Errorf("core adds a song: %d %s", w.Code, w.Body)
@@ -322,8 +321,8 @@ func TestBandArchive(t *testing.T) {
 	if w := e.do("POST", b+"/archive", `{"archived":false}`, core); w.Code != http.StatusOK {
 		t.Fatalf("core unarchives: %d %s", w.Code, w.Body)
 	}
-	if w := e.do("POST", b+"/variants", `{"title":"Back","artist":"X"}`, guest); w.Code != http.StatusOK {
-		t.Errorf("a guest adds a song once unarchived: %d %s", w.Code, w.Body)
+	if w := e.do("POST", "/api/setlists", fmt.Sprintf(`{"scope":"band","band_id":%d,"title":"Back"}`, bandID), guest); w.Code != http.StatusOK && w.Code != http.StatusCreated {
+		t.Errorf("a guest makes a set list once unarchived: %d %s", w.Code, w.Body)
 	}
 	if bands, _ := e.st.ListBandsForPerson(ctx, guestID); len(bands) != 1 {
 		t.Error("the unarchived band isn't back in the cards")

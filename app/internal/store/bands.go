@@ -253,19 +253,6 @@ func isCurrentBandMember(ctx context.Context, q dbtx, bandID, personID int64) (b
 	return ok, err
 }
 
-// IsCurrentBandCore reports whether personID's current status in bandID
-// is core: the built-in core role, or one of the band's own roles
-// (migration 0130). What they may do is their role's: ask
-// HasBandPrivilege, not this.
-func (st *Store) IsCurrentBandCore(ctx context.Context, bandID, personID int64) (bool, error) {
-	var ok bool
-	err := st.db.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM band_members
-		              WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity) AND status = 'core')`,
-		bandID, personID).Scan(&ok)
-	return ok, err
-}
-
 // ListBandMembers lists bandID's membership rows: every row ever inserted
 // if includePast, otherwise only current (left_at IS NULL) ones. Newest
 // first.
@@ -316,6 +303,21 @@ func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, stat
 	if status != "core" && status != "guest" {
 		return 0, fmt.Errorf("invalid band member status %q", status)
 	}
+	return st.addBandMember(ctx, bandID, personID, status, 0, invitedByPersonID)
+}
+
+// AddBandMemberWithRole is AddBandMember giving roleID, one of bandID's
+// roles (ResolveBandInviteRole), a band's own included.
+func (st *Store) AddBandMemberWithRole(ctx context.Context, bandID, personID, roleID, invitedByPersonID int64) (int64, error) {
+	status, err := bandInviteStatus(ctx, st.db, bandID, roleID)
+	if err != nil {
+		return 0, err
+	}
+	return st.addBandMember(ctx, bandID, personID, status, roleID, invitedByPersonID)
+}
+
+// addBandMember is AddBandMember with a role (roleID; 0: status's).
+func (st *Store) addBandMember(ctx context.Context, bandID, personID int64, status string, roleID, invitedByPersonID int64) (int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -336,9 +338,9 @@ func (st *Store) AddBandMember(ctx context.Context, bandID, personID int64, stat
 	}
 	var memberID int64
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
-		VALUES ($1, $2, $3, $4) RETURNING id`,
-		bandID, personID, status, invitedBy).Scan(&memberID); err != nil {
+		INSERT INTO band_members (band_id, person_id, status, role_id, invited_by_person_id)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		bandID, personID, status, nullableID(roleID), invitedBy).Scan(&memberID); err != nil {
 		return 0, err
 	}
 

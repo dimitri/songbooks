@@ -65,9 +65,9 @@
       <article class="vote-card proposal-card" id="p{{.Proposal.ID}}" data-band="{{.Band.ID}}" data-proposal="{{.Proposal.ID}}" data-status="{{.Proposal.Status}}" data-title="{{.Proposal.TargetTitle}}" data-tally="{{$c.TallyJSON}}">
         {{if eq .Proposal.Status "open"}}
         {{if .CanVote}}<h2>{{t "Your vote"}}</h2>
+        {{if not .Counted}}<p class="vote-guest-note">{{t "Your role in the band doesn’t count in the votes: yours are listed apart, with the guests’."}}</p>{{end}}
         <div data-ctl></div>
-        {{else}}<h2>{{t "The vote"}}</h2>
-        <p class="vote-guest-note">{{t "You’re a guest member: you propose songs and listen to them; the core members vote."}}</p>{{end}}
+        {{else}}<h2>{{t "The vote"}}</h2>{{end}}
         {{else}}
         <h2>{{if eq .Proposal.Status "accepted"}}{{t "Accepted"}}{{else}}{{t "Turned down"}}{{end}}</h2>
         <p class="vote-decided is-{{.Proposal.Status}}">{{date .Proposal.DecidedAt "2 Jan 2006, 15:04"}} · {{if .Proposal.DecidedByUsername}}{{t "by %s" .Proposal.DecidedByUsername}}{{else}}{{t "by the votes"}}{{end}}</p>

@@ -53,6 +53,7 @@ func TestFindBadgesOverHTTP(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	store.ExecForTest(t, st, `UPDATE bands SET music_type = 'original' WHERE id = $1`, f.Band)
 	mine, err := st.CreateVariant(ctx, store.OwnerPerson, f.Guest, "Le Vent", "Someone", f.Guest)
 	if err != nil {
@@ -121,6 +122,7 @@ func TestCreateOverHTTP(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	book, _ := st.GetDefaultSongbook(ctx, "band", f.Band)
 	targets := func(c client) map[int64]bool {
 		t.Helper()

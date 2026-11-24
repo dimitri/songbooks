@@ -404,7 +404,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("POST /api/bands/{id}/music-type", s.requireBandPrivilege(store.BandPrivEditBand, s.handleSetBandMusicType))
 	mux.HandleFunc("POST /api/bands/{id}/members", s.requireBandInviter(s.handleAddBandMember))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/status", s.requireBandPrivilege(store.BandPrivManageRoles, s.handleSetBandMemberStatus))
-	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandPrivilege(store.BandPrivRemoveMembers, s.handleRemoveBandMember))
+	// remove_members for someone else; leaving (oneself) is any member's,
+	// but not an archived band's (handleRemoveBandMember).
+	mux.HandleFunc("DELETE /api/bands/{id}/members/{personID}", s.requireBandMember(s.handleRemoveBandMember))
 	// Who may edit whose instruments is checked inside (store.MayEditMemberInstruments).
 	mux.HandleFunc("PUT /api/bands/{id}/members/{personID}/instruments", s.requireBandMember(s.handleSetBandMemberInstruments))
 	mux.HandleFunc("POST /api/bands/{id}/members/{personID}/invite-link", s.requireBandInviter(s.handleNewBandMemberInviteLink))

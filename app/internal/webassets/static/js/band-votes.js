@@ -91,7 +91,9 @@
   }
 
   // Where the vote stands: the average, for/against, voted of members,
-  // the no thanks apart, who hasn't voted. opts.status: a decided one's.
+  // the no thanks apart, who hasn't voted — no verdict, the band decides
+  // —; the guests' votes listed apart, counted in none of it.
+  // opts.status: a decided one's.
   function summary(box, tally, opts = {}) {
     box.replaceChildren();
     if (!tally) return;
@@ -114,7 +116,6 @@
       head.append(no, el('span', 'vote-sum-gap'));
     }
     head.append(meter(tally.avg, tally.avgText));
-    if (tally.liked) head.append(el('span', 'vote-chip is-liked', tr('The band likes it')));
     if (tally.ratings) {
       head.append(el('strong', 'vote-avg', tally.avgText));
       const split = el('span', 'vote-split');
@@ -162,6 +163,16 @@
         p.append(el('span', 'vote-chip is-wait', tr('Not voted')), ' ', el('span', 'vote-names', tally.notVoted.join(', ')));
         lines.append(p);
       }
+    }
+    // The guests' votes (a role that doesn't vote): listed apart, never
+    // counted — their stars, then their no thanks.
+    if (tally.guests && tally.guests.length) {
+      const p = el('p', 'vote-line vote-line-guests');
+      p.title = tr('Not counted in the band’s votes');
+      p.append(el('span', 'vote-chip is-guest', tr('Guests')), ' ',
+        el('span', 'vote-names', tally.guests.map((b) => b.noThanks ? `${b.name} (${tr('no thanks')})` : `${b.name} ${STAR.repeat(b.stars)}`).join(', ')),
+        ' ', el('span', 'vote-guests-note', tr('not counted')));
+      lines.append(p);
     }
     if (lines.children.length) box.append(lines);
   }

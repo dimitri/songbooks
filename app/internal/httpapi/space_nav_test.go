@@ -28,8 +28,8 @@ func TestSpaceTabsByRole(t *testing.T) {
 	}{
 		// A band has six sections: Proposals and Discover are views of its
 		// Songbook, Rehearsals and Concerts of its Recordings.
-		{spaceBand, spaceRole{}, "overview catalog setlists events recordings members", "settings"},
-		{spaceBand, spaceRole{Staff: true}, "overview catalog setlists events recordings members", "settings"},
+		{spaceBand, spaceRole{}, "overview catalog setlists events recordings members", ""},
+		{spaceBand, spaceRole{BandSettings: true}, "overview catalog setlists events recordings members", "settings"},
 		// A jam's community: its events first, then songbooks, resources.
 		{spaceCommunity, spaceRole{}, "overview events songbooks resources", ""},
 		{spaceCommunity, spaceRole{SeeMembers: true}, "overview events songbooks resources members", ""},

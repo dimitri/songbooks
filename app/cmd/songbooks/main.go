@@ -143,7 +143,11 @@ func main() {
 		if len(args) == 1 {
 			status = args[0]
 		}
-		token, err := st.CreateBandInvite(ctx, *createBandInviteID, status, 0, 7*24*time.Hour)
+		roleID, err := st.ResolveBandInviteRole(ctx, *createBandInviteID, 0, status)
+		if err != nil {
+			log.Fatalf("creating band invite for band %d: %v", *createBandInviteID, err)
+		}
+		token, err := st.CreateBandInvite(ctx, *createBandInviteID, roleID, 0, 7*24*time.Hour)
 		if err != nil {
 			log.Fatalf("creating band invite for band %d: %v", *createBandInviteID, err)
 		}

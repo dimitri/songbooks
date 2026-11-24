@@ -63,6 +63,20 @@ func NewBandFixture(t *testing.T, st *Store) BandFixture {
 	return f
 }
 
+// GuestsEditTheSongbook gives the band's guest role edit_songbook — a
+// band that lets its guests edit its songs, as every band did before
+// migration 0132 — for a test whose guest stands for "another member
+// who edits".
+func (f BandFixture) GuestsEditTheSongbook(t *testing.T, st *Store) {
+	t.Helper()
+	if _, err := st.db.Exec(context.Background(), `
+		INSERT INTO band_role_privileges (role_id, privilege)
+		SELECT id, 'edit_songbook' FROM band_roles WHERE band_id = $1 AND builtin_key = 'guest'
+		ON CONFLICT DO NOTHING`, f.Band); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func countSongs(t *testing.T, st *Store) int {
 	t.Helper()
 	var n int
@@ -72,14 +86,20 @@ func countSongs(t *testing.T, st *Store) int {
 	return n
 }
 
-// TestBandMemberEditsTheBandsSong: a current member, core or guest, edits
-// the band's song itself (same row, version+1, a revision kept, no new
-// song); a former member and an outsider can't.
+// TestBandMemberEditsTheBandsSong: a current member whose role grants
+// edit_songbook — core; a guest only once the band gives guests the
+// songbook (no longer by default: migration 0132) — edits the band's song
+// itself (same row, version+1, a revision kept, no new song); a former
+// member and an outsider can't.
 func TestBandMemberEditsTheBandsSong(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
 
+	if ok, err := st.CanEditVariant(ctx, f.Guest, f.BandSong); err != nil || ok {
+		t.Errorf("a guest edits the band's song by default: %v %v", ok, err)
+	}
+	f.GuestsEditTheSongbook(t, st)
 	for _, c := range []struct {
 		name string
 		who  int64
@@ -182,6 +202,7 @@ func TestMakeBandVersion(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	f := NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	sb, err := st.GetDefaultSongbook(ctx, "band", f.Band)
 	if err != nil {
 		t.Fatal(err)

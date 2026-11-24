@@ -50,12 +50,13 @@ func TestBandVotesDefaultRoles(t *testing.T) {
 	ctx := context.Background()
 	f := newVotesBand(t, st)
 	p := f.propose(t, st, "Alpha")
-	if w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/votes", f.Band, p), map[string]any{"stars": 4}); w.Code != http.StatusForbidden {
-		t.Errorf("a guest votes: %d", w.Code)
+	// A guest votes, listed apart: not counted.
+	if g := vote(t, st, f, f.Guest, p, map[string]any{"stars": 4}, http.StatusOK); g.Tally.Voted != 0 || g.Tally.Ratings != 0 || len(g.Tally.Guests) != 1 {
+		t.Errorf("a guest's vote: %+v", g.Tally)
 	}
 	ans := vote(t, st, f, f.Core, p, map[string]any{"stars": 3}, http.StatusOK)
-	if ans.Tally.Members != 3 || ans.Tally.Voted != 1 {
-		t.Errorf("tally %d/%d voted, want 1/3 (the core members)", ans.Tally.Voted, ans.Tally.Members)
+	if ans.Tally.Members != 3 || ans.Tally.Voted != 1 || ans.Tally.AvgText != "3.0" || len(ans.Tally.Guests) != 1 {
+		t.Errorf("tally %d/%d voted, average %s, want 1/3 (the core members), 3.0, the guest's apart", ans.Tally.Voted, ans.Tally.Members, ans.Tally.AvgText)
 	}
 	song, err := st.CreateVariant(ctx, store.OwnerCatalog, 0, "Guest's pick", "Someone", f.Core)
 	if err != nil {
@@ -155,7 +156,8 @@ func TestBandCustomRoleVotes(t *testing.T) {
 	if len(list) != 1 || list[0].Ratings != 1 || list[0].StarSum != 3 {
 		t.Errorf("listed: %d ratings, %d stars; want the Listener's alone", list[0].Ratings, list[0].StarSum)
 	}
-	if w := as(t, st, f.Core).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/votes", f.Band, p), map[string]any{"stars": 2}); w.Code != http.StatusForbidden {
-		t.Errorf("core without vote votes: %d", w.Code)
+	// Core without vote still rates it, listed apart.
+	if a := vote(t, st, f, f.Core, p, map[string]any{"stars": 2}, http.StatusOK); a.Tally.AvgText != "3.0" || a.Tally.Members != 1 || len(a.Tally.Guests) != 1 || a.Tally.Guests[0].PersonID != f.Core {
+		t.Errorf("core without vote: %+v", a.Tally)
 	}
 }

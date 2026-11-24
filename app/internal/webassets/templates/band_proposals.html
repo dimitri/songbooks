@@ -35,9 +35,10 @@
 
   <p class="hint vote-rule">
     {{t "Each core member says No thanks — a veto, the strongest no — or rates the songs 1 to 4 stars: 3 and 4 are for it, 1 and 2 against. You see the others’ votes once you’ve voted."}}
+    {{t "Guests may vote too: their votes are listed apart, and don’t count."}}
     {{t "The votes guide the band: any member adds a song, or turns it down, by hand."}}
   </p>
-  {{if not .CanVote}}<p class="vote-guest-note">{{t "You’re a guest member: you propose songs and listen to them; the core members vote."}}</p>{{end}}
+  {{if and .CanVote (not .Counted)}}<p class="vote-guest-note">{{t "Your role in the band doesn’t count in the votes: yours are listed apart, with the guests’."}}</p>{{end}}
 
   <div class="vote-toolbar">
     <nav class="vote-filter seg" aria-label="{{t "Which proposals"}}">

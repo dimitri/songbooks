@@ -116,15 +116,18 @@ func TestBandRoleDefaultsMatchSeed(t *testing.T) {
 
 // TestBandBuiltinRolesReproduceTodaysRights: every inventoried action
 // (docs/band-roles.md), as the built-in roles leave it — core may do
-// everything, guest everything but the look, inviting, roles, publishing
-// and voting, and someone outside nothing — through the store's own
-// checks, not only HasBandPrivilege.
+// everything; guest set lists, the calendar, recordings, proposing and
+// deciding, what the band plays, but not the songs (migration 0132),
+// removing people, the look, inviting, roles, publishing, voting (counted)
+// nor tidying Discover; someone outside nothing — through the store's
+// own checks, not only HasBandPrivilege.
 func TestBandBuiltinRolesReproduceTodaysRights(t *testing.T) {
 	f := newBandRolesFixture(t)
 	ctx := context.Background()
 	guestOnlyNot := map[string]bool{
 		BandPrivPublish: true, BandPrivVote: true, BandPrivManageMembers: true,
 		BandPrivManageRoles: true, BandPrivEditLook: true, BandPrivRenameArchive: true,
+		BandPrivEditSongbook: true, BandPrivRemoveMembers: true, BandPrivCurateListen: true,
 	}
 	for _, p := range AllBandPrivileges {
 		if !f.can(t, f.core, p) {
@@ -138,15 +141,19 @@ func TestBandBuiltinRolesReproduceTodaysRights(t *testing.T) {
 		}
 	}
 
-	// The songbook: any member adds and edits songs; core publishes.
-	song, err := f.st.CreateBandVariant(ctx, f.band, "A Song", "Them", f.guest)
+	// The songbook: core adds, edits and publishes songs; a guest sees
+	// them.
+	if _, err := f.st.CreateBandVariant(ctx, f.band, "Guest's", "Them", f.guest); !errors.Is(err, ErrForbidden) {
+		t.Errorf("a guest adds a song: %v, want ErrForbidden", err)
+	}
+	song, err := f.st.CreateBandVariant(ctx, f.band, "A Song", "Them", f.core)
 	if err != nil {
-		t.Fatalf("a guest adds a song: %v", err)
+		t.Fatalf("core adds a song: %v", err)
 	}
 	for _, c := range []struct {
 		who           int64
 		edit, publish bool
-	}{{f.core, true, true}, {f.guest, true, false}, {f.other, false, false}} {
+	}{{f.core, true, true}, {f.guest, false, false}, {f.other, false, false}} {
 		r, err := f.st.SongRightsFor(ctx, c.who, song)
 		if err != nil {
 			t.Fatal(err)
@@ -162,7 +169,7 @@ func TestBandBuiltinRolesReproduceTodaysRights(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for who, want := range map[int64][2]bool{f.core: {true, true}, f.guest: {true, false}, f.other: {false, false}} {
+	for who, want := range map[int64][2]bool{f.core: {true, true}, f.guest: {false, false}, f.other: {false, false}} {
 		edit, _ := f.st.CanEditSongbook(ctx, who, sb)
 		r, err := f.st.SongbookRightsFor(ctx, who, sb)
 		if err != nil {
@@ -248,8 +255,9 @@ func TestBandStaffAloneDecides(t *testing.T) {
 	if !f.can(t, f.guest, BandPrivPropose) {
 		t.Error("a guest no longer proposes")
 	}
-	if core, _ := f.st.IsCurrentBandCore(ctx, f.band, f.core2); !core {
-		t.Error("the staff member's status isn't core")
+	var status string
+	if err := f.st.db.QueryRow(ctx, `SELECT status::text FROM band_members WHERE band_id = $1 AND person_id = $2 AND upper_inf(validity)`, f.band, f.core2).Scan(&status); err != nil || status != "core" {
+		t.Errorf("the staff member's status is %q (%v), want core", status, err)
 	}
 	// Back to guest through the old switch: the guest role.
 	if err := f.st.SetBandMemberStatus(ctx, f.band, f.core2, "guest", f.core); err != nil {

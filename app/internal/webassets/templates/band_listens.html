@@ -33,7 +33,7 @@
     {{template "space-views" .Space}}
     <div class="setlist-actions songbook-actions">
       {{if .Cards}}<a class="setlist-action" href="/bands/{{.Band.ID}}/catalog/{{.PathPool}}/listen">{{template "icon-play"}} {{t "Play all"}}</a>{{end}}
-      <button type="button" class="setlist-action primary" data-listen-add aria-expanded="false" aria-controls="listen-add">{{template "icon-plus"}} {{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</button>
+      {{if .CanAdd}}<button type="button" class="setlist-action primary" data-listen-add aria-expanded="false" aria-controls="listen-add">{{template "icon-plus"}} {{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</button>{{end}}
     </div>
   </div>
 
@@ -41,7 +41,7 @@
 
   {{/* Add by a YouTube link: its title and artist read from the video,
        to fix; a note; tags for an influence. */}}
-  <form class="card card--md form-stack listen-add" id="listen-add" hidden novalidate data-band="{{.Band.ID}}" data-pool="{{.Pool}}">
+  {{if .CanAdd}}<form class="card card--md form-stack listen-add" id="listen-add" hidden novalidate data-band="{{.Band.ID}}" data-pool="{{.Pool}}">
     <h2>{{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</h2>
     <div class="field">
       <label for="listen-url">{{t "YouTube link"}}</label>
@@ -69,9 +69,9 @@
       <button type="submit" class="primary">{{if $influence}}{{t "Add"}}{{else}}{{t "Share"}}{{end}}</button>
     </div>
     <p class="form-status" role="status"></p>
-  </form>
+  </form>{{end}}
 
-  <div class="vote-list listen-list">
+  <div class="vote-list listen-list" data-band="{{.Band.ID}}">
   {{range .Cards}}
     <article class="vote-card listen-card" id="l{{.ID}}" data-listen="{{.ID}}" data-url="{{.URL}}" data-title="{{.Title}}">
       <a class="vote-thumb" href="/bands/{{$.Band.ID}}/catalog/{{$.PathPool}}/listen?start={{.ID}}" tabindex="-1" aria-hidden="true">
@@ -85,9 +85,9 @@
         {{with .Note}}<p class="vote-note">“{{.}}”</p>{{end}}
         <div class="vote-decide listen-actions">
           {{if not $influence}}{{if .ProposalID}}<a href="/bands/{{$.Band.ID}}/proposals/{{.ProposalID}}">{{t "Proposed for a vote"}} →</a>
-          {{else}}<button type="button" class="link-button" data-listen-propose>{{t "Propose for a vote"}}</button>{{end}}{{end}}
+          {{else if $.CanAdd}}<button type="button" class="link-button" data-listen-propose>{{t "Propose for a vote"}}</button>{{end}}{{end}}
           <a href="{{.URL}}" target="_blank" rel="noopener">{{t "Watch on YouTube"}}</a>
-          {{if .Mine}}<button type="button" class="link-button vote-decide-down" data-listen-remove>{{t "Remove"}}</button>{{end}}
+          {{if .CanRemove}}<button type="button" class="link-button vote-decide-down" data-listen-remove{{if not .Mine}} data-by="{{.AddedByName}}"{{end}}>{{t "Remove"}}</button>{{end}}
           <p class="form-status" role="status"></p>
         </div>
       </div>
@@ -96,7 +96,7 @@
   {{else}}
     <div class="vote-empty">
       <p>{{if $influence}}<strong>{{t "No influence yet."}}</strong> {{t "Paste the YouTube link of a song that shapes the band’s sound."}}{{else}}<strong>{{t "Nothing shared yet."}}</strong> {{t "Paste the YouTube link of a song the band should hear."}}{{end}}</p>
-      <button type="button" class="primary" data-listen-add>{{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</button>
+      {{if .CanAdd}}<button type="button" class="primary" data-listen-add>{{if $influence}}{{t "Add an influence"}}{{else}}{{t "Share a song"}}{{end}}</button>{{end}}
     </div>
   {{end}}
   </div>

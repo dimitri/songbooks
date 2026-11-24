@@ -124,9 +124,31 @@
   <div class="card card--narrow" id="archive">
     <h2>{{if .Band.Archived}}{{t "Archived band"}}{{else}}{{t "Archive the band"}}{{end}}</h2>
     <p class="hint">{{if .Band.Archived}}{{t "Read only for every member, and out of the menus and the home page; its members find it in All my groups. Unarchive it to use it again."}}{{else}}{{t "For a band that has stopped: it becomes read only for every member, and leaves the menus and the home page; its members still find it in All my groups. You can unarchive it."}}{{end}}</p>
-    <button type="button" id="archive-band-btn" data-archived="{{if .Band.Archived}}1{{end}}">{{if .Band.Archived}}{{t "Unarchive %s" .Band.Name}}{{else}}{{t "Archive %s" .Band.Name}}{{end}}</button>
+    {{if .Band.Archived}}<p class="hint">{{t "Its invite links were closed when it was archived; unarchiving doesn’t reopen them: make new ones from Members."}}</p>{{end}}
+    <button type="button" id="archive-band-btn" data-archived="{{if .Band.Archived}}1{{end}}"{{if not .Band.Archived}} aria-haspopup="dialog"{{end}}>{{if .Band.Archived}}{{t "Unarchive %s" .Band.Name}}{{else}}{{t "Archive %s" .Band.Name}}{{end}}</button>
     <p id="archive-band-result" class="form-status" role="status"></p>
   </div>
+  {{/* What archiving does, asked before (store.SetBandArchived). */}}
+  {{if not .Band.Archived}}
+  <dialog class="edit-offer-dialog" id="archive-dialog" aria-labelledby="archive-dialog-title" aria-describedby="archive-dialog-text">
+    <form method="dialog">
+      <h2 id="archive-dialog-title">{{t "Archive %s?" .Band.Name}}</h2>
+      <div id="archive-dialog-text">
+        <ul class="archive-dialog-list">
+          <li>{{t "Read only for every member: no song, set list, event, vote or role changes; members can’t leave it either."}}</li>
+          <li>{{t "Out of the menus and off every member’s home page; they still find it in All my groups."}}</li>
+          <li>{{t "Every invite link is turned off: the band’s open links and QR codes, its one-off links. Unarchiving doesn’t turn them back on; you can make new ones."}}</li>
+        </ul>
+        <p class="hint">{{t "You can unarchive it here at any time."}}</p>
+      </div>
+      <p class="form-status" id="archive-dialog-status" role="status"></p>
+      <div class="form-actions">
+        <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
+        <button type="button" class="primary" id="archive-dialog-go">{{t "Archive the band"}}</button>
+      </div>
+    </form>
+  </dialog>
+  {{end}}
   {{end}}
 
   {{/* Deleting a band: site admins only, for now. */}}
@@ -172,18 +194,31 @@ if (localeSelect) localeSelect.addEventListener('change', async () => {
   if (res && res.ok) { location.reload(); return; }
   Forms.status(status, t('Couldn’t save the language. Try again.'), 'error');
 });
-document.getElementById('archive-band-btn')?.addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  const archived = !btn.dataset.archived;
-  if (archived && !confirm(t('Archive %s? It becomes read only for every member, and leaves the menus.', bandName))) return;
-  Forms.busy(btn, true);
-  const res = await fetch(`/api/bands/${bandId}/archive`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({archived}),
-  }).catch(() => null);
-  if (res && res.ok) { location.reload(); return; }
-  Forms.busy(btn, false);
-  Forms.status(document.getElementById('archive-band-result'), t('Couldn’t change that. Try again.'), 'error');
-});
+// Archiving asks first, in a dialog that says what it does; unarchiving
+// doesn't.
+(function () {
+  const btn = document.getElementById('archive-band-btn');
+  if (!btn) return;
+  const dialog = document.getElementById('archive-dialog');
+  async function send(archived, busyBtn, statusEl) {
+    Forms.busy(busyBtn, true);
+    const res = await fetch(`/api/bands/${bandId}/archive`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({archived}),
+    }).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(busyBtn, false);
+    Forms.status(statusEl, t('Couldn’t change that. Try again.'), 'error');
+  }
+  btn.addEventListener('click', () => {
+    if (btn.dataset.archived) { send(false, btn, document.getElementById('archive-band-result')); return; }
+    Forms.status(document.getElementById('archive-dialog-status'), '');
+    dialog.showModal();
+  });
+  document.getElementById('archive-dialog-go')?.addEventListener('click', (e) => {
+    send(true, e.currentTarget, document.getElementById('archive-dialog-status'));
+  });
+  dialog?.addEventListener('close', () => btn.focus());
+})();
 document.getElementById('delete-band-btn')?.addEventListener('click', async (e) => {
   if (!confirm(t('Delete %s and its whole songbook for every member? This can’t be undone.', bandName))) return;
   const btn = e.currentTarget;
