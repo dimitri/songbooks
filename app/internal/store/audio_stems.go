@@ -55,6 +55,11 @@ func (st *Store) ResetRunningStemJobs(ctx context.Context) error {
 // goes to one (SKIP LOCKED).
 func (st *Store) ClaimStemJob(ctx context.Context, model string) (*StemJob, error) {
 	var j StemJob
+	// The worker looking: at work (the Melody view tells a server
+	// without one, migration 0134).
+	if err := st.NoteStemWorker(ctx, model); err != nil {
+		return nil, err
+	}
 	err := st.db.QueryRow(ctx, `
 		UPDATE song_audio_stem_jobs SET status = 'running', model = $1, started_at = now(), attempts = attempts + 1
 		WHERE song_audio_id = (

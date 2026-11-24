@@ -47,10 +47,16 @@ func RunMelodyNotes(ctx context.Context, st *store.Store) {
 		if did && err == nil {
 			continue
 		}
-		select {
-		case <-ctx.Done():
+		// Until a split is saved (its analysis queued: the same
+		// notification), so a new melody is found at once.
+		if err := st.WaitForStemJob(ctx, melodyIdle); err != nil && ctx.Err() == nil {
+			select {
+			case <-ctx.Done():
+			case <-time.After(melodyIdle):
+			}
+		}
+		if ctx.Err() != nil {
 			return
-		case <-time.After(melodyIdle):
 		}
 	}
 }
@@ -228,6 +234,77 @@ type melodyResponse struct {
 	LowNotes      int     `json:"lowNotes"`
 	Dropped       int     `json:"dropped"`
 	Lang          string  `json:"lang,omitempty"`
+	// Key: the key signature written, as the page shows it (transposed);
+	// KeySource: where it comes from — "chart" (its key:), "melody" (the
+	// melody's notes and the chart's chords: the chart has no key),
+	// "recording" (the recording's analysis), "" (none: C major).
+	Key       string `json:"key,omitempty"`
+	KeySource string `json:"keySource,omitempty"`
+	// KeyCheck: the chart's key: and the melody disagree on the
+	// signature (to editors only; nil for others).
+	KeyCheck *melodyKeyCheck `json:"keyCheck,omitempty"`
+}
+
+// melodyKeyCheck is the chart's key and the key the melody and chords
+// suggest, when their signatures differ and the guess is clear enough
+// (melody.KeyGuess.Lead ≥ keyCheckLead), as the page shows them.
+type melodyKeyCheck struct {
+	Chart string  `json:"chart"`
+	Found string  `json:"found"`
+	Lead  float64 `json:"lead"`
+}
+
+// keyCheckLead: an editor is told the chart's key may be wrong only when
+// the melody and chords point elsewhere this clearly (on the demo songs:
+// a minor song marked major, two mixolydian songs, a I/iii call had leads
+// of 0.30 to 0.81; a I/V call and a modulating song 0.06 and 0.12:
+// docs/melody-sheet.md, "Key signature").
+const keyCheckLead = 0.25
+
+// melodyKey is the sheet's key signature, at the page's key (transpose):
+// the chart's key: when it has one; else the key its melody's notes and
+// chords point to (melody.GuessKey); else the recording's analysis'.
+// The source and, when the chart's key and the guess disagree, the check
+// go in resp.
+func (s *Server) melodyKey(resp *melodyResponse, sg *song.Song, body string, notes []audioanalysis.SungNote, rec *chartalign.Recording, transpose int) melody.Key {
+	flats := sg.Get("flats") == "yes"
+	_, csecs := songimport.ChartSections(body, SyncSections(sg))
+	var beats []string
+	for _, cs := range csecs {
+		for _, b := range cs.Bars {
+			beats = append(beats, b.Beats...)
+		}
+	}
+	ev := melody.ChordEvidence(beats)
+	ev.Notes = melody.NotePitchClasses(notes)
+	guess, guessed := melody.GuessKey(ev)
+	name := func(k melody.Key) string { return melody.KeyName(k, flats) }
+	if key, ok := melody.KeyOf(sg.Get("key"), transpose, flats); ok {
+		resp.Key, resp.KeySource = name(key), "chart"
+		if guessed && !melody.SameSignature(guess.Fifths(), keyFifths(sg.Get("key"))) && guess.Lead >= keyCheckLead {
+			found := melody.FromGuess(guess, transpose, flats)
+			resp.KeyCheck = &melodyKeyCheck{Chart: name(key), Found: name(found), Lead: math.Round(guess.Lead*100) / 100}
+		}
+		return key
+	}
+	if guessed {
+		key := melody.FromGuess(guess, transpose, flats)
+		resp.Key, resp.KeySource = name(key), "melody"
+		return key
+	}
+	if rec != nil {
+		if key, ok := melody.KeyOf(analysisKey(rec.Key), transpose, flats); ok {
+			resp.Key, resp.KeySource = name(key), "recording"
+			return key
+		}
+	}
+	return melody.Key{}
+}
+
+// keyFifths is a chart key's signature (sharps +, flats −).
+func keyFifths(s string) int {
+	k, _ := melody.KeyOf(s, 0, false)
+	return k.Fifths
 }
 
 // melodyScore builds the song's melody; resp.State says why there's none.
@@ -345,10 +422,7 @@ func (s *Server) melodyScore(ctx context.Context, variantID int64, transpose int
 		}
 		resp.Confidence = math.Round(sum/float64(len(fits))*100) / 100
 	}
-	key, ok := melody.KeyOf(sg.Get("key"), transpose, sg.Get("flats") == "yes")
-	if !ok && an.Analysis != nil {
-		key, _ = melody.KeyOf(analysisKey(an.Analysis.Key), transpose, false)
-	}
+	key := s.melodyKey(&resp, sg, body, m.Notes, an.Analysis, transpose)
 	tempo, _ := strconv.ParseFloat(sg.Get("tempo"), 64)
 	sections := map[int]string{}
 	for _, sec := range secs {
@@ -520,6 +594,12 @@ func (s *Server) handleGetSongMelody(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// The key check is the chart's editors' to act on.
+	if resp.KeyCheck != nil {
+		if ok, _ := s.store.CanEditVariant(r.Context(), actorID(r), variantID); !ok {
+			resp.KeyCheck = nil
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
