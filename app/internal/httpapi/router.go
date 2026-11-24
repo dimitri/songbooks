@@ -190,7 +190,9 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// The import wizard's reference recording, cleanup, lyrics, singer's
 	// draft, key check and draft merge (handlers_wizard.go,
 	// internal/songimport, internal/importer).
-	mux.HandleFunc("GET /api/import/youtube/find", s.requireAuth(s.handleImportYouTubeFind))
+	// The YouTube picker (yt_picker.go); the wizard's older address too.
+	mux.HandleFunc("GET /api/youtube/find", s.requireAuth(s.handleYouTubeFind))
+	mux.HandleFunc("GET /api/import/youtube/find", s.requireAuth(s.handleYouTubeFind))
 	mux.HandleFunc("POST /api/import/cleanup", s.requireAuth(s.handleImportCleanup))
 	mux.HandleFunc("POST /api/import/lyrics/place", s.requireAuth(s.handleImportLyricsPlace))
 	mux.HandleFunc("GET /api/import/vocal", s.requireAuth(s.handleImportVocal))

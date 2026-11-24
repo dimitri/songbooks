@@ -10099,3 +10099,75 @@ tr[id^="rev-"]:target > td { background: var(--accent-bg); }
 .admin-locked-out { background: var(--warn-bg); color: var(--fg); border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0 0 0.8rem; }
 .admin-locked-out p { margin: 0.2rem 0; }
 .admin-locked-out ul { margin: 0.3rem 0; padding-left: 1.2rem; }
+
+/* ---- The YouTube picker (yt-picker.js; ref-picker) ------------------------
+   A search prefilled with the song's title and artist, YouTube's results
+   as rows (thumbnail, title, channel · length), the one picked opening in
+   place: its video playing, its one primary action. The Reference view's,
+   the Import wizard's Recording step's, Add / Create's (in a dialog). */
+.ytpick { display: flex; flex-direction: column; gap: 0.5rem; }
+.ytpick-search { display: flex; flex-direction: column; gap: 0.3rem; }
+.ytpick-label { font-weight: 600; font-size: 0.9rem; }
+.ytpick-search-row { display: flex; gap: 0.4rem; }
+.ytpick-search-row input { flex: 1; min-width: 0; }
+.ytpick-status { margin: 0; }
+.ytpick-status:empty { display: none; }
+.ytpick-status.is-error { color: var(--danger); }
+.ytpick[aria-busy="true"] .ytpick-status::before {
+  content: ""; display: inline-block; width: 0.8em; height: 0.8em; margin-right: 0.4em; vertical-align: -0.1em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: ytpick-spin 0.8s linear infinite;
+}
+@keyframes ytpick-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ytpick[aria-busy="true"] .ytpick-status::before { animation: none; } }
+.ytpick-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.ytpick-item { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); }
+.ytpick-item.is-open { border-color: var(--border-strong); }
+.ytpick-item.is-current { border-color: var(--accent); }
+.ytpick-row { display: flex; align-items: center; gap: 0.4rem; padding-right: 0.4rem; }
+button.ytpick-pick {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.7rem; text-align: left;
+  border: 0; background: none; padding: 0.4rem; border-radius: 8px; min-height: 0;
+}
+button.ytpick-pick:hover:not(:disabled) { background: var(--bg-sunken); }
+.ytpick-thumb { position: relative; flex: none; width: 8rem; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: var(--bg-sunken); }
+.ytpick-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ytpick-len {
+  position: absolute; right: 0.25rem; bottom: 0.25rem; padding: 0 0.3rem; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75); color: #fff; font-size: 0.72rem; font-variant-numeric: tabular-nums; line-height: 1.4;
+}
+.ytpick-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.ytpick-title { font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ytpick-meta { font-size: 0.82rem; color: var(--fg-muted); }
+.ytpick-item.is-current .ytpick-meta { color: var(--accent-ink); }
+.ytpick-preview { padding: 0.2rem 0.6rem 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.ytpick-embed iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 6px; display: block; background: #000; }
+.ytpick-actions { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.ytpick-watch { font-size: 0.85rem; color: var(--fg-muted); }
+.ytpick-use-status:empty { display: none; }
+.ytpick-dialog .ytpick { margin-top: 0.6rem; }
+.ytpick-dialog { overflow-y: auto; }
+.addsong-find-video { margin-top: 0.3rem; font-size: 0.85rem; align-self: flex-start; }
+@media (max-width: 480px) {
+  .ytpick-thumb { width: 6.5rem; }
+  button.ytpick-pick { gap: 0.55rem; }
+  .ytpick-title { font-size: 0.9rem; }
+}
+
+/* The Reference view (ref-picker): the video and its title first, the
+   picker in place while there's none or once "Change the video" is
+   asked; the video's sound and an uploaded recording after it, smaller. */
+.reference-why { margin: 0 0 0.6rem; }
+.reference-current .reference-embed { margin-top: 0; }
+.reference-current .reference-row { margin-top: 0.5rem; justify-content: space-between; flex-wrap: wrap; }
+.reference-link { font-weight: 600; overflow-wrap: anywhere; }
+.reference-picker-box { margin-top: 0.6rem; }
+.reference-change-hint { margin: 0 0 0.5rem; }
+.reference-picker-foot { margin-top: 0.4rem; }
+.reference-picker-foot:has(> [hidden]:only-child) { display: none; }
+.reference-more:not([hidden]) { margin-top: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+.reference-more .audio-category-upload { margin-top: 0; }
+.reference-more .audio-pill-btn:not([hidden]) { border-color: transparent; background: none; padding-left: 0; color: var(--fg-muted); text-decoration: underline; text-underline-offset: 2px; }
+.reference-more .audio-pill-btn.danger:not([hidden]) { color: var(--danger); }
+button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
+.reference-section-minor { font-size: 0.78rem; }
+.reference-page .catalogue-label-row { margin-top: 0.8rem; }

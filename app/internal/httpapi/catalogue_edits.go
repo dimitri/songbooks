@@ -405,10 +405,11 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 			writeSaveErr(w, err)
 			return true
 		}
+		out := map[string]any{"version": version}
 		if newReference {
-			s.refLabelNow(ctx, id)
+			s.newReferenceNames(ctx, id, newRef, out)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"version": version})
+		writeJSON(w, http.StatusOK, out)
 		return true
 	}
 	standing, err := s.store.CatalogueStandingOf(ctx, person.ID)
@@ -437,10 +438,11 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 			writeSaveErr(w, err)
 			return true
 		}
+		out := map[string]any{"version": version}
 		if newReference {
-			s.refLabelNow(ctx, id)
+			s.newReferenceNames(ctx, id, newRef, out)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"version": version})
+		writeJSON(w, http.StatusOK, out)
 		return true
 	}
 	editID, err := s.store.HoldCatalogueEdit(ctx, in)
@@ -454,6 +456,17 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		"message": i18n.T(lang, "Your edit waits for review: the song stays as it is for everyone until it’s approved."),
 	})
 	return true
+}
+
+// newReferenceNames: a catalogue song's new reference saved, its title
+// (fetched now and kept, as handlePutMeta does) and the reference label
+// filled from it while the song has none (refLabelNow), in the save's
+// answer — the Reference view and the header show them at once.
+func (s *Server) newReferenceNames(ctx context.Context, id int64, ref string, out map[string]any) {
+	out["referenceTitle"] = s.fetchRefTitle(ctx, id, ref)
+	if label := s.refLabelNow(ctx, id); label != "" {
+		out["referenceLabel"] = label
+	}
 }
 
 // ---- Pages -----------------------------------------------------------

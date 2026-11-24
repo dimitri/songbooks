@@ -1,0 +1,13 @@
+{{/* The YouTube picker (static/js/yt-picker.js; its API, yt_picker.go):
+     a search prefilled with the song's title and artist, YouTube's
+     results with their thumbnail, title, channel and length, a pasted
+     link read as that one video; the one picked plays in place, with the
+     one primary action. Where a page has one: its place, and what it
+     starts from — the script builds it there (YTPicker.mount, by the
+     page's script, which says what using a video does). Pages that open
+     it from a script alone (Add / Create) call YTPicker.open.
+     dict: ID, Title, Artist, Current (the link in use), Use (the action's
+     words), Label (the search field's). */}}
+{{define "yt-picker"}}
+<div class="ytpick" id="{{.ID}}" data-yt-picker data-title="{{.Title}}" data-artist="{{.Artist}}"{{with .Current}} data-current="{{.}}"{{end}}{{with .Use}} data-use-label="{{.}}"{{end}}{{with .Label}} data-label="{{.}}"{{end}}></div>
+{{end}}

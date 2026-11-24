@@ -93,11 +93,21 @@ func TestRefLinkName(t *testing.T) {
 	if !strings.Contains(b.String(), `id="topbar-ref-name" data-title="">YouTube<`) || !strings.Contains(b.String(), `width="96" height="54"`) {
 		t.Errorf("YouTube's name and thumbnail:\n%s", b.String())
 	}
+	// An uploaded recording: the band's in a band's place, else one's own.
 	b.Reset()
-	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&b, "song-ref-head", songRefHeadFor("", true, false)); err != nil {
+	band := songRefHeadFor("", true, false)
+	band.Band = true
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&b, "song-ref-head", band); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(b.String(), `id="topbar-ref-name" data-title="">Enregistrement du groupe<`) {
 		t.Errorf("a band recording's name:\n%s", b.String())
+	}
+	b.Reset()
+	if err := webassets.TemplatesFor("fr").ExecuteTemplate(&b, "song-ref-head", songRefHeadFor("", true, false)); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `id="topbar-ref-name" data-title="">Votre enregistrement<`) || strings.Contains(b.String(), "groupe") {
+		t.Errorf("one's own recording's name:\n%s", b.String())
 	}
 }
