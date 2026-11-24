@@ -70,6 +70,9 @@
 .jz-style-name { display: block; }
 .jz-sub { display: block; font-size: .78em; color: var(--jz-ink-soft); margin-top: .25em; }
 .jz-bpm { font-family: var(--jz-music); font-size: 1.15em; vertical-align: -.05em; }
+/* A compound meter's dotted quarter (♩. = 72): the font's dot has no
+   room of its own, and touching the notehead it read as a plain ♩. */
+.jz-bpm-dot { margin-left: .14em; }
 .jz-key .jz-root { display: inline-flex; align-items: flex-start; }
 .jz-key .jz-acc { font-family: var(--jz-music); font-size: .9em; }
 
@@ -172,6 +175,9 @@
      ending's number, the texts under a bar ("3x", "D.S. al Coda"), which
      wrap rather than run across the bars before them. */
   .jz-name { font-size: max(.3em, 10px); top: min(-.22em, -9px); }
+  /* The tempo and the key under the header's columns, readable too: at
+     .39em the tempo's dotted quarter (♩. = 72) read as a plain ♩. */
+  .jz-sub { font-size: max(.78em, 10px); }
   .jz-volta .n { font-size: max(.36em, 10px); }
   .jz-stx { font-size: max(.4em, 10px); white-space: normal; width: max-content; max-width: 190%; text-align: right; line-height: 1.05; }
   .jz-sys > .jz-bar:first-child .jz-stx { max-width: calc(100% - .2em); }

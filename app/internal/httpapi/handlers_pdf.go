@@ -58,6 +58,16 @@ func (s *Server) handleExportSongPDF(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound, "no such song")
 		return
 	}
+	// The Jazz chart: the song page's own, on A4 (jazz_pdf.go).
+	if optionsFromRequest(r).Mode == pdfnative.ModeJazz {
+		data, err := s.pdf.ExportJazzChart(r.Context(), s.jazzChartForPDF(r.Context(), id, sg, s.langOfRequest(r)))
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
+			return
+		}
+		writePDF(w, strconv.FormatInt(id, 10), data)
+		return
+	}
 	sg = withGPNotes(sg)
 	scoreTracks, scoreErrs := tab.LoadScores(sg)
 	for _, e := range scoreErrs {
@@ -169,6 +179,7 @@ func (s *Server) handleExportSetlistByIDPDF(w http.ResponseWriter, r *http.Reque
 	title := orDefault(meta.Title, "setlist")
 	refs, skipped := resolveByIDSetlistRefs(r.Context(), s, l)
 	front := s.setlistFrontMatter(r, meta, title)
+	s.withJazzCharts(r, refs)
 
 	data, err := s.pdf.ExportSetlist(r.Context(), title, front, refs, setlistOptionsFromRequest(r))
 	if err != nil {
@@ -281,6 +292,7 @@ func (s *Server) handleExportSongbookPDF(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	s.withJazzCharts(r, refs)
 	data, err := s.pdf.ExportSongbook(r.Context(), sb.Name, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
@@ -327,6 +339,7 @@ func (s *Server) handleExportBandSongbookPDF(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	s.withJazzCharts(r, refs)
 	data, err := s.pdf.ExportSongbook(r.Context(), band.Name, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())
@@ -378,6 +391,7 @@ func (s *Server) handleExportCommunitySongbookPDF(w http.ResponseWriter, r *http
 		return
 	}
 
+	s.withJazzCharts(r, refs)
 	data, err := s.pdf.ExportSongbook(r.Context(), community.Name, refs, optionsFromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "rendering PDF: "+err.Error())

@@ -109,7 +109,7 @@
   <div class="jz-paper">
     <div class="jz-chart">
       <div class="jz-head">
-        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="sr-only">{{t "Tempo"}}</span><span class="jz-bpm" aria-hidden="true">{{if $.Compound}}&#xE1D5;&#xE1E7;{{else}}&#xE1D5;{{end}}</span> = {{.}}</span>{{end}}</div>
+        <div class="jz-style">{{with .Style}}<span class="jz-style-name">{{.}}</span>{{end}}{{with .Tempo}}<span class="jz-sub"><span class="sr-only">{{t "Tempo"}}</span><span class="jz-bpm" aria-hidden="true">&#xE1D5;{{if $.Compound}}<span class="jz-bpm-dot">&#xE1E7;</span>{{end}}</span> = {{.}}</span>{{end}}</div>
         <div class="jz-title">{{.Title}}</div>
         <div class="jz-composer">{{.Composer}}{{with .Key}}<span class="jz-sub">{{t "Key"}}: <span class="sr-only jz-key-say" data-say-rest="{{range $.KeySayRest}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}">{{range $.KeySayRoot}}{{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}{{range $.KeySayRest}} {{if .Key}}{{t .Key}}{{else}}{{.Text}}{{end}}{{end}}</span><span class="jz-key" aria-hidden="true">{{.}}</span></span>{{end}}</div>
       </div>
