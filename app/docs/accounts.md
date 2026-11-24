@@ -109,6 +109,32 @@ account without a password would be locked out once its session ends
   --set-password <id>`. Staging had none on 2026-11-24. Their profile
   page says to set one now.
 
+## A site admin's page for one person
+
+`/admin/people/{id}` (`httpapi/admin_person.go`), from the admin's
+People list and its invites: the person's state as a chip — **active**,
+**hasn't joined yet**, **can't log in: no email**, **can't log in: no
+password** (an email but neither a password nor a passkey, while no
+login email is sent) —, their way in, every band and community they're
+on with that group's own roles (a band's own roles included) and
+Remove, an add row, and the site-admin switch (asked before it changes;
+never one's own).
+
+- **Hasn't joined yet** is a placeholder (`is_shell`), or an account
+  nobody ever got into: no email, no password, no passkey, and no
+  session nor used login link, ever (`neverJoinedSQL`: an import's or an
+  early roster's name). Its way in is its **personal invite link**: the
+  page shows it (made when, by whom, until when; a QR code), Copy link,
+  New link (the old one stops working), Revoke. Making the link turns a
+  never-joined account into a placeholder, in the same transaction
+  (`CreatePersonalInvite`, every caller, `--create-personal-invite`
+  too): nothing is taken from anyone, and everything else (claiming,
+  rosters, the login link's refusal) goes on reading `is_shell` alone.
+  Once the link is claimed the page says **active**.
+- **Someone with an account** gets the admin's **login link** (the
+  Members pages' dialog), to set a new password on their profile. No
+  page sets someone else's password: `songbooks --set-password <id>`.
+
 ## Showing people
 
 The display name, everywhere: rosters, "added by", "decided by",

@@ -73,7 +73,7 @@
         {{range .People}}
           <tr>
             <td data-label="{{t "Name"}}"><a href="/admin/people/{{.ID}}">{{.DisplayName}}</a></td>
-            <td data-label="{{t "Email"}}">{{if .Email}}{{.Email}}{{else if .IsShell}}<span class="hint">{{t "hasn’t joined yet"}}</span>{{else}}<span class="hint">{{t "no email: can’t log in"}}</span>{{end}}</td>
+            <td data-label="{{t "Email"}}">{{if .Email}}{{.Email}}{{else if or .IsShell .NeverJoined}}<span class="hint">{{t "hasn’t joined yet"}}</span>{{else}}<span class="hint">{{t "no email: can’t log in"}}</span>{{end}}</td>
             <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02"}}</td>
             <td data-label="{{t "Admin"}}">{{if .IsAdmin}}{{t "yes"}}{{else}}{{t "no"}}{{end}}</td>
             <td>
@@ -215,13 +215,13 @@
 
     <div class="card">
       <h3>{{t "Single-use invites"}}</h3>
-      <p class="hint">{{t "Plain signup invites and direct band invites — single-use, and removed from this list the moment they're accepted (so what's left here is either still open or sat unused past its expiry — exactly the \"did it expire?\" question this answers)."}}</p>
+      <p class="hint">{{t "Plain signup invites, and the personal links of people who haven’t joined yet: each works once and goes from this list when it’s used, so what’s here is still open or expired unused."}}</p>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>{{t "Kind"}}</th><th>{{t "Created by"}}</th><th>{{t "Created"}}</th><th>{{t "Expires"}}</th><th>{{t "Status"}}</th></tr></thead>
         <tbody>
         {{range .PlainInvites}}
           <tr>
-            <td data-label="{{t "Kind"}}">{{if .BandID}}{{t "band: %s" .BandName}}{{else}}{{t "plain signup"}}{{end}}</td>
+            <td data-label="{{t "Kind"}}">{{if .PersonID}}{{t "personal:"}} <a href="/admin/people/{{.PersonID}}">{{.PersonName}}</a>{{else if .BandID}}{{t "band: %s" .BandName}}{{else}}{{t "plain signup"}}{{end}}</td>
             <td data-label="{{t "Created by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
             <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
             <td data-label="{{t "Expires"}}">{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>

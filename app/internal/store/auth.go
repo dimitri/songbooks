@@ -221,12 +221,17 @@ type PersonAdminRow struct {
 	Email       string // "" for a placeholder, or an account that can't log in
 	IsAdmin     bool
 	IsShell     bool
+	// NeverJoined: not a placeholder, but nobody ever got into it either
+	// (neverJoinedSQL): it hasn't joined, as a placeholder hasn't.
+	NeverJoined bool
 	CreatedAt   time.Time
 }
 
 // ListAllPeople lists every person in the system, for the admin panel.
 func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
-	rows, err := st.db.Query(ctx, `SELECT id, display_name, coalesce(email, ''), is_admin, is_shell, created_at FROM people ORDER BY created_at`)
+	rows, err := st.db.Query(ctx, `
+		SELECT p.id, p.display_name, coalesce(p.email, ''), p.is_admin, p.is_shell, NOT p.is_shell AND `+neverJoinedSQL+`, p.created_at
+		FROM people p ORDER BY p.created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +239,7 @@ func (st *Store) ListAllPeople(ctx context.Context) ([]PersonAdminRow, error) {
 	var out []PersonAdminRow
 	for rows.Next() {
 		var p PersonAdminRow
-		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Email, &p.IsAdmin, &p.IsShell, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.Email, &p.IsAdmin, &p.IsShell, &p.NeverJoined, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -524,6 +529,14 @@ var ErrNotShell = errors.New("that person already has an account")
 // they already have an account. Unlike CreatePlainInvite/
 // CreateBandInvite, claiming it never creates a new person row:
 // ClaimPersonalInvite finishes the EXISTING one.
+//
+// An account nobody ever joined (no email, no password, no passkey, no
+// session nor used login link ever: neverJoinedSQL — an import's or an
+// early roster's name) is a placeholder in all but the flag: it becomes
+// one here, in the same transaction, and gets its link. Nothing is
+// taken from anyone (nobody ever got into it), and everything that
+// tells a placeholder apart (claiming, rosters' "hasn't joined yet",
+// the login link's refusal) goes on reading is_shell alone.
 func (st *Store) CreatePersonalInvite(ctx context.Context, personID, createdBy int64, ttl time.Duration) (string, error) {
 	token, err := randomToken()
 	if err != nil {
@@ -535,16 +548,21 @@ func (st *Store) CreatePersonalInvite(ctx context.Context, personID, createdBy i
 	}
 	defer tx.Rollback(ctx)
 
-	var isShell bool
-	err = tx.QueryRow(ctx, `SELECT is_shell FROM people WHERE id = $1 FOR UPDATE`, personID).Scan(&isShell)
+	var isShell, neverJoined bool
+	err = tx.QueryRow(ctx, `SELECT p.is_shell, `+neverJoinedSQL+` FROM people p WHERE p.id = $1 FOR UPDATE`, personID).Scan(&isShell, &neverJoined)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("no such person id %d: %w", personID, ErrNotFound)
 	}
 	if err != nil {
 		return "", err
 	}
-	if !isShell {
+	if !isShell && !neverJoined {
 		return "", ErrNotShell
+	}
+	if !isShell {
+		if _, err := tx.Exec(ctx, `UPDATE people SET is_shell = true WHERE id = $1`, personID); err != nil {
+			return "", err
+		}
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE person_id = $1`, personID); err != nil {
 		return "", err
@@ -567,6 +585,14 @@ type PersonalInviteMembership struct {
 	ID     int64
 	Name   string
 	Status string // band_members.status, or community_members.role
+	// RoleID is the membership's role (band_roles or community_roles),
+	// RoleKey its built-in key ("" for a group's own role), for the admin
+	// person page's role select.
+	RoleID  int64
+	RoleKey string
+	// GroupKind is the community's kind ("community", "coaching",
+	// "global"); "" for a band.
+	GroupKind string
 }
 
 // PersonalInviteView is what the /invite/{token} landing page needs
@@ -614,11 +640,12 @@ func (st *Store) GetPersonalInvite(ctx context.Context, token string) (*Personal
 // account yet.
 func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]PersonalInviteMembership, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT 'band', b.id, b.name, bm.status::text
+		SELECT 'band', b.id, b.name, bm.status::text, bm.role_id, coalesce(br.builtin_key, ''), ''
 		FROM band_members bm JOIN bands b ON b.id = bm.band_id
+		JOIN band_roles br ON br.id = bm.role_id
 		WHERE bm.person_id = $1 AND upper_inf(bm.validity)
 		UNION ALL
-		SELECT 'community', sc.id, sc.name, cr.name
+		SELECT 'community', sc.id, sc.name, cr.name, cr.id, coalesce(cr.builtin_key, ''), sc.kind
 		FROM community_members sm
 		JOIN communities sc ON sc.id = sm.community_id
 		JOIN community_roles cr ON cr.id = sm.role_id
@@ -631,7 +658,7 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 	var out []PersonalInviteMembership
 	for rows.Next() {
 		var m PersonalInviteMembership
-		if err := rows.Scan(&m.Kind, &m.ID, &m.Name, &m.Status); err != nil {
+		if err := rows.Scan(&m.Kind, &m.ID, &m.Name, &m.Status, &m.RoleID, &m.RoleKey, &m.GroupKind); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -789,23 +816,30 @@ type PlainInviteRow struct {
 	Token         string
 	BandID        int64
 	BandName      string
+	PersonID      int64  // a personal invite's placeholder (0: a plain one)
+	PersonName    string // its name
 	CreatedByName string
 	CreatedAt     time.Time
 	ExpiresAt     time.Time
 }
 
 // ListPlainInvites lists every row still sitting in the invites table —
-// single-use plain or band invites that haven't been accepted yet
+// single-use plain and personal invites that haven't been accepted yet
 // (accepting one deletes it, see acceptInviteTx), whether still valid
-// or already past expires_at. Newest first. The admin panel's "did the
+// or already past expires_at — but a band's nameless one-off link, left
+// over from before it went and taken by nothing since
+// (notNamelessBandInvite). Newest first. The admin panel's "did the
 // invite I sent actually expire, and when" view — GetInvite alone can't
 // answer that since it treats an expired row exactly like a missing one.
 func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT i.token, i.band_id, coalesce(b.name, ''), coalesce(p.display_name, ''), i.created_at, i.expires_at
+		SELECT i.token, i.band_id, coalesce(b.name, ''), i.person_id, coalesce(who.display_name, ''),
+		       coalesce(p.display_name, ''), i.created_at, i.expires_at
 		FROM invites i
 		LEFT JOIN bands b ON b.id = i.band_id
+		LEFT JOIN people who ON who.id = i.person_id
 		LEFT JOIN people p ON p.id = i.created_by_person_id
+		WHERE `+notNamelessBandInvite+`
 		ORDER BY i.created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -814,11 +848,12 @@ func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error)
 	var out []PlainInviteRow
 	for rows.Next() {
 		var r PlainInviteRow
-		var bandID sql.NullInt64
-		if err := rows.Scan(&r.Token, &bandID, &r.BandName, &r.CreatedByName, &r.CreatedAt, &r.ExpiresAt); err != nil {
+		var bandID, personID sql.NullInt64
+		if err := rows.Scan(&r.Token, &bandID, &r.BandName, &personID, &r.PersonName, &r.CreatedByName, &r.CreatedAt, &r.ExpiresAt); err != nil {
 			return nil, err
 		}
 		r.BandID = bandID.Int64
+		r.PersonID = personID.Int64
 		out = append(out, r)
 	}
 	return out, rows.Err()

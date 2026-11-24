@@ -12,159 +12,259 @@
 {{template "desktop-sidebar" .}}
 <div class="app-content">
 <header class="app-header">
-  {{template "home-link"}}
+  <a class="back-link" href="/admin#people">{{template "icon-back"}} {{t "People"}}</a>
   <h1>{{.Person.DisplayName}}</h1>
 </header>
-<main class="index">
-  <a href="/admin#people" class="import-back">{{template "icon-back"}} {{t "back to Admin"}}</a>
-
-  <div class="card">
-    <h3>{{t "Identity"}}</h3>
-    <table style="width:100%">
-      <tr><td class="hint">{{t "Display name"}}</td><td>{{.Person.DisplayName}}</td></tr>
-      <tr><td class="hint">{{t "Email"}}</td><td>{{if .Person.Email}}{{.Person.Email}}{{else}}<em>{{t "none"}}</em> <span class="hint">{{t "— can’t log in until it has one"}}</span>{{end}}</td></tr>
-      <tr><td class="hint">{{t "Site admin"}}</td><td>
-        {{if eq .Person.ID .Me.ID}}<em>{{t "you"}}</em>{{else}}
-        <form method="post" action="/admin/people/{{.Person.ID}}/admin" class="button-form"{{if .Person.IsAdmin}} onsubmit="return confirm('{{t "Remove site admin rights from %s?" .Person.DisplayName}}')"{{end}}>
-          <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
-          <button type="submit">{{if .Person.IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>
-        </form>
-        {{end}}
-      </td></tr>
-    </table>
-  </div>
-
-  {{/* The whole point of this page: every roster this person is on,
-       with their role within it, adjustable in place — instead of
-       having to find and open each band/community separately to fix
-       one person's role. */}}
-  <div class="card">
-    <h3>{{t "Memberships & roles"}}</h3>
-    <p class="hint">{{t "Adjusting a role here takes effect immediately, same as doing it from the band/community's own Members page."}}</p>
-    <div id="membership-rows" class="form-stack">
-    {{range .Memberships}}
-      <div class="import-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}" data-name="{{.Name}}">
-        <strong class="membership-row-label">{{if eq .Kind "band"}}{{t "Band: %s" .Name}}{{else}}{{t "Community: %s" .Name}}{{end}}</strong>
-        <select class="membership-role-select" aria-label="{{t "Role in %s" .Name}}">
-          {{if eq .Kind "band"}}
-          <option value="core" {{if eq .Status "core"}}selected{{end}}>{{t "Core"}}</option>
-          <option value="guest" {{if eq .Status "guest"}}selected{{end}}>{{t "Guest"}}</option>
-          {{else}}
-          <option value="staff" {{if eq .Status "staff"}}selected{{end}}>{{t "Staff"}}</option>
-          <option value="member" {{if eq .Status "member"}}selected{{end}}>{{t "Member"}}</option>
-          {{end}}
-        </select>
-        <button type="button" class="membership-remove-btn danger">{{t "Remove"}}</button>
-        <span class="membership-row-status form-status" role="status"></span>
+{{/* One person, for a site admin (httpapi/admin_person.go): the admin
+     pages' own look (cards on /admin, the roster's rows), not the
+     settings shell — three short blocks read on one page, with nothing
+     to choose between. Wide: memberships on the left, their way in and
+     site admin beside; a phone: their way in first. */}}
+<main class="index admin-person" data-person-id="{{.Person.ID}}" data-name="{{.Person.DisplayName}}">
+  <div class="person-head">
+    <span class="person-avatar" aria-hidden="true">{{initial .Person.DisplayName}}</span>
+    <div class="person-head-text">
+      <div class="person-chips">
+        {{if eq .State "pending"}}<span class="person-chip is-pending">{{t "hasn’t joined yet"}}</span>
+        {{else if eq .State "no-email"}}<span class="person-chip is-blocked">{{t "can’t log in: no email"}}</span>
+        {{else if eq .State "no-password"}}<span class="person-chip is-blocked">{{t "can’t log in: no password"}}</span>
+        {{else}}<span class="person-chip is-active">{{t "active"}}</span>{{end}}
+        {{if .Person.IsAdmin}}<span class="person-chip">{{t "Site admin"}}</span>{{end}}
+        {{if eq .Person.ID .Me.ID}}<span class="person-chip">{{t "you"}}</span>{{end}}
       </div>
-    {{else}}
-      <p class="hint">{{t "Not on any band or community roster yet."}}</p>
-    {{end}}
+      <p class="person-meta">{{with .Person.Email}}<span>{{.}}</span>{{else}}<span class="hint">{{t "no email"}}</span>{{end}}
+        <span class="hint">{{t "added %s" (date .Access.CreatedAt "2 January 2006")}} · id {{.Person.ID}}</span></p>
     </div>
   </div>
 
-  <div class="card card--narrow-lg">
-    <h3>{{t "Add a membership"}}</h3>
-    <form class="form-stack" id="add-membership-form">
-      <div class="field">
-        <label for="add-membership-kind">{{t "Type"}}</label>
-        <select id="add-membership-kind">
-          <option value="band">{{t "Band"}}</option>
-          <option value="community">{{t "Community"}}</option>
-        </select>
+  <div class="person-layout">
+
+  {{/* ---- Their way in ---- */}}
+  <section class="card person-access" aria-labelledby="person-access-title">
+    {{if eq .State "pending"}}
+    <h3 id="person-access-title">{{t "Invite link"}}</h3>
+    <p class="hint">{{t "They open it, set their email and a password, and join as %s, with the memberships here." .Person.DisplayName}}</p>
+    {{with .InviteURL}}
+    <div class="person-link-row">
+      <label for="person-invite-url" class="sr-only">{{t "Invite link"}}</label>
+      <input type="text" id="person-invite-url" value="{{.}}" readonly spellcheck="false">
+      <button type="button" class="primary" id="person-invite-copy">{{t "Copy link"}}</button>
+    </div>
+    {{end}}
+    {{with .Invite}}
+    <p class="person-link-meta hint">
+      {{if .CreatedByName}}{{t "Made %s by %s" (date .CreatedAt "2 January 2006") .CreatedByName}}{{else}}{{t "Made %s" (date .CreatedAt "2 January 2006")}}{{end}}
+      · {{if .Expired}}<strong>{{t "expired %s" (date .ExpiresAt "2 January 2006")}}</strong>{{else}}{{t "expires %s" (date .ExpiresAt "2 January 2006")}}{{end}}
+    </p>
+    {{else}}
+    <p class="person-link-meta hint">{{t "No link yet."}}</p>
+    {{end}}
+    <div class="form-actions form-actions--start">
+      {{if .InviteURL}}
+      <button type="button" id="person-invite-new" data-has-link="1">{{t "New link"}}</button>
+      <button type="button" id="person-invite-revoke" class="danger">{{t "Revoke"}}</button>
+      {{else}}
+      <button type="button" id="person-invite-new" class="primary">{{if .Invite}}{{t "New link"}}{{else}}{{t "Create the link"}}{{end}}</button>
+      {{if .Invite}}<button type="button" id="person-invite-revoke" class="danger">{{t "Remove it"}}</button>{{end}}
+      {{end}}
+    </div>
+    {{with .InviteQR}}
+    <details class="person-qr">
+      <summary>{{t "QR code"}}</summary>
+      <div class="person-qr-img" role="img" aria-label="{{t "QR code of the invite link"}}">{{.}}</div>
+    </details>
+    {{end}}
+    <p class="form-status" id="person-invite-status" role="status"></p>
+
+    {{else}}
+    <h3 id="person-access-title">{{t "Getting in"}}</h3>
+    {{if eq .State "no-email"}}
+    <p class="hint">{{t "The email is the account: without one they can’t log in. A login link gets them in once, to add their email on their profile; or give them one on the server: songbooks --set-email %d <email>." .Person.ID}}</p>
+    {{else if eq .State "no-password"}}
+    <p class="hint">{{t "No password nor passkey, and login emails aren’t sent yet: once their session ends they can’t log back in. A login link gets them in, to set a password on their profile."}}</p>
+    {{else}}
+    <p class="hint">{{t "Lost their password? A login link gets them in once, for 15 minutes: they set a new one on their profile."}}</p>
+    {{end}}
+    <div class="form-actions form-actions--start">
+      {{if ne .Person.ID .Me.ID}}{{template "login-link-btn" (dict "Me" .Me "Person" (dict "PersonID" .Person.ID "DisplayName" .Person.DisplayName) "Shell" false)}}{{end}}
+    </div>
+    <p class="hint person-cli">{{t "No page sets someone else’s password; on the server: songbooks --set-password %d." .Person.ID}}</p>
+    {{end}}
+  </section>
+
+  {{/* ---- Memberships: one row per band or community, the group's own
+       roles (a band's own included), Remove; the add form is the last
+       row. A change saves at once, as on a Members page. ---- */}}
+  <section class="person-memberships" aria-labelledby="person-memberships-title">
+    <div class="home-section-head"><h3 id="person-memberships-title">{{t "Memberships"}}</h3><span class="count">{{len .Memberships}}</span></div>
+    <div class="roster-list" id="membership-rows">
+    {{range .Memberships}}
+      <div class="roster-row membership-row" data-kind="{{.Kind}}" data-target-id="{{.ID}}" data-name="{{.Name}}">
+        <div class="roster-row-main">
+          <div class="roster-name"><a href="{{.Href}}">{{.Name}}</a></div>
+          <span class="hint membership-kind">{{t .KindLabel}}</span>
+        </div>
+        <div class="roster-row-actions">
+          <select class="membership-role-select" aria-label="{{t "Role in %s" .Name}}">
+            {{range .Roles}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+          </select>
+          <button type="button" class="membership-remove-btn danger">{{t "Remove"}}</button>
+        </div>
+        <span class="form-status" role="status"></span>
       </div>
-      <div class="field" id="add-membership-target-field">
-        <label for="add-membership-target">{{t "Band"}}</label>
-        <select id="add-membership-target">
-          {{range .AvailableBands}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+    {{else}}
+      <p class="roster-row hint">{{t "Not on any band or community yet."}}</p>
+    {{end}}
+    {{if or .AddBands .AddCommunities}}
+      <form class="roster-row membership-add" id="add-membership-form">
+        <label for="add-membership-target" class="sr-only">{{t "Band or community"}}</label>
+        <select id="add-membership-target" required>
+          <option value="">{{t "+ Add to a band or community…"}}</option>
+          {{with .AddBands}}<optgroup label="{{t "Bands"}}">{{range .}}<option value="{{.Key}}">{{.Name}}</option>{{end}}</optgroup>{{end}}
+          {{with .AddCommunities}}<optgroup label="{{t "Communities"}}">{{range .}}<option value="{{.Key}}">{{.Name}}</option>{{end}}</optgroup>{{end}}
         </select>
+        <label for="add-membership-role" class="sr-only">{{t "Role"}}</label>
+        <select id="add-membership-role" disabled></select>
+        <button type="submit" id="add-membership-btn" class="primary">{{t "Add"}}</button>
+        <p id="add-membership-status" class="form-status" role="status"></p>
+      </form>
+    {{end}}
+    </div>
+  </section>
+
+  {{/* ---- Site admin: a switch, asked before it changes. ---- */}}
+  <section class="card person-admin" aria-labelledby="person-admin-title">
+    <form method="post" action="/admin/people/{{.Person.ID}}/admin" id="person-admin-form" class="person-switch-row">
+      <input type="hidden" name="back" value="person">
+      <input type="hidden" name="is_admin" value="{{if .Person.IsAdmin}}0{{else}}1{{end}}">
+      <div>
+        <h3 id="person-admin-title">{{t "Site admin"}}</h3>
+        <p class="hint" id="person-admin-hint">{{if eq .Person.ID .Me.ID}}{{t "You can’t take away your own admin rights."}}{{else}}{{t "Opens this Admin page: every account, every band and community, invites and roles."}}{{end}}</p>
       </div>
-      <div class="field" id="add-membership-target-field-community" hidden>
-        <label for="add-membership-target-community">{{t "Community"}}</label>
-        <select id="add-membership-target-community">
-          {{range .AvailableCommunities}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-        </select>
-      </div>
-      <div class="field">
-        <label for="add-membership-role">{{t "Role"}}</label>
-        <select id="add-membership-role">
-          <option value="core" data-kind="band" selected>{{t "Core"}}</option>
-          <option value="guest" data-kind="band">{{t "Guest"}}</option>
-          <option value="member" data-kind="community">{{t "Member"}}</option>
-          <option value="staff" data-kind="community">{{t "Staff"}}</option>
-        </select>
-      </div>
-      <div class="form-actions"><button type="submit" id="add-membership-btn" class="primary">{{t "Add membership"}}</button></div>
-      <p id="add-membership-status" class="form-status" role="status"></p>
+      <label class="switch">
+        <span class="sr-only">{{t "Site admin"}}</span>
+        <input type="checkbox" role="switch" id="person-admin-switch" aria-describedby="person-admin-hint"{{if .Person.IsAdmin}} checked{{end}}{{if eq .Person.ID .Me.ID}} disabled{{end}}>
+        <span class="switch-track" aria-hidden="true"></span>
+      </label>
+      <noscript>{{if ne .Person.ID .Me.ID}}<button type="submit">{{if .Person.IsAdmin}}{{t "Remove admin"}}{{else}}{{t "Make admin"}}{{end}}</button>{{end}}</noscript>
     </form>
+  </section>
+
   </div>
 </main>
 <script>
-const personId = {{.Person.ID}};
-const personName = {{.Person.DisplayName}};
-
-function reload() { location.reload(); }
-
-document.querySelectorAll('.membership-role-select').forEach(sel => {
-  sel.addEventListener('change', async () => {
-    const row = sel.closest('[data-kind]');
-    const status = row.querySelector('.membership-row-status');
-    Forms.status(status, t('Saving…'), '');
-    const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/role`,
-      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: sel.value})}).catch(() => null);
-    if (res && res.ok) Forms.status(status, t('Saved.'), 'ok');
-    else Forms.status(status, t('Couldn’t change the role. Try again.'), 'error');
-  });
-});
-
-document.querySelectorAll('.membership-remove-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const row = btn.closest('[data-kind]');
-    if (!confirm(t('Remove %s from %s?', personName, row.dataset.name))) return;
-    Forms.busy(btn, true);
-    const res = await fetch(`/admin/people/${personId}/memberships/${row.dataset.kind}/${row.dataset.targetId}/remove`, {method: 'POST'}).catch(() => null);
-    if (res && res.ok) { row.remove(); return; }
-    Forms.busy(btn, false);
-    Forms.status(row.querySelector('.membership-row-status'), t('Couldn’t remove this membership. Try again.'), 'error');
-  });
-});
-
-const kindSel = document.getElementById('add-membership-kind');
-const bandField = document.getElementById('add-membership-target-field');
-const communityField = document.getElementById('add-membership-target-field-community');
-const roleSel = document.getElementById('add-membership-role');
-function syncAddFormKind() {
-  const kind = kindSel.value;
-  bandField.hidden = kind !== 'band';
-  communityField.hidden = kind !== 'community';
-  [...roleSel.options].forEach(o => { o.hidden = o.dataset.kind !== kind; });
-  const firstForKind = [...roleSel.options].find(o => o.dataset.kind === kind);
-  if (firstForKind) roleSel.value = firstForKind.value;
-}
-kindSel.addEventListener('change', syncAddFormKind);
-syncAddFormKind();
-
-const addForm = document.getElementById('add-membership-form');
-addForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const kind = kindSel.value;
-  const targetSel = kind === 'band' ? document.getElementById('add-membership-target') : document.getElementById('add-membership-target-community');
-  if (!targetSel.value) {
-    Forms.fieldError(targetSel, kind === 'band' ? t('They’re already in every band.') : t('They’re already in every community.'));
-    return;
-  }
-  Forms.fieldError(targetSel, '');
-  Forms.run(addForm, document.getElementById('add-membership-btn'), async () => {
-    const res = await fetch(`/admin/people/${personId}/memberships`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({kind, targetID: parseInt(targetSel.value, 10), role: roleSel.value}),
-    }).catch(() => { throw new Error(t('Couldn’t reach the server. Check your connection and try again.')); });
+(function () {
+  const main = document.querySelector('.admin-person');
+  const personId = main.dataset.personId;
+  const personName = main.dataset.name;
+  const api = (path, method, body) => fetch(`/admin/people/${personId}${path}`, {
+    method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined,
+  }).catch(() => null);
+  const errorOf = async (res, fallback) => {
+    if (!res) return t('Couldn’t reach the server. Check your connection and try again.');
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(res.status < 500 && data.error ? data.error : t('Couldn’t add the membership. Try again.'));
-    reload();
+    if (res.status === 409 && /roles/.test(data.error || '')) return t('Someone must keep the right to manage roles: give it to another member first.');
+    if (res.status === 409 && /community/.test(data.error || '')) return t('The community must keep someone who can manage it: give that role to another member first.');
+    return fallback;
+  };
+
+  // ---- Their personal invite link ----
+  const inviteStatus = document.getElementById('person-invite-status');
+  const copyBtn = document.getElementById('person-invite-copy');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    const input = document.getElementById('person-invite-url');
+    navigator.clipboard.writeText(input.value).then(() => {
+      copyBtn.textContent = t('Copied');
+      setTimeout(() => { copyBtn.textContent = t('Copy link'); }, 1500);
+    }).catch(() => { input.select(); });
   });
-});
+  const urlInput = document.getElementById('person-invite-url');
+  if (urlInput) urlInput.addEventListener('focus', () => urlInput.select());
+  const newBtn = document.getElementById('person-invite-new');
+  if (newBtn) newBtn.addEventListener('click', async () => {
+    if (newBtn.dataset.hasLink && !confirm(t('Make a new link for %s? The one they have stops working.', personName))) return;
+    Forms.busy(newBtn, true);
+    const res = await fetch(`/api/admin/people/${personId}/invite`, {method: 'POST'}).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(newBtn, false);
+    Forms.status(inviteStatus, await errorOf(res, t('Couldn’t make the link. Try again.')), 'error');
+  });
+  const revokeBtn = document.getElementById('person-invite-revoke');
+  if (revokeBtn) revokeBtn.addEventListener('click', async () => {
+    if (!confirm(t('Revoke %s’s invite link? It stops working; you can make a new one.', personName))) return;
+    Forms.busy(revokeBtn, true);
+    const res = await fetch(`/api/admin/people/${personId}/invite`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(revokeBtn, false);
+    Forms.status(inviteStatus, await errorOf(res, t('Couldn’t revoke the link. Try again.')), 'error');
+  });
+
+  // ---- Memberships ----
+  document.querySelectorAll('.membership-role-select').forEach(sel => {
+    let saved = sel.value;
+    sel.addEventListener('change', async () => {
+      const row = sel.closest('[data-kind]');
+      const status = row.querySelector(':scope > .form-status');
+      Forms.status(status, t('Saving…'), '');
+      const body = row.dataset.kind === 'band' ? {roleId: Number(sel.value)} : {role: sel.value};
+      const res = await api(`/memberships/${row.dataset.kind}/${row.dataset.targetId}/role`, 'POST', body);
+      if (res && res.ok) { saved = sel.value; Forms.status(status, t('Saved.'), 'ok'); return; }
+      sel.value = saved;
+      Forms.status(status, await errorOf(res, t('Couldn’t change the role. Try again.')), 'error');
+    });
+  });
+  document.querySelectorAll('.membership-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('[data-kind]');
+      if (!confirm(t('Remove %s from %s?', personName, row.dataset.name))) return;
+      Forms.busy(btn, true);
+      const res = await api(`/memberships/${row.dataset.kind}/${row.dataset.targetId}/remove`, 'POST');
+      if (res && res.ok) { location.reload(); return; }
+      Forms.busy(btn, false);
+      Forms.status(row.querySelector(':scope > .form-status'), await errorOf(res, t('Couldn’t remove this membership. Try again.')), 'error');
+    });
+  });
+
+  // The add row: pick a band or a community, then one of its roles.
+  const addForm = document.getElementById('add-membership-form');
+  if (addForm) {
+    const roles = {{.AddRoles}};
+    const target = document.getElementById('add-membership-target');
+    const roleSel = document.getElementById('add-membership-role');
+    const syncRoles = () => {
+      const list = roles[target.value];
+      roleSel.replaceChildren(...(list ? list.map(r => new Option(r.label, r.value, r.selected, r.selected)) : [new Option(t('Role'), '')]));
+      roleSel.disabled = !target.value;
+    };
+    target.addEventListener('change', syncRoles);
+    syncRoles();
+    addForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const [kind, id] = target.value.split(':');
+      const body = {kind, targetID: Number(id)};
+      if (kind === 'band') body.roleId = Number(roleSel.value); else body.role = roleSel.value;
+      Forms.run(addForm, document.getElementById('add-membership-btn'), async () => {
+        const res = await api('/memberships', 'POST', body);
+        if (!res) throw new Error(t('Couldn’t reach the server. Check your connection and try again.'));
+        if (!res.ok) throw new Error(t('Couldn’t add the membership. Try again.'));
+        location.reload();
+      });
+    });
+  }
+
+  // ---- Site admin ----
+  const adminSwitch = document.getElementById('person-admin-switch');
+  if (adminSwitch) adminSwitch.addEventListener('change', () => {
+    const on = adminSwitch.checked;
+    const ok = confirm(on ? t('Make %s a site admin? They’ll see and change every account, band and community.', personName)
+                          : t('Remove site admin rights from %s?', personName));
+    if (!ok) { adminSwitch.checked = !on; return; }
+    adminSwitch.disabled = true;
+    document.getElementById('person-admin-form').submit();
+  });
+})();
 </script>
+{{template "login-link-script" .Me}}
 </div>
 {{template "global-tabbar" $}}
 {{template "global-tabbar-script"}}

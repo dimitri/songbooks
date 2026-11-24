@@ -92,6 +92,11 @@ func (s *Server) handleSetAdmin(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Back where the switch was: the person's own page, or the list.
+	if r.FormValue("back") == "person" {
+		http.Redirect(w, r, "/admin/people/"+strconv.FormatInt(personID, 10), http.StatusFound)
+		return
+	}
 	http.Redirect(w, r, "/admin", http.StatusFound)
 }
 
@@ -133,73 +138,6 @@ func (s *Server) handleAdminCloseGroupInvite(w http.ResponseWriter, r *http.Requ
 	http.Redirect(w, r, "/admin#invites", http.StatusFound)
 }
 
-// handleAdminPersonPage is the per-person profile review screen: one
-// person's identity (display name, email, created date, site-admin
-// bit) plus every band/community they currently belong to and the role
-// within each — the admin-panel counterpart to a band/community's own
-// Members page, but scoped to a PERSON across every roster they're on,
-// not to one roster. Lets an admin fix a misassigned role or missing
-// membership without having to find and open each band/community in
-// turn. Gated by requireAdmin — no per-band/community membership check,
-// same reasoning as handleAdminCloseGroupInvite.
-func (s *Server) handleAdminPersonPage(w http.ResponseWriter, r *http.Request) {
-	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid person id")
-		return
-	}
-	person, err := s.store.GetPersonByID(r.Context(), personID)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			httpError(w, http.StatusNotFound, "no such person")
-			return
-		}
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	memberships, err := s.store.GetPersonMemberships(r.Context(), personID)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	allBands, err := s.store.ListAllBands(r.Context())
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	allCommunities, err := s.store.ListAllCommunitiesWithCounts(r.Context())
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Only offer bands/communities this person isn't already on — the
-	// add-membership picker would otherwise let an admin "add" someone
-	// who's already a member and hit AddBandMember/AddCommunityMember's own
-	// already-a-member error for no reason.
-	already := map[string]bool{}
-	for _, m := range memberships {
-		already[m.Kind+":"+strconv.FormatInt(m.ID, 10)] = true
-	}
-	var availableBands []store.Band
-	for _, b := range allBands {
-		if !already["band:"+strconv.FormatInt(b.ID, 10)] {
-			availableBands = append(availableBands, b)
-		}
-	}
-	var availableCommunities []store.CommunityAdminRow
-	for _, c := range allCommunities {
-		if !already["community:"+strconv.FormatInt(c.ID, 10)] {
-			availableCommunities = append(availableCommunities, c)
-		}
-	}
-
-	s.render(w, "admin_person", map[string]any{
-		"Me": personFromContext(r), "Person": person, "Memberships": memberships,
-		"AvailableBands": availableBands, "AvailableCommunities": availableCommunities,
-	})
-}
-
 // adminMembershipMutationRequest is the shared body shape for the three
 // membership-mutation endpoints below — one small JSON struct instead
 // of three near-identical ones, since every caller sends a subset of
@@ -208,7 +146,11 @@ func (s *Server) handleAdminPersonPage(w http.ResponseWriter, r *http.Request) {
 type adminMembershipMutationRequest struct {
 	Kind     string `json:"kind"` // "band" or "community"
 	TargetID int64  `json:"targetID"`
-	Role     string `json:"role"` // band_members.status ("core"/"guest") or community_members.role ("staff"/"member")
+	Role     string `json:"role"` // band_members.status ("core"/"guest") or a community role's name
+	// RoleID is one of the band's roles, its own included
+	// (docs/band-roles.md): what the person page sends for a band; Role
+	// ("core"/"guest") is still taken without it.
+	RoleID int64 `json:"roleId"`
 }
 
 // handleAdminAddMembership adds personID to a band or community at the
@@ -233,7 +175,12 @@ func (s *Server) handleAdminAddMembership(w http.ResponseWriter, r *http.Request
 		if req.Role == "" {
 			req.Role = "core"
 		}
-		if _, err := s.store.AddBandMember(r.Context(), req.TargetID, personID, req.Role, actor.ID); err != nil {
+		roleID, err := s.store.ResolveBandInviteRole(r.Context(), req.TargetID, req.RoleID, req.Role)
+		if err != nil {
+			roleError(w, err)
+			return
+		}
+		if _, err := s.store.AddBandMemberWithRole(r.Context(), req.TargetID, personID, roleID, actor.ID); err != nil {
 			httpError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -266,19 +213,34 @@ func (s *Server) handleAdminSetMembershipRole(w http.ResponseWriter, r *http.Req
 		return
 	}
 	var req adminMembershipMutationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Role == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Role == "" && req.RoleID == 0) {
 		httpError(w, http.StatusBadRequest, "role is required")
 		return
 	}
 	actor := personFromContext(r)
 	switch r.PathValue("kind") {
 	case "band":
-		if err := s.store.SetBandMemberStatus(r.Context(), targetID, personID, req.Role, actor.ID); err != nil {
+		var err error
+		if req.RoleID != 0 {
+			err = s.store.SetBandMemberRole(r.Context(), targetID, personID, req.RoleID, actor.ID)
+		} else {
+			err = s.store.SetBandMemberStatus(r.Context(), targetID, personID, req.Role, actor.ID)
+		}
+		if errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrNotFound) {
+			roleError(w, err)
+			return
+		}
+		if err != nil {
 			httpError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	case "community":
-		if err := s.store.SetCommunityMemberRole(r.Context(), targetID, personID, req.Role); err != nil {
+		err := s.store.SetCommunityMemberRole(r.Context(), targetID, personID, req.Role)
+		if errors.Is(err, store.ErrForbidden) {
+			roleError(w, err)
+			return
+		}
+		if err != nil {
 			httpError(w, http.StatusBadRequest, err.Error())
 			return
 		}
