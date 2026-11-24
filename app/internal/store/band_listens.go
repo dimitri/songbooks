@@ -15,8 +15,10 @@ import (
 // hear, no vote, until someone proposes one — and Influences — the
 // artists and songs that shape the band's sound, with what in them
 // ("the drum feel"), tagged. Each is a YouTube link, its title and
-// artist read from the video; any current member (core or guest) adds,
-// and removes what they added.
+// artist read from the video; a member whose role grants propose (by
+// default, any member) adds; who added a song removes it, and so does a
+// member whose role grants curate_listen (by default, core) — anyone's.
+// An archived band's pools are read only.
 
 // The pools.
 const (
@@ -122,9 +124,13 @@ func (st *Store) ListBandListens(ctx context.Context, bandID int64, pool string)
 }
 
 // DeleteBandListen removes a song from bandID's pools: the one who added
-// it only (ErrForbidden otherwise).
-func (st *Store) DeleteBandListen(ctx context.Context, bandID, listenID, personID int64) error {
-	tag, err := st.db.Exec(ctx, `DELETE FROM band_listens WHERE id = $1 AND band_id = $2 AND added_by_person_id = $3`, listenID, bandID, personID)
+// it, or anyone's for a curator (curate: their role grants curate_listen,
+// or a site admin — the HTTP layer's bandPrivilege); ErrForbidden
+// otherwise, and in an archived band.
+func (st *Store) DeleteBandListen(ctx context.Context, bandID, listenID, personID int64, curate bool) error {
+	tag, err := st.db.Exec(ctx, `
+		DELETE FROM band_listens l WHERE l.id = $1 AND l.band_id = $2 AND (l.added_by_person_id = $3 OR $4)
+		  AND NOT EXISTS (SELECT 1 FROM bands b WHERE b.id = l.band_id AND b.archived_at IS NOT NULL)`, listenID, bandID, personID, curate)
 	if err != nil {
 		return err
 	}
@@ -136,7 +142,7 @@ func (st *Store) DeleteBandListen(ctx context.Context, bandID, listenID, personI
 		if !exists {
 			return fmt.Errorf("no such song %d in band %d: %w", listenID, bandID, ErrNotFound)
 		}
-		return fmt.Errorf("only who shared it removes it: %w", ErrForbidden)
+		return fmt.Errorf("only who shared it, or a member whose role curates the band's lists, removes it: %w", ErrForbidden)
 	}
 	return nil
 }

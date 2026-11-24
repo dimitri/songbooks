@@ -31,13 +31,21 @@ const (
 )
 
 // spaceRole is who is looking, as far as a space's sections care: whether
-// they run it (a band's core member, a community's staff or a coach, the
-// site admin), whether they may see its members, and who they are (a
-// student's own page is theirs).
+// they run it (a community's staff or a coach, the site admin), whether
+// they may change one of a band's settings (BandSettings: its privileges,
+// bandSettingsPrivileges), whether they may see its members, and who
+// they are (a student's own page is theirs).
 type spaceRole struct {
-	Staff      bool
-	SeeMembers bool
-	PersonID   int64
+	Staff        bool
+	BandSettings bool
+	SeeMembers   bool
+	PersonID     int64
+}
+
+// bandSettingsPrivileges are what a band's Settings change (docs/
+// band-roles.md): its ⚙ shows to whoever holds one of them.
+var bandSettingsPrivileges = []string{
+	store.BandPrivRenameArchive, store.BandPrivEditBand, store.BandPrivEditLook, store.BandPrivManageRoles,
 }
 
 // SpaceSection is one section of a space: a tab on a wide screen, a row
@@ -137,13 +145,17 @@ func spaceTabs(kind string, role spaceRole) []SpaceSection {
 }
 
 // spaceGear is the space's ⚙: its settings, for whoever may change them
-// (nil for the others). A band's Settings are every member's (any member
-// renames the band; core members change its look); a community's Admin is
-// its staff's.
+// (nil for the others). A band's Settings are for whoever holds one of
+// the privileges they change (bandSettingsPrivileges: its name and
+// archive, what it plays, its look, its roles); every member may still
+// open them (the roles, read only), from the Members page. A
+// community's Admin is its staff's.
 func spaceGear(kind string, role spaceRole) *SpaceSection {
 	switch kind {
 	case spaceBand:
-		return &SpaceSection{Key: "settings", Label: "Settings", Path: "/settings", Icon: "icon-settings"}
+		if role.BandSettings {
+			return &SpaceSection{Key: "settings", Label: "Settings", Path: "/settings", Icon: "icon-settings"}
+		}
 	case spaceCommunity, spaceCoaching:
 		if role.Staff {
 			return &SpaceSection{Key: "admin", Label: "Admin", Path: "/admin", Icon: "icon-settings"}
@@ -262,6 +274,9 @@ func newSpaceNav(kind string, id int64, name string, role spaceRole, current str
 			n.Filters = append(n.Filters, SpaceTab{SpaceSection: f, Href: home + f.Path, Current: on})
 		}
 	}
+	if kind == spaceBand && current == "settings" {
+		role.BandSettings = true // the page open is in the header, whoever opened it
+	}
 	if g := spaceGear(kind, role); g != nil {
 		n.Gear = &SpaceTab{SpaceSection: *g, Href: home + g.Path, Current: g.Key == current}
 	}
@@ -374,11 +389,17 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		band = &b
 	}
 	if band != nil && band.ID != 0 {
-		core := person.IsAdmin
-		if !core {
-			core, _ = s.store.IsCurrentBandCore(ctx, band.ID, person.ID)
+		// Each admin tab for whoever holds its privilege (a site admin:
+		// all of them, but rename_archive's alone while it's archived).
+		privs := store.AllBandPrivs(band.Archived())
+		if !person.IsAdmin {
+			privs, _ = s.store.BandPrivileges(ctx, band.ID, person.ID)
 		}
-		nav := newSpaceNav(spaceBand, band.ID, band.Name, spaceRole{Staff: core, SeeMembers: true, PersonID: person.ID}, section)
+		settings := false
+		for _, p := range bandSettingsPrivileges {
+			settings = settings || privs.Can(p)
+		}
+		nav := newSpaceNav(spaceBand, band.ID, band.Name, spaceRole{BandSettings: settings, SeeMembers: true, PersonID: person.ID}, section)
 		nav.Brand = webassets.BrandLookupFor("band", band.ID)
 		nav.Archived = band.Archived()
 		if hints, ok := m["SpaceHints"].(map[string]spaceHint); ok {

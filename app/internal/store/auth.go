@@ -397,18 +397,20 @@ func (st *Store) scanPersonTx(ctx context.Context, tx pgx.Tx, query string, arg 
 }
 
 // CreateBandInvite makes a single-use, time-limited invite to join a band
-// at status ("core" or "guest") — the band equivalent of CreateInvite.
-func (st *Store) CreateBandInvite(ctx context.Context, bandID int64, status string, createdBy int64, ttl time.Duration) (string, error) {
-	if status != "core" && status != "guest" {
-		return "", fmt.Errorf("invalid band member status %q", status)
+// with roleID, one of its roles (ResolveBandInviteRole) — the band
+// equivalent of CreateInvite.
+func (st *Store) CreateBandInvite(ctx context.Context, bandID, roleID, createdBy int64, ttl time.Duration) (string, error) {
+	status, err := bandInviteStatus(ctx, st.db, bandID, roleID)
+	if err != nil {
+		return "", err
 	}
 	token, err := randomToken()
 	if err != nil {
 		return "", err
 	}
 	_, err = st.db.Exec(ctx,
-		`INSERT INTO invites (token, band_id, band_status, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5)`,
-		token, bandID, status, nullableID(createdBy), time.Now().Add(ttl))
+		`INSERT INTO invites (token, band_id, band_status, band_role_id, created_by_person_id, expires_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+		token, bandID, status, roleID, nullableID(createdBy), time.Now().Add(ttl))
 	if err != nil {
 		return "", err
 	}
@@ -422,6 +424,7 @@ func (st *Store) CreateBandInvite(ctx context.Context, bandID int64, status stri
 type OpenBandInvite struct {
 	Token     string
 	Status    string
+	RoleID    int64 // the role it gives, 0 for an invite made before roles (its Status's)
 	ExpiresAt time.Time
 }
 
@@ -433,7 +436,7 @@ type OpenBandInvite struct {
 // ListGroupInvitesForTarget fills for the reusable roster-link kind.
 func (st *Store) ListOpenBandInvites(ctx context.Context, bandID int64) ([]OpenBandInvite, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT token, band_status::text, expires_at FROM invites
+		SELECT token, band_status::text, coalesce(band_role_id, 0), expires_at FROM invites
 		WHERE band_id = $1 AND expires_at > now() ORDER BY expires_at DESC`, bandID)
 	if err != nil {
 		return nil, err
@@ -442,7 +445,7 @@ func (st *Store) ListOpenBandInvites(ctx context.Context, bandID int64) ([]OpenB
 	var out []OpenBandInvite
 	for rows.Next() {
 		var inv OpenBandInvite
-		if err := rows.Scan(&inv.Token, &inv.Status, &inv.ExpiresAt); err != nil {
+		if err := rows.Scan(&inv.Token, &inv.Status, &inv.RoleID, &inv.ExpiresAt); err != nil {
 			return nil, err
 		}
 		out = append(out, inv)
@@ -870,8 +873,8 @@ func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, pe
 			invitedBy = &createdBy.Int64
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO band_members (band_id, person_id, status, invited_by_person_id)
-			VALUES ($1, $2, (SELECT band_status FROM invites WHERE token = $3), $4)`,
+			INSERT INTO band_members (band_id, person_id, status, role_id, invited_by_person_id)
+			SELECT $1, $2, band_status, band_role_id, $4 FROM invites WHERE token = $3`,
 			bandID.Int64, personID, token, invitedBy); err != nil {
 			return "", err
 		}

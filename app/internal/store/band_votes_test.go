@@ -62,27 +62,33 @@ func TestTallyCoreMembersOnly(t *testing.T) {
 	}
 }
 
-// TestTallyLiked: "the band likes it" is a suggestion — an average of
-// 2.5 or more, more for than against, no veto.
-func TestTallyLiked(t *testing.T) {
+// TestTallyGuests: a guest's vote (a member whose role doesn't vote) is
+// listed apart — stars first, then no thanks — and counted in nothing:
+// not the average, the split, the veto, "n of m voted" nor who hasn't
+// voted; a former member's is left out; the guest who voted sees it all.
+func TestTallyGuests(t *testing.T) {
+	ballots := []ProposalBallot{stars(1, 2), noThanks(4), stars(9, 4)} // 9: not in the band
 	m := votesMembers()
-	for _, c := range []struct {
-		name    string
-		ballots []ProposalBallot
-		want    bool
-	}{
-		{"no votes", nil, false},
-		{"all for it", []ProposalBallot{stars(1, 3), stars(2, 3)}, true},
-		{"one 4 alone", []ProposalBallot{stars(1, 4)}, true},
-		{"against", []ProposalBallot{stars(1, 2), stars(2, 2), stars(3, 3)}, false},
-		{"average 2.5 but more against", []ProposalBallot{stars(1, 4), stars(2, 2), stars(3, 2)}, false},
-		{"average 2.67, more for", []ProposalBallot{stars(1, 3), stars(2, 3), stars(3, 2)}, true},
-		{"loved but vetoed", []ProposalBallot{stars(1, 4), stars(2, 4), noThanks(3)}, false},
-		{"a guest's 4 alone", []ProposalBallot{stars(4, 4)}, false},
-	} {
-		if got := TallyOf(c.ballots, m, 0).Liked; got != c.want {
-			t.Errorf("%s: liked %v, want %v", c.name, got, c.want)
+	tl := TallyOf(ballots, m, 4)
+	if tl.Ratings != 1 || tl.Avg != 2 || tl.Vetoed || len(tl.NoThanks) != 0 || tl.Voted != 1 || tl.Members != 3 || tl.Positive != 0 || tl.Negative != 1 {
+		t.Errorf("a guest's no thanks counted: %+v", tl)
+	}
+	if len(tl.Guests) != 1 || tl.Guests[0].PersonID != 4 || !tl.Guests[0].NoThanks {
+		t.Errorf("guests = %+v, want the guest's no thanks alone", tl.Guests)
+	}
+	for _, n := range tl.NotVoted {
+		if n == "Gus" {
+			t.Error("a guest is waited for")
 		}
+	}
+	if tl.Mine == nil || !tl.Mine.NoThanks {
+		t.Errorf("the guest's own vote: %+v", tl.Mine)
+	}
+	if b := tl.BlindFor("open"); b.Hidden {
+		t.Error("a guest who voted doesn't see the votes")
+	}
+	if b := TallyOf(ballots, m, 3).BlindFor("open"); !b.Hidden || len(b.Guests) != 0 {
+		t.Errorf("before voting, the guests' votes show: %+v", b)
 	}
 }
 
@@ -92,7 +98,7 @@ func TestTallyBlind(t *testing.T) {
 	ballots := []ProposalBallot{stars(1, 4), noThanks(2)}
 	before := TallyOf(ballots, votesMembers(), 3).BlindFor("open")
 	if !before.Hidden || before.Voted != 2 || before.Members != 3 || before.Ratings != 0 || before.Avg != 0 || before.Vetoed ||
-		len(before.NoThanks) != 0 || len(before.Rated) != 0 || len(before.NotVoted) != 0 || before.Liked {
+		len(before.NoThanks) != 0 || len(before.Rated) != 0 || len(before.NotVoted) != 0 || len(before.Guests) != 0 {
 		t.Errorf("Cid, before voting: %+v", before)
 	}
 	after := TallyOf(append(ballots, stars(3, 2)), votesMembers(), 3).BlindFor("open")

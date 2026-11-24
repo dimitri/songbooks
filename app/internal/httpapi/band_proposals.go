@@ -179,13 +179,16 @@ func (s *Server) handleBandProposalsPage(w http.ResponseWriter, r *http.Request)
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	isCore, _ := s.store.MayVote(ctx, band.ID, person.ID)
+	// CanVote: may rate them (any member); Counted: their votes count
+	// (vote), else they're listed apart, a guest's.
+	canVote, _ := s.store.MayCastVote(ctx, band.ID, person.ID)
+	counted, _ := s.store.MayVote(ctx, band.ID, person.ID)
 	mayDecide, _ := s.store.MayDecideProposal(ctx, band.ID, person.ID)
 	setlists, _ := s.store.ListSetlistsForBand(ctx, band.ID)
 	s.render(w, "band_proposals", map[string]any{
 		"Me": person, "Band": band, "Cards": cards, "Status": status, "Sort": sortBy,
 		"OpenCount": open, "DecidedCount": len(all) - open, "MemberCount": len(members),
-		"CanDecide": mayDecide || person.IsAdmin, "CanVote": isCore, "Setlists": setlists,
+		"CanDecide": mayDecide || person.IsAdmin, "CanVote": canVote, "Counted": counted, "Setlists": setlists,
 	})
 }
 
@@ -235,7 +238,8 @@ func (s *Server) handleBandProposalDetailPage(w http.ResponseWriter, r *http.Req
 		}
 		history = mine
 	}
-	isCore, _ := s.store.MayVote(ctx, band.ID, person.ID)
+	canVote, _ := s.store.MayCastVote(ctx, band.ID, person.ID)
+	counted, _ := s.store.MayVote(ctx, band.ID, person.ID)
 	mayDecide, _ := s.store.MayDecideProposal(ctx, band.ID, person.ID)
 	audio := ""
 	if proposal.Kind == "new_song" && proposal.TargetVariantID != nil {
@@ -245,7 +249,7 @@ func (s *Server) handleBandProposalDetailPage(w http.ResponseWriter, r *http.Req
 	}
 	s.render(w, "band_proposal", map[string]any{
 		"Me": person, "Band": band, "Card": cards[0], "Proposal": proposal, "History": history,
-		"CanDecide": mayDecide || person.IsAdmin, "CanVote": isCore, "Audio": audio, "Video": proposal.VideoID(),
+		"CanDecide": mayDecide || person.IsAdmin, "CanVote": canVote, "Counted": counted, "Audio": audio, "Video": proposal.VideoID(),
 	})
 }
 
@@ -340,8 +344,8 @@ func (s *Server) handleVoteListen(w http.ResponseWriter, r *http.Request) {
 	back := fmt.Sprintf("/bands/%d/catalog/vote", band.ID)
 	tracksJSON, _ := json.Marshal(tracks)
 	talliesJSON, _ := json.Marshal(tallies)
-	isCore, _ := s.store.MayVote(ctx, band.ID, person.ID)
-	vote := map[string]any{"BandID": band.ID, "TalliesJSON": template.JS(talliesJSON), "CanVote": isCore}
+	canVote, _ := s.store.MayCastVote(ctx, band.ID, person.ID)
+	vote := map[string]any{"BandID": band.ID, "TalliesJSON": template.JS(talliesJSON), "CanVote": canVote}
 	s.render(w, "playlist", map[string]any{
 		"Me": person, "Songbook": &store.Songbook{ID: sbID, OwnerKind: "band", OwnerBandID: band.ID, Name: band.Name},
 		"Owner": band.Name, "Back": back, "Tracks": tracks, "Silent": silent, "TracksJSON": template.JS(tracksJSON),
@@ -537,7 +541,8 @@ func draftNote(lang, note string) string {
 }
 
 // proposalSong is the band's song a draft fixes: the band's own, which
-// the person may change; the draft's song, else an error answered.
+// the person may change — or the one they're proposing, not sent yet
+// (store.MayFixProposedSong); the draft's song, else an error answered.
 func (s *Server) proposalSong(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	songID, err := pathID(r, "songID")
@@ -554,9 +559,16 @@ func (s *Server) proposalSong(w http.ResponseWriter, r *http.Request) (int64, bo
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return 0, false
 	}
-	if rights.Owner.Kind != "band" || rights.Owner.ID != bandID || !rights.Edit {
+	if rights.Owner.Kind != "band" || rights.Owner.ID != bandID {
 		httpError(w, http.StatusForbidden, "not one of the band's songs")
 		return 0, false
+	}
+	if !rights.Edit {
+		// A guest (no edit_songbook) fixes the song they're proposing.
+		if ok, err := s.store.MayFixProposedSong(r.Context(), bandID, songID, personFromContext(r).ID); err != nil || !ok {
+			httpError(w, http.StatusForbidden, "not one of the band's songs you may change")
+			return 0, false
+		}
 	}
 	return songID, true
 }
@@ -934,8 +946,8 @@ func writeProposalErr(w http.ResponseWriter, r *http.Request, s *Server, err err
 		writeJSON(w, code, map[string]string{"error": err.Error(), "message": msg})
 	}
 	switch {
-	case errors.Is(err, store.ErrGuestNoVote):
-		answer(http.StatusForbidden, i18n.T(lang, "Your role in this band doesn’t vote."))
+	case errors.Is(err, store.ErrArchivedNoVote):
+		answer(http.StatusForbidden, i18n.T(lang, "The band is archived: read only."))
 	case errors.Is(err, store.ErrNotFound):
 		answer(http.StatusNotFound, i18n.T(lang, "This proposal isn’t there any more. Reload the page."))
 	case errors.Is(err, store.ErrAlreadyDecided):

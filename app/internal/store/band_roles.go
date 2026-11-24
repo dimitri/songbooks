@@ -2,7 +2,10 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Band privileges (docs/band-roles.md): the fixed catalog a band role's
@@ -11,7 +14,8 @@ import (
 // exports — is every current member's; these are what a member may
 // change. Adding a gated action means a constant here, a check at its
 // call site (HasBandPrivilege, or requireBandPrivilege on its route) and
-// its default in BandRoleDefaults and migration 0130's seed_band_roles.
+// its default in BandRoleDefaults and seed_band_roles (its latest
+// version: migration 0132).
 const (
 	BandPrivEditSongbook     = "edit_songbook"     // add, remove, arrange songs; make and edit the band's songs and arrangements; the band's songbooks
 	BandPrivPublish          = "publish"           // make the band's songs, songbooks and recordings public
@@ -21,6 +25,7 @@ const (
 	BandPrivPropose          = "propose"           // propose songs, add to Discover and Influences
 	BandPrivVote             = "vote"              // vote on the proposals (counted in their tallies)
 	BandPrivDecideProposals  = "decide_proposals"  // add a proposed song or turn it down
+	BandPrivCurateListen     = "curate_listen"     // remove anyone's Discover and Influences entries (one's own: always)
 	BandPrivManageMembers    = "manage_members"    // invite people (every way: links, QR, roster), edit others' instruments
 	BandPrivRemoveMembers    = "remove_members"    // remove someone from the band
 	BandPrivManageRoles      = "manage_roles"      // give members a role, edit the band's roles
@@ -32,22 +37,24 @@ const (
 // AllBandPrivileges is the catalog, in the roles editor's order.
 var AllBandPrivileges = []string{
 	BandPrivEditSongbook, BandPrivPublish, BandPrivManageSetlists, BandPrivManageEvents, BandPrivManageRecordings,
-	BandPrivPropose, BandPrivVote, BandPrivDecideProposals,
+	BandPrivPropose, BandPrivVote, BandPrivDecideProposals, BandPrivCurateListen,
 	BandPrivManageMembers, BandPrivRemoveMembers, BandPrivManageRoles,
 	BandPrivRenameArchive, BandPrivEditBand, BandPrivEditLook,
 }
 
 // BandRoleDefaults is what the two built-in roles grant in a new band:
 // the rights core and guest members had before roles (the inventory in
-// docs/band-roles.md), but renaming and archiving, core's only, and
-// deleting, site admins' only. seed_band_roles (migration 0131) seeds the
+// docs/band-roles.md), but renaming and archiving, core's only,
+// deleting, site admins' only, editing the band's songs and removing
+// members, no longer a guest's (migration 0132), and removing others'
+// Discover and Influences entries, new and core's. A guest doesn't vote
+// (vote: counted), but rates proposals all the same, listed apart. seed_band_roles (migration 0132) seeds the
 // same (TestBandRoleDefaultsMatchSeed).
 var BandRoleDefaults = map[string][]string{
 	"core": AllBandPrivileges,
 	"guest": {
-		BandPrivEditSongbook, BandPrivManageSetlists, BandPrivManageEvents, BandPrivManageRecordings,
+		BandPrivManageSetlists, BandPrivManageEvents, BandPrivManageRecordings,
 		BandPrivPropose, BandPrivDecideProposals,
-		BandPrivRemoveMembers,
 		BandPrivEditBand,
 	},
 }
@@ -190,9 +197,18 @@ func (st *Store) BandArchived(ctx context.Context, bandID int64) (bool, error) {
 
 // SetBandArchived archives bandID (read only for everyone, out of the
 // menus and the home page, still its members' from "All my groups") or
-// unarchives it.
+// unarchives it. Archiving closes every invite into the band still open
+// — its roster links, its open links (QR codes) and its one-off links —
+// so no one joins an archived band; unarchiving reopens none of them (new
+// ones can be made). A placeholder's personal link stays: it finishes an
+// account already in the band, it lets no one new in.
 func (st *Store) SetBandArchived(ctx context.Context, bandID int64, archived bool) error {
-	tag, err := st.db.Exec(ctx, `
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `
 		UPDATE bands SET archived_at = CASE WHEN $2 THEN coalesce(archived_at, now()) END WHERE id = $1`, bandID, archived)
 	if err != nil {
 		return err
@@ -200,5 +216,64 @@ func (st *Store) SetBandArchived(ctx context.Context, bandID int64, archived boo
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("no such band %d: %w", bandID, ErrNotFound)
 	}
-	return nil
+	if archived {
+		if _, err := tx.Exec(ctx, `
+			UPDATE group_invites SET closed_at = now() WHERE target_kind = 'band' AND band_id = $1 AND closed_at IS NULL`, bandID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE invites SET expires_at = now() WHERE band_id = $1 AND expires_at > now()`, bandID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// ResolveBandInviteRole is the role an invite into bandID gives (every
+// way of inviting: one-off, personal and roster links, the open link, an
+// account added by name): roleID, one of the band's roles, a band's own
+// included; else, roleID 0, the built-in role status names — "core" or
+// "guest", what invites gave before roles. ErrInvalid for a role of
+// another band or another status.
+func (st *Store) ResolveBandInviteRole(ctx context.Context, bandID, roleID int64, status string) (int64, error) {
+	if roleID != 0 {
+		if _, err := bandInviteStatus(ctx, st.db, bandID, roleID); err != nil {
+			return 0, err
+		}
+		return roleID, nil
+	}
+	if status != "core" && status != "guest" {
+		return 0, fmt.Errorf("invalid band member status %q: %w", status, ErrInvalid)
+	}
+	return builtinBandRoleID(ctx, st.db, bandID, status)
+}
+
+// builtinBandRoleID is bandID's built-in role key ("core" or "guest").
+func builtinBandRoleID(ctx context.Context, q dbtx, bandID int64, key string) (int64, error) {
+	var id int64
+	err := q.QueryRow(ctx, `SELECT id FROM band_roles WHERE band_id = $1 AND builtin_key = $2`, bandID, key).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("no band %d: %w", bandID, ErrNotFound)
+	}
+	return id, err
+}
+
+// bandInviteStatus is the status an invite giving roleID keeps beside
+// it: the built-in role's own ("core", "guest"), "guest" for a band's
+// own role — what the invite gives if that role is deleted before it's
+// used (its band_role_id is then NULL: migration 0132). ErrInvalid when
+// roleID isn't one of bandID's roles.
+func bandInviteStatus(ctx context.Context, q dbtx, bandID, roleID int64) (string, error) {
+	var key string
+	err := q.QueryRow(ctx, `SELECT coalesce(builtin_key, '') FROM band_roles WHERE id = $1 AND band_id = $2`, roleID, bandID).Scan(&key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("role %d isn't one of band %d's: %w", roleID, bandID, ErrInvalid)
+	}
+	if err != nil {
+		return "", err
+	}
+	if key == "core" {
+		return "core", nil
+	}
+	return "guest", nil
 }

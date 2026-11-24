@@ -123,10 +123,11 @@ func TestSongRightsMatrix(t *testing.T) {
 		check(pp+", Alice's own song, an admin", f.aliceSong, f.admin, others)
 		check(pp+", Alice's own song, no one signed in", f.aliceSong, 0, none)
 
-		// A band's song: core and guest edit, core publishes.
+		// A band's song: core edits and publishes; a guest sees it, no
+		// longer edits it (migration 0132).
 		core := want{see: true, edit: true, publish: true, linkPerson: true, version: true, linkBand: public, linkCommunity: public}
 		guest := core
-		guest.publish = false
+		guest.publish, guest.edit = false, false
 		check(pp+", the band's song, a core member", f.bandSong, f.core, core)
 		check(pp+", the band's song, a guest member", f.bandSong, f.guest, guest)
 		check(pp+", the band's song, a former member", f.bandSong, f.former, others)

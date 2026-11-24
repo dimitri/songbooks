@@ -2,8 +2,8 @@
 
 How a band decides which songs to add — the tool helps it decide; it
 never decides nor enforces —, and what it listens to: its members
-propose songs, the core members rate them, any member adds one or turns
-it down; Discover and Influences are songs to hear, no vote. Code:
+propose songs, the core members rate them (the guests too, listed
+apart), any member adds one or turns it down; Discover and Influences are songs to hear, no vote. Code:
 `internal/store/band_proposals.go` (the rules), `internal/httpapi/band_proposals.go`
 (pages and API), `static/js/band-votes.js` (the vote control, the
 summary, the player's and the party's live parts), `static/js/proposal-flow.js`
@@ -65,8 +65,13 @@ summaries, the queue, the history). Not voted is
 proposal is decided; every vote, change and take-back is kept
 (`proposal_vote_log`). Keys: 1–4, N for no thanks.
 
-**Guest members don't vote**: they propose, see the proposals and
-listen; the API refuses their vote (403, "Guest members don't vote…").
+**Guest members' votes are listed apart**: a guest (any member whose
+role doesn't grant `vote`: docs/band-roles.md) rates a proposal or says
+no thanks like anyone; their votes show under **Guests**, with their
+stars or their no thanks, and count in nothing — not the average, the
+for/against, the no thanks, "n of m voted", who hasn't voted, nor the
+list's order (`ProposalTally.Guests`). Their pages say so ("yours are
+listed apart"). No one votes in an archived band.
 
 ### No one sees the others' votes before voting
 
@@ -80,8 +85,8 @@ band's overview and the home page. In the list sorted by stars (or by no
 thanks), the proposals one hasn't voted on come **first, apart**, newest
 first ("Not voted by you yet"): their place among the others would tell
 how those were voted. Taking one's vote back hides the others' again. A
-decided proposal shows everything to everyone. A guest sees the votes
-once the proposal is decided.
+decided proposal shows everything to everyone. A guest, too, sees the
+votes once they've voted, or once it's decided.
 
 ### The votes are information
 
@@ -95,20 +100,23 @@ show once they vote (deciding doesn't reveal them).
 
 What the votes say, once one may see them: the average (of the stars
 given), for/against (3–4 / 1–2 stars), who said no thanks, who hasn't
-voted, how many voted of the core members (no quorum). A proposal with a
-no thanks is **flagged** (a red edge, the veto sign and count first in
-its summary) and sorts after the ones without in the stars order. **"The
-band likes it"** is a suggestion shown when the average is 2.5 or more,
-with more votes for it than against and no veto.
+voted, how many voted of the core members (no quorum), the guests'
+votes apart. A proposal with a no thanks is **flagged** (a red edge, the
+veto sign and count first in its summary) and sorts after the ones
+without in the stars order. **No verdict**: no star threshold, no "the
+band likes it" (it went, the user's decision of 2026-11-24): the
+averages, the counts, the no thanks and who hasn't voted, sorted — the
+band decides. A **turned-down** proposal sorts **last**, in every order
+(Decided, All).
 
 The band setting of what a no thanks did (block, veto, count; migration
 0127) meant something only while the votes decided; it's gone (migration
 0129 drops `bands.proposal_no_thanks`).
 
-Who may vote, decide and share is each in one helper
-(`store.MayVote`: core members; `MayDecideProposal`, `MayShareListen`:
-any member), to move to the band's roles (`HasBandPrivilege`) without
-touching the handlers — a band could then keep deciding to its staff.
+Who may vote, decide and share is each in one helper, on the band's
+roles (docs/band-roles.md): `store.MayCastVote` (any current member),
+`MayVote` (counted: `vote`), `MayDecideProposal` (`decide_proposals`),
+`MayShareListen` (`propose`).
 
 ## Listening while voting
 
@@ -135,8 +143,10 @@ and the same player:
   for ("the drum feel", "the vocal harmonies") and tags.
 
 Adding: paste a YouTube link — its title and artist are read from the
-video (oEmbed), to fix —, a note, tags for an influence. **Any member**
-adds, a guest too; who added a song removes it. **Play all** plays a
+video (oEmbed), to fix —, a note, tags for an influence. Whoever may
+propose (`propose`: any member by default, a guest too) adds; who added a
+song removes it, and so does a member whose role grants `curate_listen`
+(core, by default) — anyone's; an archived band's lists are read only. **Play all** plays a
 pool one after another in the playlist player, the video big beside the
 queue on a wide screen.
 

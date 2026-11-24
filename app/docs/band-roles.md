@@ -8,7 +8,7 @@ catalog, the defaults, `HasBandPrivilege`), `internal/store/roles.go`
 (the role operations, written once for both: `roleScope`, `GroupRoles`),
 `internal/httpapi/roles.go` (the roles API, both kinds),
 `internal/httpapi/band_roles.go` + `templates/band_roles.html` +
-`static/js/band-roles.js` (the editor), migrations 0130 and 0131.
+`static/js/band-roles.js` (the editor), migrations 0130, 0131 and 0132.
 
 ## The rule
 
@@ -29,9 +29,9 @@ as before. What a member may **change** is their role's:
 Every band has two built-in roles, **core** and **guest** (seeded for
 every band by migration 0130, and by a trigger for every new band). They
 can't be renamed or deleted; what they grant can be changed. Their
-defaults are exactly what core and guest members could do before roles
-(the inventory below), so nothing changes for a band until it changes
-its roles. `store.BandRoleDefaults` and the migration's
+defaults were what core and guest members could do before roles (the
+inventory below), then the user's decisions changed a few (migrations
+0131, 0132: below). `store.BandRoleDefaults` and the latest
 `seed_band_roles` say the same (a test checks it).
 
 `band_members.role_id` is what a member may do. `band_members.status`
@@ -41,24 +41,25 @@ status (an invite's core/guest, the old core/guest switch, a revert)
 points the row at that built-in role. Every membership row, past ones
 included, got the built-in role of its status: no data lost.
 
-A band's own role counts as **core** for code still reading the status
-(the proposals' vote counts, `IsCurrentBandCore`); that code should ask
-for a privilege instead (below).
+A band's own role counts as **core** for what still reads the status:
+display only (below, "The status that remains"). Every right asks for a
+privilege.
 
 ## The privileges
 
 | Privilege | What it allows | core | guest |
 |---|---|---|---|
-| `edit_songbook` | Add, remove, arrange songs in the band's songbooks; make and edit the band's songs, its arrangements ("Make the band's version"), its songbooks; undo a songbook change | ✓ | ✓ |
+| `edit_songbook` | Add, remove, arrange songs in the band's songbooks; make and edit the band's songs, its arrangements ("Make the band's version"), its songbooks; undo a songbook change | ✓ | not since 0132 |
 | `publish` | Make the band's songs, songbooks and recordings public | ✓ | |
 | `manage_setlists` | Create, edit, delete set lists, their gigs, a line's version, the click track notes | ✓ | ✓ |
 | `manage_events` | Create and change the band's events (rehearsals, gigs…); sign the band up for a community's event | ✓ | ✓ |
 | `manage_recordings` | The recordings' folder and sync, name templates, fixes, a song's recording | ✓ | ✓ |
 | `propose` | Propose songs; add to Discover and Influences | ✓ | ✓ |
-| `vote` | Vote on proposals (counted in their tallies) | ✓ | |
+| `vote` | One's votes count: in a proposal's average, for/against, "n of m voted", who hasn't voted, the list's order. Without it a member still votes, listed apart ("Guests"), counted in none of it | ✓ | |
 | `decide_proposals` | Add a proposed song, or turn it down | ✓ | ✓ |
+| `curate_listen` | Remove anyone's songs from Discover and Influences (whoever added one always removes it) | ✓ | |
 | `manage_members` | Invite people (every way: an account by username, one-off and personal links, the roster link and its names, the band's open link and QR code); change others' instruments | ✓ | |
-| `remove_members` | Remove a member | ✓ | ✓ |
+| `remove_members` | Remove a member (leaving the band oneself is every member's) | ✓ | not since 0132 |
 | `manage_roles` | Give members a role; create, rename, delete roles, change what they allow | ✓ | |
 | `rename_archive` | Rename the band; archive and unarchive it (the one privilege an archived band still grants) | ✓ | |
 | `edit_band` | Say what the band plays (covers or original music) | ✓ | ✓ |
@@ -67,9 +68,14 @@ for a privilege instead (below).
 Proposals (docs/band-votes.md): `store.MayPropose`, `MayVote`,
 `MayDecideProposal` and `MayShareListen` ask `HasBandPrivilege` (propose,
 vote, decide_proposals, propose); the accept and turn-down routes are
-gated by `decide_proposals`, proposing and its drafts by `propose`; the
-tallies count the members whose role grants `vote` (`BandMember.Votes`,
-`has_band_privilege(…, 'vote')`): "n of m voted" is of them. The user's rule is "the tool helps, the band decides; any
+gated by `decide_proposals`, proposing and its drafts by `propose` (a
+proposer without `edit_songbook` fixes the song made for their proposal
+in the check step until it's sent: `MayFixProposedSong`); the tallies
+count the members whose role grants `vote` (`BandMember.Votes`,
+`has_band_privilege(…, 'vote')`): "n of m voted" is of them. Any other
+current member votes too (`MayCastVote`: not in an archived band), their
+votes listed apart (`ProposalTally.Guests`), in no count, average nor
+order. The user's rule is "the tool helps, the band decides; any
 member can add or turn down a proposal" — `propose` and
 `decide_proposals` are every member's by default; a band that wants its
 staff alone to decide makes a "Staff" role with `decide_proposals` and
@@ -93,14 +99,14 @@ that gates it now.
 | Card picture | `POST …/card-image` | core | `edit_look` |
 | Language | `PUT …/locale` | core | `edit_look` |
 | Delete the band | `DELETE /api/bands/{id}` | any member | site admins only (the user's decision; no privilege) |
-| Add an account by username | `POST …/members` | core | `manage_members` |
+| Add an account by username | `POST …/members` (`roleId`, or `status`) | core | `manage_members`; any of the band's roles (0132) |
 | One-off link, personal invite, new link for a placeholder | `POST …/invites`, `…/personal-invites`, `…/members/{p}/invite-link`, `/api/people/{p}/personal-invites` (`CanInvitePerson`) | core | `manage_members` |
 | Roster link and its names, close it | `POST …/group-invites…` | core | `manage_members` |
 | The band's open link / QR code (#129) | `POST …/band-link`, close | core | `manage_members` |
 | Someone else's instruments (a joined member) | `PUT …/members/{p}/instruments` (`MayEditMemberInstruments`) | core (anyone for a placeholder, oneself) | `manage_members` (same exceptions) |
 | Core/guest switch | `POST …/members/{p}/status` | core | `manage_roles` |
 | A member's role, the roles | `POST …/members/{p}/role`, `…/roles…` | — (new) | `manage_roles` |
-| Remove a member | `DELETE …/members/{p}` | any member | `remove_members` |
+| Remove a member | `DELETE …/members/{p}` | any member | `remove_members` (core by default since 0132); leaving the band oneself: any member, not while it's archived |
 | Undo a membership change (revisions) | `POST /api/revisions/{id}/revert` | any member | `manage_roles` (a guest undoing their own demotion went round the core-only switch) |
 | Add a song, fork, new song, remove from the songbook | `POST/DELETE …/catalog…`, `POST …/variants`, `CreateBandVariant`, `CreateVariant` | any member | `edit_songbook` |
 | Songbook entries: add, remove, order, keys, rename, delete a songbook, quick add, lessons | `CanEditSongbook` | any member | `edit_songbook` |
@@ -116,7 +122,9 @@ that gates it now.
 | Recordings: folder, sync, song's recording, fixes, name templates | `…/recordings/…` | any member | `manage_recordings` |
 | Propose a song, drafts | `POST …/proposals`, `…/proposal-drafts` (`CreateProposal`, `CreateProposedSong`) | any member | `propose` |
 | Add to Discover / Influences | `POST …/listens` (`MayShareListen`) | any member | `propose` |
-| Vote; be counted in a tally | `POST …/proposals/{id}/votes` (`MayVote`), `seenSQL`, `proposalFrom` | core | `vote` |
+| Remove from Discover / Influences | `DELETE …/listens/{id}` (`DeleteBandListen`) | who added it | who added it, or `curate_listen` (anyone's); no one while archived |
+| Vote | `POST …/proposals/{id}/votes` (`MayCastVote`) | core | any member (0132) |
+| Be counted in a tally | `MayVote`, `TallyOf`, `proposalFrom` | core | `vote`; the others' votes listed apart |
 | Accept / turn down a proposal | `…/accept`, `…/reject` (`MayDecideProposal`) | any member | `decide_proposals` |
 
 ## The roles editor
@@ -172,13 +180,72 @@ The user's decisions:
   each of its pages says it's archived (the space header). Holders of
   `rename_archive` unarchive it from its Settings; renaming stays
   possible while archived.
+- **Archiving asks first** (Settings: a dialog saying what it does) and
+  **closes every invite into the band still open** — its open links and
+  QR codes, its roster links, its one-off links (`SetBandArchived`).
+  Unarchiving reopens none of them; new ones can be made. A
+  placeholder's personal link stays (it lets no one new in). No one
+  leaves an archived band; personal things stay a member's own: their
+  instruments, rating a recording, their notes.
+
+## Round 2 (migration 0132)
+
+The user's decisions (2026-11-24):
+
+- **Invites into any role.** Every way of inviting — an account by
+  username, a one-off link, a placeholder's personal link, a roster
+  link's names, the open link and its QR code — takes one of the band's
+  roles (`roleId`; `store.ResolveBandInviteRole`), a band's own
+  included, and the claim gives it. An invite keeps its role
+  (`band_role_id` on `invites`, `group_invites`, `group_invite_slots`)
+  beside its status: an invite made before (no role) gives its status's
+  built-in role, as it did; a deleted role's invite gives its status,
+  "guest" for a band's own role. An older client's `status` ("core",
+  "guest") still works. The members page offers the roles in its
+  selects, and one open link per role, named after it.
+- **Guests don't edit the songs nor remove people**: `edit_songbook`
+  and `remove_members` left the guest role of every band (nothing else
+  of a band's choices changed). Their **notes** are their own, as
+  before (section annotations: anyone who sees the song, not gated by
+  `edit_songbook`). They **propose** (`propose`) and add to Discover and
+  Influences, the Add buttons shown only to holders. Leaving the band
+  oneself is every member's (the roster's "Leave the band").
+- **Guests' votes are listed apart**: a guest — any member whose role
+  doesn't grant `vote` — rates a proposal or says no thanks; it shows
+  under "Guests", never counted (average, for/against, no thanks, "n of
+  m voted", who hasn't voted, the order). The guest role doesn't get
+  `vote` (that's what counts); a band's own role counts with the band
+  if it holds `vote`, else it's listed apart with the guests. The
+  blind rule is the same for everyone: one sees the others' votes once
+  one has voted.
+- **`curate_listen`**: removing anyone's Discover and Influences entries,
+  core's by default (and every band's own role managing roles, as 0131
+  did for `rename_archive`); the author always removes their own.
+- **The band's ⚙ Settings** shows to whoever holds one of the
+  privileges it changes (`rename_archive`, `edit_band`, `edit_look`,
+  `manage_roles`; `bandSettingsPrivileges`), not by status
+  (`IsCurrentBandCore` is gone); the page stays open to every member
+  (the roles, read only), from the Members page.
+
+## The status that remains
+
+`band_members.status` (core/guest, kept in step with the role; a band's
+own role is "core") is read only for display now:
+
+- The home page's and the bands page's member lists (`list_cards.go`):
+  core first, guests marked "guest". A band's own role sorts and shows
+  with core, unmarked.
+- A placeholder's invite page and the admin panel's memberships
+  (`GetPersonMemberships`): the status word; the admin's core/guest
+  select (`SetBandMemberStatus`) sets a built-in role — a site admin's
+  fix-up, kept.
+- The band's "what's new" digest (`band_digest.go`): who joined as core
+  or guest.
+- Invites keep a status beside their role (the fallback above).
 
 ## Not yet
 
-- An archived band's open invite links still let people join it (closing
-  them is a manage_members action, off while archived); leaving the band
-  (remove_members) is off too while archived. Personal things stay a
-  member's own: their instruments, rating a recording.
-- Invites (links, QR, roster) still give core or guest; a link for a
-  band's own role would follow the community's (its links carry a role
-  name).
+- `decide_proposals` stays a guest's by default (the user's rule "any
+  member adds or turns down a proposal"); a band keeps it to a staff by
+  taking it from guest.
+- The admin panel's membership select offers core and guest only.

@@ -86,6 +86,7 @@ func TestOriginalChangeOfferedToVersion(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	saveCatalogue(t, st, f.CatalogSong, leVent)
 	book, err := st.GetDefaultSongbook(ctx, "band", f.Band)
 	if err != nil {
@@ -221,6 +222,7 @@ func TestFrozenCopies(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	core := as(t, st, f.Core)
 	if w := core.do("POST", fmt.Sprintf("/api/variants/%d/public", f.BandSong), map[string]bool{"public": true}); w.Code != http.StatusOK {
 		t.Fatalf("publishing: %d", w.Code)

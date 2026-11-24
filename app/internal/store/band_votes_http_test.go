@@ -92,12 +92,14 @@ func TestStarVotes(t *testing.T) {
 		vote(t, st, f, f.Cores[2], b, bad, http.StatusBadRequest)
 	}
 
-	// A guest doesn't vote; someone outside the band neither.
-	w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/votes", f.Band, b), map[string]any{"stars": 3})
-	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "doesn’t vote") {
-		t.Errorf("a guest's vote: %d %s, want 403 saying their role doesn't vote", w.Code, w.Body.String())
+	// A guest votes, listed apart, counted in nothing (Charlie keeps one
+	// no thanks, the core member's, in the counts and the order below);
+	// someone outside the band doesn't vote.
+	ga := vote(t, st, f, f.Guest, c, map[string]any{"noThanks": true}, http.StatusOK)
+	if len(ga.Tally.Guests) != 1 || !ga.Tally.Guests[0].NoThanks || ga.Tally.Voted != 1 || ga.Tally.Members != 3 || len(ga.Tally.NoThanks) != 1 {
+		t.Errorf("a guest's no thanks: %+v", ga.Tally)
 	}
-	if _, err := st.CastVote(ctx, b, f.Guest, store.Vote{Stars: 3}); err != store.ErrGuestNoVote {
+	if _, err := st.CastVote(ctx, c, f.Guest, store.Vote{Stars: 4}); err != nil {
 		t.Errorf("a guest's vote in the store: %v", err)
 	}
 	if w := as(t, st, f.Outsider).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/votes", f.Band, b), map[string]any{"stars": 3}); w.Code != http.StatusForbidden && w.Code != http.StatusNotFound {
@@ -199,8 +201,8 @@ func TestStarVotes(t *testing.T) {
 		t.Error("no vote control for a core member")
 	}
 	guestPage := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/vote", f.Band))
-	if strings.Contains(guestPage, "data-ctl") || !strings.Contains(guestPage, "guest member") {
-		t.Error("a guest is offered the vote")
+	if !strings.Contains(guestPage, "data-ctl") || !strings.Contains(guestPage, "listed apart, with the guests") {
+		t.Error("a guest isn't offered the vote, listed apart")
 	}
 	as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/vote/listen", f.Band))
 	as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/catalog/discover", f.Band))
@@ -232,8 +234,8 @@ func TestVotesAreIndicative(t *testing.T) {
 			t.Fatalf("decided by the votes: %q", a.Status)
 		}
 	}
-	if a := vote(t, st, f, f.Cores[0], loved, map[string]any{"stars": 4}, http.StatusOK); !a.Tally.Liked || a.Tally.Vetoed {
-		t.Errorf("the band likes it, says the tally: %+v", a.Tally)
+	if a := vote(t, st, f, f.Cores[0], loved, map[string]any{"stars": 4}, http.StatusOK); a.Tally.Avg != 4 || a.Tally.Vetoed {
+		t.Errorf("every core member's 4: %+v", a.Tally)
 	}
 
 	// Everyone says no thanks: still open.
@@ -248,7 +250,7 @@ func TestVotesAreIndicative(t *testing.T) {
 	// A veto standing doesn't stop a core member adding it.
 	held := f.propose(t, st, "Held")
 	vote(t, st, f, f.Cores[0], held, map[string]any{"stars": 4}, http.StatusOK)
-	if a := vote(t, st, f, f.Cores[1], held, map[string]any{"noThanks": true}, http.StatusOK); !a.Tally.Vetoed || a.Tally.Liked {
+	if a := vote(t, st, f, f.Cores[1], held, map[string]any{"noThanks": true}, http.StatusOK); !a.Tally.Vetoed {
 		t.Errorf("a veto: %+v", a.Tally)
 	}
 	w := as(t, st, f.Cores[2]).do("POST", fmt.Sprintf("/api/bands/%d/proposals/%d/accept", f.Band, held), nil)
@@ -514,22 +516,23 @@ func TestBandListens(t *testing.T) {
 	}
 	// The pages and the player.
 	page := as(t, st, f.Cores[1]).page(fmt.Sprintf("/bands/%d/catalog/discover", f.Band))
-	if !strings.Contains(page, "Shared One") || !strings.Contains(page, "data-listen-propose") || strings.Contains(page, "data-listen-remove") {
-		t.Error("Discover, for a member who didn't share the song")
+	if !strings.Contains(page, "Shared One") || !strings.Contains(page, "data-listen-propose") || !strings.Contains(page, `data-listen-remove data-by="Guest"`) {
+		t.Error("Discover, for a core member who didn't share the song (curate_listen: removes it)")
 	}
 	if page := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/discover", f.Band)); !strings.Contains(page, "data-listen-remove") {
 		t.Error("who shared it can't remove it")
 	}
-	if page := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/influences", f.Band)); !strings.Contains(page, "#groove") || strings.Contains(page, "data-listen-propose") {
-		t.Error("Influences")
+	if page := as(t, st, f.Guest).page(fmt.Sprintf("/bands/%d/catalog/influences", f.Band)); !strings.Contains(page, "#groove") || strings.Contains(page, "data-listen-propose") || strings.Contains(page, "data-listen-remove") {
+		t.Error("Influences, for a guest: someone else's influence, no remove")
 	}
 	player := as(t, st, f.Core).page(fmt.Sprintf("/bands/%d/catalog/influences/listen", f.Band))
 	if !strings.Contains(player, "abcdefghijk") || !strings.Contains(player, "Watch on YouTube") {
 		t.Error("the influences' player")
 	}
-	// Only who shared it removes it.
-	if w := as(t, st, f.Core).do("DELETE", fmt.Sprintf("/api/bands/%d/listens/%d", f.Band, d), nil); w.Code != http.StatusForbidden {
-		t.Errorf("someone else removes it: %d", w.Code)
+	// Who shared it removes it, and a curator (curate_listen: core):
+	// not a guest, someone else's.
+	if w := as(t, st, f.Guest).do("DELETE", fmt.Sprintf("/api/bands/%d/listens/%d", f.Band, inf), nil); w.Code != http.StatusForbidden {
+		t.Errorf("a guest removes someone else's: %d", w.Code)
 	}
 	// Proposed for a vote: marked.
 	p := f.propose(t, st, "From Discover")
@@ -544,6 +547,9 @@ func TestBandListens(t *testing.T) {
 	}
 	if list, _ := st.ListBandListens(ctx, f.Band, store.PoolDiscover); len(list) != 0 {
 		t.Errorf("still there: %+v", list)
+	}
+	if w := as(t, st, f.Cores[1]).do("DELETE", fmt.Sprintf("/api/bands/%d/listens/%d", f.Band, inf), nil); w.Code != http.StatusNoContent {
+		t.Errorf("a core member removes someone else's influence: %d %s", w.Code, w.Body.String())
 	}
 	// No sync between devices: the party's addresses are gone.
 	for _, m := range []string{"GET", "PUT"} {

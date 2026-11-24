@@ -200,6 +200,7 @@ func TestCreateSongInGoesInto(t *testing.T) {
 	ctx := context.Background()
 	f := newAccessFixture(t, st)
 	bandBook, _ := st.GetDefaultSongbook(ctx, "band", f.band)
+	BandFixture{Band: f.band}.GuestsEditTheSongbook(t, st) // the guest: another member who adds songs
 	targets := func(who int64) map[int64]SongbookTarget {
 		t.Helper()
 		ts, err := st.SongbookTargets(ctx, who, 0)

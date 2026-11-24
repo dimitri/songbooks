@@ -36,8 +36,9 @@ var bandPrivilegeGroups = []bandPrivilegeGroup{
 	}},
 	{"Proposals", []bandPrivilegeInfo{
 		{store.BandPrivPropose, "Propose songs", "Propose a song, add to Discover and Influences."},
-		{store.BandPrivVote, "Vote", "Rate proposed songs; counted in the votes."},
+		{store.BandPrivVote, "Vote", "Their votes count: in the average, the counts and who hasn’t voted. Without it, a member’s votes are listed apart, with the guests’."},
 		{store.BandPrivDecideProposals, "Decide", "Add a proposed song to the songbook, or turn it down."},
+		{store.BandPrivCurateListen, "Tidy Discover and Influences", "Remove anyone’s songs from them (whoever added one can always remove it)."},
 	}},
 	{"Members", []bandPrivilegeInfo{
 		{store.BandPrivManageMembers, "Invite people", "Links, QR codes and the roster; change others’ instruments."},

@@ -115,6 +115,7 @@ func setlistSongs(t *testing.T, st *store.Store, id int64) []int64 {
 func TestMembersEditTheBandsSongInPlace(t *testing.T) {
 	st := store.NewTestStore(t)
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	songs := store.CountSongs(t, st)
 	text := "title: Night Drive\nartist: Other Lies\n\n[Verse]\nAm F C G\n"
 
@@ -168,6 +169,7 @@ func TestMembersEditTheBandsSongInPlace(t *testing.T) {
 func TestEditFromTheBandsSetlist(t *testing.T) {
 	st := store.NewTestStore(t)
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	c := as(t, st, f.Guest)
 	catalogVersion := version(t, st, f.CatalogSong)
 
@@ -220,6 +222,7 @@ func TestAddingToTheBandLinks(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	c := as(t, st, f.Guest)
 	catalog := func(title string) int64 {
 		id, err := st.CreateVariant(ctx, store.OwnerCatalog, 0, title, "", f.Core)
@@ -381,6 +384,7 @@ func TestSongbookKey(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
 	f := store.NewBandFixture(t, st)
+	f.GuestsEditTheSongbook(t, st) // the guest: another member who edits
 	g := as(t, st, f.Guest)
 	songVersion := version(t, st, f.BandSong)
 	mine, err := st.GetDefaultSongbook(ctx, "person", f.Guest)

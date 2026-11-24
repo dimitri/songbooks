@@ -33,7 +33,8 @@ var listenPools = map[string]string{"discover": store.PoolDiscover, "influences"
 // listenCard is a pool's song as its page shows it.
 type listenCard struct {
 	store.BandListen
-	Mine bool
+	Mine      bool
+	CanRemove bool
 }
 
 // handleBandListensPage is a pool's page: GET /bands/{id}/catalog/discover
@@ -59,9 +60,18 @@ func (s *Server) handleBandListensPage(pathPool string) http.HandlerFunc {
 		if pool == store.PoolInfluence {
 			page = "band_influences"
 		}
-		isCore, _ := s.store.MayVote(r.Context(), band.ID, person.ID)
+		ctx := r.Context()
+		canVote, _ := s.store.MayCastVote(ctx, band.ID, person.ID)
+		privs, _ := s.bandPrivs(r, band.ID)
+		curate := privs.Can(store.BandPrivCurateListen)
+		for i := range cards {
+			// Its author removes it, or whoever curates the band's pools
+			// (curate_listen); never in an archived band (read only).
+			cards[i].CanRemove = !band.Archived() && (cards[i].Mine || curate)
+		}
 		s.render(w, page, map[string]any{
-			"Me": person, "Band": band, "Cards": cards, "Pool": pool, "PathPool": pathPool, "CanVote": isCore,
+			"Me": person, "Band": band, "Cards": cards, "Pool": pool, "PathPool": pathPool, "CanVote": canVote,
+			"CanAdd": privs.Can(store.BandPrivPropose),
 		})
 	}
 }
@@ -177,7 +187,8 @@ func (s *Server) handleAddListen(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int64{"id": id})
 }
 
-// handleDeleteListen removes a song from the band's pools: who added it.
+// handleDeleteListen removes a song from the band's pools: who added it,
+// or anyone's for a member whose role grants curate_listen.
 func (s *Server) handleDeleteListen(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	listenID, err := pathID(r, "listenID")
@@ -185,13 +196,18 @@ func (s *Server) handleDeleteListen(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	err = s.store.DeleteBandListen(r.Context(), bandID, listenID, personFromContext(r).ID)
+	curate, err := s.bandPrivilege(r, bandID, store.BandPrivCurateListen)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	err = s.store.DeleteBandListen(r.Context(), bandID, listenID, personFromContext(r).ID, curate)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		httpError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, store.ErrForbidden):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error(),
-			"message": i18n.T(s.langOfRequest(r), "Only who shared it removes it.")})
+			"message": i18n.T(s.langOfRequest(r), "Only who shared it, or a member whose role lets them remove anyone’s, removes it.")})
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, err.Error())
 	default:
