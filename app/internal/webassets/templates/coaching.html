@@ -919,6 +919,10 @@
 
   <section class="home-section">
     <div class="home-section-head"><h3>{{t "Songs, in the group’s key"}}</h3><span class="count">{{len .Songs}}</span></div>
+    {{/* One song for the whole group, the coach's too: every member
+         edits it in place (store.SongRights.GroupMember), only the key
+         is the group's (docs/coaching.md, "A group works on one song"). */}}
+    {{if .Songs}}<p class="hint coach-group-shared">{{if .IsCoach}}{{t "Every member of the group changes these songs with you — the chart, the lyrics, a Guitar Pro file: one song for all of you, the community’s. Only the key is the group’s."}}{{else}}{{t "Everyone in the group changes these songs, and so does the coach — the chart, the lyrics, a Guitar Pro file: one song for all of you. Only the key is the group’s."}}{{end}}</p>{{end}}
     {{template "coach-song-list" .}}
   </section>
 

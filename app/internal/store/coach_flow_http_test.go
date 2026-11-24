@@ -208,7 +208,7 @@ func TestCoachWorkflow(t *testing.T) {
 	// repertoire: it takes the link's place in every songbook of the
 	// community, each in its key.
 	path := fmt.Sprintf("/song/%d?songbook=%d", f.catalogue, f.repertoire)
-	if html := f.c.page(path); !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "change together") {
+	if html := f.c.page(path); !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "change it together") {
 		t.Fatal("the coach: no coaching \"Make the community's version\" offer")
 	}
 	version := f.c.variantID(f.c.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", f.community, f.catalogue), map[string]int64{"songbookId": f.repertoire}))
@@ -273,7 +273,7 @@ func TestStudentWorkflow(t *testing.T) {
 	// elsewhere; never "my version" (his alone).
 	for _, p := range []string{fromBook, fmt.Sprintf("/song/%d", f.catalogue)} {
 		html := f.o.page(p)
-		if !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "change together") {
+		if !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "change it together") {
 			t.Errorf("%s: Oliver isn't offered the community's version", p)
 		}
 	}

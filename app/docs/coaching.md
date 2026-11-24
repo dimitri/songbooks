@@ -189,7 +189,9 @@ community events of type `masterclass`, which the group's members are
 registered for). A group has its members (the coach's to change), its
 songs in the group's key, and its sessions (lessons for the group). Who
 joins gets the group's songbook and its coming sessions; who leaves loses
-both. A student sees their groups.
+both, and stops editing its songs. A student sees their groups. A
+group's songs are the community's, one song for all its members and the
+coach, each member editing it ("A group works on one song" below).
 
 ## The songbooks
 
@@ -365,8 +367,10 @@ one's (the student's songbook entry, `semitones`): editing the song
 never moves it.
 
 - **A linked song** (the repertoire links a catalogue song, as Chloé
-  Paul's do): the first edit, by the coach or by a student it's given to,
-  offers *Make the community's version* (from any of the community's
+  Paul's do): the first edit, by the coach, by a student it's given to or
+  by a member of a group it's given to, offers *Make the community's
+  version* — beside *Fix the catalogue's song*, the catalogue's own rules
+  ("A group works on one song" below) — (from any of the community's
   songbooks, the student's own included, or from no songbook at all: the
   song opened from search or home). The version replaces the link in
   **every** songbook of the community — the repertoire, each student's,
@@ -375,19 +379,84 @@ never moves it.
   (store.MakeVersion). Linking the catalogue's song again afterwards
   gives the version.
 - **The community's own song**: edited in place by the coach (its staff,
-  who edit the repertoire) and by each student whose student songbook
-  holds it (`SongRights.AssignedStudent`). Not another student's song,
-  not the repertoire's others, not once it's taken out of their
-  songbook, not by a former student; "edit repertoire" alone (the
-  built-in member role has it) opens none of them. A student makes no
-  "New version from this" and publishes nothing. The history says who
-  changed what.
+  who edit the repertoire), by each student whose student songbook
+  holds it (`SongRights.AssignedStudent`) and by each member of a group
+  whose songbook holds it (`SongRights.GroupMember`). Not another
+  student's song, not the repertoire's others, not once it's taken out
+  of their songbook, not by a former student or a member who left the
+  group; "edit repertoire" alone (the built-in member role has it) opens
+  none of them. A student makes no "New version from this" and
+  publishes nothing. The history says who changed what.
 - **What goes with it**: its Guitar Pro file and recordings are the
   song's, shared with the coach and the students it's given to; a closed
   (paid) songbook's rules don't change.
 - **A site admin who is a student there** (the app's owner): from their
   student songbook, the same offer; from elsewhere, the catalogue's song
   is theirs to edit in place (they're The Big Songbook's staff).
+
+## A group works on one song
+
+Decided 2026-11-24: "Coaching group members all can edit a song and it's
+the same song as the other members of the group. And the community's,
+except for the key."
+
+- **One song**: a group's songbook holds the community's song — its own,
+  or a public song it links (the catalogue's) — never a copy made for
+  the group or for one of its members. Giving a song to a group or to a
+  student (*+ Assign*, a key picked on the song page, *Add* on the
+  group's page, a request added, `sbcoach songs`) adds an entry and
+  nothing else; editing it makes no copy either.
+- **Every member edits it** in place, as the coach does and as a student
+  it's given to alone does (`SongRights.GroupMember`): the chart, the
+  sections, the lyrics, its notes, the Guitar Pro file, the reference
+  and its recordings. The coach and the group's other members see each
+  edit at once; each is a revision with its author, which the coach (or
+  any of them) reverts from the History. Opened from the group's
+  songbook, the page is the editor in place: no *Make my arrangement*
+  (a copy of one's own would leave the group).
+- **Only the key is each place's**: the group's entry has the group's
+  key, a student's own songbook entry theirs (`semitones`, the coach's
+  − / +); picking a key changes no song. An edit leaves every entry's
+  key where it was (see "A key stays where it was when the song's
+  moves" for the song's own key changing).
+- **Who**: a current student of the community who is one of the group's
+  members, for the songs of the group's songbook (plus the songs of
+  their own student songbook, as before). Leaving the group (the
+  coach's members list) or the song leaving the group's songbook ends
+  it; leaving the community ends everything. The group's page says it:
+  *Everyone in the group changes these songs, and so does the coach…
+  Only the key is the group's.*
+- **A linked catalogue song** (The Big Songbook's, linked into the
+  community) stays under the catalogue's rules (docs/ownership-model.md
+  §5, §11): a group member is no more its editor than anyone signed in.
+  Edit says so and offers two ways, by what the change is:
+  - **Fix the catalogue's song**: a wrong chord, a typo, a section the
+    recording plays — the catalogue's song itself, edited in place as
+    anyone may (*What did you change?*, its key locked), applied at once
+    or held for review (a newcomer's first edits wait); everyone who
+    has it, the community included, gets it once applied. The editor's
+    note offers *Make the community's arrangement instead*, never
+    *Make my arrangement* (a copy of one's own).
+  - **Make the community's arrangement** (the primary button): a change
+    the studio's way — a chord grid to play while singing, a Guitar Pro
+    file (the catalogue's are its staff's), a shorter form. The
+    community's song, made once (store.MakeVersion), takes the link's
+    place in every songbook of the community, the group's key and each
+    student's kept, and the members edit it in place from then on.
+  The coach, and a student it's given to alone, get the same choice.
+
+Today's data (2026-11-24): no copies to convert. The demo's Studio Lumen
+has 3 groups (19 members, 12 entries), 14 student songbooks (66 entries)
+and its repertoire (17), every entry a link to a catalogue song (the
+ownership mapping, docs/ownership-model.md §9, made Chloé's charts the
+catalogue's); no song of the community forked from another, no
+student's own copy of one, no frozen copy. Staging: one coaching
+community, no group, one student songbook (6 links), the repertoire (7
+links), no copy either. What made copies before: `sbcoach songs`, which
+copied every song into the community when given (it links them now; the
+community's arrangement only for another recording than the linked
+song's), and *Make my arrangement* offered to a group member on a
+song of their group (they edit it now).
 
 ## Adding a song for a student
 
@@ -564,10 +633,12 @@ sbcoach songs --db URL --community ID --student tapoueh --songs 206,215,228 --cl
 
 `community` makes the coach's account when there's none (no password, no
 email: theirs once invited), the community, its Repertoire, its look, and
-a first student. `songs` copies songs into the community (its members may
-open them, a person's own songs are private), puts them in the student's
-songbook, and with `--clips` (song id, tab, YouTube URL) sets each one's
-reference video and downloads its sound, which the stems worker splits.
+a first student. `songs` puts songs in the repertoire and the student's
+songbook: linked (the catalogue's, a public song), or the community's own
+song or arrangement of it — never a copy per student or per run; with
+`--clips` (song id, tab, YouTube URL) it sets each one's reference video
+and downloads its sound, which the stems worker splits (another recording
+than a linked song's makes the community's arrangement of it, once).
 
 ## Warm-ups
 

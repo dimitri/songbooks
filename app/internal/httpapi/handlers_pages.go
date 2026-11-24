@@ -2943,6 +2943,12 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 		if bandOffer != nil || communityOffer != nil {
 			canEdit, canEditChart, canCopy = false, false, true
+			// A coaching community's link to the catalogue's song: its
+			// arrangement, or the catalogue's song fixed in place under
+			// the catalogue's rules (communityOffer.CatalogueFix).
+			if communityOffer != nil && communityOffer.CatalogueFix {
+				canEditChart = true
+			}
 		} else if !canEdit && rights != nil {
 			canCopy = rights.CanVersionFor(store.PersonOwner(person.ID))
 			if canCopy {
@@ -3342,8 +3348,16 @@ type songCommunityOffer struct {
 	SongbookID  int64
 	// Coaching: a coaching community's, whose version every songbook of
 	// its takes (the repertoire, each student's and group's), the coach
-	// and the students it's given to editing it (docs/coaching.md).
+	// and the students and groups it's given to editing it
+	// (docs/coaching.md).
 	Coaching bool
+	// CatalogueFix: a coaching community's link to The Big Songbook's
+	// song, which the viewer may fix in place (SongRights.Contribute):
+	// beside the community's arrangement, Edit offers "Fix the
+	// catalogue's song", an open edit under the catalogue's rules
+	// (applied at once or held for review), for everyone who has it, the
+	// community included (docs/coaching.md, "A group works on one song").
+	CatalogueFix bool
 }
 
 // communityEditOffer is that offer, or nil: the page was opened from a
@@ -3381,7 +3395,8 @@ func (s *Server) communityEditOffer(r *http.Request, personID int64, variant *st
 	if err != nil {
 		return nil
 	}
-	return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, SongbookID: sb.ID, Coaching: c.IsCoaching()}
+	return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, SongbookID: sb.ID, Coaching: c.IsCoaching(),
+		CatalogueFix: c.IsCoaching() && rights.Catalogue && rights.Contribute}
 }
 
 // coachingEditOffer is the community's version offered on a song opened
@@ -3402,7 +3417,7 @@ func (s *Server) coachingEditOffer(r *http.Request, personID int64, variant *sto
 		if ok, err := s.store.MayMakeVersion(ctx, personID, variant.VariantID, owner, false); err != nil || !ok {
 			continue
 		}
-		return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, Coaching: true}
+		return &songCommunityOffer{CommunityID: c.ID, Name: c.Name, Coaching: true, CatalogueFix: rights.Catalogue && rights.Contribute}
 	}
 	return nil
 }

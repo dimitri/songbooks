@@ -12,7 +12,7 @@
 <div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}>
   <p class="hint">{{if .CatalogueGated}}{{t "The Big Songbook’s song: your edit changes it for everyone. An edit that keeps it following its recording is applied at once; one that changes its structure or makes it follow the recording less well waits for review."}}{{else}}{{t "The Big Songbook’s song: your edit changes it for everyone, at once."}}{{end}}
     {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
-    {{if .CanEditChart}}<button type="button" class="link-like" id="edit-offer-go" data-action="copy">{{t "Make my arrangement instead"}}</button><span class="form-status" id="edit-offer-status" role="status"></span>{{end}}</p>
+    {{if .CommunityOffer}}<button type="button" class="link-like" data-edit-offer-open>{{t "Make the community’s arrangement instead"}}</button>{{else if .CanEditChart}}<button type="button" class="link-like" id="edit-offer-go" data-action="copy">{{t "Make my arrangement instead"}}</button><span class="form-status" id="edit-offer-status" role="status"></span>{{end}}</p>
   <label class="catalogue-summary-field">
     <span>{{t "What did you change?"}} <span class="field-optional">{{t "(optional)"}}</span></span>
     <input type="text" id="catalogue-edit-summary" maxlength="200" autocomplete="off" placeholder="{{t "e.g. fixed the chorus chords"}}" enterkeyhint="done">
