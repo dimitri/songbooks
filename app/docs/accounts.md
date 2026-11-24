@@ -1,8 +1,9 @@
 # Accounts: the email is the identity
 
 An account is its email. There are no usernames (decided 2026-11-24,
-migration 0135): an email is all an account needs, and people are shown
-everywhere by their display name.
+migrations 0135 and 0136): an email is all an account needs, and people
+are shown everywhere by their display name. Inviting someone takes only
+their name; joining takes their email.
 
 ## Logging in
 
@@ -22,25 +23,54 @@ page lists them at the top of *People*, and the server says so in its log
 at every start, until each gets one: `songbooks --set-email <id> <email>`.
 Staging had one on 2026-11-24 (id 3, "Band Mate").
 
-## Making an account
+## Adding someone: a name
 
-Every way in asks for a name ("Your name", the display name) and an email:
-an invite link (`/invite/…`), a band or community link (`/join/…`),
-registering for an event. A placeholder added by name to a roster (a
-*shell*, migration 0048) is claimed through their personal link with an
-email and a password; their name is the one they were added with (they
-change it on their profile).
+A band's Members page and a community's Admin page add someone by
+**name** (and, for a band, the instrument and the role; for a community,
+the role): they're on the roster straight away, as a placeholder (a
+*shell*, migration 0048), with a **personal link** to send them
+(`/invite/…`, 30 days, "New link" makes another). Nobody types an email
+for someone else: there's no adding by email, and nothing on these pages
+tells whether an email has an account (decided 2026-11-24; the add routes
+take a `personId`, never an email).
 
-## Adding someone who has an account
+Someone who already has an account can also be **picked by name** among
+the people the adder already plays with: the current members of their
+current bands and communities, not The Big Songbook
+(`store.ListPeopleKnownTo`, `POST …/members {personId}`). Each name in
+that list carries where the two share a group ("Marc · Nord Express"),
+which also tells two people of the same name apart. They're added
+straight away.
 
-A band's Members page and a community's Admin page add an account by
-**email** (any account; an email nobody uses is refused — leave it blank
-for a link to send them, which is how a newcomer makes an account), or by
-**picking a name** among the people the adder already plays with: the
-current members of their current bands and communities, not The Big
-Songbook (`store.ListPeopleKnownTo`; the API takes `email` or `personId`).
-Each name in that list carries where the two share a group ("Marc · Nord
-Express"), which also tells two people of the same name apart.
+The other ways in stay: a band's one-off link (`/invite/…`, nameless,
+single use), a band or community open link or QR code, a community's
+group invite with names to pick (`/join/…`), registering for an event.
+
+## Joining: an email
+
+Every link asks the person to **sign up or sign in with their email**:
+
+- **Signed in already**: they just join, as themselves ("Join as …?",
+  with a way to log out on a browser that isn't theirs).
+- **A new account**: their email and a password on the link's page (and
+  their name, except on a personal link, which has it). On a personal
+  link the account *is* the placeholder: claiming it sets its email
+  (`ClaimPersonalInvite`).
+- **An account they have**: "Log in to join" (on an event, "Log in to
+  register") remembers the link for 15 minutes (`pendingJoinCookie`) and
+  goes to the login page, by password or by an emailed link; back on
+  `/home`, the join is finished (`resumePendingJoin`). A personal link's
+  placeholder then **merges into their account** (`ClaimPersonalInviteAs`:
+  everything that named the placeholder names the account; where the
+  account has the same already, a membership in that band, an
+  instrument, its own stays) and the placeholder goes. An email that has
+  an account is never taken for a new one: the form says to log in to
+  join instead.
+
+A new account from a link needs a password: no login email is actually
+sent yet (the console mailer, `--smtp-url` isn't built), so an account
+without one would be locked out once its session ends. Registering for
+an event is the exception (its password is optional, as before).
 
 ## Showing people
 
@@ -60,10 +90,9 @@ refused: there's no transition period accepting usernames.
 
 ## The `people.username` column
 
-Migration 0135 made it nullable; nothing reads it any more, and nothing
-writes it (new accounts and claimed placeholders leave it NULL; `sbdemo
-anonymize` empties it). It keeps the old names for now. **Dropping it is a
-later, separate step** (a migration `ALTER TABLE people DROP COLUMN
-username`), once nothing outside the app depends on it: old database dumps
-and songexport backups (`cmd/songimport` still reads an older export's
-`username` to find its person directories, which are now `person-<id>`).
+Gone: migration 0135 made it nullable and the app stopped reading and
+writing it; 0136 dropped it (and its UNIQUE). A database dump from before
+restores and migrates as any other (0135 then 0136). `cmd/songimport`
+still reads an older export's `username` field, from the JSON only, to
+find that export's person directories (now `person-<id>`); nothing writes
+it anywhere.
