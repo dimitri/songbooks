@@ -10,7 +10,7 @@
 --
 -- It shows the rows before and after, and rolls back unless -v apply=1:
 --
---   psql "$DATABASE_URL" -v username=tapoueh -v blues=ID \
+--   psql "$DATABASE_URL" -v person=1 -v blues=ID \
 --        -v student_songbook=18 -v just_the_way=ID              # dry run
 --   psql ... -v apply=1                                          # do it
 --
@@ -20,9 +20,9 @@
 -- set to -3. No song changes.
 
 \set ON_ERROR_STOP on
-\if :{?username}
+\if :{?person}
 \else
-  \echo 'missing -v username=…'
+  \echo 'missing -v person=<person id>'
   \quit
 \endif
 \if :{?blues}
@@ -47,12 +47,12 @@ CREATE TEMP TABLE wanted ON COMMIT DROP AS
 SELECT sb.id AS songbook_id, sb.name AS songbook, s.id AS variant_id, s.title, s.visibility::text AS visibility, k.semitones, p.id AS person_id
 FROM (VALUES
   ((SELECT id FROM songbooks WHERE owner_kind = 'person' AND is_default
-     AND owner_person_id = (SELECT id FROM people WHERE username = :'username')), :blues::bigint, -2),
+     AND owner_person_id = :person::bigint), :blues::bigint, -2),
   (:student_songbook::bigint, :just_the_way::bigint, -3)
 ) AS k(songbook_id, variant_id, semitones)
 JOIN songbooks sb ON sb.id = k.songbook_id
 JOIN songs s ON s.id = k.variant_id
-LEFT JOIN people p ON p.username = :'username';
+LEFT JOIN people p ON p.id = :person::bigint;
 
 \echo 'what it sets (songbook, song, semitones):'
 SELECT songbook_id, songbook, variant_id, title, visibility, semitones FROM wanted ORDER BY songbook_id;

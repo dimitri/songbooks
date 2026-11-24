@@ -58,7 +58,7 @@ privilege.
 | `vote` | One's votes count: in a proposal's average, for/against, "n of m voted", who hasn't voted, the list's order. Without it a member still votes, listed apart ("Guests"), counted in none of it | ✓ | |
 | `decide_proposals` | Add a proposed song, or turn it down | ✓ | ✓ |
 | `curate_listen` | Remove anyone's songs from Discover and Influences (whoever added one always removes it) | ✓ | |
-| `manage_members` | Invite people (every way: an account by username, one-off and personal links, the roster link and its names, the band's open link and QR code); change others' instruments | ✓ | |
+| `manage_members` | Invite people (every way: an account by email or by name, one-off and personal links, the roster link and its names, the band's open link and QR code); change others' instruments | ✓ | |
 | `remove_members` | Remove a member (leaving the band oneself is every member's) | ✓ | not since 0132 |
 | `manage_roles` | Give members a role; create, rename, delete roles, change what they allow | ✓ | |
 | `rename_archive` | Rename the band; archive and unarchive it (the one privilege an archived band still grants) | ✓ | |
@@ -99,7 +99,7 @@ that gates it now.
 | Card picture | `POST …/card-image` | core | `edit_look` |
 | Language | `PUT …/locale` | core | `edit_look` |
 | Delete the band | `DELETE /api/bands/{id}` | any member | site admins only (the user's decision; no privilege) |
-| Add an account by username | `POST …/members` (`roleId`, or `status`) | core | `manage_members`; any of the band's roles (0132) |
+| Add an account by email or by name | `POST …/members` (`email` or `personId`; `roleId`, or `status`) | core | `manage_members`; any of the band's roles (0132) |
 | One-off link, personal invite, new link for a placeholder | `POST …/invites`, `…/personal-invites`, `…/members/{p}/invite-link`, `/api/people/{p}/personal-invites` (`CanInvitePerson`) | core | `manage_members` |
 | Roster link and its names, close it | `POST …/group-invites…` | core | `manage_members` |
 | The band's open link / QR code (#129) | `POST …/band-link`, close | core | `manage_members` |
@@ -193,7 +193,7 @@ The user's decisions:
 The user's decisions (2026-11-24):
 
 - **Invites into any role.** Every way of inviting — an account by
-  username, a one-off link, a placeholder's personal link, a roster
+  email or by name, a one-off link, a placeholder's personal link, a roster
   link's names, the open link and its QR code — takes one of the band's
   roles (`roleId`; `store.ResolveBandInviteRole`), a band's own
   included, and the claim gives it. An invite keeps its role

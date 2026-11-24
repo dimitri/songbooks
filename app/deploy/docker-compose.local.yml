@@ -6,7 +6,8 @@
 #   docker compose -f deploy/docker-compose.local.yml up -d --build app
 #
 # DEV ONLY: every request is auto-logged-in as SONGBOOKS_DEV_AUTO_LOGIN
-# (default tapoueh), so both ports are bound to 127.0.0.1 only.
+# (an email or a person id; default 1, the bootstrap account), so both
+# ports are bound to 127.0.0.1 only.
 name: songbooks-local
 
 services:
@@ -38,7 +39,7 @@ services:
       # home calendar); the people using this play around Paris.
       TZ: ${SONGBOOKS_TZ:-Europe/Paris}
       DATABASE_URL: postgres://songbooks:songbooks-local@db:5432/songbooks?sslmode=disable
-      SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-tapoueh}
+      SONGBOOKS_DEV_AUTO_LOGIN: ${SONGBOOKS_DEV_AUTO_LOGIN:-1}
       # A demo copy: the admin page's Demo data panel (docs/demo-data.md).
       SONGBOOKS_DEMO_DATA: "1"
       # Live lessons against a local Galène (docs/live-lessons.md): unset,

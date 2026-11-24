@@ -627,12 +627,13 @@ Garamond joined the fonts a look picks from.
 ## Setting one up
 
 ```
-sbcoach community --db URL --name "Chloé Paul" --coach chloepaul --student tapoueh --look look.json
-sbcoach songs --db URL --community ID --student tapoueh --songs 206,215,228 --clips clips.tsv
+sbcoach community --db URL --name "Chloé Paul" --coach chloe@example.com --student 1 --look look.json
+sbcoach songs --db URL --community ID --student 1 --songs 206,215,228 --clips clips.tsv
 ```
 
-`community` makes the coach's account when there's none (no password, no
-email: theirs once invited), the community, its Repertoire, its look, and
+`community` makes the coach's account with that email when there's none
+(no password: they log in with a link sent to it; a person is named by
+email or id, there are no usernames), the community, its Repertoire, its look, and
 a first student. `songs` puts songs in the repertoire and the student's
 songbook: linked (the catalogue's, a public song), or the community's own
 song or arrangement of it — never a copy per student or per run; with
