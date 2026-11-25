@@ -10380,3 +10380,21 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
 /* ---- A dead invite/join link followed while signed in (dead_link.go):
    the notice on /home, under the greeting. ---- */
 .home-notice { margin: -0.6rem 0 1.4rem; }
+
+/* ---- A personal link opened again (link_return.html): "Welcome back",
+   the account's initial over the name, the masked email under the
+   card's title, the passkey under the password. ---- */
+.link-return-avatar {
+  display: inline-grid; place-items: center; width: 3.4rem; height: 3.4rem; margin-bottom: 0.6rem;
+  border-radius: 50%; background: var(--accent-bg); color: var(--accent-ink); font-size: 1.45rem; font-weight: 700;
+}
+.link-return .card h3 { margin: 0; }
+.link-return-account { margin: 0.2rem 0 0.9rem; }
+.link-return-passkey { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.link-return-passkey button { width: 100%; }
+.link-return .form-actions form { margin: 0; }
+.link-return .card > p:first-child { margin-top: 0; }
+/* On a band's roster, a joined member's link still open: its own line
+   under the name and role, the meta first, wrapping. */
+.roster-row > .roster-return { order: 1; flex-basis: 100%; }
+.roster-return .roster-invite-until { flex-basis: 100%; white-space: normal; }

@@ -35,6 +35,9 @@ func markInviteUsedTx(ctx context.Context, tx pgx.Tx, token string, usedBy, plac
 // its page to say so.
 type DeadInvite struct {
 	Used bool // taken (else expired)
+	// Personal: a personal link (else a plain invite). A used personal
+	// link works until it expires (GetReturningLink): this one has.
+	Personal bool
 	// UsedBy is the account that took it (0: not used, or since deleted).
 	UsedBy int64
 	// TargetKind ("band", "community" or "") and TargetID are where the
@@ -47,15 +50,17 @@ type DeadInvite struct {
 }
 
 // DeadInviteFor says why token, an /invite/ link GetInvite refused, no
-// longer works: used, or expired. ErrNotFound when there's no such link
-// (never was, revoked, replaced by a new one, or a band's nameless one-off
-// link: notNamelessBandInvite), and when it is in fact still open.
+// longer works: used (a plain invite), or expired (a personal link, used
+// or not: a used one works until then). ErrNotFound when there's no such
+// link (never was, revoked before it was used, replaced by a new one, or
+// a band's nameless one-off link: notNamelessBandInvite), and when it is
+// in fact still open.
 func (st *Store) DeadInviteFor(ctx context.Context, token string) (*DeadInvite, error) {
 	var d DeadInvite
 	var open bool
 	var usedBy, personID, bandID, communityID *int64
 	err := st.db.QueryRow(ctx, `
-		SELECT i.used_at IS NOT NULL, i.used_at IS NULL AND i.expires_at > now(),
+		SELECT i.used_at IS NOT NULL, i.expires_at > now() AND (i.used_at IS NULL OR i.person_id IS NOT NULL),
 		       i.used_by_person_id, i.person_id, i.joined_band_id, i.joined_community_id
 		FROM invites i
 		WHERE i.token = $1 AND `+notNamelessBandInvite, token).
@@ -69,6 +74,7 @@ func (st *Store) DeadInviteFor(ctx context.Context, token string) (*DeadInvite, 
 	if usedBy != nil {
 		d.UsedBy = *usedBy
 	}
+	d.Personal = personID != nil
 	switch {
 	case d.Used && bandID != nil:
 		d.TargetKind, d.TargetID = "band", *bandID

@@ -13,11 +13,12 @@ import (
 	"app/internal/store"
 )
 
-// TestUsedPersonalLink: a personal link, once taken, stays (used): opened
-// again it answers 410 with a page that says it was used to join the
-// band and offers to log in, never the email; someone signed in goes to
-// the band when they're in it, else home with a notice; it can't be
-// taken a second time; the admin sees it used.
+// TestUsedPersonalLink: a personal link, once taken, stays (used) and
+// keeps opening for its person until it expires (link_devices_test.go
+// has the rest); once expired, it answers 410 with a page that says it
+// was used to join the band and offers to log in, never the email;
+// someone signed in goes to the band when they're in it, else home with
+// a notice; it can't be taken a second time; the admin sees it used.
 func TestUsedPersonalLink(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
@@ -34,22 +35,55 @@ func TestUsedPersonalLink(t *testing.T) {
 		t.Fatalf("taking the link: %d %s", w.Code, w.Body)
 	}
 
-	// Opened again, signed out: the page, 410, the band named, Log in.
+	// The admin: used, by Frank, still open for him, in the list and on
+	// his page.
+	if err := e.st.SetAdmin(ctx, coreID, true); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := e.st.ListPlainInvites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rows {
+		if r.Token == token {
+			found = true
+			if r.UsedAt == nil || r.UsedByID != frank {
+				t.Errorf("the list's row: used %v by %d, want by %d", r.UsedAt, r.UsedByID, frank)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("the used link isn't in the admin's list")
+	}
+	admin := e.do("GET", "/admin", "", core).Body.String()
+	row := admin[strings.Index(admin, fmt.Sprintf(`personal: <a href="/admin/people/%d">`, frank)):]
+	row = row[:strings.Index(row, "</tr>")]
+	if !strings.Contains(row, "used ") || !strings.Contains(row, "still opens for them") || strings.Contains(row, "still open<") {
+		t.Errorf("the admin's list doesn't show the link used, still opening: %s", row)
+	}
+	person := e.do("GET", fmt.Sprintf("/admin/people/%d", frank), "", core).Body.String()
+	if !strings.Contains(person, "Joined with their invite link") || !strings.Contains(person, `id="person-invite-url"`) {
+		t.Errorf("the admin's person page doesn't show the link used, still opening")
+	}
+
+	// Expired: the page, 410, the band named, Log in.
+	testExec(t, `UPDATE invites SET expires_at = now() - interval '1 minute' WHERE token = $1`, token)
 	w := e.do("GET", "/invite/"+token, "", nil)
 	body := w.Body.String()
 	if w.Code != http.StatusGone || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/html") {
-		t.Errorf("the used link: %d %q, want a 410 page", w.Code, w.Header().Get("Content-Type"))
+		t.Errorf("the used link, expired: %d %q, want a 410 page", w.Code, w.Header().Get("Content-Type"))
 	}
 	// Not kept by the browser: once logged in, the same link must answer anew.
 	if cc := w.Header().Get("Cache-Control"); cc != "no-store" {
 		t.Errorf("the used link's page: Cache-Control %q, want no-store", cc)
 	}
-	for _, want := range []string{"This link no longer works", "It was already used to join " + bandName + ".", "Log in to continue.", `action="/login"`, "Ask them for a new one."} {
+	for _, want := range []string{"This link no longer works", "It has expired. You joined " + bandName + " with it.", "Log in to continue.", `action="/login"`, "Ask them for a new one."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the used link's page lacks %q", want)
 		}
 	}
-	for _, unwanted := range []string{frankEmail, `name="email"`, `name="password"`} {
+	for _, unwanted := range []string{frankEmail, `name="email"`, `name="password"`, "Frank"} {
 		if strings.Contains(body, unwanted) {
 			t.Errorf("the used link's page has %q", unwanted)
 		}
@@ -98,45 +132,14 @@ func TestUsedPersonalLink(t *testing.T) {
 	if p, _ := e.st.GetPersonByID(ctx, frank); p == nil || p.Email != frankEmail {
 		t.Errorf("Frank's account changed: %+v", p)
 	}
-
-	// The admin: used, by Frank, in the list and on his page.
-	if err := e.st.SetAdmin(ctx, coreID, true); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := e.st.ListPlainInvites(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, r := range rows {
-		if r.Token == token {
-			found = true
-			if r.UsedAt == nil || r.UsedByID != frank {
-				t.Errorf("the list's row: used %v by %d, want by %d", r.UsedAt, r.UsedByID, frank)
-			}
-		}
-	}
-	if !found {
-		t.Errorf("the used link isn't in the admin's list")
-	}
-	admin := e.do("GET", "/admin", "", core).Body.String()
-	row := admin[strings.Index(admin, fmt.Sprintf(`personal: <a href="/admin/people/%d">`, frank)):]
-	row = row[:strings.Index(row, "</tr>")]
-	if !strings.Contains(row, "used ") || strings.Contains(row, "still open") {
-		t.Errorf("the admin's list doesn't show the link used: %s", row)
-	}
-	person := e.do("GET", fmt.Sprintf("/admin/people/%d", frank), "", core).Body.String()
-	if !strings.Contains(person, "Joined with their invite link") || strings.Contains(person, `id="person-invite-url"`) {
-		t.Errorf("the admin's person page doesn't show the link used")
-	}
 	if had, err := e.st.RevokePersonalInvites(ctx, frank); err != nil || had {
-		t.Errorf("revoking a used link: %v %v, want nothing to revoke", had, err)
+		t.Errorf("revoking an expired link: %v %v, want nothing to revoke", had, err)
 	}
 }
 
 // TestUsedPersonalLinkSignedIn: taken by someone signed in (the
 // placeholder merged into their account), the link stays used, on their
-// account; opened again it names the band.
+// account; opened again it opens for them, naming the community.
 func TestUsedPersonalLinkSignedIn(t *testing.T) {
 	e := newInviteEnv(t)
 	ctx := context.Background()
@@ -151,9 +154,10 @@ func TestUsedPersonalLinkSignedIn(t *testing.T) {
 	if w := e.do("POST", "/invite/"+token, "", rita); w.Code != http.StatusFound {
 		t.Fatalf("joining as Rita: %d %s", w.Code, w.Body)
 	}
+	// It opens for Rita, to her community, until it expires.
 	w := e.do("GET", "/invite/"+token, "", nil)
-	if w.Code != http.StatusGone || !strings.Contains(w.Body.String(), "It was already used to join "+communityName+".") {
-		t.Errorf("the used link: %d, want 410 naming the community", w.Code)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Welcome back, Rita") || !strings.Contains(w.Body.String(), "Your link to "+communityName+".") {
+		t.Errorf("the used link: %d, want Rita's welcome back naming the community", w.Code)
 	}
 	if w := e.do("GET", "/invite/"+token, "", rita); w.Code != http.StatusSeeOther || w.Header().Get("Location") != fmt.Sprintf("/communities/%d", communityID) {
 		t.Errorf("Rita, signed in: %d %q, want the community", w.Code, w.Header().Get("Location"))

@@ -153,8 +153,27 @@ func TestAdminPersonPage(t *testing.T) {
 		if !strings.Contains(body, `person-chip is-active`) || strings.Contains(body, "hasn’t joined yet") {
 			t.Errorf("claimed account isn't shown active")
 		}
+		// Their link still opens for them (returning_link.go): the page
+		// shows it, and New link replaces it.
+		if !strings.Contains(body, `id="person-invite-url"`) || !strings.Contains(body, "still opens for") {
+			t.Errorf("the claimed link that still works isn't on the page")
+		}
+		code, renewed := newLink(admin, shellID)
+		if code != http.StatusOK || renewed == "" || renewed == token {
+			t.Errorf("new link after claiming: %d, want a new one", code)
+		}
+		if l, err := st.GetReturningLink(ctx, renewed); err != nil || l.PersonID != shellID {
+			t.Errorf("the new link doesn't open for them: %v", err)
+		}
+		if _, err := st.GetReturningLink(ctx, token); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("the old link still opens: %v", err)
+		}
+		// Revoked, it's over: no new one, they log in.
+		if code := revoke(admin, shellID); code != http.StatusOK {
+			t.Errorf("revoking the link: %d", code)
+		}
 		if code, _ := newLink(admin, shellID); code != http.StatusConflict {
-			t.Errorf("new invite link after claiming: %d, want 409", code)
+			t.Errorf("new link once revoked: %d, want 409", code)
 		}
 	})
 

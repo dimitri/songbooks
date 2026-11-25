@@ -357,5 +357,11 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.DeleteSession(r.Context(), cookie.Value)
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
+	// A personal link's "Log out" (returning_link.go, someone else
+	// signed in) comes back to that link: an /invite/ path, nothing else.
+	if next := r.FormValue("next"); strings.HasPrefix(next, "/invite/") && !strings.ContainsAny(next[len("/invite/"):], "/\\?#") {
+		http.Redirect(w, r, next, http.StatusFound)
+		return
+	}
 	http.Redirect(w, r, "/login", http.StatusFound)
 }

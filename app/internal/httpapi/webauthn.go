@@ -497,6 +497,15 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 60 * 60,
 	})
+	// From a personal link's page (returning_link.go): the sign-in counts
+	// on the link when the passkey is its person's.
+	if tok := r.URL.Query().Get("link"); tok != "" {
+		if l, err := s.store.GetReturningLink(ctx, tok); err == nil && l.PersonID == wu.person.ID {
+			if err := s.store.RecordLinkSignIn(ctx, tok); err != nil {
+				log.Printf("personal link: counting a passkey sign-in: %v", err)
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "redirect": "/home"})
 }
 

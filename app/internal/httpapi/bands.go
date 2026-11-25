@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -388,6 +389,21 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Who joined with a personal link that still opens for them, to come
+	// back in on another device (returning_link.go): for those who may
+	// make and revoke links.
+	returning := map[int64]store.ReturningLinkInfo{}
+	if privs.Can(store.BandPrivManageMembers) {
+		ls, err := s.store.ListReturningLinksForBand(r.Context(), bandID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		for _, l := range ls {
+			returning[l.PersonID] = l
+		}
+	}
+
 	// One row per person: a placeholder's invite link sits on the same
 	// row as their name, instruments and role.
 	rows := make([]bandRosterRow, 0, len(members))
@@ -408,6 +424,8 @@ func (s *Server) handleBandMembersPage(w http.ResponseWriter, r *http.Request) {
 		if m.IsShell {
 			row.InviteToken = links[m.PersonID].OpenInviteToken
 			row.InviteUntil = links[m.PersonID].OpenInviteUntil
+		} else if l, ok := returning[m.PersonID]; ok && m.IsCurrent() {
+			row.ReturnLink = &l
 		}
 		rows = append(rows, row)
 	}
@@ -538,6 +556,9 @@ type bandRosterRow struct {
 	Role               store.BandRole // the member's role (Name "core"/"guest" for a built-in)
 	InviteToken        string    // "" when a placeholder has no live link
 	InviteUntil        time.Time // InviteToken's expiry
+	// ReturnLink is the personal link of someone who joined, while it
+	// still opens for them (nil: none, or the viewer can't invite).
+	ReturnLink         *store.ReturningLinkInfo
 	CanEditInstruments bool
 }
 
@@ -582,8 +603,10 @@ func (s *Server) handleSetBandMemberInstruments(w http.ResponseWriter, r *http.R
 // handleNewBandMemberInviteLink is POST /api/bands/{id}/members/
 // {personID}/invite-link: a fresh 30-day personal link for a member who
 // hasn't joined yet, replacing their old one whether or not it expired
-// (store.CreatePersonalInvite). Any band member may; 404 if the person
-// isn't a current member, 409 if they've joined already.
+// (store.CreatePersonalInvite); for one who has, their link for coming
+// back (returningLinkFor: the one they have, or a new one with
+// ?replace). Core members (requireBandInviter); 404 if the person isn't
+// a current member.
 func (s *Server) handleNewBandMemberInviteLink(w http.ResponseWriter, r *http.Request) {
 	bandID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
@@ -601,8 +624,16 @@ func (s *Server) handleNewBandMemberInviteLink(w http.ResponseWriter, r *http.Re
 		return
 	}
 	const ttl = 30 * 24 * time.Hour
+	until := time.Now().Add(ttl)
 	token, err := s.store.CreatePersonalInvite(r.Context(), personID, personFromContext(r).ID, ttl)
 	if errors.Is(err, store.ErrNotShell) {
+		// They've joined (a roster left open since, say): their link for
+		// coming back (returning_link.go). The one they have, unless
+		// ?replace (New link) asks for another; 409 when it no longer
+		// works.
+		token, until, err = s.returningLinkFor(r, personID, r.URL.Query().Get("replace") != "")
+	}
+	if errors.Is(err, store.ErrNoReturningLink) {
 		httpError(w, http.StatusConflict, err.Error())
 		return
 	}
@@ -613,8 +644,27 @@ func (s *Server) handleNewBandMemberInviteLink(w http.ResponseWriter, r *http.Re
 	// The row shows the new expiry as the page does (date, in the page's language).
 	writeJSON(w, http.StatusOK, map[string]any{
 		"url":     "/invite/" + token,
-		"expires": i18n.Date(s.langOf(w), time.Now().Add(ttl), inviteUntilLayout),
+		"expires": i18n.Date(s.langOf(w), until, inviteUntilLayout),
 	})
+}
+
+// returningLinkFor is the link for coming back of personID, who has
+// joined: the one still working, or a new one in its place when replace
+// asks for it (the old one stops working then). store.ErrNoReturningLink
+// when theirs no longer works: they log in.
+func (s *Server) returningLinkFor(r *http.Request, personID int64, replace bool) (string, time.Time, error) {
+	if !replace {
+		ret, err := s.store.ReturningLinkFor(r.Context(), personID)
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		if ret == nil {
+			return "", time.Time{}, store.ErrNoReturningLink
+		}
+		return ret.Token, ret.ExpiresAt, nil
+	}
+	token, err := s.store.NewReturningLink(r.Context(), personID, personFromContext(r).ID, personalInviteTTL)
+	return token, time.Now().Add(personalInviteTTL), err
 }
 
 // inviteUntilLayout is how a roster row shows when a personal link expires.
@@ -879,6 +929,12 @@ func (s *Server) handleCreatePersonalInviteForPerson(w http.ResponseWriter, r *h
 	}
 	token, err := s.store.CreatePersonalInvite(r.Context(), personID, actor.ID, 30*24*time.Hour)
 	if errors.Is(err, store.ErrNotShell) {
+		// They've joined: their link for coming back, the one they have
+		// (a roster's "Get invite link" left open since), or a new one
+		// with ?new (New link); 409 when it no longer works.
+		token, _, err = s.returningLinkFor(r, personID, r.URL.Query().Get("new") != "")
+	}
+	if errors.Is(err, store.ErrNoReturningLink) {
 		httpError(w, http.StatusConflict, err.Error())
 		return
 	}
@@ -887,6 +943,43 @@ func (s *Server) handleCreatePersonalInviteForPerson(w http.ResponseWriter, r *h
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"url": "/invite/" + token})
+}
+
+// handleRevokePersonalInviteForPerson is DELETE /api/people/{personID}/
+// personal-invites: their personal link stops working
+// (store.RevokePersonalInvites), whether they've joined or not. The
+// same people as handleCreatePersonalInviteForPerson may; 404 when
+// there was none working.
+func (s *Server) handleRevokePersonalInviteForPerson(w http.ResponseWriter, r *http.Request) {
+	personID, err := strconv.ParseInt(r.PathValue("personID"), 10, 64)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid person id")
+		return
+	}
+	actor := personFromContext(r)
+	allowed := actor.IsAdmin
+	if !allowed {
+		allowed, err = s.store.CanInvitePerson(r.Context(), actor.ID, personID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if !allowed {
+		httpError(w, http.StatusForbidden, "only a band's core members, or a community's staff who manage members, can revoke this person's link")
+		return
+	}
+	had, err := s.store.RevokePersonalInvites(r.Context(), personID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !had {
+		httpError(w, http.StatusNotFound, "no invite link to revoke")
+		return
+	}
+	log.Printf("personal invite: %q (id %d) revoked the link of person %d", actor.DisplayName, actor.ID, personID)
+	writeJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }
 
 func (s *Server) handleCreateBandGroupInvite(w http.ResponseWriter, r *http.Request) {

@@ -103,13 +103,21 @@ func (st *Store) GetPersonalInviteFor(ctx context.Context, personID int64) (*Per
 	return &i, nil
 }
 
-// RevokePersonalInvites ends personID's personal invite link(s): the
-// rows go, so the link says it isn't valid any more. It reports whether
-// there was one. A used one stays: it works no more already.
+// RevokePersonalInvites ends personID's personal invite link(s), and
+// reports whether there was one working. One still to be taken goes, so
+// the link says it isn't valid any more; one used to join (or made for
+// coming back) expires now: a used one stays, used (migration 0138), and
+// its page says it no longer works, and to log in.
 func (st *Store) RevokePersonalInvites(ctx context.Context, personID int64) (bool, error) {
-	tag, err := st.db.Exec(ctx, `DELETE FROM invites WHERE person_id = $1 AND used_at IS NULL`, personID)
+	tag, err := st.db.Exec(ctx, `DELETE FROM invites WHERE person_id = $1 AND used_at IS NULL
+		AND (SELECT is_shell FROM people WHERE id = $1)`, personID)
 	if err != nil {
 		return false, err
 	}
-	return tag.RowsAffected() > 0, nil
+	n := tag.RowsAffected()
+	tag, err = st.db.Exec(ctx, `UPDATE invites SET expires_at = now() WHERE person_id = $1 AND expires_at > now()`, personID)
+	if err != nil {
+		return false, err
+	}
+	return n+tag.RowsAffected() > 0, nil
 }
