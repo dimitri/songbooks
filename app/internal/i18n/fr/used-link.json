@@ -1,0 +1,17 @@
+{
+  "This link doesn’t work": "Ce lien ne fonctionne pas",
+  "This link no longer works": "Ce lien ne fonctionne plus",
+  "It was already used to join %s.": "Il a déjà servi à rejoindre %s.",
+  "It was already used.": "Il a déjà servi.",
+  "It has been closed: it no longer lets anyone join %s.": "Il a été fermé : il ne permet plus de rejoindre %s.",
+  "It has expired.": "Il a expiré.",
+  "This link has already been used or is no longer valid.": "Ce lien a déjà servi ou n’est plus valable.",
+  "Log in to continue.": "Connectez-vous pour continuer.",
+  "Already joined? Log in with your email and password (or your passkey).": "Déjà inscrit ? Connectez-vous avec votre e-mail et votre mot de passe (ou votre clé d’accès).",
+  "Got this link from someone? Ask them for a new one.": "Quelqu’un vous a envoyé ce lien ? Demandez-lui-en un nouveau.",
+  "That link has already been used or is no longer valid. You’re already signed in.": "Ce lien a déjà servi ou n’est plus valable. Vous êtes déjà connecté.",
+  "Plain signup invites, and people’s personal links: each works once. A used one stays here, marked used, with who took it.": "Les invitations d’inscription simples et les liens personnels : chacun ne sert qu’une fois. Une invitation utilisée reste ici, marquée utilisée, avec la personne qui l’a prise.",
+  "used %s": "utilisée le %s",
+  "No single-use invites yet.": "Aucune invitation à usage unique pour l’instant.",
+  "Joined with their invite link, %s.": "A rejoint avec son lien d’invitation, le %s."
+}

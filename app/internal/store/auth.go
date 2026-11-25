@@ -607,14 +607,14 @@ type PersonalInviteView struct {
 }
 
 // GetPersonalInvite resolves token to its still-valid personal invite
-// (person_id set), or ErrNotFound if missing/expired/not personal.
+// (person_id set), or ErrNotFound if missing/expired/used/not personal.
 func (st *Store) GetPersonalInvite(ctx context.Context, token string) (*PersonalInviteView, error) {
 	var v PersonalInviteView
 	var personID sql.NullInt64
 	err := st.db.QueryRow(ctx, `
 		SELECT i.token, i.person_id, p.display_name, i.expires_at
 		FROM invites i JOIN people p ON p.id = i.person_id
-		WHERE i.token = $1 AND i.expires_at > now() AND i.person_id IS NOT NULL`, token).
+		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL AND i.person_id IS NOT NULL`, token).
 		Scan(&v.Token, &personID, &v.DisplayName, &v.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
@@ -669,9 +669,10 @@ func (st *Store) GetPersonMemberships(ctx context.Context, personID int64) ([]Pe
 // ClaimPersonalInvite finishes a shell person's account: sets their
 // email — the account itself from now on — and password (bcryptHash
 // may be "" for an email-only/magic-link account, same as the plain-
-// invite path), clears is_shell, and deletes the invite — no new
-// person row, no new memberships (those were already granted when the
-// shell was made). ErrEmailTaken if another account has that email.
+// invite path), clears is_shell, and marks the invite used
+// (markInviteUsedTx) — no new person row, no new memberships (those
+// were already granted when the shell was made). ErrEmailTaken if
+// another account has that email.
 func (st *Store) ClaimPersonalInvite(ctx context.Context, token, email, bcryptHash string) (personID int64, err error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
@@ -683,7 +684,8 @@ func (st *Store) ClaimPersonalInvite(ctx context.Context, token, email, bcryptHa
 	// someone who has an account since must not hand it to anyone else.
 	err = tx.QueryRow(ctx, `
 		SELECT i.person_id FROM invites i JOIN people p ON p.id = i.person_id
-		WHERE i.token = $1 AND i.expires_at > now() AND p.is_shell`, token).
+		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL AND p.is_shell
+		FOR UPDATE OF i`, token).
 		Scan(&personID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("no such invite: %w", ErrNotFound)
@@ -706,7 +708,7 @@ func (st *Store) ClaimPersonalInvite(ctx context.Context, token, email, bcryptHa
 		return 0, err
 	}
 
-	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE token = $1`, token); err != nil {
+	if err := markInviteUsedTx(ctx, tx, token, personID, personID); err != nil {
 		return 0, err
 	}
 	return personID, tx.Commit(ctx)
@@ -790,7 +792,7 @@ func (st *Store) listShellPeople(ctx context.Context, memberOfSQL string) ([]She
 		err = st.db.QueryRow(ctx, `
 			SELECT i.token, p.display_name, i.expires_at FROM invites i
 			LEFT JOIN people p ON p.id = i.created_by_person_id
-			WHERE i.person_id = $1 AND i.expires_at > now()
+			WHERE i.person_id = $1 AND i.expires_at > now() AND i.used_at IS NULL
 			ORDER BY i.expires_at DESC LIMIT 1`, out[i].PersonID).
 			Scan(&token, &createdByName, &until)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -821,12 +823,16 @@ type PlainInviteRow struct {
 	CreatedByName string
 	CreatedAt     time.Time
 	ExpiresAt     time.Time
+	// UsedAt is when it was taken (nil: not yet), UsedByID/UsedByName
+	// the account that took it (migration 0138).
+	UsedAt     *time.Time
+	UsedByID   int64
+	UsedByName string
 }
 
-// ListPlainInvites lists every row still sitting in the invites table —
-// single-use plain and personal invites that haven't been accepted yet
-// (accepting one deletes it, see acceptInviteTx), whether still valid
-// or already past expires_at — but a band's nameless one-off link, left
+// ListPlainInvites lists every row in the invites table — single-use
+// plain and personal invites, open, expired unused, or used (a used one
+// stays, marked: markInviteUsedTx) — but a band's nameless one-off link, left
 // over from before it went and taken by nothing since
 // (notNamelessBandInvite). Newest first. The admin panel's "did the
 // invite I sent actually expire, and when" view — GetInvite alone can't
@@ -834,11 +840,13 @@ type PlainInviteRow struct {
 func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT i.token, i.band_id, coalesce(b.name, ''), i.person_id, coalesce(who.display_name, ''),
-		       coalesce(p.display_name, ''), i.created_at, i.expires_at
+		       coalesce(p.display_name, ''), i.created_at, i.expires_at,
+		       i.used_at, coalesce(i.used_by_person_id, 0), coalesce(used.display_name, '')
 		FROM invites i
 		LEFT JOIN bands b ON b.id = i.band_id
 		LEFT JOIN people who ON who.id = i.person_id
 		LEFT JOIN people p ON p.id = i.created_by_person_id
+		LEFT JOIN people used ON used.id = i.used_by_person_id
 		WHERE `+notNamelessBandInvite+`
 		ORDER BY i.created_at DESC`)
 	if err != nil {
@@ -849,7 +857,8 @@ func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error)
 	for rows.Next() {
 		var r PlainInviteRow
 		var bandID, personID sql.NullInt64
-		if err := rows.Scan(&r.Token, &bandID, &r.BandName, &personID, &r.PersonName, &r.CreatedByName, &r.CreatedAt, &r.ExpiresAt); err != nil {
+		if err := rows.Scan(&r.Token, &bandID, &r.BandName, &personID, &r.PersonName, &r.CreatedByName, &r.CreatedAt, &r.ExpiresAt,
+			&r.UsedAt, &r.UsedByID, &r.UsedByName); err != nil {
 			return nil, err
 		}
 		r.BandID = bandID.Int64
@@ -860,7 +869,8 @@ func (st *Store) ListPlainInvites(ctx context.Context) ([]PlainInviteRow, error)
 }
 
 // GetInvite resolves a token to its still-valid invite, or ErrNotFound if
-// missing/expired, or a band's nameless one-off link (see Invite).
+// missing/expired/used, or a band's nameless one-off link (see Invite);
+// DeadInviteFor says which.
 func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	var inv Invite
 	var personID sql.NullInt64
@@ -868,7 +878,7 @@ func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 	err := st.db.QueryRow(ctx, `
 		SELECT i.token, i.person_id, i.created_by_person_id, i.expires_at
 		FROM invites i
-		WHERE i.token = $1 AND i.expires_at > now() AND `+notNamelessBandInvite, token).
+		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL AND `+notNamelessBandInvite, token).
 		Scan(&inv.Token, &personID, &createdBy, &inv.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)
@@ -884,14 +894,15 @@ func (st *Store) GetInvite(ctx context.Context, token string) (*Invite, error) {
 // acceptInviteTx is the shared body of AcceptInvite/CreatePersonAndAcceptInvite:
 // a plain invite, the only kind accepted this way (a personal one is
 // ClaimPersonalInvite's; a band's nameless one-off link isn't taken any
-// more, see Invite), has no membership to grant: it is deleted, and the
-// browser goes home (dest). accepterName is unused since the band
+// more, see Invite), has no membership to grant: it is marked used
+// (markInviteUsedTx's columns), and the browser goes home (dest). accepterName is unused since the band
 // one-off link went (it named the accepter in the inviter's
 // notification).
 func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, personID int64, accepterName string) (dest string, err error) {
 	tag, err := tx.Exec(ctx, `
-		DELETE FROM invites i
-		WHERE i.token = $1 AND i.expires_at > now() AND i.band_id IS NULL AND i.person_id IS NULL`, token)
+		UPDATE invites i SET used_at = now(), used_by_person_id = $2
+		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL
+		  AND i.band_id IS NULL AND i.person_id IS NULL`, token, personID)
 	if err != nil {
 		return "", err
 	}
@@ -902,7 +913,7 @@ func (st *Store) acceptInviteTx(ctx context.Context, tx pgx.Tx, token string, pe
 }
 
 // AcceptInvite takes a plain invite for an already-logged-in person
-// (personID, display name accepterName), and deletes the invite — single-use by design, so a link can't be replayed to add an
+// (personID, display name accepterName), and marks the invite used — single-use by design, so a link can't be replayed to add an
 // unbounded number of people (anyone wanting more invitees gets a fresh
 // invite instead). dest is where the browser should land afterwards.
 func (st *Store) AcceptInvite(ctx context.Context, token string, personID int64, accepterName string) (dest string, err error) {

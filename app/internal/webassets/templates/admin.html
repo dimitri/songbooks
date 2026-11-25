@@ -215,7 +215,7 @@
 
     <div class="card">
       <h3>{{t "Single-use invites"}}</h3>
-      <p class="hint">{{t "Plain signup invites, and the personal links of people who haven’t joined yet: each works once and goes from this list when it’s used, so what’s here is still open or expired unused."}}</p>
+      <p class="hint">{{t "Plain signup invites, and people’s personal links: each works once. A used one stays here, marked used, with who took it."}}</p>
       <div class="table-scroll"><table class="table-stack" style="width:100%">
         <thead><tr><th>{{t "Kind"}}</th><th>{{t "Created by"}}</th><th>{{t "Created"}}</th><th>{{t "Expires"}}</th><th>{{t "Status"}}</th></tr></thead>
         <tbody>
@@ -225,10 +225,10 @@
             <td data-label="{{t "Created by"}}">{{if .CreatedByName}}{{.CreatedByName}}{{else}}<em>{{t "unknown"}}</em>{{end}}</td>
             <td data-label="{{t "Created"}}">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
             <td data-label="{{t "Expires"}}">{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
-            <td data-label="{{t "Status"}}">{{if .ExpiresAt.After now}}<strong>{{t "still open"}}</strong>{{else}}{{t "expired, never used"}}{{end}}</td>
+            <td data-label="{{t "Status"}}">{{if .UsedAt}}{{t "used %s" (.UsedAt.Format "2006-01-02 15:04")}}{{if .UsedByID}} · <a href="/admin/people/{{.UsedByID}}">{{.UsedByName}}</a>{{end}}{{else if .ExpiresAt.After now}}<strong>{{t "still open"}}</strong>{{else}}{{t "expired, never used"}}{{end}}</td>
           </tr>
         {{else}}
-          <tr><td colspan="5" class="hint">{{t "No single-use invites pending."}}</td></tr>
+          <tr><td colspan="5" class="hint">{{t "No single-use invites yet."}}</td></tr>
         {{end}}
         </tbody>
       </table></div>

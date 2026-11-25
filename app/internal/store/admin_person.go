@@ -61,23 +61,36 @@ type PersonalInviteInfo struct {
 	CreatedByID   int64  // 0: unknown (the command line, or before the column)
 	CreatedByName string // "" then
 	ExpiresAt     time.Time
+	// UsedAt is when it was taken (nil: not yet), UsedByName by whom
+	// (migration 0138): taking it keeps it, used.
+	UsedAt     *time.Time
+	UsedByName string
 }
 
 // Expired reports whether the link no longer works.
 func (i PersonalInviteInfo) Expired() bool { return !i.ExpiresAt.After(time.Now()) }
 
+// Used reports whether the link was taken.
+func (i PersonalInviteInfo) Used() bool { return i.UsedAt != nil }
+
+// Open reports whether the link still works: neither used nor expired.
+func (i PersonalInviteInfo) Open() bool { return !i.Used() && !i.Expired() }
+
 // GetPersonalInviteFor is personID's personal invite link, the newest
-// (there's one at most: CreatePersonalInvite replaces it), expired or
+// (there's one open at most: CreatePersonalInvite replaces it; a used
+// one stays, and moves to the account that took it), expired, used or
 // not; nil without one.
 func (st *Store) GetPersonalInviteFor(ctx context.Context, personID int64) (*PersonalInviteInfo, error) {
 	var i PersonalInviteInfo
 	var by *int64
 	err := st.db.QueryRow(ctx, `
-		SELECT i.token, i.created_at, i.created_by_person_id, coalesce(c.display_name, ''), i.expires_at
+		SELECT i.token, i.created_at, i.created_by_person_id, coalesce(c.display_name, ''), i.expires_at,
+		       i.used_at, coalesce(u.display_name, '')
 		FROM invites i LEFT JOIN people c ON c.id = i.created_by_person_id
+		LEFT JOIN people u ON u.id = i.used_by_person_id
 		WHERE i.person_id = $1
 		ORDER BY i.created_at DESC LIMIT 1`, personID).
-		Scan(&i.Token, &i.CreatedAt, &by, &i.CreatedByName, &i.ExpiresAt)
+		Scan(&i.Token, &i.CreatedAt, &by, &i.CreatedByName, &i.ExpiresAt, &i.UsedAt, &i.UsedByName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -92,9 +105,9 @@ func (st *Store) GetPersonalInviteFor(ctx context.Context, personID int64) (*Per
 
 // RevokePersonalInvites ends personID's personal invite link(s): the
 // rows go, so the link says it isn't valid any more. It reports whether
-// there was one.
+// there was one. A used one stays: it works no more already.
 func (st *Store) RevokePersonalInvites(ctx context.Context, personID int64) (bool, error) {
-	tag, err := st.db.Exec(ctx, `DELETE FROM invites WHERE person_id = $1`, personID)
+	tag, err := st.db.Exec(ctx, `DELETE FROM invites WHERE person_id = $1 AND used_at IS NULL`, personID)
 	if err != nil {
 		return false, err
 	}

@@ -78,6 +78,7 @@
 
     {{else}}
     <h3 id="person-access-title">{{t "Getting in"}}</h3>
+    {{with .Invite}}{{if .Used}}<p class="person-link-meta hint">{{t "Joined with their invite link, %s." (date .UsedAt "2 January 2006")}}</p>{{end}}{{end}}
     {{if eq .State "no-email"}}
     <p class="hint">{{t "The email is the account: without one they can’t log in. A login link gets them in once, to add their email on their profile; or give them one on the server: songbooks --set-email %d <email>." .Person.ID}}</p>
     {{else if eq .State "no-password"}}

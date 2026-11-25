@@ -13,8 +13,7 @@
   <div class="hero">
     <div>
       <h2>{{t "Join %s" .TargetName}}</h2>
-      {{if .Closed}}{{/* the card below says so */}}
-      {{else if .Open}}
+      {{if .Open}}
         <p>{{if eq .Kind "band"}}{{t "Create your account, or log in, and you’re in the band."}}{{else}}{{t "Create your account, or log in, and you’re in the community."}}{{end}}</p>
       {{else if eq .Kind "band"}}
         <p>{{t "Pick your name below, or \"Someone else\" if you're not on the list."}}</p>
@@ -24,11 +23,6 @@
     </div>
   </div>
 
-  {{if .Closed}}
-    <div class="card card--narrow">
-      <p>{{if eq .Kind "band"}}{{t "This invite link has been closed by the band — no further claims are possible. Ask for a fresh link."}}{{else}}{{t "This invite link has been closed by the community — no further claims are possible. Ask for a fresh link."}}{{end}}</p>
-    </div>
-  {{else}}
   {{if not .Open}}
   <div class="card card--narrow">
     <fieldset class="field-group">
@@ -142,7 +136,6 @@
       });
     })();
   </script>
-  {{end}}
 </main>
 </body>
 </html>

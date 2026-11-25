@@ -267,8 +267,8 @@ func TestNamelessBandLinkGone(t *testing.T) {
 		t.Errorf("joining with the old one-off link: %d", w.Code)
 	}
 	otherID, other := e.person("Other")
-	if w := e.do("POST", "/invite/"+tok, "", other); w.Code != http.StatusNotFound {
-		t.Errorf("joining with the old one-off link, signed in: %d", w.Code)
+	if w := e.do("POST", "/invite/"+tok, "", other); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/home?link=dead" {
+		t.Errorf("joining with the old one-off link, signed in: %d %q, want home with the notice", w.Code, w.Header().Get("Location"))
 	}
 	if ok, _ := e.st.IsCurrentBandMember(ctx, band, otherID); ok {
 		t.Errorf("the old one-off link let someone in")

@@ -18,6 +18,7 @@
   <div class="home-greeting">
     <h2>{{t .Greeting}}, {{.Me.DisplayName}}</h2>
   </div>
+  {{if .DeadLink}}<p class="settings-callout home-notice" role="status">{{t "That link has already been used or is no longer valid. You’re already signed in."}}</p>{{end}}
 
   {{/* The dashboard (home.go): the person's own songbook beside "This
        week", then every band and community as one grid of equal cards.

@@ -580,6 +580,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
 		"Week": week, "MySongbook": mySongbook, "Bands": bandGroups, "Communities": communityGroups,
 		"Attention": attention, "SongNews": songNews,
+		// An invite or join link they followed no longer works
+		// (dead_link.go): they're signed in, so it says so here.
+		"DeadLink": r.URL.Query().Get("link") == "dead",
 	})
 }
 
