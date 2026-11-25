@@ -79,6 +79,29 @@
     {{else}}
     <h3 id="person-access-title">{{t "Getting in"}}</h3>
     {{with .Invite}}{{if .Used}}<p class="person-link-meta hint">{{t "Joined with their invite link, %s." (date .UsedAt "2 January 2006")}}</p>{{end}}{{end}}
+    {{with .ReturnLink}}
+    {{/* Their personal link, while it still opens for them: on another
+         device they sign in with their password or passkey on it, never
+         by the link alone (returning_link.go). */}}
+    <p class="hint">{{t "Their invite link still opens for them, to come back in on another device: with their password or passkey, never by the link alone."}}</p>
+    <div class="person-link-row">
+      <label for="person-invite-url" class="sr-only">{{t "Invite link"}}</label>
+      <input type="text" id="person-invite-url" value="{{$.InviteURL}}" readonly spellcheck="false">
+      <button type="button" class="primary" id="person-invite-copy">{{t "Copy link"}}</button>
+    </div>
+    <p class="person-link-meta hint">{{template "return-link-meta" .}}</p>
+    <div class="form-actions form-actions--start">
+      <button type="button" id="person-invite-new" data-has-link="1">{{t "New link"}}</button>
+      <button type="button" id="person-invite-revoke" class="danger">{{t "Revoke"}}</button>
+    </div>
+    {{with $.InviteQR}}
+    <details class="person-qr">
+      <summary>{{t "QR code"}}</summary>
+      <div class="person-qr-img" role="img" aria-label="{{t "QR code of the invite link"}}">{{.}}</div>
+    </details>
+    {{end}}
+    <p class="form-status" id="person-invite-status" role="status"></p>
+    {{end}}
     {{if eq .State "no-email"}}
     <p class="hint">{{t "The email is the account: without one they can’t log in. A login link gets them in once, to add their email on their profile; or give them one on the server: songbooks --set-email %d <email>." .Person.ID}}</p>
     {{else if eq .State "no-password"}}

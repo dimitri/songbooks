@@ -1,0 +1,6 @@
+{{/* A personal link that still opens for someone who joined
+     (store.ReturningLinkInfo; returning_link.go), as the admin's person
+     page and the rosters say it:
+       used to join on 25 November · still opens for Guillaume until
+       25 December · signed in with it 3 times, last 2 December */}}
+{{define "return-link-meta"}}{{if .UsedAt}}{{t "used to join on %s" (date .UsedAt "2 January")}} · {{end}}{{t "still opens for %s until %s" .DisplayName (date .ExpiresAt "2 January 2006")}}{{if .Signins}} · {{if eq .Signins 1}}{{t "signed in with it once, %s" (date .LastSignin "2 January")}}{{else}}{{t "signed in with it %d times, last %s" .Signins (date .LastSignin "2 January")}}{{end}}{{end}}{{end}}

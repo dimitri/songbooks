@@ -1,0 +1,121 @@
+{{define "link_return"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .SignedInAs}}{{t "This link is %s’s" .Name}}{{else}}{{t "Welcome back, %s" .Name}}{{end}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{/* A personal link someone joined with, opened again: on another
+     device, or after logging out (returning_link.go). It never signs
+     anyone in by itself: the account's password or passkey does. The
+     account's email shows masked, never in full. Someone signed in as
+     another account is told whose link it is: no merge. */}}
+<main class="index auth-page link-return">
+  <div class="hero">
+    <div>
+      <span class="link-return-avatar" aria-hidden="true">{{initial .Name}}</span>
+      {{if .SignedInAs}}
+      <h2>{{t "This link is %s’s" .Name}}</h2>
+      <p>{{t "You’re signed in as %s." .SignedInAs}}</p>
+      {{else}}
+      <h2>{{t "Welcome back, %s" .Name}}</h2>
+      <p>{{if .TargetName}}{{t "Your link to %s. It opens for you until %s." .TargetName (date .Until "2 January 2006")}}{{else}}{{t "Your personal link. It opens for you until %s." (date .Until "2 January 2006")}}{{end}}</p>
+      {{end}}
+    </div>
+  </div>
+
+  {{if .SignedInAs}}
+  <section class="card">
+    <p>{{t "To come back in as %s, log out first. Or go on as yourself." .Name}}</p>
+    <div class="form-actions form-actions--start">
+      <form method="post" action="/logout"><input type="hidden" name="next" value="/invite/{{.Token}}"><button type="submit" class="primary">{{t "Log out"}}</button></form>
+      <form method="get" action="/home"><button type="submit">{{t "Go home"}}</button></form>
+    </div>
+  </section>
+  {{else}}
+  <section class="card" aria-labelledby="link-return-title">
+    <h3 id="link-return-title">{{t "Continue as %s" .Name}}</h3>
+    {{with .MaskedEmail}}<p class="link-return-account hint">{{t "Account: %s" .}}</p>{{end}}
+    <form method="post" action="/invite/{{.Token}}" class="form-stack" id="link-return-form">
+      {{if eq .Problem "bad-password"}}<p class="form-status is-error" role="alert">{{t "That email and password don't match. Check both and try again."}}</p>
+      {{else if eq .Problem "too-many"}}<p class="form-status is-error" role="alert">{{t "Too many tries. Wait 15 minutes, or log in from the login page."}}</p>{{end}}
+      <div class="field">
+        <label for="link-return-password">{{t "Password"}}</label>
+        <div class="pw-field">
+          <input id="link-return-password" type="password" name="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" required autofocus>
+          <button type="button" class="pw-toggle" aria-controls="link-return-password" aria-pressed="false" hidden><span class="pw-toggle-text">{{t "Show"}}</span><span class="sr-only"> {{t "password"}}</span></button>
+        </div>
+      </div>
+      <div class="form-actions"><button type="submit" class="primary">{{t "Continue"}}</button></div>
+    </form>
+    <div class="link-return-passkey">
+      <button type="button" id="link-return-passkey">{{t "Use your passkey"}}</button>
+      <p class="form-status" id="link-return-passkey-status" role="status"></p>
+      <p class="hint" id="link-return-passkey-unsupported" hidden>{{t "This browser can’t use passkeys: use your password instead."}}</p>
+    </div>
+    <p class="hint">{{if .LoginEmails}}{{t "Forgot your password? Log in from the login page with a link we email you, then set a new password from your profile page."}}{{else}}{{t "Forgot your password? Ask a site admin for a login link, then set a new password from your profile page."}}{{end}}</p>
+  </section>
+  <p class="hint" style="text-align:center">{{t "Not you?"}} <a href="/login">{{t "Log in with your own account"}}</a></p>
+  {{end}}
+</main>
+{{if not .SignedInAs}}
+<script src="/static/js/password-fields.js?v={{staticVersion}}"></script>
+<script>
+(function() {
+  const form = document.getElementById('link-return-form');
+  const submitBtn = form.querySelector('button[type=submit]');
+  form.addEventListener('submit', () => Forms.busy(submitBtn, true));
+  window.addEventListener('pageshow', () => Forms.busy(submitBtn, false));
+})();
+
+// The passkey: the login page's own ceremony (any passkey of this
+// site's), then this link again: it sends its person on to their band,
+// and tells anyone else whose link it is. ?link= counts the sign-in on
+// the link when the passkey is its person's.
+(function() {
+  const btn = document.getElementById('link-return-passkey');
+  const statusEl = document.getElementById('link-return-passkey-status');
+  const back = '/invite/{{.Token}}';
+  if (!window.PublicKeyCredential || !window.PublicKeyCredential.parseRequestOptionsFromJSON) {
+    btn.disabled = true;
+    document.getElementById('link-return-passkey-unsupported').hidden = false;
+    return;
+  }
+  const FALLBACK = ' ' + t('Try again, or use your password.');
+  btn.addEventListener('click', async () => {
+    Forms.status(statusEl, '');
+    Forms.busy(btn, true);
+    let status = 0;
+    try {
+      const beginRes = await fetch('/api/webauthn/login/begin', { method: 'POST' });
+      if (!beginRes.ok) { status = beginRes.status; throw new Error(); }
+      const options = await beginRes.json();
+      const cred = await navigator.credentials.get({
+        publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(options.publicKey),
+      });
+      const finishRes = await fetch('/api/webauthn/login/finish?link={{.Token}}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cred.toJSON()),
+      });
+      if (!finishRes.ok) { status = finishRes.status; throw new Error(); }
+      window.location.href = back;
+    } catch (err) {
+      let msg = t('Couldn’t log in with that passkey.');
+      if (err && err.name === 'NotAllowedError') msg = t('The passkey request was cancelled or timed out.');
+      else if (status === 400) msg = t('That took too long.');
+      else if (status === 404) msg = t('That passkey isn’t linked to an account here any more — it may have been removed.');
+      Forms.status(statusEl, msg + FALLBACK, 'error');
+      Forms.busy(btn, false);
+    }
+  });
+})();
+</script>
+{{end}}
+</body>
+</html>
+{{end}}

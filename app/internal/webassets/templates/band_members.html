@@ -71,6 +71,17 @@
           {{if $.IsCore}}<button type="button" class="new-link-btn" data-has-link="{{if .InviteToken}}1{{end}}">{{t "New link"}}</button>{{end}}
           <span class="hint roster-invite-until">{{if .InviteToken}}{{t "expires %s" (date .InviteUntil "2 January 2006")}}{{else}}{{t "no link yet"}}{{end}}</span>
         </div>
+        {{else if .ReturnLink}}
+        {{/* Joined with their link, which still opens for them on another
+             device (their password or passkey): copy it again, or make
+             a new one, or revoke it. */}}
+        <div class="roster-invite roster-return" data-person-id="{{.PersonID}}">
+          <span class="hint roster-invite-until">{{template "return-link-meta" .ReturnLink}}</span>
+          <button type="button" class="copy-link-btn" data-url="/invite/{{.ReturnLink.Token}}">{{t "Copy link"}}</button>
+          <button type="button" class="qr-link-btn" data-url="/invite/{{.ReturnLink.Token}}">{{t "QR code"}}</button>
+          <button type="button" class="new-link-btn" data-has-link="1" data-joined="1">{{t "New link"}}</button>
+          <button type="button" class="revoke-link-btn danger">{{t "Revoke"}}</button>
+        </div>
         {{end}}
         <div class="roster-row-actions">
         {{if $.Privs.Can "manage_roles"}}
@@ -412,9 +423,16 @@ document.querySelectorAll('.new-link-btn').forEach(btn => {
     if (btn.dataset.hasLink && !confirm(t('Make a new link for %s? The one you have now will stop working.', name))) return;
     Forms.busy(btn, true);
     // ?lang: the expiry date comes back in the page's own language.
-    const res = await fetch(`/api/bands/${bandId}/members/${row.dataset.personId}/invite-link?lang=${encodeURIComponent(document.documentElement.lang)}`, {method: 'POST'}).catch(() => null);
+    // ?replace: someone who has joined since keeps their link, unless
+    // this is a new one for a link they have.
+    const replace = btn.dataset.hasLink ? '&replace=1' : '';
+    const res = await fetch(`/api/bands/${bandId}/members/${row.dataset.personId}/invite-link?lang=${encodeURIComponent(document.documentElement.lang)}${replace}`, {method: 'POST'}).catch(() => null);
     Forms.busy(btn, false);
+    // 409: they've joined since, and their link no longer works: the
+    // page shows them joined.
+    if (res && res.status === 409) { location.reload(); return; }
     if (!res || !res.ok) { rowStatus(btn, t('Couldn’t make a link. Try again.'), 'error'); return; }
+    if (btn.dataset.joined) { location.reload(); return; }
     const data = await res.json();
     const box = btn.closest('.roster-invite');
     box.querySelectorAll('.copy-link-btn, .qr-link-btn').forEach(b => { b.dataset.url = data.url; b.hidden = false; });
@@ -425,6 +443,19 @@ document.querySelectorAll('.new-link-btn').forEach(btn => {
 });
 document.querySelectorAll('.qr-link-btn').forEach(btn => {
   btn.addEventListener('click', () => showQR(location.origin + btn.dataset.url));
+});
+// Someone who joined: their link stops opening for them (it says to log
+// in instead).
+document.querySelectorAll('.revoke-link-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('.roster-row');
+    if (!confirm(t('Revoke %s’s invite link? It stops working; you can make a new one.', row.dataset.name))) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/people/${row.dataset.personId}/personal-invites`, {method: 'DELETE'}).catch(() => null);
+    if (res && res.ok) { location.reload(); return; }
+    Forms.busy(btn, false);
+    rowStatus(btn, t('Couldn’t revoke the link. Try again.'), 'error');
+  });
 });
 document.getElementById('roster-quick-add-form')?.addEventListener('submit', (e) => {
   e.preventDefault();

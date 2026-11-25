@@ -428,6 +428,7 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// any of these ways, is for manage_members (requireBandInviter).
 	mux.HandleFunc("POST /api/bands/{id}/personal-invites", s.requireBandInviter(s.handleCreateBandPersonalInvite))
 	mux.HandleFunc("POST /api/people/{personID}/personal-invites", s.requireAuth(s.handleCreatePersonalInviteForPerson))
+	mux.HandleFunc("DELETE /api/people/{personID}/personal-invites", s.requireAuth(s.handleRevokePersonalInviteForPerson))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites", s.requireBandInviter(s.handleCreateBandGroupInvite))
 	mux.HandleFunc("POST /api/bands/{id}/group-invites/{groupInviteID}/close", s.requireBandInviter(s.handleCloseBandGroupInvite))
 	// The band's open link, one per status (no names, see

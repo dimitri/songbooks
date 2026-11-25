@@ -16,9 +16,10 @@ import (
 
 // deadLink is such a link, as its page tells it.
 type deadLink struct {
-	// Reason is "used" (a single-use link taken), "closed" (a group
+	// Reason is "used" (a plain invite taken), "ended" (a personal
+	// link used to join, expired or revoked since), "closed" (a group
 	// link closed), "expired", or "unknown" (no such link: never was,
-	// revoked, replaced by a newer one).
+	// revoked before it was used, replaced by a newer one).
 	Reason string
 	// TargetKind ("band", "community" or "") and TargetID are where the
 	// link takes (took) its holder; TargetName that group's name.
@@ -40,7 +41,12 @@ func (s *Server) handleDeadInvite(w http.ResponseWriter, r *http.Request, token 
 	switch {
 	case err == nil:
 		d = deadLink{Reason: "expired", TargetKind: dead.TargetKind, TargetID: dead.TargetID, TargetName: dead.TargetName}
-		if dead.Used {
+		switch {
+		case dead.Used && dead.Personal:
+			// Used to join, then expired (or revoked): it opened for
+			// them until then (returning_link.go).
+			d.Reason = "ended"
+		case dead.Used:
 			d.Reason = "used"
 		}
 	case !errors.Is(err, store.ErrNotFound):

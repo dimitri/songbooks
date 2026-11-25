@@ -219,6 +219,23 @@ func (s *Server) handleAdminPersonPage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Someone who joined: their link while it still opens for them, to
+	// come back in on another device (returning_link.go).
+	if !access.HasntJoined() {
+		ret, err := s.store.ReturningLinkFor(ctx, personID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if ret != nil {
+			data["ReturnLink"] = ret
+			link := feedBase(r) + "/invite/" + ret.Token
+			data["InviteURL"] = link
+			if svg, err := qrSVG(link); err == nil {
+				data["InviteQR"] = template.HTML(svg)
+			}
+		}
+	}
 	if invite != nil && (access.HasntJoined() || invite.Used()) {
 		data["Invite"] = invite
 		if access.HasntJoined() && invite.Open() {
@@ -262,20 +279,23 @@ func (s *Server) adminInviteTarget(w http.ResponseWriter, r *http.Request) (int6
 // handleAdminNewPersonalInvite is POST /api/admin/people/{personID}/invite:
 // a fresh personal link for someone who hasn't joined (a placeholder, or
 // an account nobody ever got into, which becomes a placeholder:
-// store.CreatePersonalInvite), replacing the one they had. 409 for
-// someone with an account: their way in is a login link.
+// store.CreatePersonalInvite), replacing the one they had; for someone
+// who has, while their link still opens for them, a new one in its place
+// (store.NewReturningLink), else 409: they log in (a login link).
 func (s *Server) handleAdminNewPersonalInvite(w http.ResponseWriter, r *http.Request) {
 	id, access := s.adminInviteTarget(w, r)
 	if access == nil {
 		return
 	}
-	if !access.HasntJoined() {
-		httpError(w, http.StatusConflict, store.ErrNotShell.Error())
-		return
-	}
 	admin := personFromContext(r)
-	token, err := s.store.CreatePersonalInvite(r.Context(), id, admin.ID, personalInviteTTL)
-	if errors.Is(err, store.ErrNotShell) {
+	var token string
+	var err error
+	if access.HasntJoined() {
+		token, err = s.store.CreatePersonalInvite(r.Context(), id, admin.ID, personalInviteTTL)
+	} else {
+		token, err = s.store.NewReturningLink(r.Context(), id, admin.ID, personalInviteTTL)
+	}
+	if errors.Is(err, store.ErrNotShell) || errors.Is(err, store.ErrHasntJoined) || errors.Is(err, store.ErrNoReturningLink) {
 		httpError(w, http.StatusConflict, err.Error())
 		return
 	}

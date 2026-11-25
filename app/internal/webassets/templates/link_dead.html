@@ -21,13 +21,14 @@
       <p>
       {{if eq .Reason "used"}}{{if .TargetName}}{{t "It was already used to join %s." .TargetName}}{{else}}{{t "It was already used."}}{{end}}
       {{else if eq .Reason "closed"}}{{t "It has been closed: it no longer lets anyone join %s." .TargetName}}
+      {{else if eq .Reason "ended"}}{{if .TargetName}}{{t "It has expired. You joined %s with it." .TargetName}}{{else}}{{t "It has expired. You joined with it."}}{{end}}
       {{else if eq .Reason "expired"}}{{t "It has expired."}}
       {{else}}{{t "This link has already been used or is no longer valid."}}{{end}}
       </p>
     </div>
   </div>
   <form class="card" method="get" action="/login">
-    <p>{{if eq .Reason "used"}}{{t "Log in to continue."}}{{else}}{{t "Already joined? Log in with your email and password (or your passkey)."}}{{end}}</p>
+    <p>{{if or (eq .Reason "used") (eq .Reason "ended")}}{{t "Log in to continue."}}{{else}}{{t "Already joined? Log in with your email and password (or your passkey)."}}{{end}}</p>
     <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Log in"}}</button></div>
   </form>
   <p class="hint" style="text-align:center">{{t "Got this link from someone? Ask them for a new one."}}</p>

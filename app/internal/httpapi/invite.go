@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -22,10 +23,17 @@ import (
 // see store.GetPersonalInvite —: a new account finishes THAT placeholder
 // (ClaimPersonalInvite, setting its email), an existing one takes its
 // place (ClaimPersonalInviteAs). Joining is by email either way
-// (docs/accounts.md): the inviter only ever typed a name. A link that
-// no longer works (used, expired, unknown) gets handleDeadInvite's page.
+// (docs/accounts.md): the inviter only ever typed a name. Once taken, a
+// personal link keeps opening for its person until it expires, to come
+// back on another device (returning_link.go). A link that no longer
+// works (a plain invite used, expired, unknown) gets handleDeadInvite's
+// page.
 func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
+	if l := s.returningLink(r.Context(), token); l != nil {
+		s.handleReturningLink(w, r, l)
+		return
+	}
 	inv, err := s.store.GetInvite(r.Context(), token)
 	if err != nil {
 		s.handleDeadInvite(w, r, token)
@@ -70,11 +78,29 @@ func (s *Server) sessionPerson(r *http.Request) *store.Person {
 // back (resumePendingJoin).
 func (s *Server) handleInviteLoginRedirect(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
+	// A link for coming back is a way to log in already.
+	if l := s.returningLink(r.Context(), token); l != nil {
+		http.Redirect(w, r, "/invite/"+token, http.StatusSeeOther)
+		return
+	}
 	if _, err := s.store.GetInvite(r.Context(), token); err != nil {
 		s.handleDeadInvite(w, r, token)
 		return
 	}
 	s.loginThenResume(w, r, pendingInvite+token)
+}
+
+// returningLink is token as a personal link for coming back
+// (returning_link.go), nil when it isn't one.
+func (s *Server) returningLink(ctx context.Context, token string) *store.ReturningLink {
+	l, err := s.store.GetReturningLink(ctx, token)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			log.Printf("personal link %s: %v", token, err)
+		}
+		return nil
+	}
+	return l
 }
 
 // renderInvitePage is the shared render for both the initial GET and a
@@ -100,7 +126,7 @@ func (s *Server) renderInvitePage(w http.ResponseWriter, inv *store.Invite, logg
 func (s *Server) renderPersonalInvitePage(w http.ResponseWriter, pv *store.PersonalInviteView, loggedInAs, formErr, email string) {
 	s.render(w, "invite", map[string]any{
 		"Token": pv.Token, "Kind": "personal",
-		"DisplayName": pv.DisplayName, "Memberships": pv.Memberships,
+		"DisplayName": pv.DisplayName, "Memberships": pv.Memberships, "Until": pv.ExpiresAt,
 		"LoggedInAs":  loggedInAs,
 		"Error":       formErr,
 		"Email":       email,
@@ -129,6 +155,10 @@ func (s *Server) renderPersonalInvitePage(w http.ResponseWriter, pv *store.Perso
 // not a separate flow bolted on afterward.
 func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
+	if l := s.returningLink(r.Context(), token); l != nil {
+		s.handlePostReturningLink(w, r, l)
+		return
+	}
 	inv, invErr := s.store.GetInvite(r.Context(), token)
 	if invErr != nil {
 		s.handleDeadInvite(w, r, token)

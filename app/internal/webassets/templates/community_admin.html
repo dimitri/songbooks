@@ -127,6 +127,34 @@
           <p id="members-status" class="form-status" role="status"></p>
         </section>
 
+        {{if .ReturnLinks}}
+        {{/* Joined with their personal link, which still opens for them
+             on another device (their password or passkey, never the link
+             alone: returning_link.go), until it expires. */}}
+        <section class="invite-group" aria-labelledby="return-links-title">
+          <h4 class="invite-group-title" id="return-links-title">{{t "Joined, link still open"}} <span class="count">{{len .ReturnLinks}}</span></h4>
+          <p class="hint">{{t "Their link still opens for them, to come back in on another device with their password or passkey."}}</p>
+          <ul class="roster-list invite-list">
+          {{range .ReturnLinks}}
+            <li class="roster-row invite-row" data-person-id="{{.PersonID}}" data-name="{{.DisplayName}}">
+              <span class="member-avatar" aria-hidden="true">{{initial .DisplayName}}</span>
+              <div class="invite-main">
+                <div class="invite-name"><strong id="returning-{{.PersonID}}">{{.DisplayName}}</strong></div>
+                <p class="invite-meta"><span>{{template "return-link-meta" .}}</span></p>
+              </div>
+              <div class="invite-actions">
+                <button type="button" class="copy-link-btn" data-url="/invite/{{.Token}}" aria-describedby="returning-{{.PersonID}}">{{t "Copy link"}}</button>
+                <button type="button" class="qr-link-btn" data-url="/invite/{{.Token}}" aria-describedby="returning-{{.PersonID}}">{{t "QR code"}}</button>
+                <button type="button" class="return-new-btn" aria-describedby="returning-{{.PersonID}}">{{t "New link"}}</button>
+                <button type="button" class="return-revoke-btn danger" aria-describedby="returning-{{.PersonID}}">{{t "Revoke"}}</button>
+              </div>
+              <p class="form-status" role="status"></p>
+            </li>
+          {{end}}
+          </ul>
+        </section>
+        {{end}}
+
         {{template "community-pending-links" .}}
       </div>
       {{else}}
@@ -439,6 +467,23 @@ onSubmit($('quick-add-form'), async () => {
   await api(`/api/communities/${communityId}/personal-invites`, {displayName, role}, t('Couldn’t add them. Try again.'));
   location.hash = 'members';
   location.reload();
+});
+// A link that still opens for someone who joined: a new one (the old
+// one stops working), or none.
+document.querySelectorAll('.return-new-btn, .return-revoke-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('.invite-row');
+    const revoke = btn.classList.contains('return-revoke-btn');
+    const ask = revoke
+      ? t('Revoke %s’s invite link? It stops working; you can make a new one.', row.dataset.name)
+      : t('Make a new link for %s? The one they have stops working.', row.dataset.name);
+    if (!confirm(ask)) return;
+    Forms.busy(btn, true);
+    const res = await fetch(`/api/people/${row.dataset.personId}/personal-invites${revoke ? '' : '?new=1'}`, {method: revoke ? 'DELETE' : 'POST'}).catch(() => null);
+    if (res && res.ok) { location.hash = 'members'; location.reload(); return; }
+    Forms.busy(btn, false);
+    Forms.status(row.querySelector('.form-status'), revoke ? t('Couldn’t revoke the link. Try again.') : t('Couldn’t make the link. Try again.'), 'error');
+  });
 });
 document.querySelectorAll('.create-shell-invite-btn').forEach(btn => {
   btn.addEventListener('click', async () => {

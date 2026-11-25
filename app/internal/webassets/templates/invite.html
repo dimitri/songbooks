@@ -21,6 +21,7 @@
         {{range .Memberships}}<li>{{.Name}} <span class="hint">({{t .Status}})</span></li>{{end}}
         </ul>
         <p class="hint">{{t "Join with your email: a new account, or the one you already have. Nothing else changes, these memberships are already yours."}}</p>
+        {{with .Until}}<p class="hint">{{t "Keep this link: until %s it brings you back in on your other devices too, with your password." (date . "2 January")}}</p>{{end}}
       {{else}}
         <h2>{{t "Create your account"}}</h2>
         <p>{{t "You've been invited to join Songbooks."}}</p>

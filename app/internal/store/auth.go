@@ -521,9 +521,10 @@ func (st *Store) CreateShellPerson(ctx context.Context, displayName string) (int
 // to whoever opens the link.
 var ErrNotShell = errors.New("that person already has an account")
 
-// CreatePersonalInvite makes a single-use token for personID, a shell
-// (see CreateShellPerson), to complete their own account, and returns
-// it. It replaces any link the person had: one live link per person, so
+// CreatePersonalInvite makes a token for personID, a shell (see
+// CreateShellPerson), to complete their own account, and returns it.
+// Its first use makes the account; then it opens for them until it
+// expires, to come back on another device (GetReturningLink). It replaces any link the person had: one live link per person, so
 // "New link" always works and the old link stops working as soon as a
 // new one exists. ErrNotFound if there's no such person, ErrNotShell if
 // they already have an account. Unlike CreatePlainInvite/
@@ -607,14 +608,17 @@ type PersonalInviteView struct {
 }
 
 // GetPersonalInvite resolves token to its still-valid personal invite
-// (person_id set), or ErrNotFound if missing/expired/used/not personal.
+// still to be taken (person_id set, a placeholder's), or ErrNotFound if
+// missing/expired/used/not personal, or its person has an account (the
+// link is then for coming back: GetReturningLink).
 func (st *Store) GetPersonalInvite(ctx context.Context, token string) (*PersonalInviteView, error) {
 	var v PersonalInviteView
 	var personID sql.NullInt64
 	err := st.db.QueryRow(ctx, `
 		SELECT i.token, i.person_id, p.display_name, i.expires_at
 		FROM invites i JOIN people p ON p.id = i.person_id
-		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL AND i.person_id IS NOT NULL`, token).
+		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL AND i.person_id IS NOT NULL
+		  AND p.is_shell`, token).
 		Scan(&v.Token, &personID, &v.DisplayName, &v.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such invite: %w", ErrNotFound)

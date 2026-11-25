@@ -906,8 +906,18 @@ func (s *Server) handleCommunityAdminPage(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+	// Who joined with a personal link that still opens for them, to come
+	// back in on another device (returning_link.go).
+	var returning []store.ReturningLinkInfo
+	if canManageMembers {
+		if returning, err = s.store.ListReturningLinksForCommunity(r.Context(), communityID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	s.render(w, "community_admin", map[string]any{
-		"Shell": communityAdminShell(s.langOf(w), community, current, len(shellPeople), len(roles), locale),
+		"ReturnLinks": returning,
+		"Shell":       communityAdminShell(s.langOf(w), community, current, len(shellPeople), len(roles), locale),
 		"Me":    person, "Person": person, "Community": community, "IsStaff": true, "KnownPeople": known,
 		"Members": members, "CurrentMembers": current, "ShellPeople": shellPeople, "MemberFaces": faces,
 		"Roles": roles, "AllPrivileges": store.AllCommunityPrivileges, "RoleLabels": roleLabels,
