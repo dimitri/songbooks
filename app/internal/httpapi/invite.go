@@ -22,12 +22,13 @@ import (
 // see store.GetPersonalInvite —: a new account finishes THAT placeholder
 // (ClaimPersonalInvite, setting its email), an existing one takes its
 // place (ClaimPersonalInviteAs). Joining is by email either way
-// (docs/accounts.md): the inviter only ever typed a name.
+// (docs/accounts.md): the inviter only ever typed a name. A link that
+// no longer works (used, expired, unknown) gets handleDeadInvite's page.
 func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	inv, err := s.store.GetInvite(r.Context(), token)
 	if err != nil {
-		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		s.handleDeadInvite(w, r, token)
 		return
 	}
 	var loggedInAs string
@@ -38,7 +39,7 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	if inv.Kind() == "personal" {
 		pv, err := s.store.GetPersonalInvite(r.Context(), token)
 		if err != nil {
-			http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+			s.handleDeadInvite(w, r, token)
 			return
 		}
 		s.renderPersonalInvitePage(w, pv, loggedInAs, "", "")
@@ -68,11 +69,12 @@ func (s *Server) sessionPerson(r *http.Request) *store.Person {
 // password or by an emailed link; handleIndex accepts it once they're
 // back (resumePendingJoin).
 func (s *Server) handleInviteLoginRedirect(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.store.GetInvite(r.Context(), r.PathValue("token")); err != nil {
-		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+	token := r.PathValue("token")
+	if _, err := s.store.GetInvite(r.Context(), token); err != nil {
+		s.handleDeadInvite(w, r, token)
 		return
 	}
-	s.loginThenResume(w, r, pendingInvite+r.PathValue("token"))
+	s.loginThenResume(w, r, pendingInvite+token)
 }
 
 // renderInvitePage is the shared render for both the initial GET and a
@@ -129,7 +131,7 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	inv, invErr := s.store.GetInvite(r.Context(), token)
 	if invErr != nil {
-		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		s.handleDeadInvite(w, r, token)
 		return
 	}
 	if inv.Kind() == "personal" {
@@ -144,7 +146,7 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 	if p := s.sessionPerson(r); p != nil {
 		dest, err := s.store.AcceptInvite(r.Context(), token, p.ID, p.DisplayName)
 		if err != nil {
-			http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+			s.handleDeadInvite(w, r, token)
 			return
 		}
 		http.Redirect(w, r, dest, http.StatusFound)
@@ -221,13 +223,13 @@ func (s *Server) handlePostInvite(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePostPersonalInvite(w http.ResponseWriter, r *http.Request, token string) {
 	pv, pvErr := s.store.GetPersonalInvite(r.Context(), token)
 	if pvErr != nil {
-		http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+		s.handleDeadInvite(w, r, token)
 		return
 	}
 	if p := s.sessionPerson(r); p != nil {
 		if err := s.store.ClaimPersonalInviteAs(r.Context(), token, p.ID); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				http.Error(w, "this invite link is invalid or has expired", http.StatusNotFound)
+				s.handleDeadInvite(w, r, token)
 				return
 			}
 			log.Printf("joining as person %d with personal invite: %v", p.ID, err)

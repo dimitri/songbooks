@@ -1,0 +1,37 @@
+{{define "link_dead"}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if eq .Reason "unknown"}}{{t "This link doesn’t work"}}{{else}}{{t "This link no longer works"}}{{end}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+</head>
+<body>
+{{/* An invite or join link that no longer works (dead_link.go), seen
+     by someone not signed in: most often someone who joined through it
+     and opened it again to come back in. Log in (the login page puts
+     the password first while no login emails are sent); else ask for
+     a new link. Never says whose link it was. */}}
+<main class="index auth-page">
+  <div class="hero">
+    <div>
+      <h2>{{if eq .Reason "unknown"}}{{t "This link doesn’t work"}}{{else}}{{t "This link no longer works"}}{{end}}</h2>
+      <p>
+      {{if eq .Reason "used"}}{{if .TargetName}}{{t "It was already used to join %s." .TargetName}}{{else}}{{t "It was already used."}}{{end}}
+      {{else if eq .Reason "closed"}}{{t "It has been closed: it no longer lets anyone join %s." .TargetName}}
+      {{else if eq .Reason "expired"}}{{t "It has expired."}}
+      {{else}}{{t "This link has already been used or is no longer valid."}}{{end}}
+      </p>
+    </div>
+  </div>
+  <form class="card" method="get" action="/login">
+    <p>{{if eq .Reason "used"}}{{t "Log in to continue."}}{{else}}{{t "Already joined? Log in with your email and password (or your passkey)."}}{{end}}</p>
+    <div class="form-actions form-actions--start"><button type="submit" class="primary">{{t "Log in"}}</button></div>
+  </form>
+  <p class="hint" style="text-align:center">{{t "Got this link from someone? Ask them for a new one."}}</p>
+</main>
+</body>
+</html>
+{{end}}

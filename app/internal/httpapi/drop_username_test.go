@@ -162,8 +162,8 @@ func TestInviteByNameJoinExistingAccount(t *testing.T) {
 	if len(ins) != 1 || ins[0].Instrument != "drums" {
 		t.Errorf("Rita's instruments: %+v", ins)
 	}
-	if w := e.do("GET", "/invite/"+token, "", nil); w.Code != http.StatusNotFound {
-		t.Errorf("the link still opens: %d", w.Code)
+	if w := e.do("GET", "/invite/"+token, "", nil); w.Code != http.StatusGone {
+		t.Errorf("the used link: %d, want 410 (its page: used, log in)", w.Code)
 	}
 
 	// Not signed in: a new account with an email that has one is

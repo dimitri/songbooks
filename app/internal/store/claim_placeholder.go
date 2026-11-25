@@ -15,7 +15,7 @@ import (
 // everything that names the placeholder (its band and community
 // memberships and roles, its instruments, a coach's notes and
 // assignments, …) names the account instead — and the placeholder row
-// goes, the link with it. Where the account already has the same thing
+// goes; the link stays, used (markInviteUsedTx). Where the account already has the same thing
 // (a current membership in the same band, the same instrument), the
 // account's own stays and the placeholder's is dropped.
 //
@@ -31,8 +31,8 @@ func (st *Store) ClaimPersonalInviteAs(ctx context.Context, token string, person
 	var shellID int64
 	err = tx.QueryRow(ctx, `
 		SELECT i.person_id FROM invites i JOIN people p ON p.id = i.person_id
-		WHERE i.token = $1 AND i.expires_at > now() AND p.is_shell
-		FOR UPDATE OF p`, token).Scan(&shellID)
+		WHERE i.token = $1 AND i.expires_at > now() AND i.used_at IS NULL AND p.is_shell
+		FOR UPDATE OF i, p`, token).Scan(&shellID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("no such invite: %w", ErrNotFound)
 	}
@@ -50,9 +50,14 @@ func (st *Store) ClaimPersonalInviteAs(ctx context.Context, token string, person
 	if targetShell {
 		return fmt.Errorf("person %d has no account to merge into: %w", personID, ErrConflict)
 	}
-	// The placeholder's links go first: moved to the account, one would
-	// show its memberships to whoever has it.
-	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE person_id = $1`, shellID); err != nil {
+	// This link is kept, used (markInviteUsedTx: before the merge, which
+	// moves the placeholder's memberships it names the first of); the
+	// placeholder's other links go: moved to the account, one would show
+	// its memberships to whoever has it.
+	if err := markInviteUsedTx(ctx, tx, token, personID, shellID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM invites WHERE person_id = $1 AND token <> $2`, shellID, token); err != nil {
 		return err
 	}
 	if shellID != personID {

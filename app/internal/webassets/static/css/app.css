@@ -10376,3 +10376,7 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
    typed or tapped in, beside the field (the editor, Tap tempo, the Sync
    sheet). ---- */
 .tempo-unit { font: inherit; font-size: 0.85em; padding: 0.15rem 0.3rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg); max-width: 11rem; }
+
+/* ---- A dead invite/join link followed while signed in (dead_link.go):
+   the notice on /home, under the greeting. ---- */
+.home-notice { margin: -0.6rem 0 1.4rem; }

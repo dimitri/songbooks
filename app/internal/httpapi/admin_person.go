@@ -212,22 +212,22 @@ func (s *Server) handleAdminPersonPage(w http.ResponseWriter, r *http.Request) {
 		"AddBands": addBands, "AddCommunities": addCommunities, "AddRoles": addRoles,
 		"LoginEmails": s.loginEmails(),
 	}
-	if access.HasntJoined() {
-		invite, err := s.store.GetPersonalInviteFor(ctx, personID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if invite != nil {
-			data["Invite"] = invite
-			if !invite.Expired() {
-				link := feedBase(r) + "/invite/" + invite.Token
-				data["InviteURL"] = link
-				// Drawn here, not fetched from /api/qr?data=…: the token
-				// stays out of URLs (as the login link's QR code).
-				if svg, err := qrSVG(link); err == nil {
-					data["InviteQR"] = template.HTML(svg)
-				}
+	// Their personal link: open or expired while they haven't joined; a
+	// used one (kept, migration 0138) says when they joined with it.
+	invite, err := s.store.GetPersonalInviteFor(ctx, personID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if invite != nil && (access.HasntJoined() || invite.Used()) {
+		data["Invite"] = invite
+		if access.HasntJoined() && invite.Open() {
+			link := feedBase(r) + "/invite/" + invite.Token
+			data["InviteURL"] = link
+			// Drawn here, not fetched from /api/qr?data=…: the token
+			// stays out of URLs (as the login link's QR code).
+			if svg, err := qrSVG(link); err == nil {
+				data["InviteQR"] = template.HTML(svg)
 			}
 		}
 	}

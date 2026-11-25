@@ -89,16 +89,21 @@ func (s *Server) resumePendingJoin(ctx context.Context, value string, person *st
 // {token} page. Shows the band/community name, every slot (claimed ones
 // are shown but not pickable), an "I'm not on this list" option, and —
 // if the visitor is already logged in — skips straight to "pick your
-// slot, then confirm."
+// slot, then confirm." An unknown or closed link gets
+// handleDeadJoinLink's page.
 func (s *Server) handleJoinPage(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	gi, err := s.store.GetGroupInviteByToken(r.Context(), token)
 	if errors.Is(err, store.ErrNotFound) {
-		http.Error(w, "this invite link is invalid", http.StatusNotFound)
+		s.handleDeadJoinLink(w, r, nil)
 		return
 	}
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if gi.ClosedAt != nil {
+		s.handleDeadJoinLink(w, r, gi)
 		return
 	}
 
@@ -124,7 +129,7 @@ func (s *Server) handleJoinPage(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "join", map[string]any{
 		"Token": token, "Kind": gi.TargetKind, "TargetName": gi.TargetName,
-		"Slots": gi.Slots, "Closed": gi.ClosedAt != nil, "Open": open,
+		"Slots": gi.Slots, "Open": open,
 		"LoggedIn": loggedIn, "LoggedInAs": loggedInAs,
 		"LoginEmails": s.loginEmails(),
 	})
@@ -136,6 +141,15 @@ func (s *Server) handleJoinPage(w http.ResponseWriter, r *http.Request) {
 // back (resumePendingJoin).
 func (s *Server) handleJoinLoginRedirect(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
+	gi, err := s.store.GetGroupInviteByToken(r.Context(), token)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if gi == nil || gi.ClosedAt != nil {
+		s.handleDeadJoinLink(w, r, gi)
+		return
+	}
 	slot := strings.TrimSpace(r.URL.Query().Get("slot"))
 	if slot == "" {
 		slot = "unlisted"
