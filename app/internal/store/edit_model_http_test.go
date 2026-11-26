@@ -635,7 +635,7 @@ func TestFoldBack(t *testing.T) {
 	if w := core.saveRaw(arr, fixed); w.Code != http.StatusOK {
 		t.Fatal(w.Code)
 	}
-	if html := core.page(fmt.Sprintf("/song/%d", arr)); !strings.Contains(html, "This arrangement differs from the shared chart by one change:") || !strings.Contains(html, "data-fold-send") {
+	if html := core.page(fmt.Sprintf("/song/%d", arr)); !strings.Contains(html, "This arrangement differs from the shared chart by 1 change:") || !strings.Contains(html, "data-fold-send") {
 		t.Fatal("a fix-only arrangement isn't offered to send its fix")
 	}
 	if w := core.do("POST", fmt.Sprintf("/api/variants/%d/fold", arr), nil); w.Code != http.StatusBadRequest {

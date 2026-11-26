@@ -75,7 +75,7 @@
   "Send the fix and use the shared chart": "Envoyer la correction et utiliser la grille partagée",
   "This arrangement is the same as the shared chart.": "Cet arrangement est identique à la grille partagée.",
   "Use the shared chart": "Utiliser la grille partagée",
-  "This arrangement differs from the shared chart by one change:": "Cet arrangement diffère de la grille partagée par une modification :",
+  "This arrangement differs from the shared chart by %d change:": "Cet arrangement diffère de la grille partagée par %d modification :",
   "This arrangement differs from the shared chart by %d changes:": "Cet arrangement diffère de la grille partagée par %d modifications :",
   "%d arrangement offered your fix": "%d arrangement à qui votre correction est proposée",
   "%d arrangements offered your fix": "%d arrangements à qui votre correction est proposée",

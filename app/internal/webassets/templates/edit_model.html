@@ -112,7 +112,7 @@
   {{if eq .Kind "identical"}}
   <p><strong>{{t "This arrangement is the same as the shared chart."}}</strong> {{t "Going back to it loses nothing: every songbook and set list of the arrangement opens the shared chart, in its key, and gets everyone’s fixes."}}</p>
   {{else}}
-  <p><strong>{{tn (len .Changes) "This arrangement differs from the shared chart by one change:" "This arrangement differs from the shared chart by %d changes:"}}</strong></p>
+  <p><strong>{{tn (len .Changes) "This arrangement differs from the shared chart by %d change:" "This arrangement differs from the shared chart by %d changes:"}}</strong></p>
   <ul class="original-change-list">{{range .Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>
   <p class="hint">{{t "If it’s a fix, send it: the shared chart gets it, for everyone who plays it, and this arrangement goes back to it, keys kept."}}</p>
   {{end}}
