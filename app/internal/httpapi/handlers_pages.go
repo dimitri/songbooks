@@ -3353,6 +3353,10 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data["SongTitle"] = data["Title"]
 	data["SongCapo"] = songCapo(sg.Get("capo"))
 	data["EditPlaceKey"] = editPlaceKeyOf(data, songKeyName(sg), s.langOf(w))
+	// Who plays the chart, for the editor's note (step 7 of the edit model).
+	if data["Catalogue"] == true && canEditChart && person != nil {
+		data["ChartReach"] = s.chartReachView(r, variantID, person.ID, songKeyName(sg))
+	}
 	s.render(w, "song", data)
 }
 

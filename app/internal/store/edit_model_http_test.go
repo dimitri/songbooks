@@ -266,8 +266,16 @@ func TestEditNoteSaysWhatASaveDoes(t *testing.T) {
 	if html := page(f.Stranger, ""); !strings.Contains(html, "Your first edit of a song none of your songbooks holds waits for a reviewer") || strings.Contains(html, "Your edit goes live at once") {
 		t.Error("a passer-by's note promises what won't happen")
 	}
-	if html := page(f.Core, fmt.Sprintf("?songbook=%d", f.BandBook)); !strings.Contains(html, "keeps its key: D.") {
+	html := page(f.Core, fmt.Sprintf("?songbook=%d", f.BandBook))
+	if !strings.Contains(html, "keeps its key: D.") {
 		t.Error("the band's songbook: the note doesn't say the band keeps its key")
+	}
+	// Who plays this chart: counts, and the viewer's places with their keys.
+	if !strings.Contains(html, "Who plays this chart: 6 songbooks, 1 set list") || !strings.Contains(html, "Other Lies · ") || !strings.Contains(html, "in D") {
+		t.Error("the note doesn't say who plays the chart")
+	}
+	if strings.Contains(html, "Studio Lumen ·") {
+		t.Error("the note names someone else's place")
 	}
 
 	// Applied: its revision, which its author undoes.

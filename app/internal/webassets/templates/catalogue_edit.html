@@ -17,6 +17,13 @@
   <p class="hint">{{if eq .CatalogueSaveMode "passerby"}}{{t "Your first edit of a song none of your songbooks holds waits for a reviewer: the song stays as it is for everyone until then, and you find yours on its page."}}{{else if eq .CatalogueSaveMode "open"}}{{t "Your edit goes live at once, and a reviewer looks at it afterwards; a new key name, lead-in or Guitar Pro sync waits for a reviewer."}}{{else}}{{t "Your edit goes live at once."}}{{end}}
     {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
     {{template "arrangement-note-link" .}}</p>
+  {{with .ChartReach}}
+  <details class="chart-reach">
+    <summary>{{t "Who plays this chart"}}: {{tn .Songbooks "%d songbook" "%d songbooks"}}, {{tn .Setlists "%d set list" "%d set lists"}}{{if .Arrangements}}, {{tn .Arrangements "%d arrangement offered your fix" "%d arrangements offered your fix"}}{{end}}</summary>
+    {{if .Mine}}<ul>{{range .Mine}}<li><a href="{{.Link}}">{{if .Owner}}{{.Owner}} · {{end}}{{.Name}}</a>{{with .Key}} — {{t "in %s" .}}{{end}}</li>{{end}}</ul>{{end}}
+    <p class="hint">{{t "Your fix reaches all of them, each in its own key; the arrangements get it offered, to take or keep theirs."}}</p>
+  </details>
+  {{end}}
   <label class="catalogue-summary-field">
     <span>{{t "What did you fix?"}} <span class="field-optional">{{t "(optional)"}}</span></span>
     <input type="text" id="catalogue-edit-summary" maxlength="200" autocomplete="off" placeholder="{{t "e.g. fixed the chorus chords"}}" enterkeyhint="done">
