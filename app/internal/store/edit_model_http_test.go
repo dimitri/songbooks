@@ -255,11 +255,14 @@ func TestEditNoteSaysWhatASaveDoes(t *testing.T) {
 	if html := page(f.Admin, ""); !strings.Contains(html, "One chart for everyone who plays this song.") || !strings.Contains(html, "Your edit goes live at once.") {
 		t.Error("the admin's note")
 	}
-	if html := page(f.Trusted, ""); !strings.Contains(html, "Your edit goes live at once when it keeps the chart following its recording") {
-		t.Error("an editor's note")
+	if html := page(f.Trusted, ""); !strings.Contains(html, "Your edit goes live at once.") {
+		t.Error("a trusted editor's note")
 	}
-	if html := page(f.Stranger, ""); !strings.Contains(html, "Your first edits wait for a reviewer") || strings.Contains(html, "Your edit goes live at once") {
-		t.Error("a newcomer's note promises what won't happen")
+	if html := page(f.Core, ""); !strings.Contains(html, "Your edit goes live at once, and a reviewer looks at it afterwards") {
+		t.Error("a band member's note")
+	}
+	if html := page(f.Stranger, ""); !strings.Contains(html, "Your first edit of a song none of your songbooks holds waits for a reviewer") || strings.Contains(html, "Your edit goes live at once") {
+		t.Error("a passer-by's note promises what won't happen")
 	}
 	if html := page(f.Core, fmt.Sprintf("?songbook=%d", f.BandBook)); !strings.Contains(html, "keeps its key: D.") {
 		t.Error("the band's songbook: the note doesn't say the band keeps its key")
@@ -317,5 +320,107 @@ func decode(t *testing.T, w *httptest.ResponseRecorder, v any) {
 	t.Helper()
 	if err := json.Unmarshal(w.Body.Bytes(), v); err != nil {
 		t.Fatalf("%d %s: %v", w.Code, w.Body.String(), err)
+	}
+}
+
+// TestPatrolInsteadOfHolding: a newcomer who plays the song (a band
+// member) has their fix applied at once, flagged for the reviewers; a
+// passer-by's very first edit waits; past the daily limit, edits wait
+// until trusted; a trusted editor's fix is seen as made. A reviewer's
+// Revert of an edit later edits came after takes only its changes out, or
+// says to use History when a later edit changed the same place.
+func TestPatrolInsteadOfHolding(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := newEditModelFixture(t, st)
+	start := "title: Le Vent\nartist: Someone\n\n[Verse]\ngrid: C | G | Am | F\n\n[Chorus]\ngrid: F | G | C | C\n"
+	setChart(t, st, f.CatalogSong, start)
+	toCheck := func() []store.CatalogueEdit {
+		t.Helper()
+		es, err := st.CatalogueEditsToCheck(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return es
+	}
+
+	// A newcomer who plays it: applied, flagged.
+	core := as(t, st, f.Core)
+	verse := strings.Replace(start, "Am | F\n", "Am7 | F\n", 1)
+	if w := core.saveRaw(f.CatalogSong, verse); w.Code != http.StatusOK || body(t, st, f.CatalogSong) != verse {
+		t.Fatalf("a band member's first fix: %d %s", w.Code, w.Body.String())
+	}
+	if es := toCheck(); len(es) != 1 || es[0].AuthorID != f.Core || !hasReason(&es[0], "newcomer") {
+		t.Fatalf("to check: %+v", es)
+	}
+	// A passer-by's first edit: waits.
+	if w := as(t, st, f.Stranger).saveRaw(f.CatalogSong, strings.Replace(verse, "G | C | C", "G | C | C7", 1)); w.Code != http.StatusAccepted {
+		t.Errorf("a passer-by's first edit: %d", w.Code)
+	} else if e := pendingOf(t, st, f.Stranger, f.CatalogSong); e == nil || !hasReason(e, "passerby") {
+		t.Errorf("a passer-by's first edit waits for: %+v", e)
+	}
+	// A trusted editor's: applied, seen.
+	tr := as(t, st, f.Trusted)
+	chorus := strings.Replace(verse, "G | C | C\n", "G | C | Csus4\n", 1)
+	if w := tr.saveRaw(f.CatalogSong, chorus); w.Code != http.StatusOK {
+		t.Fatalf("a trusted editor's fix: %d", w.Code)
+	}
+	if es := toCheck(); len(es) != 1 {
+		t.Errorf("a trusted editor's fix is listed to check: %d", len(es))
+	}
+
+	// Revert the band member's (verse) edit, a later one (chorus) kept.
+	a := as(t, st, f.Admin)
+	es := toCheck()
+	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/revert", es[0].ID), map[string]string{"note": "Am, as on the record"}); w.Code != http.StatusOK {
+		t.Fatalf("revert under a later edit: %d %s", w.Code, w.Body.String())
+	}
+	if got := body(t, st, f.CatalogSong); !strings.Contains(got, "Am | F") || !strings.Contains(got, "Csus4") {
+		t.Errorf("only the reverted edit's changes go: %q", got)
+	}
+	// A later edit of the same place: History, not patrol.
+	if w := core.saveRaw(f.CatalogSong, strings.Replace(body(t, st, f.CatalogSong), "Am | F\n", "Am9 | F\n", 1)); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	later := strings.Replace(body(t, st, f.CatalogSong), "Am9 | F\n", "Am11 | F\n", 1)
+	if w := tr.saveRaw(f.CatalogSong, later); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	es = toCheck()
+	if len(es) != 1 {
+		t.Fatalf("to check: %d", len(es))
+	}
+	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/revert", es[0].ID), nil); w.Code != http.StatusConflict {
+		t.Errorf("revert under a later edit of the same place: %d", w.Code)
+	}
+	if body(t, st, f.CatalogSong) != later {
+		t.Error("a refused revert changed the song")
+	}
+	// Reverted in History instead: the edit is reverted, no longer to
+	// check, and doesn't count towards its author's trust.
+	if err := st.RevertRevision(ctx, *es[0].RevisionID, f.Admin); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := st.CatalogueEditByID(ctx, es[0].ID); got.RevertedAt == nil {
+		t.Error("reverted in History, the edit isn't marked reverted")
+	}
+	if left := toCheck(); len(left) != 0 {
+		t.Errorf("left to check: %d", len(left))
+	}
+	if s, _ := st.CatalogueStandingOf(ctx, f.Core); s.Accepted != 0 {
+		t.Errorf("the band member's accepted edits, both reverted: %d", s.Accepted)
+	}
+
+	// The daily limit: past it, edits wait until trusted (these, reverted,
+	// don't make them trusted).
+	for i := 0; i < store.CatalogueDailyLimit; i++ {
+		store.ExecForTest(t, st, `
+			INSERT INTO catalogue_edits (song_id, author_id, status, base_version, base_body, title, artist, body, patrolled_at, reverted_at)
+			VALUES ($1, $2, 'applied', 1, '', 'x', 'x', '', now(), now())`, f.CatalogSong, f.Core)
+	}
+	if w := core.saveRaw(f.CatalogSong, strings.Replace(body(t, st, f.CatalogSong), "G | Am", "G7 | Am", 1)); w.Code != http.StatusAccepted {
+		t.Errorf("past the daily limit: %d", w.Code)
+	} else if e := pendingOf(t, st, f.Core, f.CatalogSong); e == nil || !hasReason(e, "rate") {
+		t.Errorf("past the daily limit, waits for: %+v", e)
 	}
 }

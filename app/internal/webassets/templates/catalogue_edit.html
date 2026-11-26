@@ -14,7 +14,7 @@
 {{define "catalogue-edit-note"}}
 <div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}{{with .CatalogueSaveMode}} data-save-mode="{{.}}"{{end}} data-variant-id="{{.VariantID}}">
   <p class="catalogue-note-lead"><strong>{{t "One chart for everyone who plays this song."}}</strong> {{t "Your fix reaches every songbook and set list that has it; keys stay each place’s own, and History keeps every edit."}}{{with .EditPlaceKey}} {{t "%s keeps its key: %s." .Place .Key}}{{end}}</p>
-  <p class="hint">{{if eq .CatalogueSaveMode "newcomer"}}{{t "Your first edits wait for a reviewer: the song stays as it is for everyone until then, and you find yours on its page."}}{{else if eq .CatalogueSaveMode "open"}}{{t "Your edit goes live at once when it keeps the chart following its recording; a change of the sections the recording can’t check, of the key’s name, the lead-in or the Guitar Pro sync waits for a reviewer."}}{{else}}{{t "Your edit goes live at once."}}{{end}}
+  <p class="hint">{{if eq .CatalogueSaveMode "passerby"}}{{t "Your first edit of a song none of your songbooks holds waits for a reviewer: the song stays as it is for everyone until then, and you find yours on its page."}}{{else if eq .CatalogueSaveMode "open"}}{{t "Your edit goes live at once, and a reviewer looks at it afterwards; a new key name, lead-in or Guitar Pro sync waits for a reviewer."}}{{else}}{{t "Your edit goes live at once."}}{{end}}
     {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
     {{template "arrangement-note-link" .}}</p>
   <label class="catalogue-summary-field">
@@ -127,10 +127,10 @@
 <article class="card catalogue-edit" data-edit-id="{{.ID}}">
   <header class="catalogue-edit-head">
     <h2><a href="/song/{{.SongID}}">{{.SongTitle}}{{with .SongArtist}} — {{.}}{{end}}</a></h2>
-    <p class="hint">{{if .AuthorName}}{{.AuthorName}}{{else}}&mdash;{{end}} &middot; {{date .CreatedAt "2 Jan 2006, 15:04"}}{{if ne .Status "pending"}} &middot; <span class="catalogue-edit-status is-{{.Status}}">{{if eq .Status "approved"}}{{t "edit|approved"}}{{else if eq .Status "rejected"}}{{t "edit|rejected"}}{{else if eq .Status "applied"}}{{t "edit|applied"}}{{else}}{{t "edit|superseded"}}{{end}}</span>{{end}}</p>
+    <p class="hint">{{if .AuthorName}}{{.AuthorName}}{{else}}&mdash;{{end}} &middot; {{date .CreatedAt "2 Jan 2006, 15:04"}}{{if ne .Status "pending"}} &middot; <span class="catalogue-edit-status is-{{if .RevertedAt}}reverted{{else}}{{.Status}}{{end}}">{{if .RevertedAt}}{{t "edit|reverted"}}{{else if eq .Status "approved"}}{{t "edit|approved"}}{{else if eq .Status "rejected"}}{{t "edit|rejected"}}{{else if eq .Status "applied"}}{{t "edit|applied"}}{{else}}{{t "edit|superseded"}}{{end}}</span>{{end}}</p>
   </header>
   {{with .Summary}}<p class="catalogue-edit-summary">“{{.}}”</p>{{end}}
-  {{if .Reasons}}<p class="catalogue-edit-why"><strong>{{t "Waits for review because:"}}</strong> {{range $i, $r := .Reasons}}{{if $i}}; {{end}}{{$r}}{{end}}</p>{{end}}
+  {{if .Reasons}}<p class="catalogue-edit-why"><strong>{{if eq .Status "pending"}}{{t "Waits for review because:"}}{{else}}{{t "Worth a look:"}}{{end}}</strong> {{range $i, $r := .Reasons}}{{if $i}}; {{end}}{{$r}}{{end}}</p>{{end}}
   {{if or .FitBefore.Fit .FitAfter.Fit}}
   <p class="catalogue-edit-fit">{{t "The recording:"}}
     {{with .FitBefore}}<span class="fit-badge is-{{.Fit}}"{{with .Why}} title="{{.}}"{{end}}>{{.Label}}</span>{{end}} &rarr;
@@ -145,8 +145,24 @@
     <pre>{{range .Lines}}<span class="diff-{{if eq .Op "+"}}add{{else if eq .Op "-"}}del{{else if eq .Op "…"}}skip{{else}}ctx{{end}}">{{if eq .Op "…"}}…{{else}}{{.Op}} {{.Text}}{{end}}</span>{{end}}</pre>
   </details>
   {{end}}
+  {{if .RevertedAt}}<p class="hint">{{t "Reverted by %s on %s." .RevertedByName (date .RevertedAt "2 Jan 2006")}}{{with .Note}} {{t "Note:"}} “{{.}}”{{end}}</p>{{else if .PatrolledByName}}<p class="hint">{{t "Seen by %s." .PatrolledByName}}</p>{{end}}
   {{if .DecidedAt}}<p class="hint">{{if eq .Status "approved"}}{{t "Approved by %s on %s." .DecidedByName (date .DecidedAt "2 Jan 2006")}}{{else}}{{t "Turned down by %s on %s." .DecidedByName (date .DecidedAt "2 Jan 2006")}}{{end}}{{with .Note}} {{t "Note:"}} “{{.}}”{{end}}</p>{{end}}
 </article>
+{{end}}
+
+{{/* A reviewer's patrol of an applied edit: Looks good (seen), or
+     Revert with a note for its author (catalogue-review.js). */}}
+{{define "catalogue-edit-patrol"}}
+<form class="catalogue-edit-patrol form-stack" data-edit-id="{{.Edit.ID}}">
+  <label><span>{{t "Note to its author, if you revert it"}} <span class="field-optional">{{t "(optional)"}}</span></span>
+    <input type="text" name="note" maxlength="500" autocomplete="off">
+  </label>
+  <div class="form-actions">
+    <button type="button" class="primary" data-patrol="seen">{{t "Looks good"}}</button>
+    <button type="button" data-patrol="revert">{{t "Revert"}}</button>
+  </div>
+  <p class="form-status" role="status"></p>
+</form>
 {{end}}
 
 {{/* A reviewer's Approve / Reject on a pending edit. */}}
@@ -185,6 +201,7 @@
   {{if and .Edit.Mine (eq .Edit.Status "pending")}}<p class="hint">{{t "The song stays as it is for everyone until a reviewer approves your edit. Edit the song again to change it: your new edit takes this one’s place."}}</p>{{end}}
   {{template "catalogue-edit-card" .Edit}}
   {{if and .IsReviewer (eq .Edit.Status "pending")}}{{template "catalogue-edit-decide" .}}{{end}}
+  {{if and .IsReviewer .ToCheck}}{{template "catalogue-edit-patrol" .}}{{end}}
   <details class="catalogue-edit-text"{{if .Edit.Mine}} open{{end}}><summary>{{t "The whole text of this edit"}}</summary>
     <pre>{{.Edit.Body}}</pre>
   </details>

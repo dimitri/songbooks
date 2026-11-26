@@ -53,8 +53,8 @@ func acceptedEdits(t *testing.T, st *store.Store, person, song int64, n int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
 		store.ExecForTest(t, st, `
-			INSERT INTO catalogue_edits (song_id, author_id, status, base_version, base_body, title, artist, body)
-			VALUES ($1, $2, 'applied', 1, '', 'x', 'x', '')`, song, person)
+			INSERT INTO catalogue_edits (song_id, author_id, status, base_version, base_body, title, artist, body, patrolled_at)
+			VALUES ($1, $2, 'applied', 1, '', 'x', 'x', '', now())`, song, person)
 	}
 }
 
@@ -151,9 +151,11 @@ func hasReason(e *store.CatalogueEdit, why string) bool {
 // TestCatalogueEditFollowsTheRecording: on a song whose recording has an
 // analysis, an edit that keeps it following the recording (a chord) is
 // applied at once, its summary on its revision; one that makes it differ
+// is applied too, flagged for the reviewers (patrol, the edit model):
+// "Recent edits to check" lists it, the reviewers are told once, and a
+// reviewer reverts it with a note its author is told. A new key name
 // waits for review — the song stays as it was, its author sees it
-// pending, the reviewers are told once — and becomes current when
-// approved, its author told.
+// pending — and becomes current when approved, its author told.
 func TestCatalogueEditFollowsTheRecording(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
@@ -183,72 +185,114 @@ func TestCatalogueEditFollowsTheRecording(t *testing.T) {
 		t.Error("the history doesn't show the edit's summary")
 	}
 
-	// The old chart (an intro missing, a verse too long): waits.
+	// The old chart (an intro missing, a verse too long): applied,
+	// flagged for the reviewers.
 	worse := chart334(t, "song334-old.chart")
 	v = version(t, st, f.CatalogSong)
-	w := ed.saveRawSaying(f.CatalogSong, worse, "regrouped the bars")
-	if w.Code != http.StatusAccepted {
+	if w := ed.saveRawSaying(f.CatalogSong, worse, "regrouped the bars"); w.Code != http.StatusOK {
 		t.Fatalf("an edit that differs from the recording: %d %s", w.Code, w.Body.String())
 	}
-	if version(t, st, f.CatalogSong) != v || body(t, st, f.CatalogSong) != chord {
-		t.Fatal("the song changed while its edit waits for review")
+	if version(t, st, f.CatalogSong) != v+1 || body(t, st, f.CatalogSong) != worse {
+		t.Fatal("the edit that differs wasn't applied")
 	}
-	e := pendingOf(t, st, f.Editor, f.CatalogSong)
-	if e == nil || !hasReason(e, "fit") || e.FitBefore != "follows" || e.FitAfter != "differs" || e.Body != worse {
-		t.Fatalf("the pending edit: %+v", e)
+	checks, err := st.CatalogueEditsToCheck(ctx)
+	if err != nil || len(checks) != 2 {
+		t.Fatalf("recent edits to check: %d, %v (want the chord and the bars)", len(checks), err)
 	}
-	if html := ed.page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, "Your edit of this song waits for review") ||
-		!strings.Contains(html, fmt.Sprintf("/big-songbook/edits/%d", e.ID)) {
-		t.Error("the author doesn't see their edit pending")
+	e := checks[0]
+	if !hasReason(&e, "fit") || e.FitBefore != "follows" || e.FitAfter != "differs" || e.Body != worse || e.Status != store.EditApplied {
+		t.Fatalf("the edit to check: %+v", e)
 	}
-	if html := ed.page(fmt.Sprintf("/big-songbook/edits/%d", e.ID)); !strings.Contains(html, "regrouped the bars") || !strings.Contains(html, "follow its recording less well") {
-		t.Error("the edit's page: no summary or reason")
-	}
-	if w := as(t, st, f.Outsider).do("GET", fmt.Sprintf("/big-songbook/edits/%d", e.ID), nil); w.Code != http.StatusForbidden {
-		t.Errorf("someone else opens the edit: %d", w.Code)
-	}
-	// The reviewers are told once, however many edits wait.
+	// The reviewers are told once, however many edits there are.
 	if n := unreadOf(t, st, f.Admin, store.NotificationCatalogueReview); len(n) != 1 {
 		t.Errorf("the admin's review notifications: %d, want 1", len(n))
 	}
-	if w := as(t, st, f.Core).saveRaw(f.CatalogSong, chord+"\n# a comment\n"); w.Code != http.StatusAccepted {
-		t.Errorf("a newcomer's edit: %d, want 202", w.Code)
-	}
-	if n := unreadOf(t, st, f.Admin, store.NotificationCatalogueReview); len(n) != 1 {
-		t.Errorf("after a second edit, the admin's review notifications: %d, want still 1", len(n))
-	}
-	if html := as(t, st, f.Admin).page("/big-songbook/review"); !strings.Contains(html, "regrouped the bars") || !strings.Contains(html, "2 edits waiting") {
-		t.Error("the queue doesn't list the edits")
+	a := as(t, st, f.Admin)
+	if html := a.page("/big-songbook/review"); !strings.Contains(html, "regrouped the bars") || !strings.Contains(html, "2 recent edits to check") || !strings.Contains(html, "follow its recording less well") {
+		t.Error("the queue doesn't list the edits to check")
 	}
 	if n := unreadOf(t, st, f.Admin, store.NotificationCatalogueReview); len(n) != 0 {
 		t.Error("the queue opened: the notification stays unread")
 	}
+	// Not its author's to check, nor a non-reviewer's.
+	if w := ed.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/revert", e.ID), nil); w.Code != http.StatusForbidden {
+		t.Errorf("its author reverts it through patrol: %d", w.Code)
+	}
+	// Looks good: the chord's.
+	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/patrol", checks[1].ID), nil); w.Code != http.StatusOK {
+		t.Fatalf("looks good: %d %s", w.Code, w.Body.String())
+	}
+	// Reverted, with a note: the song as it was, its author told.
+	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/revert", e.ID), map[string]string{"note": "the intro is in the recording"}); w.Code != http.StatusOK {
+		t.Fatalf("revert: %d %s", w.Code, w.Body.String())
+	}
+	if body(t, st, f.CatalogSong) != chord {
+		t.Error("the reverted edit is still the song's")
+	}
+	if got, _ := st.CatalogueEditByID(ctx, e.ID); got.RevertedAt == nil || got.Note != "the intro is in the recording" {
+		t.Errorf("the reverted edit: %+v", got)
+	}
+	if n := unreadOf(t, st, f.Editor, store.NotificationCatalogueEditDecided); len(n) != 1 || !strings.Contains(n[0].Body, "reverted") || !strings.Contains(n[0].Body, "the intro is in the recording") {
+		t.Errorf("the author's notification: %+v", n)
+	}
+	if left, _ := st.CatalogueEditsToCheck(ctx); len(left) != 0 {
+		t.Errorf("edits left to check: %d", len(left))
+	}
+	// A reverted edit doesn't count towards trust.
+	if s, _ := st.CatalogueStandingOf(ctx, f.Editor); s.Accepted != store.CatalogueNewcomerEdits+1 {
+		t.Errorf("accepted edits after the revert: %d", s.Accepted)
+	}
+
+	// A new key name: waits for review.
+	keyed := strings.Replace(chord, "title: Le Vent\n", "title: Le Vent\nkey: G\n", 1)
+	v = version(t, st, f.CatalogSong)
+	if w := ed.saveRawSaying(f.CatalogSong, keyed, "the key is G"); w.Code != http.StatusAccepted {
+		t.Fatalf("a new key name: %d %s", w.Code, w.Body.String())
+	}
+	if version(t, st, f.CatalogSong) != v || body(t, st, f.CatalogSong) != chord {
+		t.Fatal("the song changed while its edit waits for review")
+	}
+	p := pendingOf(t, st, f.Editor, f.CatalogSong)
+	if p == nil || !hasReason(p, "key") || p.Body != keyed {
+		t.Fatalf("the pending edit: %+v", p)
+	}
+	if html := ed.page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, fmt.Sprintf("/big-songbook/edits/%d", p.ID)) {
+		t.Error("the author doesn't see their edit pending")
+	}
+	if html := ed.page(fmt.Sprintf("/big-songbook/edits/%d", p.ID)); !strings.Contains(html, "the key is G") || !strings.Contains(html, "renames the key") {
+		t.Error("the edit's page: no summary or reason")
+	}
+	if w := as(t, st, f.Outsider).do("GET", fmt.Sprintf("/big-songbook/edits/%d", p.ID), nil); w.Code != http.StatusForbidden {
+		t.Errorf("someone else opens the edit: %d", w.Code)
+	}
 
 	// Approved: current, as its author's edit; the author told.
-	a := as(t, st, f.Admin)
-	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", e.ID), map[string]string{"note": "thanks"}); w.Code != http.StatusOK {
+	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", p.ID), map[string]string{"note": "thanks"}); w.Code != http.StatusOK {
 		t.Fatalf("approve: %d %s", w.Code, w.Body.String())
 	}
-	if body(t, st, f.CatalogSong) != worse {
+	if body(t, st, f.CatalogSong) != keyed {
 		t.Error("the approved edit isn't the song's")
 	}
 	revs, _ = st.ListRevisions(ctx, "variant", strconv.FormatInt(f.CatalogSong, 10))
-	if len(revs) == 0 || revs[0].Summary != "regrouped the bars" || *revs[0].ActorID != f.Editor {
+	if len(revs) == 0 || revs[0].Summary != "the key is G" || *revs[0].ActorID != f.Editor {
 		t.Errorf("the approved edit's revision: %+v", revs[0])
 	}
-	if n := unreadOf(t, st, f.Editor, store.NotificationCatalogueEditDecided); len(n) != 1 || !strings.Contains(n[0].Body, "approved") {
-		t.Errorf("the author's notification: %+v", n)
+	if n := unreadOf(t, st, f.Editor, store.NotificationCatalogueEditDecided); len(n) != 2 || !strings.Contains(n[0].Body+n[1].Body, "approved") {
+		t.Errorf("the author's notifications: %+v", n)
 	}
-	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", e.ID), nil); w.Code != http.StatusConflict {
+	if w := a.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", p.ID), nil); w.Code != http.StatusConflict {
 		t.Errorf("approving it again: %d", w.Code)
 	}
 }
 
 // TestCatalogueEditWithoutAnalysis: without an analysis of the recording,
-// a change of the sections or their bars waits for review; lyrics apply.
-// A reject leaves the song as it is and tells its author, with the note.
+// a change of the sections or their bars is applied, flagged for the
+// reviewers; the lead-in, the Guitar Pro sync and the key's name wait for
+// review. A reject leaves the song as it is and tells its author, with
+// the note.
 func TestCatalogueEditWithoutAnalysis(t *testing.T) {
 	st := store.NewTestStore(t)
+	ctx := context.Background()
 	f := newCatalogueFixture(t, st)
 	start := "title: Le Vent\nartist: Someone\n\n[Verse]\ngrid: C | G | Am | F\n[C]Le vent se [G]lève\n"
 	setChart(t, st, f.CatalogSong, start)
@@ -259,49 +303,49 @@ func TestCatalogueEditWithoutAnalysis(t *testing.T) {
 		t.Fatalf("lyrics: %d %s", w.Code, w.Body.String())
 	}
 	bars := strings.Replace(lyrics, "grid: C | G | Am | F", "grid: C | G | Am | F | C", 1)
-	if w := ed.saveRaw(f.CatalogSong, bars); w.Code != http.StatusAccepted {
+	if w := ed.saveRaw(f.CatalogSong, bars); w.Code != http.StatusOK {
 		t.Fatalf("a bar added: %d %s", w.Code, w.Body.String())
 	}
-	e := pendingOf(t, st, f.Editor, f.CatalogSong)
-	if e == nil || !hasReason(e, "structure") || e.FitBefore != "" {
-		t.Fatalf("the pending edit: %+v", e)
+	checks, _ := st.CatalogueEditsToCheck(ctx)
+	if len(checks) == 0 || !hasReason(&checks[0], "structure") || checks[0].FitBefore != "" || body(t, st, f.CatalogSong) != bars {
+		t.Fatalf("the bar added: applied and flagged? %+v", checks)
 	}
 	for _, c := range []struct{ what, text string }{
-		{"lead", "lead: 2\n" + lyrics},
-		{"gp", strings.Replace(lyrics, "[Verse]\n", "[Verse]\ngp[Lead]: 1-4\n", 1)},
-		{"key", strings.Replace(lyrics, "artist: Someone\n", "artist: Someone\nkey: Am\n", 1)},
-		{"struct", strings.Replace(lyrics, "[Verse]", "[Chorus]", 1)},
+		{"lead", "lead: 2\n" + bars},
+		{"gp", strings.Replace(bars, "[Verse]\n", "[Verse]\ngp[Lead]: 1-4\n", 1)},
+		{"key", strings.Replace(bars, "artist: Someone\n", "artist: Someone\nkey: Am\n", 1)},
 	} {
 		if w := ed.saveRaw(f.CatalogSong, c.text); w.Code != http.StatusAccepted {
 			t.Errorf("%s: %d, want 202", c.what, w.Code)
 		}
 	}
-	if body(t, st, f.CatalogSong) != lyrics {
+	if body(t, st, f.CatalogSong) != bars {
 		t.Error("the song changed while its edits wait")
 	}
 	// One edit waiting per author and song: the latest.
-	e = pendingOf(t, st, f.Editor, f.CatalogSong)
-	if !hasReason(e, "structure") || !strings.Contains(e.Body, "[Chorus]") {
+	e := pendingOf(t, st, f.Editor, f.CatalogSong)
+	if !hasReason(e, "key") || !strings.Contains(e.Body, "key: Am") {
 		t.Errorf("the latest edit doesn't take the earlier one's place: %+v", e.Reasons)
 	}
 
-	if w := as(t, st, f.Admin).do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/reject", e.ID), map[string]string{"note": "the recording says Verse"}); w.Code != http.StatusOK {
+	if w := as(t, st, f.Admin).do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/reject", e.ID), map[string]string{"note": "the recording says G"}); w.Code != http.StatusOK {
 		t.Fatalf("reject: %d %s", w.Code, w.Body.String())
 	}
-	if body(t, st, f.CatalogSong) != lyrics {
+	if body(t, st, f.CatalogSong) != bars {
 		t.Error("a rejected edit changed the song")
 	}
-	if got, _ := st.CatalogueEditByID(context.Background(), e.ID); got.Status != store.EditRejected || got.Note != "the recording says Verse" {
+	if got, _ := st.CatalogueEditByID(ctx, e.ID); got.Status != store.EditRejected || got.Note != "the recording says G" {
 		t.Errorf("the rejected edit: %s %q", got.Status, got.Note)
 	}
-	if n := unreadOf(t, st, f.Editor, store.NotificationCatalogueEditDecided); len(n) != 1 || !strings.Contains(n[0].Body, "the recording says Verse") {
+	if n := unreadOf(t, st, f.Editor, store.NotificationCatalogueEditDecided); len(n) != 1 || !strings.Contains(n[0].Body, "the recording says G") {
 		t.Errorf("the author's notification: %+v", n)
 	}
 }
 
-// TestCatalogueNewcomerAndTrustedEditors: a newcomer's first edits wait
-// whatever they change; enough accepted edits make a trusted editor, who
-// sees the queue and decides others' edits, never their own.
+// TestCatalogueNewcomerAndTrustedEditors: a passer-by's first edit (of a
+// song none of their places holds) waits whatever it changes; enough
+// accepted edits make a trusted editor, who sees the queue and decides
+// others' edits, never their own.
 func TestCatalogueNewcomerAndTrustedEditors(t *testing.T) {
 	st := store.NewTestStore(t)
 	ctx := context.Background()
@@ -309,10 +353,10 @@ func TestCatalogueNewcomerAndTrustedEditors(t *testing.T) {
 	setChart(t, st, f.CatalogSong, "title: Le Vent\nartist: Someone\n\n[Verse]\nLe vent\n")
 	o := as(t, st, f.Outsider)
 	if w := o.saveRaw(f.CatalogSong, "title: Le Vent\nartist: Someone\n\n[Verse]\nLe vent se lève\n"); w.Code != http.StatusAccepted {
-		t.Fatalf("a newcomer's typo fix: %d", w.Code)
+		t.Fatalf("a passer-by's typo fix: %d", w.Code)
 	}
 	newcomer := pendingOf(t, st, f.Outsider, f.CatalogSong)
-	if newcomer == nil || !hasReason(newcomer, "newcomer") {
+	if newcomer == nil || !hasReason(newcomer, "passerby") {
 		t.Fatalf("the newcomer's edit: %+v", newcomer)
 	}
 
@@ -523,12 +567,13 @@ func TestCatalogueFixOrAnotherRecording(t *testing.T) {
 	if r, _ := st.SongChartOf(ctx, f.CatalogSong); r.ReferenceURL != "https://www.youtube.com/watch?v=BBBBBBBBBBB" {
 		t.Errorf("the song's reference: %q", r.ReferenceURL)
 	}
-	// A newcomer's fix: held, as a newcomer's, not for the link.
+	// A passer-by's fix: held, as a passer-by's first edit, not for the
+	// link.
 	back := strings.Replace(newLink, "BBBBBBBBBBB", "AAAAAAAAAAA", 1)
 	if w := o.saveRawAs(f.CatalogSong, back, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusAccepted {
-		t.Errorf("a newcomer's fixed link: %d", w.Code)
-	} else if e := pendingOf(t, st, f.Outsider, f.CatalogSong); len(e.Reasons) != 1 || e.Reasons[0] != "newcomer" {
-		t.Errorf("a newcomer's fixed link waits for: %v", e.Reasons)
+		t.Errorf("a passer-by's fixed link: %d", w.Code)
+	} else if e := pendingOf(t, st, f.Outsider, f.CatalogSong); len(e.Reasons) != 1 || e.Reasons[0] != "passerby" {
+		t.Errorf("a passer-by's fixed link waits for: %v", e.Reasons)
 	}
 	// A title fixed: in place too.
 	typo := strings.Replace(newLink, "title: Le Vent", "title: Le Vent se lève", 1)

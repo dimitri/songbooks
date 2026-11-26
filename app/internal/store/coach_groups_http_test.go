@@ -208,15 +208,16 @@ func TestGroupLinkedCatalogueSong(t *testing.T) {
 		t.Errorf("George makes the community's arrangement: %d", w.Code)
 	}
 
-	// The fix: the catalogue's song, under its rules (his, a newcomer's,
-	// waits for review); the song stays as it is meanwhile.
+	// The fix: the catalogue's song, under its rules (his, a player's —
+	// his group's songbook holds it —, is applied and checked by a
+	// reviewer afterwards).
 	text, _, err := st.LoadVariantRaw(f.catalogue)
 	if err != nil {
 		t.Fatal(err)
 	}
 	before := version(t, st, f.catalogue)
-	if w := f.o.saveRaw(f.catalogue, text+"\n[Outro]\nla la\n"); w.Code != http.StatusAccepted || version(t, st, f.catalogue) != before {
-		t.Errorf("Oliver's fix of the catalogue's song: %d (want it held for review)", w.Code)
+	if w := f.o.saveRaw(f.catalogue, text+"\n[Outro]\nla la\n"); w.Code != http.StatusOK || version(t, st, f.catalogue) != before+1 {
+		t.Errorf("Oliver's fix of the catalogue's song: %d (want it applied)", w.Code)
 	}
 
 	// The community's arrangement, made by a member from the group's

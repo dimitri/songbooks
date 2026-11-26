@@ -495,18 +495,18 @@ func TestCatalogueSongs(t *testing.T) {
 	}
 	text := "title: Le Vent\nartist: Someone\n\n[Verse]\nC\n"
 	// Its staff edit it in place, at once; anyone else's edit is weighed
-	// (catalogue_edits.go): a newcomer's waits for review (202).
+	// (catalogue_edits.go): a band member's, who plays it, is applied and
+	// checked afterwards; a passer-by's first edit (of a song none of
+	// their places holds) waits for review (202).
 	for _, c := range []struct {
-		who  int64
-		want bool
-	}{{f.Outsider, false}, {f.Core, false}, {admin, true}} {
+		who       int64
+		want      bool
+		wantSaved int
+	}{{f.Outsider, false, http.StatusAccepted}, {f.Core, false, http.StatusOK}, {admin, true, http.StatusOK}} {
 		if ok, err := st.CanEditVariant(ctx, c.who, f.CatalogSong); err != nil || ok != c.want {
 			t.Errorf("person %d: CanEditVariant = %v, %v; want %v", c.who, ok, err, c.want)
 		}
-		want := http.StatusAccepted
-		if c.want {
-			want = http.StatusOK
-		}
+		want := c.wantSaved
 		if w := as(t, st, c.who).saveRaw(f.CatalogSong, text); w.Code != want {
 			t.Errorf("person %d: PUT raw on the catalogue's song: %d, want %d", c.who, w.Code, want)
 		}

@@ -21,8 +21,19 @@
   <h1>{{t "Review"}}</h1>
 </header>
 <main class="index catalogue-review">
-  <p class="catalog-intro">{{t "Anyone signed in edits The Big Songbook’s songs. An edit that keeps a song following its recording is applied at once; the others wait here: one that changes the structure without an analysis of the recording to check it, the lead-in, the Guitar Pro sync or the key, removes the recording, or makes the song follow its recording less well. Another recording is another song, never held."}}
-    {{t "A newcomer’s first %d edits wait too. %d accepted edits make a trusted editor, who reviews here." .NewcomerEdits .TrustedEdits}}</p>
+  <p class="catalog-intro">{{t "Anyone signed in edits The Big Songbook’s songs, at once: chords, lyrics, sections. Reviewers check the edits afterwards: Looks good, or Revert with a note for its author. Wait here only what identifies the song or lines it up with its recording — the key’s name, the lead-in, the Guitar Pro sync, removing the recording — an account’s very first edit of a song none of its songbooks holds, and the edits past %d a day of someone not trusted yet. Another recording is another song, never held." .DailyLimit}}
+    {{t "%d accepted edits, not reverted within a week, make a trusted editor, who reviews here." .TrustedEdits}}</p>
+
+  <h2>{{tn (len .ToCheck) "%d recent edit to check" "%d recent edits to check"}}</h2>
+  {{range .ToCheck}}
+  <section class="catalogue-review-item">
+    {{template "catalogue-edit-card" .}}
+    <p class="catalogue-review-links"><a href="/big-songbook/edits/{{.ID}}">{{t "Open this edit"}}</a> &middot; <a href="/variants/{{.SongID}}/history">{{t "History"}}</a></p>
+    {{if not .Mine}}{{template "catalogue-edit-patrol" (dict "Edit" .)}}{{else}}<p class="hint">{{t "Your own edit: another reviewer checks it."}}</p>{{end}}
+  </section>
+  {{else}}
+  <p class="hint">{{t "Nothing to check."}}</p>
+  {{end}}
 
   <h2>{{tn (len .Edits) "%d edit waiting" "%d edits waiting"}}</h2>
   {{range .Edits}}

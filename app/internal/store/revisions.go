@@ -242,6 +242,10 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		}
 
 		actor := &actorPersonID
+		// The catalogue's edits it undoes are reverted (patrol, trust).
+		if err := markEditsReverted(ctx, tx, revisionID, actorPersonID); err != nil {
+			return err
+		}
 		undo := VariantSnapshot{Title: curTitle, Artist: curArtist, ReferenceURL: curRef, Body: curBody}
 		if snap.VersionName != nil {
 			undo.VersionName = &curName
