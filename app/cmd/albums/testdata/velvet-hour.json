@@ -1,0 +1,283 @@
+{
+ "band": 15,
+ "expectBand": "Velvet Hour",
+ "liveVersions": "setlists",
+ "setlistVersions": "live",
+ "skipMasters": [
+  "Interlude"
+ ],
+ "albums": [
+  {
+   "title": "Amber Lanterns",
+   "kind": "album",
+   "releasedOn": "2020-04-09",
+   "licence": "All rights reserved",
+   "links": [
+    "https://velvethour.example.org/amber-lanterns"
+   ],
+   "folder": "Albums/1 - Amber Lanterns",
+   "tracks": [
+    {
+     "song": 132,
+     "songTitle": "Red Kite to Sète",
+     "duration": "4:58"
+    },
+    {
+     "song": 115,
+     "songTitle": "Candles at the Border",
+     "duration": "4:18"
+    },
+    {
+     "song": 120,
+     "songTitle": "Bonfires at Closing Time",
+     "duration": "4:44",
+     "title": "Bonfires at Closing",
+     "rename": true
+    },
+    {
+     "song": 134,
+     "songTitle": "Le Jardin des Tilleuls",
+     "duration": "4:18"
+    },
+    {
+     "song": 114,
+     "songTitle": "Pale Weather",
+     "duration": "4:07"
+    },
+    {
+     "song": 136,
+     "songTitle": "Silver Lullaby",
+     "duration": "2:53"
+    },
+    {
+     "song": 125,
+     "songTitle": "Seagulls at Dawn",
+     "duration": "4:24"
+    },
+    {
+     "song": 123,
+     "songTitle": "Long Letter to Lisbon",
+     "duration": "5:34"
+    },
+    {
+     "song": 128,
+     "songTitle": "Indigo Garden",
+     "duration": "5:45",
+     "title": "Indigo Gardens",
+     "rename": true
+    },
+    {
+     "song": 121,
+     "songTitle": "Pebbles at the Market",
+     "duration": "3:38"
+    }
+   ]
+  },
+  {
+   "title": "Low Tide Letters",
+   "kind": "album",
+   "releasedOn": "2022-04-09",
+   "licence": "All rights reserved",
+   "links": [
+    "https://velvethour.example.org/low-tide-letters"
+   ],
+   "folder": "Albums/2 - Low Tide Letters",
+   "tracks": [
+    {
+     "song": 111,
+     "songTitle": "Kites at the Pier",
+     "duration": "3:35"
+    },
+    {
+     "song": 130,
+     "songTitle": "Sparrows at Low Tide",
+     "duration": "3:55"
+    },
+    {
+     "song": 113,
+     "songTitle": "Ivory Avenue",
+     "duration": "4:56",
+     "title": "The Avenue of Ivory",
+     "rename": true
+    },
+    {
+     "song": 127,
+     "songTitle": "Slow Bus to Trieste",
+     "duration": "3:23"
+    },
+    {
+     "song": 138,
+     "songTitle": "Lighthouses at the Fair",
+     "duration": "2:31"
+    },
+    {
+     "song": 118,
+     "songTitle": "Morning Mail to Brighton",
+     "duration": "2:20"
+    },
+    {
+     "song": 110,
+     "songTitle": "Le Manège de l'Hiver",
+     "duration": "3:47"
+    },
+    {
+     "song": 124,
+     "songTitle": "La Route de l'Estuaire",
+     "duration": "3:55"
+    },
+    {
+     "song": 117,
+     "songTitle": "La Valse de Minuit",
+     "duration": "3:33"
+    },
+    {
+     "song": 126,
+     "songTitle": "Strangers at the Station",
+     "duration": "5:09"
+    }
+   ]
+  },
+  {
+   "title": "Paper Lighthouse",
+   "kind": "album",
+   "releasedOn": "2026-04-10",
+   "licence": "CC BY-ND 4.0",
+   "links": [
+    "https://velvethour.example.org/paper-lighthouse"
+   ],
+   "folder": "Albums/3 - Paper Lighthouse/Final Mix",
+   "tracks": [
+    {
+     "song": 131,
+     "songTitle": "Paper Boat to Inverness",
+     "duration": "3:50",
+     "title": "Paper Boats to Inverness",
+     "rename": true,
+     "tempo": 115,
+     "isrc": "FR-ZZZ-25-60193"
+    },
+    {
+     "song": 135,
+     "songTitle": "Amber Daylight",
+     "duration": "3:25",
+     "tempo": 108,
+     "isrc": "FR-ZZZ-25-60194"
+    },
+    {
+     "song": 112,
+     "songTitle": "Quiet Song to Collioure",
+     "duration": "2:23",
+     "tempo": 90,
+     "isrc": "FR-ZZZ-25-34056"
+    },
+    {
+     "song": 122,
+     "songTitle": "Les Saisons de Belleville",
+     "duration": "4:09",
+     "tempo": 105,
+     "isrc": "FR-ZZZ-25-60195"
+    },
+    {
+     "song": 116,
+     "songTitle": "Paper Stars at Sundown",
+     "duration": "3:55",
+     "tempo": 80,
+     "isrc": "FR-ZZZ-25-60196"
+    },
+    {
+     "song": 139,
+     "songTitle": "Lighthouses at the Border",
+     "duration": "3:50",
+     "tempo": 95,
+     "isrc": "FR-ZZZ-25-33368"
+    },
+    {
+     "song": 119,
+     "songTitle": "Cobalt Summer",
+     "duration": "4:05",
+     "tempo": 105,
+     "isrc": "FR-ZZZ-25-60197"
+    },
+    {
+     "song": 137,
+     "songTitle": "Night Bus to Brighton",
+     "duration": "4:34",
+     "tempo": 80,
+     "isrc": "FR-ZZZ-25-60198"
+    },
+    {
+     "song": 129,
+     "songTitle": "Streetlights at High Noon",
+     "duration": "2:44",
+     "tempo": 127,
+     "isrc": "FR-ZZZ-25-20861"
+    },
+    {
+     "song": 133,
+     "songTitle": "Le Phare du Port",
+     "duration": "7:44",
+     "tempo": 80,
+     "isrc": "FR-ZZZ-25-60199"
+    }
+   ],
+   "label": "Harbour Lights Records",
+   "credits": "Mixed and mastered at the Quai 9 studio. Sleeve by the band."
+  },
+  {
+   "title": "Streetlights at High Noon",
+   "kind": "single",
+   "releasedOn": "2025-04-25",
+   "tracks": [
+    {
+     "song": 129,
+     "songTitle": "Streetlights at High Noon",
+     "duration": "2:44",
+     "tempo": 127,
+     "isrc": "FR-ZZZ-25-20861"
+    }
+   ]
+  },
+  {
+   "title": "Lighthouses at the Border",
+   "kind": "single",
+   "releasedOn": "2025-07-04",
+   "tracks": [
+    {
+     "song": 139,
+     "songTitle": "Lighthouses at the Border",
+     "duration": "3:50",
+     "tempo": 95,
+     "isrc": "FR-ZZZ-25-33368"
+    }
+   ]
+  },
+  {
+   "title": "Quiet Song to Collioure",
+   "kind": "single",
+   "releasedOn": "2025-11-21",
+   "tracks": [
+    {
+     "song": 112,
+     "songTitle": "Quiet Song to Collioure",
+     "duration": "2:23",
+     "tempo": 90,
+     "isrc": "FR-ZZZ-25-34056"
+    }
+   ]
+  },
+  {
+   "title": "Night Bus to Brighton",
+   "kind": "single",
+   "releasedOn": "2026-01-23",
+   "tracks": [
+    {
+     "song": 137,
+     "songTitle": "Night Bus to Brighton",
+     "duration": "4:34",
+     "tempo": 80,
+     "isrc": "FR-ZZZ-25-60198"
+    }
+   ]
+  }
+ ]
+}
