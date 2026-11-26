@@ -68,8 +68,8 @@ same work.
   the global community's songs (the catalogue), **everyone signed in**,
   from every place the song is opened from (the edit model, §11 and
   [catalogue-edit-review.md](catalogue-edit-review.md)): live at once
-  and checked by reviewers afterwards, what identifies the song a
-  suggestion, its staff (site admins) at once. In
+  and checked by reviewers afterwards (every edit, since the user's
+  decisions on #209), its staff (site admins) at once. In
   a **coaching** community, the coach (its staff) and, for each of its
   songs, the students it's given to (their student songbook holds it,
   or the songbook of a group of theirs: every member edits the group's
@@ -262,8 +262,9 @@ signed in fixes them — and nothing is lost.
 
 *Amended 2026-11-26 by the edit model* (end of this section, and
 [catalogue-edit-review.md](catalogue-edit-review.md)): edits are live at
-once and patrolled afterwards instead of held; what identifies the song
-is a suggestion; saves merge; fix-only arrangements fold back. Where a
+once and patrolled afterwards instead of held, every one of them; Edit
+asks first, fix or new version; saves merge; fix-only arrangements fold
+back. Where a
 bullet below says "waits for review", read that section.
 
 - **Who**: everyone signed in edits a catalogue song's chart in place
@@ -342,7 +343,7 @@ bullet below says "waits for review", read that section.
   [coaching.md](coaching.md), "A key stays where it was").
 - **Light moderation**: a review queue (The Big Songbook → Review) for
   the staff and the **trusted editors** (10 accepted edits or more,
-  computed): each pending edit with what it changes (`songdiff`), the
+  computed; since 2026-11-26 patrol, "The edit model" below): each pending edit with what it changes (`songdiff`), the
   fit before and after, Approve / Reject with a note for its author. A
   newcomer's first **3** edits wait whatever they change. A **Report**
   on a catalogue song (a reason) puts it in the queue until a reviewer
@@ -377,17 +378,21 @@ editable chart per song; a fix never needs a copy.
   or Revert with a note its author is told: only that edit's changes
   taken out when later edits came, History when one touched the same
   place). Flagged for a look: a worse fit against an analysed recording,
-  a structure change the recording can't check, a newcomer's edit. Wait
-  for a reviewer: a passer-by's very first edit (of a song none of their
-  places holds), and edits past 10 a day until trusted. Trust: 10
+  a structure change the recording can't check, the lead-in, the Guitar
+  Pro sync, the key's name, the title or artist, the recording removed,
+  a newcomer's edit. Trust: 10
   accepted edits, an applied edit reverted within 7 days not counted; a
   History revert marks the edits it undoes reverted.
-- **Suggestions**: the key's name, the lead-in, the Guitar Pro sync, a
-  title or artist fixed, removing the recording are suggestions (pending
-  catalogue edits): their author sees them in place on the song (and
-  plays them; the song as it is one click away), reviewers see them on
-  the song and in the queue. A mixed save splits: the chart's changes
-  live, the protected part suggested.
+- **Every edit live** (the user's decisions on #209): no edit is held
+  any more — the key's name, the lead-in, the Guitar Pro sync, a title or
+  artist fixed, the recording removed, a newcomer's very first edit: all
+  live at once, flagged for the reviewers' look. Until trusted, 10 edits
+  a day (past it, refused until the next day). The edits held before stay
+  pending for the reviewers; their author's next save takes their place.
+- **Edit asks first** on a catalogue song, every time: "Fix it to match
+  the reference" (the shared chart) or "Work on a new version" (mine, the
+  band's, the community's — who may make which). "Your key stays your own
+  either way."
 - **Merge at save** (migration 0142, `revisions.song_version`): a save
   over a version someone else moved on from is merged by the song's
   parts (header fields, sections, their order, title and artist);

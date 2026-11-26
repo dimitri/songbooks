@@ -3,7 +3,9 @@
 Status: **implemented with deviations** (2026-11-26, branch
 `edit-model`, migrations 0141–0143): every step of §5 built; §7 below
 says what was decided, what differs from the plan, and what each path
-shows now. Written as a review and recommendation the same day, on
+shows now. **Revised the same day by the user's decisions on #209**
+(§8): every edit goes live at once (no suggestions), and Edit asks
+first, fix or new version. Written as a review and recommendation the same day, on
 `review` (= `main` = production, migration 0139).
 Related: [ownership-model.md](ownership-model.md) (§5 arrangements, §11
 open edits), [coaching.md](coaching.md) ("A group works on one song").
@@ -699,4 +701,48 @@ session scratchpad (the ones already named `after-…` are
 Staging and production (3 identical personal arrangements of 8, and 1
 band arrangement that differs, per the coordinator) haven't been run:
 the user decides before `--apply` there.
+
+## 8. The user's decisions on #209 (2026-11-26)
+
+They overturn part of §7 (its decisions 1 and 3, step 4).
+
+1. **All edits go live at once.** The suggestion mechanism is gone: the
+   key's name, the lead-in, the Guitar Pro sync, a title or artist fixed,
+   the recording removed, a passer-by's first edit, the mixed-save split.
+   Every save by anyone allowed to edit applies, with Undo and History,
+   flagged for the reviewers' "Recent edits to check" (patrol kept: a
+   worse fit, a structure the recording can't check, the lead-in, the
+   Guitar Pro sync, the key's name, the title or artist, the recording
+   removed, a newcomer's edit). Until trusted, 10 edits a day: past it,
+   the save is refused (429) until the next day, nothing held.
+   - **The edits held before** (pending rows of the old rules) stay
+     pending, data-safe: reviewers still approve or reject them in the
+     queue ("edits waiting", shown only while there are any), their
+     author is told on the song that their earlier edit still waits,
+     and their next save takes its place (superseded, its text kept on
+     its page). None is applied blindly: a held edit may be a
+     passer-by's, and its base may be stale.
+   - Kept, as they aren't held edits: a whole-chart transposition
+     refused; the Guitar Pro file and audio staff-only; "a fix, or
+     another recording?" asked on a new reference, title or artist; the
+     band-member hint on a structure change.
+2. **Edit asks first** on a shared (catalogue) song, each time it's
+   opened: "This chart follows its reference recording" (its thumbnail
+   and title; "This is the shared chart" without one) — **Fix it to match
+   the reference** (primary: the editor on the shared chart, for
+   everyone) or **Work on a new version**, then whose: *Mine*, *<band>'s*,
+   *<community>'s* — only the owners the person may make one for, as the
+   ⋯ entries (which stay). "Your key stays your own either way." Not
+   asked by Undo, the arrangement dialogs' "Edit the shared chart", or a
+   reload with `?edit=1`. No "Don't ask again for this song": the user
+   removed it ("counterproductive; situations change"), so nothing is
+   stored for it and no migration was needed.
+
+Screenshots (1440 and 390, light), `cap/edit-model/v2-…`:
+`v2-edit-question-admin-lucas`, `v2-edit-question-whose-admin-lucas`
+(the band's and his own), `v2-edit-question-whose-student-oliver`
+(Studio Lumen's only), `v2-newcomer-save-live-camille` (a newcomer's fix:
+"Saved for everyone who plays it · Undo · History"),
+`v2-title-fix-asked-stranger-hazel` (a fix, or another recording?),
+`v2-title-fix-live-stranger-hazel` and `…-page-…` (the title live).
 
