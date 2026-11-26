@@ -10455,3 +10455,6 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
 .catalogue-song-suggestions h2 { font-size: 1rem; margin: 0 0 0.4rem; }
 .sheet-section.is-suggested { outline: 2px dashed var(--accent-ink); outline-offset: 3px; border-radius: 4px; position: relative; }
 .sheet-section.is-suggested::after { content: attr(data-suggested-label); position: absolute; top: -0.7rem; right: 0.3rem; padding: 0 0.35rem; font-size: 0.72rem; background: var(--bg); color: var(--accent-ink); border-radius: 4px; }
+.merge-conflict { border: 1px solid var(--border, #d8ccb8); border-radius: 6px; margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; }
+.merge-conflict label { display: block; margin: 0.2rem 0; }
+.merge-conflict pre { margin: 0.2rem 0 0 1.6rem; white-space: pre-wrap; font-size: 0.85rem; max-height: 8rem; overflow: auto; }

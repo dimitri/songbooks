@@ -55,5 +55,11 @@
   "You see the song as it is for everyone.": "Vous voyez le morceau tel qu’il est pour tout le monde.",
   "Your suggestion": "Votre suggestion",
   "%d suggestion waits for this song": "%d suggestion attend pour ce morceau",
-  "%d suggestions wait for this song": "%d suggestions attendent pour ce morceau"
+  "%d suggestions wait for this song": "%d suggestions attendent pour ce morceau",
+  "%s saved while you were editing, in the same place: choose which to keep.": "%s a enregistré pendant que vous modifiiez, au même endroit : choisissez quoi garder.",
+  "Someone": "Quelqu’un",
+  "the order of the sections": "l’ordre des sections",
+  "Everything else of both edits is kept. For each part, keep theirs or yours:": "Tout le reste des deux modifications est gardé. Pour chaque partie, gardez la leur ou la vôtre :",
+  "Saved, merged": "Enregistré, fusionné",
+  "Two edits in the same place": "Deux modifications au même endroit"
 }

@@ -48,6 +48,69 @@ func recordRevision(ctx context.Context, tx pgx.Tx, entityType, entityID string,
 	return id, err
 }
 
+// setRevisionVersion says which version of its song a revision's
+// snapshot is (migration 0142: merge at save).
+func setRevisionVersion(ctx context.Context, tx pgx.Tx, revisionID int64, version int) error {
+	_, err := tx.Exec(ctx, `UPDATE revisions SET song_version = $2 WHERE id = $1`, revisionID, version)
+	return err
+}
+
+// SongAtVersion is songID as it was at version (its title, artist,
+// reference and body): the song now when it's at that version, else the
+// revision that kept it; ok false when none did (a revision from before
+// migration 0142, or a change that kept none).
+func (st *Store) SongAtVersion(ctx context.Context, songID int64, version int) (VariantSnapshot, bool, error) {
+	var snap VariantSnapshot
+	var cur int
+	if err := st.db.QueryRow(ctx, `SELECT title, artist, reference_url, body, version FROM songs WHERE id = $1`, songID).
+		Scan(&snap.Title, &snap.Artist, &snap.ReferenceURL, &snap.Body, &cur); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return snap, false, fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
+		}
+		return snap, false, err
+	}
+	if cur == version {
+		return snap, true, nil
+	}
+	var raw []byte
+	err := st.db.QueryRow(ctx, `
+		SELECT snapshot FROM revisions WHERE entity_type = 'variant' AND entity_id = $1 AND song_version = $2
+		ORDER BY created_at DESC, id DESC LIMIT 1`, strconv.FormatInt(songID, 10), version).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return VariantSnapshot{}, false, nil
+	}
+	if err != nil {
+		return VariantSnapshot{}, false, err
+	}
+	snap = VariantSnapshot{}
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		return snap, false, err
+	}
+	return snap, true, nil
+}
+
+// SongEditorsSince is who saved songID since version (its revisions from
+// that version on), by name, each once, but exceptID.
+func (st *Store) SongEditorsSince(ctx context.Context, songID int64, version int, exceptID int64) ([]string, error) {
+	rows, err := st.db.Query(ctx, `
+		SELECT p.display_name FROM revisions r JOIN people p ON p.id = r.actor_person_id
+		WHERE r.entity_type = 'variant' AND r.entity_id = $1 AND r.song_version >= $2 AND r.actor_person_id <> $3
+		GROUP BY p.display_name ORDER BY min(r.created_at)`, strconv.FormatInt(songID, 10), version, exceptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 // VariantSnapshot is the editable-fields shape recorded for entity_type
 // 'variant' — everything SaveSong/SaveRaw/RedoSong can change in one call.
 type VariantSnapshot struct {
@@ -231,9 +294,10 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		}
 
 		var curTitle, curArtist, curRef, curBody, curName string
+		var curVersion int
 		err = tx.QueryRow(ctx, `
-			SELECT title, artist, reference_url, body, version_name FROM songs WHERE id = $1 FOR UPDATE`, id).
-			Scan(&curTitle, &curArtist, &curRef, &curBody, &curName)
+			SELECT title, artist, reference_url, body, version_name, version FROM songs WHERE id = $1 FOR UPDATE`, id).
+			Scan(&curTitle, &curArtist, &curRef, &curBody, &curName, &curVersion)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("no such variant %d: %w", id, ErrNotFound)
 		}
@@ -250,7 +314,11 @@ func (st *Store) RevertRevision(ctx context.Context, revisionID int64, actorPers
 		if snap.VersionName != nil {
 			undo.VersionName = &curName
 		}
-		if err := st.RecordRevision(ctx, tx, "variant", entityID, actor, undo); err != nil {
+		undoID, err := recordRevision(ctx, tx, "variant", entityID, actor, undo, "")
+		if err != nil {
+			return err
+		}
+		if err := setRevisionVersion(ctx, tx, undoID, curVersion); err != nil {
 			return err
 		}
 

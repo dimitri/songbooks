@@ -563,9 +563,9 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"version": curVersion, "pending": true, "editId": editID, "url": store.CatalogueEditLink(editID),
-		"reasons": catalogueReasonsText(lang, held),
+		"reasons":   catalogueReasonsText(lang, held),
 		"suggested": suggestionPart(held),
-		"message": suggestionMessage(lang, held),
+		"message":   suggestionMessage(lang, held),
 	})
 	return true
 }

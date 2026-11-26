@@ -619,6 +619,9 @@ func saveSongTx(ctx context.Context, tx pgx.Tx, e SongSave) (songSaveResult, err
 	}, e.Summary); err != nil {
 		return out, err
 	}
+	if err := setRevisionVersion(ctx, tx, out.revisionID, curVersion); err != nil {
+		return out, err
+	}
 
 	if err := tx.QueryRow(ctx, `
 		UPDATE songs SET title = $1, artist = $2, reference_url = $3, body = $4, version = version + 1

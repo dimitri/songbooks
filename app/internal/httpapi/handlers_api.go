@@ -47,11 +47,20 @@ func (s *Server) handlePutSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sg := fromJSON(req.Song)
-	// The Big Songbook's song: weighed against its recording first.
-	if body := song.Write(sg); s.catalogueSave(w, r, id, chartHead(body, "title"), chartHead(body, "artist"), chartHead(body, "reference"), body, req.Version) {
+	// Saved over a version the song moved on from: merged with what
+	// changed since (merge_at_save.go).
+	body, expect, ok := s.mergeAtSave(w, r, id, song.Write(sg), req.Version)
+	if !ok {
 		return
 	}
-	newVersion, err := s.store.SaveVariant(id, sg, req.Version, actorID(r))
+	// The Big Songbook's song: weighed against its recording first.
+	if s.catalogueSave(w, r, id, chartHead(body, "title"), chartHead(body, "artist"), chartHead(body, "reference"), body, expect) {
+		return
+	}
+	if expect != req.Version {
+		sg = song.Parse(body)
+	}
+	newVersion, err := s.store.SaveVariant(id, sg, expect, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
 		return
@@ -89,10 +98,16 @@ func (s *Server) handlePutRaw(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if s.catalogueSave(w, r, id, chartHead(req.Text, "title"), chartHead(req.Text, "artist"), chartHead(req.Text, "reference"), req.Text, req.Version) {
+	// Saved over a version the song moved on from: merged with what
+	// changed since (merge_at_save.go).
+	text, expect, ok := s.mergeAtSave(w, r, id, req.Text, req.Version)
+	if !ok {
 		return
 	}
-	newVersion, err := s.store.SaveVariantRaw(id, req.Text, req.Version, actorID(r))
+	if s.catalogueSave(w, r, id, chartHead(text, "title"), chartHead(text, "artist"), chartHead(text, "reference"), text, expect) {
+		return
+	}
+	newVersion, err := s.store.SaveVariantRaw(id, text, expect, actorID(r))
 	if err != nil {
 		writeSaveErr(w, err)
 		return

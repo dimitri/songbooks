@@ -2575,6 +2575,7 @@
 {{end}}
 {{if .Catalogue}}{{template "catalogue-dialogs" .}}{{end}}
 {{template "arrangement-dialogs" .}}
+{{template "merge-save" .}}
 {{if .CanNewVersion}}
 <dialog class="edit-offer-dialog" id="new-version-dialog" aria-labelledby="new-version-title">
   <form method="dialog" id="new-version-form">

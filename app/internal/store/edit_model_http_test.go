@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -481,5 +483,93 @@ func TestSuggestions(t *testing.T) {
 	}
 	if html := core.page(page); !strings.Contains(html, "Le Vent se lève") {
 		t.Error("its author doesn't see the suggested title")
+	}
+}
+
+// saveRawAt is PUT /api/songs/{id}/raw at version, with headers
+// (URL-encoded).
+func (c client) saveRawAt(id int64, text string, version int, headers map[string]string) *httptest.ResponseRecorder {
+	c.t.Helper()
+	raw, _ := json.Marshal(map[string]string{"version": strconv.Itoa(version), "text": text})
+	r := httptest.NewRequest("PUT", fmt.Sprintf("/api/songs/%d/raw", id), strings.NewReader(string(raw)))
+	r.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		r.Header.Set(k, url.QueryEscape(v))
+	}
+	w := httptest.NewRecorder()
+	c.h.ServeHTTP(w, r)
+	return w
+}
+
+// TestMergeAtSave: two people editing one song, the second saving over
+// the version they opened. Different sections merge silently (who saved
+// meanwhile said); the same section is asked once (409, theirs and
+// yours), then saved with the choice. A band's own song merges the same;
+// a version that kept no revision is refused as before.
+func TestMergeAtSave(t *testing.T) {
+	st := store.NewTestStore(t)
+	f := newEditModelFixture(t, st)
+	start := "title: Le Vent\nartist: Someone\n\n[Verse]\ngrid: C | G | Am | F\n\n[Chorus]\ngrid: F | G | C | C\n"
+	setChart(t, st, f.CatalogSong, start)
+	opened := version(t, st, f.CatalogSong)
+	tr, a := as(t, st, f.Trusted), as(t, st, f.Admin)
+	// Oscar fixes the chorus.
+	if w := tr.saveRaw(f.CatalogSong, strings.Replace(start, "C | C\n", "C | C7\n", 1)); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	// Lucas, from the version he opened, fixes the verse: both kept.
+	mine := strings.Replace(start, "Am | F\n", "Am7 | F\n", 1)
+	w := a.saveRawAt(f.CatalogSong, mine, opened, nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Header().Get("X-Merged-With"), "Oscar") {
+		t.Fatalf("different sections: %d %s (merged with %q)", w.Code, w.Body.String(), w.Header().Get("X-Merged-With"))
+	}
+	if got := body(t, st, f.CatalogSong); !strings.Contains(got, "Am7 | F") || !strings.Contains(got, "C | C7") {
+		t.Fatalf("both edits kept? %q", got)
+	}
+
+	// The same section: asked.
+	opened = version(t, st, f.CatalogSong)
+	now := body(t, st, f.CatalogSong)
+	if w := tr.saveRaw(f.CatalogSong, strings.Replace(now, "Am7 | F", "Am9 | F", 1)); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	mine = strings.Replace(now, "Am7 | F", "A7 | F", 1)
+	w = a.saveRawAt(f.CatalogSong, mine, opened, nil)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"key":"s:verse#1"`) || !strings.Contains(w.Body.String(), "Am9") || !strings.Contains(w.Body.String(), "A7") {
+		t.Fatalf("the same section: %d %s", w.Code, w.Body.String())
+	}
+	if w := a.saveRawAt(f.CatalogSong, mine, opened, map[string]string{"X-Merge-Resolve": "s:verse#1=mine"}); w.Code != http.StatusOK {
+		t.Fatalf("mine chosen: %d %s", w.Code, w.Body.String())
+	}
+	if got := body(t, st, f.CatalogSong); !strings.Contains(got, "A7 | F") || !strings.Contains(got, "C | C7") {
+		t.Errorf("mine chosen: %q", got)
+	}
+
+	// A band's own song: the same.
+	core, guest := as(t, st, f.Core), as(t, st, f.Guest)
+	f.GuestsEditTheSongbook(t, st)
+	if w := core.saveRaw(f.BandSong, start); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	opened = version(t, st, f.BandSong)
+	if w := core.saveRaw(f.BandSong, strings.Replace(start, "C | C\n", "C | G\n", 1)); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	if w := guest.saveRawAt(f.BandSong, strings.Replace(start, "G | Am", "E | Am", 1), opened, nil); w.Code != http.StatusOK {
+		t.Fatalf("a band's song, merged: %d %s", w.Code, w.Body.String())
+	}
+	if got := body(t, st, f.BandSong); !strings.Contains(got, "C | E | Am") || !strings.Contains(got, "C | G\n") {
+		t.Errorf("the band's song merged: %q", got)
+	}
+
+	// A version that kept no revision (from before merge at save):
+	// refused as before.
+	opened = version(t, st, f.BandSong)
+	if w := core.saveRaw(f.BandSong, start); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	store.ExecForTest(t, st, `UPDATE revisions SET song_version = NULL WHERE entity_type = 'variant' AND entity_id = $1::bigint::text`, f.BandSong)
+	if w := guest.saveRawAt(f.BandSong, start, opened, nil); w.Code != http.StatusConflict || strings.Contains(w.Body.String(), "conflicts") {
+		t.Errorf("no revision to merge against: %d %s", w.Code, w.Body.String())
 	}
 }

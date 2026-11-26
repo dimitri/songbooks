@@ -76,3 +76,30 @@
 <script src="/static/js/catalogue-review.js?v={{staticVersion}}" defer></script>
 {{end}}
 {{end}}
+
+{{/* Merge at save (merge-save.js, httpapi/merge_at_save.go): the same
+     part edited by two people, asked once; a save merged, said. */}}
+{{define "merge-save"}}
+{{if or .CanEdit .CanEditChart}}
+<dialog class="edit-offer-dialog merge-dialog" id="merge-dialog" aria-labelledby="merge-title" aria-describedby="merge-text">
+  <form method="dialog">
+    <h2 id="merge-title">{{t "Two edits in the same place"}}</h2>
+    <p id="merge-text"></p>
+    <p class="hint">{{t "Everything else of both edits is kept. For each part, keep theirs or yours:"}}</p>
+    <div id="merge-conflicts"></div>
+    <div class="form-actions">
+      <button type="submit" value="cancel" formnovalidate>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="merge-go">{{t "Save"}}</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="edit-offer-dialog" id="merged-dialog" aria-labelledby="merged-title">
+  <form method="dialog">
+    <h2 id="merged-title">{{t "Saved, merged"}}</h2>
+    <p id="merged-text"></p>
+    <div class="form-actions"><button type="submit" class="primary" value="ok" autofocus>{{t "OK"}}</button></div>
+  </form>
+</dialog>
+<script src="/static/js/merge-save.js?v={{staticVersion}}" defer></script>
+{{end}}
+{{end}}

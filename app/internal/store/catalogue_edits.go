@@ -1023,9 +1023,10 @@ func (st *Store) SetReferenceLabel(ctx context.Context, songID, personID int64, 
 	defer tx.Rollback(ctx)
 	var title, artist, ref, body, cur string
 	var catalogue bool
+	var version int
 	err = tx.QueryRow(ctx, `
-		SELECT title, artist, reference_url, body, version_name, `+catalogueSQL("s")+`
-		FROM songs s WHERE id = $1 FOR UPDATE`, songID).Scan(&title, &artist, &ref, &body, &cur, &catalogue)
+		SELECT title, artist, reference_url, body, version_name, `+catalogueSQL("s")+`, version
+		FROM songs s WHERE id = $1 FOR UPDATE`, songID).Scan(&title, &artist, &ref, &body, &cur, &catalogue, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
 	}
@@ -1042,9 +1043,13 @@ func (st *Store) SetReferenceLabel(ctx context.Context, songID, personID int64, 
 	if personID != 0 {
 		actor = &personID
 	}
-	if _, err := recordRevision(ctx, tx, "variant", strconv.FormatInt(songID, 10), actor, VariantSnapshot{
+	revID, err := recordRevision(ctx, tx, "variant", strconv.FormatInt(songID, 10), actor, VariantSnapshot{
 		Title: title, Artist: artist, ReferenceURL: ref, Body: body, VersionName: &cur,
-	}, summary); err != nil {
+	}, summary)
+	if err != nil {
+		return err
+	}
+	if err := setRevisionVersion(ctx, tx, revID, version); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE songs SET version_name = $2, version = version + 1 WHERE id = $1`, songID, label); err != nil {

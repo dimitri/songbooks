@@ -137,11 +137,67 @@ func Plan(base, ours, theirs string) []Part {
 // is what both came from). A conflicting part is never taken, whatever
 // take says.
 func Merge(base, ours, theirs string, take func(key string) bool) string {
+	return merge(base, ours, theirs, take, func(string) bool { return false })
+}
+
+// MergeResolved is MergeAll (every part theirs changed, the metadata
+// included) with the conflicting parts force says yes to taken from
+// theirs too: the others stay ours. Merge at save: two people edited the
+// same section, and the one saving chose theirs.
+func MergeResolved(base, ours, theirs string, force func(key string) bool) string {
+	out := merge(base, ours, theirs, func(string) bool { return true }, force)
+	for k := range metadataKeys {
+		bv, tv, ov := metaLine(base, k), metaLine(theirs, k), metaLine(ours, k)
+		if bv != tv && (ov == bv || force("h:"+k)) {
+			out = setMetaLine(out, k, tv)
+		}
+	}
+	return out
+}
+
+// PartText is a part of a song as written: a header field's line ("h:"),
+// a section's lines ("s:"), the sections' order ("order", their names);
+// "" when the song hasn't it.
+func PartText(body, key string) string {
+	b := splitSong(body)
+	switch {
+	case strings.HasPrefix(key, "h:"):
+		if v, ok := b.head[key[2:]]; ok {
+			return v
+		}
+		return metaLine(body, key[2:])
+	case strings.HasPrefix(key, "s:"):
+		return b.secs[key[2:]].text
+	case key == "order":
+		var names []string
+		for _, k := range b.secKeys {
+			names = append(names, b.secs[k].name)
+		}
+		return strings.Join(names, " · ")
+	}
+	return ""
+}
+
+// MetaConflicts lists the song's metadata fields (title, artist,
+// reference, cover) ours and theirs both changed since base, differently:
+// "h:title"…
+func MetaConflicts(base, ours, theirs string) []string {
+	var out []string
+	for _, k := range []string{"title", "artist", "reference", "cover", "cover-credit"} {
+		bv, tv, ov := metaLine(base, k), metaLine(theirs, k), metaLine(ours, k)
+		if bv != tv && bv != ov && tv != ov {
+			out = append(out, "h:"+k)
+		}
+	}
+	return out
+}
+
+func merge(base, ours, theirs string, take, force func(key string) bool) string {
 	b, o, t := splitSong(base), splitSong(ours), splitSong(theirs)
 	parts := Plan(base, ours, theirs)
 	taken := map[string]bool{}
 	for _, p := range parts {
-		if !p.Conflict && take(p.Key) {
+		if (!p.Conflict || force(p.Key)) && take(p.Key) {
 			taken[p.Key] = true
 		}
 	}
