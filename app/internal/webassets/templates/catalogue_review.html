@@ -21,18 +21,30 @@
   <h1>{{t "Review"}}</h1>
 </header>
 <main class="index catalogue-review">
-  <p class="catalog-intro">{{t "Anyone signed in edits The Big Songbook’s songs. An edit that keeps a song following its recording is applied at once; the others wait here: one that changes the structure without an analysis of the recording to check it, the lead-in, the Guitar Pro sync or the key, removes the recording, or makes the song follow its recording less well. Another recording is another song, never held."}}
-    {{t "A newcomer’s first %d edits wait too. %d accepted edits make a trusted editor, who reviews here." .NewcomerEdits .TrustedEdits}}</p>
+  <p class="catalog-intro">{{t "Anyone signed in edits The Big Songbook’s songs, and every edit goes live at once. Reviewers check them afterwards: Looks good, or Revert with a note for its author. Until they’re trusted, people make %d edits a day. Another recording is another song." .DailyLimit}}
+    {{t "%d accepted edits, not reverted within a week, make a trusted editor, who reviews here." .TrustedEdits}}</p>
 
+  <h2>{{tn (len .ToCheck) "%d recent edit to check" "%d recent edits to check"}}</h2>
+  {{range .ToCheck}}
+  <section class="catalogue-review-item">
+    {{template "catalogue-edit-card" .}}
+    <p class="catalogue-review-links"><a href="/big-songbook/edits/{{.ID}}">{{t "Open this edit"}}</a> &middot; <a href="/variants/{{.SongID}}/history">{{t "History"}}</a></p>
+    {{if not .Mine}}{{template "catalogue-edit-patrol" (dict "Edit" .)}}{{else}}<p class="hint">{{t "Your own edit: another reviewer checks it."}}</p>{{end}}
+  </section>
+  {{else}}
+  <p class="hint">{{t "Nothing to check."}}</p>
+  {{end}}
+
+  {{if .Edits}}
   <h2>{{tn (len .Edits) "%d edit waiting" "%d edits waiting"}}</h2>
+  <p class="hint">{{t "Held under the rules before every edit went live: approve or reject them; their author’s next save takes their place."}}</p>
   {{range .Edits}}
   <section class="catalogue-review-item">
     {{template "catalogue-edit-card" .}}
     <p class="catalogue-review-links"><a href="/big-songbook/edits/{{.ID}}">{{t "Open this edit"}}</a></p>
     {{if not .Mine}}{{template "catalogue-edit-decide" (dict "Edit" . "IsStaff" $.IsStaff)}}{{else}}<p class="hint">{{t "Your own edit: another reviewer decides it."}}</p>{{end}}
   </section>
-  {{else}}
-  <p class="hint">{{t "No edits waiting."}}</p>
+  {{end}}
   {{end}}
 
   <h2>{{tn (len .Reports) "%d song reported" "%d songs reported"}}</h2>

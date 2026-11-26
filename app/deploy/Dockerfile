@@ -37,6 +37,10 @@ RUN CGO_ENABLED=0 go build -o /out/sbdemo ./cmd/sbdemo
 # docs/ownership-model.md §9); a dry run unless --apply.
 RUN CGO_ENABLED=0 go build -o /out/ownership ./cmd/ownership
 
+# foldback: folds arrangements identical to their catalogue original back
+# into it (docs/catalogue-edit-review.md); a dry run unless --apply.
+RUN CGO_ENABLED=0 go build -o /out/foldback ./cmd/foldback
+
 # albums: a band's albums, tracks and live versions from a mapping
 # (docs/albums-and-live-versions.md); a dry run unless --apply.
 RUN CGO_ENABLED=0 go build -o /out/albums ./cmd/albums && cp cmd/albums/otherlies.json /out/otherlies.json
@@ -147,6 +151,7 @@ COPY --from=builder /out/sbfiles /usr/local/bin/sbfiles
 COPY --from=builder /out/sbcoach /usr/local/bin/sbcoach
 COPY --from=builder /out/sbdemo /usr/local/bin/sbdemo
 COPY --from=builder /out/ownership /usr/local/bin/ownership
+COPY --from=builder /out/foldback /usr/local/bin/foldback
 COPY --from=builder /out/albums /usr/local/bin/albums
 COPY --from=builder /out/otherlies.json /usr/local/share/songbooks/otherlies.json
 

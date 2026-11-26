@@ -629,6 +629,7 @@
         {{/* docs/ownership-model.md §5 and §2: another version of a song
              one edits, named, beside it; a song made public or private by
              who may (SongRights). */}}
+        {{template "arrangement-menu-items" .}}
         {{if .CanNewVersion}}<button type="button" role="menuitem" id="new-version-open" data-new-version-open aria-haspopup="dialog" title="{{t "another arrangement of this song, beside it"}}">{{template "icon-duplicate"}} {{t "New arrangement from this…"}}</button>{{end}}
         {{if .CanPublish}}<button type="button" role="menuitem" id="song-publish-toggle" data-song-publish="{{.SongPublic}}" title="{{if .SongPublic}}{{t "only its owner’s members see it then"}}{{else}}{{t "everyone signed in sees it then, and can link it or make their own arrangement"}}{{end}}">{{if .SongPublic}}{{template "icon-lock"}}{{else}}{{template "icon-community"}}{{end}} {{if .SongPublic}}{{t "Make private"}}{{else}}{{t "Make public"}}{{end}}</button>{{end}}
         {{if .CanDelete}}<button type="button" role="menuitem" data-song-delete title="{{t "says first who links it: they keep a frozen copy"}}">{{template "icon-trash"}} {{t "Delete this song…"}}</button>{{end}}
@@ -821,7 +822,7 @@
       </div>
     </section>
 
-    <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{or .CanEdit .CanEditChart}}"{{if .BandOffer}} data-edit-offer="band"{{else if .CommunityOffer}} data-edit-offer="community"{{else if and (not .CanEdit) (not .CanEditChart) .CanCopy}} data-edit-offer="copy"{{end}} hidden>
+    <section class="prep-panel" data-panel="raw" id="editor" data-version="{{.Version}}" data-variant-id="{{.VariantID}}" data-can-edit="{{or .CanEdit .CanEditChart}}"{{with .EditOffer}} data-edit-offer="{{.}}"{{end}} hidden>
       {{if .GPSource}}
       <p class="hint gpimport-reimport-note"><strong>{{t "This song was imported from %s" .GPSource}}</strong> (<a href="/song/{{.VariantID}}/gp-file" download>{{t "download it"}}</a>). {{t "The"}} <code>score[...]:</code> {{t "lines below are that file's own exact notation — hand-editing this JSON works but is easy to get wrong; for a real change, edit the Guitar Pro file itself and bring it back in via the"}} <strong>{{t "GP Import"}}</strong> {{t "tab instead."}}</p>
       {{end}}
@@ -1550,6 +1551,7 @@
     {{if .HasAnyScore}}<a class="stack-sheet-row gp-export-btn" href="#" data-variant-id="{{.VariantID}}" data-title="{{.Title}}" title="{{t "the song as it is now, edits made here included, as a Guitar Pro file"}}">{{template "icon-download"}} {{t "Export as Guitar Pro"}}</a>{{end}}
     {{if .WorkID}}<a class="stack-sheet-row" href="/works/{{.WorkID}}">{{template "icon-mode-map"}} {{t "Recordings and arrangements"}}</a>{{end}}
     {{if .VariantID}}<a class="stack-sheet-row" href="/variants/{{.VariantID}}/history">{{template "icon-notes"}} {{t "History"}}</a>{{end}}
+    {{template "arrangement-sheet-rows" .}}
     {{if .CanNewVersion}}<button type="button" class="stack-sheet-row" data-new-version-open aria-haspopup="dialog">{{template "icon-duplicate"}} {{t "New arrangement from this…"}}</button>{{end}}
     {{if .CanPublish}}<button type="button" class="stack-sheet-row" data-song-publish="{{.SongPublic}}">{{if .SongPublic}}{{template "icon-lock"}} {{t "Make private"}}{{else}}{{template "icon-community"}} {{t "Make public"}}{{end}}</button>{{end}}
     {{if .CanDelete}}<button type="button" class="stack-sheet-row" data-song-delete>{{template "icon-trash"}} {{t "Delete this song…"}}</button>{{end}}
@@ -2260,7 +2262,9 @@
     {{with .Frozen}}<p class="based-on frozen-note">{{template "icon-lock"}} {{if .OriginalID}}{{t "Frozen from"}} <a href="/song/{{.OriginalID}}">{{.From}}</a>{{else}}{{t "Frozen from %s" .From}}{{end}}, {{date .At "2 Jan 2006"}}{{t ": a copy kept as it was when it went private or was deleted."}}</p>{{end}}
     {{with .PlayedBy}}<p class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}<a href="/song/{{$.VariantID}}/recordings#band-{{$b.BandID}}">{{$b.BandName}}</a> ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</p>{{end}}
     {{with .OriginalChange}}{{template "original-change" .}}{{end}}
+    {{template "fold-offer-song" .}}
     {{with .CataloguePending}}{{template "catalogue-pending" .}}{{end}}
+    {{with .PlaceBandArrangement}}<p class="band-version-notice">{{t "%s has its own arrangement of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s arrangement"}}</a></p>{{end}}
     {{with .BandVersion}}<p class="band-version-notice">{{t "%s has its own arrangement of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s arrangement"}}</a></p>{{end}}
     <main class="sheet" id="sheet" data-render-mode="normal" data-variant-id="{{.VariantID}}"{{with .CoachingContext}} data-coaching="{{.}}"{{end}}{{if .GPFileName}} data-gp-file="/song/{{.VariantID}}/gp-file" data-gp-name="{{.GPFileName}}" data-gp-sha="{{.GPFileSHA}}"{{if .GPFactsMissing}} data-gp-facts-missing="1"{{end}}{{if .GPOnly}} data-gp-only="1"{{end}}{{with .PickerSectionsJSON}} data-picker-sections="{{.}}"{{end}}{{end}} data-key="{{.Key}}"{{if .StudentKeySet}} data-key-offset="{{.StudentKey}}"{{end}} data-flats="{{if .Flats}}1{{else}}0{{end}}"{{with .SpellJSON}} data-spell="{{.}}"{{end}} data-has-diagrams="{{if or .Chords (chordDiagramSets .Text)}}1{{end}}">
     {{template "sheet-body" .}}
@@ -2523,34 +2527,18 @@
 {{/* Edit on a song this person can't, or shouldn't, change here
      (handleSong's BandOffer, CanCopy): what Edit does instead, said
      first, never a silent copy. song.js opens it. */}}
-{{if or .BandOffer .CommunityOffer (and (not .CanEdit) (not .CanEditChart) .CanCopy)}}
+{{if .EditOffer}}
 <dialog class="edit-offer-dialog" id="edit-offer-dialog" aria-labelledby="edit-offer-title" aria-describedby="edit-offer-text">
   <form method="dialog">
     {{if .BandOffer}}{{with .BandOffer}}
     <h2 id="edit-offer-title">{{t "Make %s’s arrangement" .BandName}}</h2>
-    <p id="edit-offer-text">{{if .OwnSongID}}{{t "%s has its own arrangement of this song; this page opened another one." .BandName}}{{else if eq $.SongVisibility "global"}}{{t "This is the catalogue’s song, which %s links. Changing it here would change it for everyone, not for the band." .BandName}}{{else}}{{t "This song isn’t %s’s own: the band links it." .BandName}}{{end}}</p>
+    <p id="edit-offer-text">{{if .OwnSongID}}{{t "%s has its own arrangement of this song; this page opened another one." .BandName}}{{else}}{{t "This song isn’t %s’s own: the band links it." .BandName}}{{end}}</p>
     <p class="hint">{{if .OwnSongID}}{{t "Its songbook and set lists will open the band’s arrangement from now on."}}{{else}}{{t "%s gets its own arrangement, which every member can change. It takes this song’s place in the band’s songbook and set lists, in the same key; the original stays as it is." .BandName}}{{end}}</p>
     <div class="form-actions">
       <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="edit-offer-go" data-action="band" data-band-id="{{.BandID}}"{{with $.SongbookRef}} data-songbook-id="{{.}}"{{end}}>{{t "Make %s’s arrangement" .BandName}}</button>
     </div>
     {{end}}{{else if .CommunityOffer}}{{with .CommunityOffer}}
-    {{if .CatalogueFix}}
-    {{/* A coaching community's link to The Big Songbook's song: a fix
-         goes to the catalogue's song itself, under its rules; a change
-         the studio's way makes the community's arrangement, the one song
-         the coach and its students and groups share (docs/coaching.md,
-         "A group works on one song"). */}}
-    <h2 id="edit-offer-title">{{t "Change this song"}}</h2>
-    <p id="edit-offer-text">{{t "This is The Big Songbook’s song, which %s links: the coach and the students and groups it’s given to share it, each in their own key." .Name}}</p>
-    <p class="hint">{{t "A fix — a wrong chord, a typo, a section the recording plays — goes to the catalogue’s song itself, for everyone who has it: at once, or after a review."}}</p>
-    <p class="hint">{{t "A change your way — a chord grid to play while singing, a Guitar Pro file, a shorter form — makes %s’s arrangement: it takes this song’s place in the repertoire and in the students’ and groups’ songbooks, keys kept, and the coach and those students change it together." .Name}}</p>
-    <div class="form-actions">
-      <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
-      <button type="button" data-edit-offer-fix>{{t "Fix the catalogue’s song"}}</button>
-      <button type="button" class="primary" id="edit-offer-go" data-action="community" data-community-id="{{.CommunityID}}" data-songbook-id="{{.SongbookID}}">{{t "Make the community’s arrangement"}}</button>
-    </div>
-    {{else}}
     <h2 id="edit-offer-title">{{t "Make the community’s arrangement"}}</h2>
     <p id="edit-offer-text">{{t "This song isn’t %s’s own: its songbook links it. Changing it here would change it for everyone who links it." .Name}}</p>
     {{if .Coaching}}
@@ -2564,7 +2552,6 @@
       <button type="submit" value="cancel" autofocus>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="edit-offer-go" data-action="community" data-community-id="{{.CommunityID}}" data-songbook-id="{{.SongbookID}}">{{t "Make the community’s arrangement"}}</button>
     </div>
-    {{end}}
     {{end}}{{else}}{{if and .EditOwner (eq .EditOwner.Kind "global")}}
     {{/* The catalogue's song: everyone's, changed in place by no one but
          the site's admins; everyone has their own songbook for their
@@ -2590,6 +2577,8 @@
 </dialog>
 {{end}}
 {{if .Catalogue}}{{template "catalogue-dialogs" .}}{{end}}
+{{template "arrangement-dialogs" .}}
+{{template "merge-save" .}}
 {{if .CanNewVersion}}
 <dialog class="edit-offer-dialog" id="new-version-dialog" aria-labelledby="new-version-title">
   <form method="dialog" id="new-version-form">

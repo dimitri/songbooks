@@ -135,3 +135,25 @@ la la
 		t.Errorf("merged:\n%s\nwant:\n%s", merged, want)
 	}
 }
+
+// Merge at save: theirs' parts merged over ours, a conflicting one taken
+// only when forced; the title too.
+func TestMergeResolved(t *testing.T) {
+	base := "title: A\n\n[Verse]\nC G\n\n[Chorus]\nF G\n"
+	ours := "title: A\n\n[Verse]\nC G7\n\n[Chorus]\nF G\n"
+	theirs := "title: B\n\n[Verse]\nC Gsus4\n\n[Chorus]\nF G C\n"
+	got := MergeResolved(base, ours, theirs, func(string) bool { return false })
+	if !strings.Contains(got, "title: B") || !strings.Contains(got, "C G7") || !strings.Contains(got, "F G C") {
+		t.Errorf("not forced: %q", got)
+	}
+	got = MergeResolved(base, ours, theirs, func(k string) bool { return k == "s:verse#1" })
+	if !strings.Contains(got, "C Gsus4") {
+		t.Errorf("forced: %q", got)
+	}
+	if c := MetaConflicts(base, "title: C\n", theirs); len(c) != 1 || c[0] != "h:title" {
+		t.Errorf("meta conflicts: %v", c)
+	}
+	if PartText(theirs, "s:chorus#1") != "[Chorus]\nF G C" {
+		t.Errorf("part text: %q", PartText(theirs, "s:chorus#1"))
+	}
+}

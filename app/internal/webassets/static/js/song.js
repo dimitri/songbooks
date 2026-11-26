@@ -1706,22 +1706,11 @@ const ICONS = {
     const at = document.activeElement;
     if ((!at || at === document.body || offerDialog.contains(at)) && editToggle.offsetParent) editToggle.focus();
   });
-  // A coaching community's link to The Big Songbook's song (play.html's
-  // CatalogueFix): "Fix the catalogue's song" opens the editor on it, in
-  // place, under the catalogue's rules; the editor's note offers the
-  // community's arrangement again.
-  document.querySelector('[data-edit-offer-fix]')?.addEventListener('click', () => {
-    offerDialog?.close();
-    setDrawerOpen(true);
-  });
-  document.querySelector('[data-edit-offer-open]')?.addEventListener('click', openEditOffer);
   // "Make Mercy's version", "Make the community's version", "Make my
   // version" (docs/ownership-model.md §5): the version takes the link's
   // place in the songbook the page was opened from (data-songbook-id),
   // else in every songbook of its owner's that links the song.
-  document.getElementById('edit-offer-go')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    const status = document.getElementById('edit-offer-status');
+  async function makeArrangement(btn, status) {
     const action = btn.dataset.action;
     const url = action === 'band'
       ? `/api/bands/${btn.dataset.bandId}/catalog/fork/${pageVariantId}`
@@ -1747,6 +1736,30 @@ const ICONS = {
     const params = new URLSearchParams(location.search);
     params.set('edit', '1');
     location.href = `/song/${data.variantId}?${params.toString()}`;
+  }
+  document.getElementById('edit-offer-go')?.addEventListener('click', (e) => {
+    makeArrangement(e.currentTarget, document.getElementById('edit-offer-status'));
+  });
+  // The Big Songbook's song (edit_model.html): Edit opens the editor on
+  // the shared song; an arrangement is its own choice, from the ⋯ menu,
+  // the phone's Song sheet or the editor's note, each with its dialog —
+  // which offers the fix too ("Edit the shared chart").
+  document.querySelectorAll('[data-arrangement-open]').forEach((el) => el.addEventListener('click', () => {
+    const dlg = document.getElementById(el.dataset.arrangementOpen);
+    if (!dlg || dlg.open) return;
+    Forms.status(dlg.querySelector('[data-arrangement-status]'), '');
+    dlg.showModal();
+  }));
+  document.querySelectorAll('.arrangement-dialog').forEach((dlg) => {
+    // Its keys stay in it (song.js plays on Space, steps sections on ↑/↓).
+    dlg.addEventListener('keydown', (e) => e.stopPropagation());
+    dlg.querySelector('[data-arrangement-go]')?.addEventListener('click', (e) => {
+      makeArrangement(e.currentTarget, dlg.querySelector('[data-arrangement-status]'));
+    });
+    dlg.querySelector('[data-arrangement-fix]')?.addEventListener('click', () => {
+      dlg.close();
+      if (drawer.hidden) setDrawerOpen(true);
+    });
   });
   // New version from this (the More menu): named, beside this one in the
   // songbook; it opens in the editor.
@@ -1831,8 +1844,36 @@ const ICONS = {
     const back = document.querySelector('a.song-back[href]');
     location.href = back ? back.getAttribute('href') : '/';
   }));
+  // Edit on The Big Songbook's song asks first (edit_model.html's
+  // #edit-question): fix the shared chart to match its reference, or work
+  // on a new version — whose, then. Asked each time Edit is opened.
+  const askDlg = document.getElementById('edit-question');
+  if (askDlg) {
+    askDlg.addEventListener('keydown', (e) => e.stopPropagation());
+    askDlg.querySelector('[data-edit-question-fix]')?.addEventListener('click', () => {
+      askDlg.close();
+      setDrawerOpen(true);
+    });
+    askDlg.querySelector('[data-edit-question-version]')?.addEventListener('click', (e) => {
+      const whose = document.getElementById('edit-question-whose');
+      whose.hidden = !whose.hidden;
+      e.currentTarget.setAttribute('aria-expanded', String(!whose.hidden));
+      if (!whose.hidden) whose.querySelector('button')?.focus();
+    });
+    askDlg.querySelectorAll('[data-edit-question-go]').forEach((btn) => btn.addEventListener('click', () => {
+      makeArrangement(btn, document.getElementById('edit-question-status'));
+    }));
+  }
   editToggle.addEventListener('click', () => {
     if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }
+    if (drawer.hidden && askDlg) {
+      if (askDlg.open) return;
+      const whose = document.getElementById('edit-question-whose');
+      if (whose) whose.hidden = true;
+      Forms.status(document.getElementById('edit-question-status'), '');
+      askDlg.showModal();
+      return;
+    }
     setDrawerOpen(drawer.hidden);
   });
   closeEditBtn.addEventListener('click', () => setDrawerOpen(false));

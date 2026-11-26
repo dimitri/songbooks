@@ -33,15 +33,16 @@ import (
 //     (201, {"newSongId"});
 //   - a chart transposed as a whole is refused (422): a catalogue song is
 //     in its recording's key; keys are set per songbook, student, band;
-//   - its staff's edits are applied at once;
-//   - anyone else's is applied at once when it keeps or improves how the
-//     chart follows the recording (songimport.RecordingFit, before and
-//     after) and touches none of the lead-in, the Guitar Pro sync, the
-//     key, the title or artist, or adding/removing the recording; else
-//     it waits for review (202, {"pending"}): the song stays as it was.
-//     Without an analysis of the recording to judge by, a change of the
-//     sections or their bars waits too. A newcomer's first edits wait
-//     whatever they change (store.CatalogueNewcomerEdits).
+//   - every other edit is applied at once (the user's decision on #209,
+//     2026-11-26: nothing is held), weighed against the recording only to
+//     flag it for the reviewers' look (patrol): a worse fit
+//     (songimport.RecordingFit, before and after), a structure the
+//     recording can't check, the lead-in, the Guitar Pro sync, the key's
+//     name, the title or artist, the recording removed, a newcomer's
+//     edit; its staff's and a trusted editor's with nothing flagged are
+//     seen as made;
+//   - past CatalogueDailyLimit edits a day, someone not trusted yet is
+//     refused (429) until the next day.
 //
 // The edit's one-line summary comes in the X-Edit-Summary header (URL-
 // encoded; optional), and goes on its revision.
@@ -55,11 +56,15 @@ const editSummaryHeader = "X-Edit-Summary"
 // the edit kept the reference, the new recording's link
 // (X-New-Reference). URL-encoded.
 const (
-	editKindHeader       = "X-Edit-Kind"
-	editKindFix          = "fix"
-	editKindRecording    = "recording"
-	referenceLabelHeader = "X-Reference-Label"
-	newReferenceHeader   = "X-New-Reference"
+	// structureConfirmedHeader: the author saw the band hint (a change of
+	// the sections by a member of a band that plays the song) and saves
+	// for everyone all the same.
+	structureConfirmedHeader = "X-Structure-Confirmed"
+	editKindHeader           = "X-Edit-Kind"
+	editKindFix              = "fix"
+	editKindRecording        = "recording"
+	referenceLabelHeader     = "X-Reference-Label"
+	newReferenceHeader       = "X-New-Reference"
 )
 
 // headerText is a URL-encoded header's text on one line, at most max
@@ -281,6 +286,8 @@ func catalogueReasonText(lang, why string) string {
 		return i18n.T(lang, "it removes the reference recording")
 	case "newcomer":
 		return i18n.T(lang, "it is one of its author’s first edits")
+	case "passerby":
+		return i18n.T(lang, "it is its author’s first edit, of a song none of their songbooks holds")
 	}
 	return why
 }
@@ -395,9 +402,26 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	// A new reference (a fix: the link put right, or one added): the
 	// song's empty reference label from its title, once saved.
 	newReference := newRef != "" && !sameReference(oldRef, newRef)
+	// A band member changing the sections or their bars: the song
+	// changes for everyone, the band included; to play it differently,
+	// the band's arrangement. Said once before saving (428), never a
+	// gate (X-Structure-Confirmed).
+	if r.Header.Get(structureConfirmedHeader) == "" && anchorsOf(curBody).Sections != anchorsOf(body).Sections {
+		if holds, err := s.store.BandsHolding(ctx, person.ID, id); err == nil && len(holds) > 0 {
+			names := make([]string, 0, len(holds))
+			for _, h := range holds {
+				names = append(names, h.BandName)
+			}
+			writeJSON(w, http.StatusPreconditionRequired, map[string]any{
+				"structureHint": true, "bands": names,
+				"message": i18n.T(lang, "This changes the song’s sections for everyone who plays it, %s included. To play it differently, make the band’s arrangement instead.", strings.Join(names, ", ")),
+			})
+			return true
+		}
+	}
 	// Its staff: at once.
 	if rights.Edit {
-		version, err := s.store.SaveSongEdit(ctx, store.SongSave{
+		version, revID, err := s.store.SaveSongEditRevision(ctx, store.SongSave{
 			SongID: id, Title: title, Artist: artist, ReferenceURL: ref, Body: body,
 			ExpectVersion: curVersion, ActorID: person.ID, Summary: summary,
 		})
@@ -405,7 +429,7 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 			writeSaveErr(w, err)
 			return true
 		}
-		out := map[string]any{"version": version}
+		out := map[string]any{"version": version, "revisionId": revID, "saved": i18n.T(lang, "Saved for everyone who plays it.")}
 		if newReference {
 			s.newReferenceNames(ctx, id, newRef, out)
 		}
@@ -417,14 +441,29 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		writeSaveErr(w, err)
 		return true
 	}
+	// The daily limit, until trusted: the edit isn't saved (nothing held).
+	if !standing.Trusted {
+		if n, err := s.store.CatalogueAppliedSince(ctx, person.ID, time.Now().Add(-24*time.Hour)); err == nil && n >= store.CatalogueDailyLimit {
+			httpError(w, http.StatusTooManyRequests, i18n.T(lang, "You made %d edits of The Big Songbook’s songs today: the next ones tomorrow, or once you’re a trusted editor.", store.CatalogueDailyLimit))
+			return true
+		}
+	}
+	// Every edit goes live at once (the user's decision, 2026-11-26):
+	// what's worth a reviewer's look is flagged on it, for "Recent edits
+	// to check" — a worse fit, a structure the recording can't check, the
+	// lead-in, the Guitar Pro sync, the key's name, the title or the
+	// artist, the recording removed, a newcomer's edit.
 	j := judgeCatalogueEdit(curBody, body, s.recordingFitFunc(ctx, id), standing.Newcomer())
-	// The recording taken away: the song follows none any more.
 	if oldRef != "" && newRef == "" {
 		j.Reasons = append(j.Reasons, "reference")
+	}
+	if identityChanged {
+		j.Reasons = append(j.Reasons, "title")
 	}
 	in := store.CatalogueEditInput{
 		SongID: id, AuthorID: person.ID, BaseVersion: baseVersion, BaseBody: curBody,
 		Title: title, Artist: artist, ReferenceURL: ref, Body: body, Summary: summary, Reasons: j.Reasons,
+		Patrolled: standing.Trusted && len(j.Reasons) == 0,
 	}
 	if j.FitBefore != nil {
 		in.FitBefore, in.FitBeforeDetail = j.FitBefore.Fit, j.FitBefore.Reasons
@@ -432,29 +471,16 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	if j.FitAfter != nil {
 		in.FitAfter, in.FitAfterDetail = j.FitAfter.Fit, j.FitAfter.Reasons
 	}
-	if len(j.Reasons) == 0 {
-		version, err := s.store.ApplyCatalogueEdit(ctx, in)
-		if err != nil {
-			writeSaveErr(w, err)
-			return true
-		}
-		out := map[string]any{"version": version}
-		if newReference {
-			s.newReferenceNames(ctx, id, newRef, out)
-		}
-		writeJSON(w, http.StatusOK, out)
-		return true
-	}
-	editID, err := s.store.HoldCatalogueEdit(ctx, in)
+	version, revID, err := s.store.ApplyCatalogueEditRevision(ctx, in)
 	if err != nil {
 		writeSaveErr(w, err)
 		return true
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"version": curVersion, "pending": true, "editId": editID, "url": store.CatalogueEditLink(editID),
-		"reasons": catalogueReasonsText(lang, j.Reasons),
-		"message": i18n.T(lang, "Your edit waits for review: the song stays as it is for everyone until it’s approved."),
-	})
+	out := map[string]any{"version": version, "revisionId": revID, "saved": i18n.T(lang, "Saved for everyone who plays it.")}
+	if newReference {
+		s.newReferenceNames(ctx, id, newRef, out)
+	}
+	writeJSON(w, http.StatusOK, out)
 	return true
 }
 
@@ -481,6 +507,8 @@ type catalogueEditView struct {
 	Lines     []songdiff.Line
 	Stale     bool // the song changed since its author's base
 	Mine      bool
+	// ToCheck: applied, and no reviewer has seen it yet (patrol).
+	ToCheck bool
 }
 
 func fitViewOf(lang, fit string, detail json.RawMessage) fitView {
@@ -506,6 +534,7 @@ func viewCatalogueEdit(lang string, e store.CatalogueEdit, me int64) catalogueEd
 	v.Changes = songdiff.Describe(e.BaseBody, e.Body)
 	v.Lines = songdiff.Lines(e.BaseBody, e.Body)
 	v.Stale = e.Status == store.EditPending && e.SongVersion != e.BaseVersion
+	v.ToCheck = e.Status == store.EditApplied && e.PatrolledAt == nil && e.RevertedAt == nil
 	return v
 }
 
@@ -530,6 +559,15 @@ func (s *Server) handleCatalogueReviewPage(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	toCheck, err := s.store.CatalogueEditsToCheck(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var checks []catalogueEditView
+	for _, e := range toCheck {
+		checks = append(checks, viewCatalogueEdit(lang, e, person.ID))
+	}
 	reports, err := s.store.OpenCatalogueReports(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -540,8 +578,8 @@ func (s *Server) handleCatalogueReviewPage(w http.ResponseWriter, r *http.Reques
 		views = append(views, viewCatalogueEdit(lang, e, person.ID))
 	}
 	data := map[string]any{
-		"Me": person, "Edits": views, "Reports": reports, "IsStaff": standing.Staff,
-		"NewcomerEdits": store.CatalogueNewcomerEdits, "TrustedEdits": store.CatalogueTrustedEdits,
+		"Me": person, "Edits": views, "Reports": reports, "IsStaff": standing.Staff, "ToCheck": checks,
+		"NewcomerEdits": store.CatalogueNewcomerEdits, "TrustedEdits": store.CatalogueTrustedEdits, "DailyLimit": store.CatalogueDailyLimit,
 	}
 	if standing.Staff {
 		data["Banned"], _ = s.store.CatalogueBannedPeople(ctx)
@@ -577,6 +615,7 @@ func (s *Server) handleCatalogueEditPage(w http.ResponseWriter, r *http.Request)
 	v := viewCatalogueEdit(s.langOf(w), *e, person.ID)
 	s.render(w, "catalogue_edit", map[string]any{
 		"Me": person, "Edit": v, "IsReviewer": standing.Reviewer() && (!v.Mine || standing.Staff), "IsStaff": standing.Staff,
+		"ToCheck": v.ToCheck,
 	})
 }
 
@@ -651,6 +690,52 @@ func (s *Server) handleDecideCatalogueEdit(approve bool) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": status})
 	}
+}
+
+// handlePatrolCatalogueEdit is POST /api/big-songbook/edits/{id}/patrol:
+// a reviewer saw an applied edit ("Looks good").
+func (s *Server) handlePatrolCatalogueEdit(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := s.store.PatrolCatalogueEdit(r.Context(), id, personFromContext(r).ID); err != nil {
+		s.catalogueDecisionErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"patrolled": true})
+}
+
+// handleRevertCatalogueEdit is POST /api/big-songbook/edits/{id}/revert,
+// {"note"}: a reviewer undoes an applied edit, its author told why; only
+// its changes are taken out when later edits came (409 when one changed
+// the same place: History then).
+func (s *Server) handleRevertCatalogueEdit(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req struct {
+		Note string `json:"note"`
+	}
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+	}
+	err = s.store.RevertCatalogueEdit(r.Context(), id, personFromContext(r).ID, req.Note)
+	if errors.Is(err, store.ErrConflict) {
+		httpError(w, http.StatusConflict, i18n.T(s.langOfRequest(r), "A later edit changed the same place: revert it from the song’s History."))
+		return
+	}
+	if err != nil {
+		s.catalogueDecisionErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"reverted": true})
 }
 
 // handleReportCatalogueSong is POST /api/big-songbook/songs/{id}/report,
@@ -744,6 +829,23 @@ func (s *Server) addCatalogueEditing(r *http.Request, person *store.Person, song
 	data["Catalogue"] = true
 	data["CanReport"] = rights.See
 	data["CatalogueGated"] = rights.Contribute && !rights.Edit
+	// What a save of theirs does, for the editor's note: live at once,
+	// always; checked by a reviewer afterwards unless they're its staff or
+	// a trusted editor (who have no daily limit either).
+	switch {
+	case rights.Edit:
+		data["CatalogueSaveMode"] = "staff"
+	case rights.Contribute:
+		data["CatalogueSaveMode"] = "open"
+		if standing, err := s.store.CatalogueStandingOf(r.Context(), person.ID); err == nil && standing.Trusted {
+			data["CatalogueSaveMode"] = "staff"
+		}
+	}
+	// Edit asks first, every time: fix the shared chart or work on a new
+	// version (edit_model.html).
+	if rights.Contribute || rights.Edit {
+		data["AskBeforeEdit"] = true
+	}
 	if e, err := s.store.PendingCatalogueEditOf(r.Context(), person.ID, songID); err == nil && e != nil {
 		data["CataloguePending"] = e
 	}

@@ -162,10 +162,12 @@ func TestMembersEditTheBandsSongInPlace(t *testing.T) {
 }
 
 // TestEditFromTheBandsSetlist: the catalogue's song in the band's
-// songbook and set list, opened from the set list by a member, doesn't
-// open the editor on the catalogue's song: Edit offers the band's version.
-// Making it repoints the set list and the songbook, and editing it
-// through ?setlist= saves the band's song, the catalogue's untouched.
+// songbook and set list, opened by a member from the set list, the band
+// or anywhere else, opens the editor on the shared song (the edit model,
+// docs/catalogue-edit-review.md): the band's arrangement is its own
+// choice, beside it (the ⋯ menu, the editor's note). Making it repoints
+// the set list and the songbook, and editing it through ?setlist= saves
+// the band's song, the catalogue's untouched.
 func TestEditFromTheBandsSetlist(t *testing.T) {
 	st := store.NewTestStore(t)
 	f := store.NewBandFixture(t, st)
@@ -176,11 +178,14 @@ func TestEditFromTheBandsSetlist(t *testing.T) {
 	for _, path := range []string{
 		fmt.Sprintf("/song/%d?setlist=%d", f.CatalogSong, f.SetlistID),
 		fmt.Sprintf("/song/%d?band=%d", f.CatalogSong, f.Band),
-		fmt.Sprintf("/song/%d", f.CatalogSong), // from home or a search: still the band's
+		fmt.Sprintf("/song/%d", f.CatalogSong), // from home or a search
 	} {
 		html := c.page(path)
-		if !strings.Contains(html, `data-edit-offer="band"`) || !strings.Contains(html, fmt.Sprintf(`data-band-id="%d"`, f.Band)) || !strings.Contains(html, `data-can-edit="false"`) {
-			t.Errorf("%s: no offer of the band's version", path)
+		if strings.Contains(html, "data-edit-offer") || !strings.Contains(html, `data-can-edit="true"`) {
+			t.Errorf("%s: Edit doesn't open the editor on the shared song", path)
+		}
+		if !strings.Contains(html, fmt.Sprintf(`data-arrangement-go data-action="band" data-band-id="%d"`, f.Band)) || !strings.Contains(html, "Make Other Lies’s arrangement…") {
+			t.Errorf("%s: the band's arrangement isn't offered beside it", path)
 		}
 	}
 	// Someone in no band that uses it: the catalogue's song, open to
@@ -489,19 +494,17 @@ func TestCatalogueSongs(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := "title: Le Vent\nartist: Someone\n\n[Verse]\nC\n"
-	// Its staff edit it in place, at once; anyone else's edit is weighed
-	// (catalogue_edits.go): a newcomer's waits for review (202).
+	// Its staff edit it in place, at once; anyone else's edit too, checked
+	// by a reviewer afterwards (catalogue_edits.go).
 	for _, c := range []struct {
-		who  int64
-		want bool
-	}{{f.Outsider, false}, {f.Core, false}, {admin, true}} {
+		who       int64
+		want      bool
+		wantSaved int
+	}{{f.Outsider, false, http.StatusOK}, {f.Core, false, http.StatusOK}, {admin, true, http.StatusOK}} {
 		if ok, err := st.CanEditVariant(ctx, c.who, f.CatalogSong); err != nil || ok != c.want {
 			t.Errorf("person %d: CanEditVariant = %v, %v; want %v", c.who, ok, err, c.want)
 		}
-		want := http.StatusAccepted
-		if c.want {
-			want = http.StatusOK
-		}
+		want := c.wantSaved
 		if w := as(t, st, c.who).saveRaw(f.CatalogSong, text); w.Code != want {
 			t.Errorf("person %d: PUT raw on the catalogue's song: %d, want %d", c.who, w.Code, want)
 		}

@@ -352,6 +352,14 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /big-songbook/edits/{id}", s.requireAuth(s.handleCatalogueEditPage))
 	mux.HandleFunc("POST /api/big-songbook/edits/{id}/approve", s.requireAuth(s.handleDecideCatalogueEdit(true)))
 	mux.HandleFunc("POST /api/big-songbook/edits/{id}/reject", s.requireAuth(s.handleDecideCatalogueEdit(false)))
+	// The edit model, patrol (catalogue_edits.go): an applied edit seen, or
+	// reverted with a note for its author.
+	mux.HandleFunc("POST /api/big-songbook/edits/{id}/patrol", s.requireAuth(s.handlePatrolCatalogueEdit))
+	mux.HandleFunc("POST /api/big-songbook/edits/{id}/revert", s.requireAuth(s.handleRevertCatalogueEdit))
+	// The edit model, fold back (foldback.go): an arrangement that is only
+	// a fix goes back to the shared chart, or is kept.
+	mux.HandleFunc("POST /api/variants/{id}/fold", s.requireAuth(s.handleFoldBack))
+	mux.HandleFunc("POST /api/variants/{id}/fold-keep", s.requireAuth(s.handleKeepArrangement))
 	mux.HandleFunc("POST /api/big-songbook/songs/{id}/report", s.requireAuth(s.handleReportCatalogueSong))
 	mux.HandleFunc("POST /api/big-songbook/reports/{id}/handled", s.requireAuth(s.handleHandleCatalogueReport))
 	mux.HandleFunc("POST /api/big-songbook/people/{id}/ban", s.requireAuth(s.handleCatalogueBan))

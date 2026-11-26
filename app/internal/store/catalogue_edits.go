@@ -25,14 +25,16 @@ import (
 // reference recording is the anchor: the HTTP layer weighs each edit
 // against it (httpapi/catalogue_edits.go: the "follows the recording"
 // check before and after, the structure, the lead-in, the Guitar Pro
-// sync, the key) and either applies it at once (ApplyCatalogueEdit) or
-// holds it for review (HoldCatalogueEdit): the song stays as it was for
-// everyone until a reviewer approves it (ApproveCatalogueEdit) or
-// rejects it with a note (RejectCatalogueEdit). Reviewers are the staff
-// (the site's admins) and trusted editors: CatalogueTrustedEdits
-// accepted edits or more. A newcomer's first CatalogueNewcomerEdits edits
-// wait for review whatever they change. Changing a song's recording
-// makes a new catalogue song for it (CreateRecordingVersion).
+// sync, the key) and applies it at once (ApplyCatalogueEdit), flagging
+// what's worth a look; reviewers check the applied edits afterwards
+// (patrol: PatrolCatalogueEdit, RevertCatalogueEdit). Since 2026-11-26
+// no edit is held: the pending ones left from before are still approved
+// (ApproveCatalogueEdit) or rejected (RejectCatalogueEdit), or replaced
+// by their author's next save. Reviewers are the staff (the site's
+// admins) and trusted editors: CatalogueTrustedEdits accepted edits or
+// more. Until trusted, CatalogueDailyLimit edits a day. Changing a
+// song's recording makes a new catalogue song for it
+// (CreateRecordingVersion).
 
 // The thresholds.
 const (
@@ -42,7 +44,14 @@ const (
 	// CatalogueTrustedEdits: this many accepted edits make a trusted
 	// editor, who reviews the others' and reverts any edit.
 	CatalogueTrustedEdits = 10
+	// CatalogueDailyLimit: someone not trusted yet has this many edits
+	// applied in a day (24 hours); the next ones wait for a reviewer.
+	CatalogueDailyLimit = 10
 )
+
+// acceptedEditSQL picks an accepted edit (e): applied or approved, and
+// not reverted within 7 days of it — what counts towards trust.
+const acceptedEditSQL = `e.status IN ('applied', 'approved') AND (e.reverted_at IS NULL OR e.reverted_at > e.created_at + interval '7 days')`
 
 // The statuses of a catalogue edit.
 const (
@@ -77,7 +86,8 @@ type CatalogueStanding struct {
 	Banned   bool // kept from editing it by its staff
 }
 
-// Newcomer: their edits wait for review whatever they change.
+// Newcomer: one of their first edits; applied like anyone's, and
+// flagged for the reviewers (docs/catalogue-edit-review.md §4.5).
 func (s CatalogueStanding) Newcomer() bool { return !s.Staff && s.Accepted < CatalogueNewcomerEdits }
 
 // Reviewer: they see the queue, approve and reject, revert any edit.
@@ -88,7 +98,7 @@ func (st *Store) CatalogueStandingOf(ctx context.Context, personID int64) (Catal
 	var s CatalogueStanding
 	err := st.db.QueryRow(ctx, `
 		SELECT p.is_admin, p.catalogue_banned_at IS NOT NULL,
-		       (SELECT count(*) FROM catalogue_edits e WHERE e.author_id = p.id AND e.status IN ('applied', 'approved'))
+		       (SELECT count(*) FROM catalogue_edits e WHERE e.author_id = p.id AND `+acceptedEditSQL+`)
 		FROM people p WHERE p.id = $1`, personID).Scan(&s.Staff, &s.Banned, &s.Accepted)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s, fmt.Errorf("no such person %d: %w", personID, ErrNotFound)
@@ -127,15 +137,23 @@ type CatalogueEdit struct {
 	DecidedAt       *time.Time
 	Note            string
 	CreatedAt       time.Time
+	// Patrol (migration 0141): an applied edit seen by a reviewer (or
+	// made by a trusted editor), or reverted.
+	PatrolledAt     *time.Time
+	PatrolledByName string
+	RevertedAt      *time.Time
+	RevertedByName  string
 }
 
 const catalogueEditCols = `e.id, e.song_id, s.title, s.artist, s.version, coalesce(e.author_id, 0), coalesce(a.display_name, ''),
 	e.status, e.base_version, e.base_body, e.title, e.artist, e.reference_url, e.body, e.summary, e.reasons,
 	e.fit_before, e.fit_after, e.fit_before_detail, e.fit_after_detail, e.revision_id,
-	e.decided_by, coalesce(d.display_name, ''), e.decided_at, e.note, e.created_at`
+	e.decided_by, coalesce(d.display_name, ''), e.decided_at, e.note, e.created_at,
+	e.patrolled_at, coalesce(pb.display_name, ''), e.reverted_at, coalesce(rb.display_name, '')`
 
 const catalogueEditFrom = ` FROM catalogue_edits e JOIN songs s ON s.id = e.song_id
-	LEFT JOIN people a ON a.id = e.author_id LEFT JOIN people d ON d.id = e.decided_by`
+	LEFT JOIN people a ON a.id = e.author_id LEFT JOIN people d ON d.id = e.decided_by
+	LEFT JOIN people pb ON pb.id = e.patrolled_by LEFT JOIN people rb ON rb.id = e.reverted_by`
 
 func scanCatalogueEdit(row pgx.Row) (*CatalogueEdit, error) {
 	var e CatalogueEdit
@@ -143,7 +161,8 @@ func scanCatalogueEdit(row pgx.Row) (*CatalogueEdit, error) {
 	err := row.Scan(&e.ID, &e.SongID, &e.SongTitle, &e.SongArtist, &e.SongVersion, &e.AuthorID, &e.AuthorName,
 		&e.Status, &e.BaseVersion, &e.BaseBody, &e.Title, &e.Artist, &e.ReferenceURL, &e.Body, &e.Summary, &e.Reasons,
 		&e.FitBefore, &e.FitAfter, &before, &after, &e.RevisionID,
-		&e.DecidedBy, &e.DecidedByName, &e.DecidedAt, &e.Note, &e.CreatedAt)
+		&e.DecidedBy, &e.DecidedByName, &e.DecidedAt, &e.Note, &e.CreatedAt,
+		&e.PatrolledAt, &e.PatrolledByName, &e.RevertedAt, &e.RevertedByName)
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +206,12 @@ func (st *Store) PendingCatalogueEdits(ctx context.Context) ([]CatalogueEdit, er
 	return st.catalogueEdits(ctx, `e.status = 'pending' ORDER BY e.created_at, e.id`)
 }
 
+// PendingCatalogueEditsOfSong is songID's edits waiting for a reviewer
+// (its suggestions), oldest first.
+func (st *Store) PendingCatalogueEditsOfSong(ctx context.Context, songID int64) ([]CatalogueEdit, error) {
+	return st.catalogueEdits(ctx, `e.status = 'pending' AND e.song_id = $1 ORDER BY e.created_at, e.id`, songID)
+}
+
 // PendingCatalogueEditOf is personID's edit of songID waiting for
 // review, nil when none.
 func (st *Store) PendingCatalogueEditOf(ctx context.Context, personID, songID int64) (*CatalogueEdit, error) {
@@ -205,9 +230,13 @@ type CatalogueEditInput struct {
 	BaseBody                          string
 	Title, Artist, ReferenceURL, Body string
 	Summary                           string
-	Reasons                           []string // why it waits; none: applied at once
+	Reasons                           []string // why it waits; on an applied edit, why it's worth a look
 	FitBefore, FitAfter               string
 	FitBeforeDetail, FitAfterDetail   any
+	// Patrolled: applied and seen as made (its author is trusted, and
+	// nothing in it is worth a look); otherwise it's listed in "Recent
+	// edits to check".
+	Patrolled bool
 }
 
 func jsonOrNil(v any) ([]byte, error) {
@@ -241,10 +270,12 @@ func insertCatalogueEdit(ctx context.Context, tx pgx.Tx, in CatalogueEditInput, 
 	var id int64
 	err = tx.QueryRow(ctx, `
 		INSERT INTO catalogue_edits (song_id, author_id, status, base_version, base_body, title, artist, reference_url, body,
-		                             summary, reasons, fit_before, fit_after, fit_before_detail, fit_after_detail, revision_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
+		                             summary, reasons, fit_before, fit_after, fit_before_detail, fit_after_detail, revision_id,
+		                             patrolled_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+		        CASE WHEN $17::boolean THEN now() END) RETURNING id`,
 		in.SongID, author, status, in.BaseVersion, in.BaseBody, in.Title, in.Artist, in.ReferenceURL, in.Body,
-		in.Summary, reasons, in.FitBefore, in.FitAfter, before, after, revisionID).Scan(&id)
+		in.Summary, reasons, in.FitBefore, in.FitAfter, before, after, revisionID, in.Patrolled && status == EditApplied).Scan(&id)
 	return id, err
 }
 
@@ -254,9 +285,16 @@ func insertCatalogueEdit(ctx context.Context, tx pgx.Tx, in CatalogueEditInput, 
 // waited for review, if any, is superseded. ErrConflict when the song
 // isn't at in.BaseVersion any more.
 func (st *Store) ApplyCatalogueEdit(ctx context.Context, in CatalogueEditInput) (string, error) {
+	version, _, err := st.ApplyCatalogueEditRevision(ctx, in)
+	return version, err
+}
+
+// ApplyCatalogueEditRevision is ApplyCatalogueEdit, with the revision it
+// kept (the song before it: its author's Undo reverts it).
+func (st *Store) ApplyCatalogueEditRevision(ctx context.Context, in CatalogueEditInput) (string, int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer tx.Rollback(ctx)
 	saved, err := saveSongTx(ctx, tx, SongSave{
@@ -264,23 +302,28 @@ func (st *Store) ApplyCatalogueEdit(ctx context.Context, in CatalogueEditInput) 
 		ExpectVersion: strconv.Itoa(in.BaseVersion), ActorID: in.AuthorID, Summary: in.Summary,
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE catalogue_edits SET status = 'superseded' WHERE song_id = $1 AND author_id = $2 AND status = 'pending'`,
 		in.SongID, in.AuthorID); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if _, err := insertCatalogueEdit(ctx, tx, in, EditApplied, &saved.revisionID); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return strconv.Itoa(saved.version), nil
+	// Not seen yet: the reviewers have recent edits to check.
+	if !in.Patrolled {
+		st.tellCatalogueReviewers(ctx, in.AuthorID)
+	}
+	return strconv.Itoa(saved.version), saved.revisionID, nil
 }
 
-// HoldCatalogueEdit keeps in for review: the song stays as it is; the
+// HoldCatalogueEdit keeps in for review (no save holds one since every
+// edit goes live, 2026-11-26: the rows left from before, and tests): the song stays as it is; the
 // author's earlier edit of it that waited is superseded; the reviewers
 // are told (once while the queue has items). Returns the edit's id.
 func (st *Store) HoldCatalogueEdit(ctx context.Context, in CatalogueEditInput) (int64, error) {
@@ -369,7 +412,7 @@ func (st *Store) ApproveCatalogueEdit(ctx context.Context, id, reviewerID int64,
 				return ErrConflict
 			}
 		}
-		body = songdiff.Merge(e.BaseBody, current, e.Body, func(string) bool { return true })
+		body = songdiff.MergeAll(e.BaseBody, current, e.Body)
 	}
 	parsed := song.Parse(body)
 	saved, err := saveSongTx(ctx, tx, SongSave{
@@ -454,7 +497,7 @@ func (st *Store) CatalogueReviewers(ctx context.Context) ([]int64, error) {
 		SELECT p.id FROM people p
 		WHERE p.catalogue_banned_at IS NULL
 		  AND (p.is_admin OR (SELECT count(*) FROM catalogue_edits e
-		                      WHERE e.author_id = p.id AND e.status IN ('applied', 'approved')) >= $1)
+		                      WHERE e.author_id = p.id AND `+acceptedEditSQL+`) >= $1)
 		ORDER BY p.id`, CatalogueTrustedEdits)
 	if err != nil {
 		return nil, err
@@ -522,13 +565,202 @@ func (st *Store) SeenCatalogueQueue(ctx context.Context, personID int64) error {
 	return err
 }
 
-// CatalogueQueueCount is how many edits and reports wait.
+// CatalogueQueueCount is how many edits to check, edits waiting and
+// reports there are.
 func (st *Store) CatalogueQueueCount(ctx context.Context) (int, error) {
 	var n int
 	err := st.db.QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM catalogue_edits WHERE status = 'pending')
+		     + (SELECT count(*) FROM catalogue_edits WHERE `+toCheckSQL+`)
 		     + (SELECT count(*) FROM catalogue_reports WHERE handled_at IS NULL)`).Scan(&n)
 	return n, err
+}
+
+// toCheckSQL picks an applied edit nobody has looked at yet.
+const toCheckSQL = `status = 'applied' AND patrolled_at IS NULL AND reverted_at IS NULL`
+
+// CatalogueEditsToCheck is "Recent edits to check": the applied edits
+// no reviewer has seen yet, newest first.
+func (st *Store) CatalogueEditsToCheck(ctx context.Context) ([]CatalogueEdit, error) {
+	return st.catalogueEdits(ctx, `e.status = 'applied' AND e.patrolled_at IS NULL AND e.reverted_at IS NULL
+		ORDER BY e.created_at DESC, e.id DESC`)
+}
+
+// CatalogueAppliedSince is how many of personID's catalogue edits were
+// applied since since (the daily limit).
+func (st *Store) CatalogueAppliedSince(ctx context.Context, personID int64, since time.Time) (int, error) {
+	var n int
+	err := st.db.QueryRow(ctx, `
+		SELECT count(*) FROM catalogue_edits WHERE author_id = $1 AND status = 'applied' AND created_at >= $2`,
+		personID, since).Scan(&n)
+	return n, err
+}
+
+// PatrolCatalogueEdit marks applied edit id seen by reviewerID ("Looks
+// good"): the staff or a trusted editor, not its author (but the staff).
+func (st *Store) PatrolCatalogueEdit(ctx context.Context, id, reviewerID int64) error {
+	e, err := st.CatalogueEditByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := st.mayReview(ctx, reviewerID, e); err != nil {
+		return err
+	}
+	tag, err := st.db.Exec(ctx, `
+		UPDATE catalogue_edits SET patrolled_at = now(), patrolled_by = $2
+		WHERE id = $1 AND `+toCheckSQL, id, reviewerID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrEditDecided
+	}
+	st.queueDrained(ctx)
+	return nil
+}
+
+// RevertCatalogueEdit undoes applied (or approved) edit id, for
+// reviewerID (the staff or a trusted editor, not its author but the
+// staff), with a note its author is told: the song goes back to what it
+// was before the edit where nothing changed since; when later edits came,
+// only this one's changes are taken out (songdiff.Merge), ErrConflict
+// when a later edit changed the same part (History reverts it by hand
+// then). A revision is kept, by the reviewer; the edit is marked
+// reverted (and seen).
+func (st *Store) RevertCatalogueEdit(ctx context.Context, id, reviewerID int64, note string) error {
+	e, err := st.CatalogueEditByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := st.mayReview(ctx, reviewerID, e); err != nil {
+		return err
+	}
+	if (e.Status != EditApplied && e.Status != EditApproved) || e.RevertedAt != nil || e.RevisionID == nil {
+		return ErrEditDecided
+	}
+	note = strings.TrimSpace(note)
+	tx, err := st.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var cur VariantSnapshot
+	var version int
+	if err := tx.QueryRow(ctx, `SELECT title, artist, reference_url, body, version FROM songs WHERE id = $1 FOR UPDATE`, e.SongID).
+		Scan(&cur.Title, &cur.Artist, &cur.ReferenceURL, &cur.Body, &version); err != nil {
+		return err
+	}
+	before, after, err := revisionAround(ctx, tx, e.SongID, *e.RevisionID, cur)
+	if err != nil {
+		return err
+	}
+	target := before
+	if cur.Body != after.Body || cur.Title != after.Title || cur.Artist != after.Artist || cur.ReferenceURL != after.ReferenceURL {
+		// Later edits: take this one's changes out of the song as it is.
+		for _, p := range songdiff.Plan(after.Body, cur.Body, before.Body) {
+			if p.Conflict {
+				return ErrConflict
+			}
+		}
+		target = cur
+		target.Body = songdiff.Merge(after.Body, cur.Body, before.Body, func(string) bool { return true })
+		if cur.Title == after.Title {
+			target.Title = before.Title
+		}
+		if cur.Artist == after.Artist {
+			target.Artist = before.Artist
+		}
+		if cur.ReferenceURL == after.ReferenceURL {
+			target.ReferenceURL = before.ReferenceURL
+		}
+	}
+	lang, _ := st.PersonLocale(ctx, reviewerID)
+	if lang == "" {
+		lang = "en"
+	}
+	summary := i18n.T(lang, "Reverted %s’s edit", orElse(e.AuthorName, "?"))
+	if note != "" {
+		summary += ": " + note
+	}
+	if _, err := saveSongTx(ctx, tx, SongSave{
+		SongID: e.SongID, Title: target.Title, Artist: target.Artist, ReferenceURL: target.ReferenceURL, Body: target.Body,
+		ExpectVersion: strconv.Itoa(version), ActorID: reviewerID, Summary: summary,
+	}); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE catalogue_edits SET reverted_at = now(), reverted_by = $2,
+		       patrolled_at = coalesce(patrolled_at, now()), patrolled_by = coalesce(patrolled_by, $2),
+		       note = CASE WHEN $3 = '' THEN note ELSE $3 END
+		WHERE id = $1`, id, reviewerID, note); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	e.Note = note
+	st.tellAuthorReverted(ctx, e)
+	st.queueDrained(ctx)
+	return nil
+}
+
+// revisionAround is the song before revision revID (its snapshot) and
+// right after it (the next revision's snapshot, or the song now, cur,
+// when it's the latest).
+func revisionAround(ctx context.Context, tx pgx.Tx, songID, revID int64, cur VariantSnapshot) (VariantSnapshot, VariantSnapshot, error) {
+	var before, after VariantSnapshot
+	var raw []byte
+	if err := tx.QueryRow(ctx, `SELECT snapshot FROM revisions WHERE id = $1`, revID).Scan(&raw); err != nil {
+		return before, after, err
+	}
+	if err := json.Unmarshal(raw, &before); err != nil {
+		return before, after, err
+	}
+	err := tx.QueryRow(ctx, `
+		SELECT n.snapshot FROM revisions r JOIN revisions n ON n.entity_type = r.entity_type AND n.entity_id = r.entity_id
+		  AND (n.created_at, n.id) > (r.created_at, r.id)
+		WHERE r.id = $1 ORDER BY n.created_at, n.id LIMIT 1`, revID).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return before, cur, nil
+	}
+	if err != nil {
+		return before, after, err
+	}
+	err = json.Unmarshal(raw, &after)
+	return before, after, err
+}
+
+// tellAuthorReverted tells an edit's author it was reverted, and why (the
+// reviewer's note).
+func (st *Store) tellAuthorReverted(ctx context.Context, e *CatalogueEdit) {
+	if e.AuthorID == 0 {
+		return
+	}
+	lang, _ := st.PersonLocale(ctx, e.AuthorID)
+	if lang == "" {
+		lang = "en"
+	}
+	body := i18n.T(lang, "Your edit of %s was reverted.", e.SongTitle)
+	if e.Note != "" {
+		body += " " + i18n.T(lang, "The reviewer’s note: %s", e.Note)
+	}
+	if _, err := st.CreateNotification(ctx, e.AuthorID, NotificationCatalogueEditDecided, body, CatalogueEditLink(e.ID)); err != nil {
+		log.Printf("catalogue edit %d: telling its author: %v", e.ID, err)
+	}
+}
+
+// markEditsReverted: revision revID of songID reverted in History (the
+// song back to before it): the catalogue edits it and the ones after it
+// made are reverted.
+func markEditsReverted(ctx context.Context, tx pgx.Tx, revID, actorID int64) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE catalogue_edits e SET reverted_at = now(), reverted_by = $2,
+		       patrolled_at = coalesce(e.patrolled_at, now()), patrolled_by = coalesce(e.patrolled_by, $2)
+		FROM revisions r, revisions x
+		WHERE r.id = $1 AND x.entity_type = r.entity_type AND x.entity_id = r.entity_id
+		  AND (x.created_at, x.id) >= (r.created_at, r.id) AND e.revision_id = x.id AND e.reverted_at IS NULL`,
+		revID, actorID)
+	return err
 }
 
 // MayRevertCatalogue reports whether personID may revert revisionID of
@@ -770,9 +1002,10 @@ func (st *Store) SetReferenceLabel(ctx context.Context, songID, personID int64, 
 	defer tx.Rollback(ctx)
 	var title, artist, ref, body, cur string
 	var catalogue bool
+	var version int
 	err = tx.QueryRow(ctx, `
-		SELECT title, artist, reference_url, body, version_name, `+catalogueSQL("s")+`
-		FROM songs s WHERE id = $1 FOR UPDATE`, songID).Scan(&title, &artist, &ref, &body, &cur, &catalogue)
+		SELECT title, artist, reference_url, body, version_name, `+catalogueSQL("s")+`, version
+		FROM songs s WHERE id = $1 FOR UPDATE`, songID).Scan(&title, &artist, &ref, &body, &cur, &catalogue, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("no such song %d: %w", songID, ErrNotFound)
 	}
@@ -789,9 +1022,13 @@ func (st *Store) SetReferenceLabel(ctx context.Context, songID, personID int64, 
 	if personID != 0 {
 		actor = &personID
 	}
-	if _, err := recordRevision(ctx, tx, "variant", strconv.FormatInt(songID, 10), actor, VariantSnapshot{
+	revID, err := recordRevision(ctx, tx, "variant", strconv.FormatInt(songID, 10), actor, VariantSnapshot{
 		Title: title, Artist: artist, ReferenceURL: ref, Body: body, VersionName: &cur,
-	}, summary); err != nil {
+	}, summary)
+	if err != nil {
+		return err
+	}
+	if err := setRevisionVersion(ctx, tx, revID, version); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE songs SET version_name = $2, version = version + 1 WHERE id = $1`, songID, label); err != nil {

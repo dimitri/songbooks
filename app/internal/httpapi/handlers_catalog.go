@@ -592,6 +592,13 @@ func (s *Server) handleUpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Saved over a version the song moved on from: merged with what
+	// changed since (merge_at_save.go).
+	merged, expect, ok := s.mergeAtSave(w, r, variantID, req.Body, req.ExpectVersion)
+	if !ok {
+		return
+	}
+	req.Body, req.ExpectVersion = merged, expect
 	// The Big Songbook's song: weighed against its recording first.
 	if s.catalogueSave(w, r, variantID, req.Title, req.Artist, req.ReferenceURL, req.Body, req.ExpectVersion) {
 		return

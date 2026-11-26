@@ -1,0 +1,144 @@
+{{/* The edit model (docs/catalogue-edit-review.md): Edit on The Big
+     Songbook's song always opens the editor on the shared song; an
+     arrangement is a separate, explicit choice for playing it
+     differently, made from the ⋯ menu, the phone's Song sheet or the
+     editor's note (handleSong's Arrangements). Each opens its dialog,
+     which says what an arrangement is for and points back to the fix.
+     song.js runs them (data-arrangement-open, data-arrangement-go,
+     data-arrangement-fix). */}}
+
+{{define "arrangement-label"}}{{if eq .Action "copy"}}{{t "Make my arrangement…"}}{{else}}{{t "Make %s’s arrangement…" .Name}}{{end}}{{end}}
+
+{{define "arrangement-menu-items"}}
+{{range $i, $o := .Arrangements}}<button type="button" role="menuitem" data-arrangement-open="arrangement-dialog-{{$i}}" aria-haspopup="dialog" title="{{t "play it your way: another form, your own intro, a groove the record doesn’t have"}}">{{template "icon-duplicate"}} {{template "arrangement-label" $o}}</button>{{end}}
+{{end}}
+
+{{define "arrangement-sheet-rows"}}
+{{range $i, $o := .Arrangements}}<button type="button" class="stack-sheet-row" data-arrangement-open="arrangement-dialog-{{$i}}" aria-haspopup="dialog">{{template "icon-duplicate"}} {{template "arrangement-label" $o}}</button>{{end}}
+{{end}}
+
+{{/* The editor note's link: the first arrangement offered (the page's
+     place's), opening its dialog. */}}
+{{define "arrangement-note-link"}}
+{{with .Arrangements}}{{with index . 0}}<button type="button" class="link-like" data-arrangement-open="arrangement-dialog-0">{{if eq .Action "copy"}}{{t "Make my arrangement instead"}}{{else}}{{t "Make %s’s arrangement instead" .Name}}{{end}}</button>{{end}}{{end}}
+{{end}}
+
+{{/* Edit's question on The Big Songbook's song (the user's decision on
+     #209): fix the shared chart to match its reference, or work on a new
+     version — whose: one's own, a band's, a community's, only those the
+     person may make (handleSong's Arrangements). Asked each time Edit is
+     opened on the song (no "don't ask again": situations change).
+     song.js runs it. */}}
+{{define "edit-question"}}
+<dialog class="edit-offer-dialog edit-question" id="edit-question" aria-labelledby="edit-question-title" data-variant-id="{{.VariantID}}">
+  <form method="dialog">
+    <h2 id="edit-question-title">{{if .RefHead.Kind}}{{t "This chart follows its reference recording"}}{{else}}{{t "This is the shared chart"}}{{end}}</h2>
+    {{with .RefHead}}{{if .Kind}}<p class="edit-question-ref">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="96" height="54" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}<span>{{if .Title}}{{.Title}}{{else if .Name}}{{.Name}}{{else}}{{t "Band recording"}}{{end}}</span></p>{{end}}{{end}}
+    <div class="edit-question-choices">
+      <button type="button" class="primary" data-edit-question-fix><strong>{{t "Fix it to match the reference"}}</strong><small>{{t "the shared chart, for everyone who plays it"}}</small></button>
+      {{if .Arrangements}}<button type="button" data-edit-question-version aria-expanded="false" aria-controls="edit-question-whose"><strong>{{t "Work on a new version"}}</strong><small>{{t "your own copy, to play it your way"}}</small></button>{{end}}
+    </div>
+    {{if .Arrangements}}
+    <div class="edit-question-whose" id="edit-question-whose" hidden>
+      <p>{{t "Whose version?"}}</p>
+      <div class="edit-question-whose-list">
+      {{range .Arrangements}}<button type="button" data-edit-question-go data-action="{{.Action}}"{{if .BandID}} data-band-id="{{.BandID}}"{{end}}{{if .CommunityID}} data-community-id="{{.CommunityID}}"{{end}}{{if .SongbookID}} data-songbook-id="{{.SongbookID}}"{{end}}>{{if eq .Action "copy"}}{{t "Mine"}}{{else}}{{t "%s’s" .Name}}{{end}}</button>{{end}}
+      </div>
+    </div>
+    {{end}}
+    <p class="hint">{{t "Your key stays your own either way."}}</p>
+    <p class="form-status" id="edit-question-status" role="status"></p>
+    <div class="form-actions"><button type="submit" value="cancel">{{t "Cancel"}}</button></div>
+  </form>
+</dialog>
+{{end}}
+
+{{define "arrangement-dialogs"}}
+{{if .AskBeforeEdit}}{{template "edit-question" .}}{{end}}
+{{range $i, $o := .Arrangements}}
+<dialog class="edit-offer-dialog arrangement-dialog" id="arrangement-dialog-{{$i}}" aria-labelledby="arrangement-title-{{$i}}" aria-describedby="arrangement-text-{{$i}}">
+  <form method="dialog">
+    <h2 id="arrangement-title-{{$i}}">{{if eq .Action "copy"}}{{t "Make my arrangement"}}{{else}}{{t "Make %s’s arrangement" .Name}}{{end}}</h2>
+    {{if .OwnSongID}}
+    <p id="arrangement-text-{{$i}}">{{t "%s has its own arrangement of this song; this page opened another one." .Name}}</p>
+    <p class="hint">{{t "Its songbook and set lists will open the band’s arrangement from now on."}}</p>
+    {{else}}
+    <p id="arrangement-text-{{$i}}">{{t "Play it your way: another form, your own intro, a groove the record doesn’t have. The arrangement stops following this chart: its changes are offered to it, never applied."}}</p>
+    <p class="hint">{{if eq .Action "band"}}{{t "%s gets its own arrangement, which every member can change. It takes this song’s place in the band’s songbook and set lists, in the same key; the original stays as it is." .Name}}{{else if eq .Action "community"}}{{if .Coaching}}{{t "%s gets its own arrangement, which the coach and the students it’s given to change together, each keeping their own key. It takes this song’s place in the repertoire and in the students’ and groups’ songbooks; the original stays as it is." .Name}}{{else}}{{t "%s gets its own arrangement, which whoever edits its repertoire can change. It takes this song’s place in the songbook, in the same key; the original stays as it is." .Name}}{{end}}{{else}}{{t "Your arrangement goes into My songbook, in this song’s place if it’s there. The catalogue’s song stays as it is."}}{{end}}</p>
+    <p class="hint arrangement-fix-hint">{{if eq .Action "copy"}}{{t "For a fix, edit the shared chart instead: everyone gets it, and your key stays."}}{{else}}{{t "For a fix, edit the shared chart instead: everyone gets it, %s included, and its key stays." .Name}}{{end}}</p>
+    {{end}}
+    <div class="form-actions">
+      <button type="submit" value="cancel">{{t "Cancel"}}</button>
+      {{if $.CanEditChart}}<button type="button" data-arrangement-fix>{{t "Edit the shared chart"}}</button>{{end}}
+      <button type="button" data-arrangement-go data-action="{{.Action}}"{{if .BandID}} data-band-id="{{.BandID}}"{{end}}{{if .CommunityID}} data-community-id="{{.CommunityID}}"{{end}}{{if .SongbookID}} data-songbook-id="{{.SongbookID}}"{{end}}>{{if eq .Action "copy"}}{{t "Make my arrangement"}}{{else}}{{t "Make %s’s arrangement" .Name}}{{end}}</button>
+    </div>
+    <p class="form-status" data-arrangement-status role="status"></p>
+  </form>
+</dialog>
+{{end}}
+{{end}}
+
+{{/* Merge at save (merge-save.js, httpapi/merge_at_save.go): the same
+     part edited by two people, asked once; a save merged, said. */}}
+{{define "merge-save"}}
+{{if or .CanEdit .CanEditChart}}
+<dialog class="edit-offer-dialog merge-dialog" id="merge-dialog" aria-labelledby="merge-title" aria-describedby="merge-text">
+  <form method="dialog">
+    <h2 id="merge-title">{{t "Two edits in the same place"}}</h2>
+    <p id="merge-text"></p>
+    <p class="hint">{{t "Everything else of both edits is kept. For each part, keep theirs or yours:"}}</p>
+    <div id="merge-conflicts"></div>
+    <div class="form-actions">
+      <button type="submit" value="cancel" formnovalidate>{{t "Cancel"}}</button>
+      <button type="button" class="primary" id="merge-go">{{t "Save"}}</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="edit-offer-dialog" id="merged-dialog" aria-labelledby="merged-title">
+  <form method="dialog">
+    <h2 id="merged-title">{{t "Saved, merged"}}</h2>
+    <p id="merged-text"></p>
+    <div class="form-actions"><button type="submit" class="primary" value="ok" autofocus>{{t "OK"}}</button></div>
+  </form>
+</dialog>
+<script src="/static/js/merge-save.js?v={{staticVersion}}" defer></script>
+{{end}}
+{{end}}
+
+{{/* Fold back (foldback.go): an arrangement of The Big Songbook's song
+     that is the same as the shared chart, or differs from it by a fix.
+     Its data: a store.FoldCandidate. fold-back.js sends the choice. */}}
+{{define "fold-offer"}}
+<div class="fold-offer" data-fold-id="{{.ForkID}}">
+  {{if eq .Kind "identical"}}
+  <p><strong>{{t "This arrangement is the same as the shared chart."}}</strong> {{t "Going back to it loses nothing: every songbook and set list of the arrangement opens the shared chart, in its key, and gets everyone’s fixes."}}</p>
+  {{else}}
+  <p><strong>{{tn (len .Changes) "This arrangement differs from the shared chart by %d change:" "This arrangement differs from the shared chart by %d changes:"}}</strong></p>
+  <ul class="original-change-list">{{range .Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>
+  <p class="hint">{{t "If it’s a fix, send it: the shared chart gets it, for everyone who plays it, and this arrangement goes back to it, keys kept."}}</p>
+  {{end}}
+  <div class="form-actions">
+    <button type="button" class="primary" data-fold-go{{if eq .Kind "fix"}} data-fold-send{{end}}>{{if eq .Kind "fix"}}{{t "Send the fix and use the shared chart"}}{{else}}{{t "Use the shared chart"}}{{end}}</button>
+    <button type="button" data-fold-keep>{{t "It’s our arrangement — keep it"}}</button>
+  </div>
+  <p class="form-status" role="status"></p>
+</div>
+{{end}}
+
+{{define "fold-offer-song"}}
+{{with .FoldOffer}}{{template "fold-offer" .}}<script src="/static/js/fold-back.js?v={{staticVersion}}" defer></script>{{end}}
+{{end}}
+
+{{/* On the home page: the person's arrangements that are only fixes. */}}
+{{define "home-fold-offers"}}
+<section class="home-section fold-offers" aria-labelledby="fold-offers-title">
+  <div class="home-section-head"><h3 id="fold-offers-title">{{t "Arrangements that are only fixes"}}</h3></div>
+  {{range .}}
+  <div class="fold-offer-row">
+    <p class="song-news-song"><a href="/song/{{.ForkID}}">{{.Title}}</a>{{with .Artist}}<span class="song-news-artist"> — {{.}}</span>{{end}} <span class="song-news-via">{{.OwnerName}}</span></p>
+    {{template "fold-offer" .}}
+  </div>
+  {{end}}
+</section>
+<script src="/static/js/fold-back.js?v={{staticVersion}}" defer></script>
+{{end}}

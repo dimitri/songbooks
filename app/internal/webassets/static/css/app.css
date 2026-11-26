@@ -10540,3 +10540,32 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
   .lesson-stage[data-has-video][data-tab="score"]:has(.lesson-panel) > .yt-audio { grid-column: 1; grid-row: 2; }
   .lesson-stage[data-has-video][data-tab="score"]:has(.lesson-panel):has(> .yt-audio) > .lesson-panel { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+/* ---- The edit model (docs/catalogue-edit-review.md): the editor's note
+   on The Big Songbook's song, its saved line (Undo, History). ---- */
+.catalogue-note-lead { margin: 0; font-size: 0.92rem; }
+.catalogue-saved-line { margin: 0; font-size: 0.88rem; color: var(--fg-muted); }
+.catalogue-saved-line [data-saved-text] { color: var(--fg); font-weight: 600; }
+.merge-conflict { border: 1px solid var(--border, #d8ccb8); border-radius: 6px; margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; }
+.merge-conflict label { display: block; margin: 0.2rem 0; }
+.merge-conflict pre { margin: 0.2rem 0 0 1.6rem; white-space: pre-wrap; font-size: 0.85rem; max-height: 8rem; overflow: auto; }
+.fold-offer { margin: 0.4rem 0 0.8rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-left: 3px solid var(--accent-ink); border-radius: 8px; font-size: 0.92rem; }
+.fold-offer p { margin: 0.2rem 0; }
+.fold-offer .form-actions { flex-wrap: wrap; }
+.fold-offer-row + .fold-offer-row { margin-top: 0.6rem; }
+.chart-reach { font-size: 0.88rem; }
+.chart-reach summary { cursor: pointer; color: var(--fg-muted); }
+.chart-reach ul { margin: 0.3rem 0; padding-left: 1.2rem; }
+.chart-reach p { margin: 0.2rem 0; }
+/* Edit's question on The Big Songbook's song (edit_model.html). */
+.edit-question .edit-question-ref { display: flex; align-items: center; gap: 0.6rem; margin: 0.2rem 0 0.6rem; font-size: 0.92rem; }
+.edit-question .edit-question-ref img { border-radius: 6px; flex: none; }
+.edit-question-choices { display: grid; gap: 0.5rem; }
+.edit-question-choices button { display: grid; justify-items: start; gap: 0.1rem; text-align: left; padding: 0.6rem 0.8rem; min-height: 3.2rem; }
+.edit-question-choices button small { font-weight: 400; opacity: 0.85; }
+.edit-question-whose { margin-top: 0.6rem; }
+.edit-question-whose p { margin: 0 0 0.3rem; font-weight: 600; }
+.edit-question-whose-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+@media (max-width: 520px) {
+  .edit-question-whose-list { display: grid; }
+}

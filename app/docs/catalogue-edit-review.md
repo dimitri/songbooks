@@ -1,7 +1,12 @@
 # Fixing a catalogue song: why Edit made a fork, and how to make "anyone fixes the shared song" the default
 
-Status: **review and recommendation** (2026-11-26), nothing built yet.
-Base: `review` (= `main` = production, migration 0139).
+Status: **implemented with deviations** (2026-11-26, branch
+`edit-model`, migrations 0141–0143): every step of §5 built; §7 below
+says what was decided, what differs from the plan, and what each path
+shows now. **Revised the same day by the user's decisions on #209**
+(§8): every edit goes live at once (no suggestions), and Edit asks
+first, fix or new version. Written as a review and recommendation the same day, on
+`review` (= `main` = production, migration 0139).
 Related: [ownership-model.md](ownership-model.md) (§5 arrangements, §11
 open edits), [coaching.md](coaching.md) ("A group works on one song").
 
@@ -507,7 +512,7 @@ The screens:
 Steps 1–2 make the reported path work and can ship together. Steps 3–6
 are independent of each other.
 
-## 6. Open questions
+## 6. Open questions (answered by §7's decisions)
 
 1. **Newcomers**: apply and patrol (recommended), or keep holding the
    first edits but show them to their author (a suggestion)? And is the
@@ -529,3 +534,215 @@ are independent of each other.
    version" near Edit? Teaching versions are frequent and legitimate.
 6. **Presence and live updates**: worth the realtime work for charts,
    or is merge-at-save enough?
+
+## 7. Built (2026-11-26)
+
+The user's decision: "Implement the full edit review", this document's
+recommendation and its 7 steps. The open questions (§6) weren't
+answered; the recommendations were taken, each a decision the user can
+overturn.
+
+### Decisions (overturnable)
+
+1. **Newcomers** (§6 q1): their fixes go live at once and are patrolled
+   afterwards (Wikipedia), with a daily limit (10 applied edits in 24
+   hours until trusted; the next ones wait). An account's very first
+   edit of a song none of its places holds (a passer-by's) waits for a
+   reviewer.
+2. **A band's own way** (q2): a member of a band that plays the song,
+   changing its sections or bars, is told before saving "This changes
+   the song's sections for everyone who plays it, <band> included. To
+   play it differently, make the band's arrangement instead", with
+   *Save for everyone*, *Make the band's arrangement…*, *Cancel*. A
+   hint, not a block.
+3. **Key name** (q3): a suggestion (identity), as the doc recommended.
+4. **Coaching** (q5): no extra "teaching version" button; the ⋯ menu's
+   *Make <community>'s arrangement…* covers it.
+5. **Presence** (q6): merge at save, no live presence.
+6. **Fold back, the tool**: `cmd/foldback` lists every arrangement of a
+   catalogue song by owner (dry run by default), and `--apply` folds back
+   the *identical* ones only. Fix-only ones are never folded by the
+   tool: their owners get the offer in the app (the fix is an edit of the
+   shared song, weighed like any). A folded arrangement is **deleted**,
+   the data-safe way the duplicates merge already uses (§7 of the
+   ownership model): everything that pointed at it moves to the original
+   (songbook entries with their keys, set list items, notes, practice),
+   its last state is a revision kept under its id and listed on the
+   original's history, a `song_merges` row (reason `foldback`) makes its
+   old link open the original. An arrangement with recordings or a
+   Guitar Pro file of its own (or a band recording matched to it) is
+   never folded.
+
+### Steps and commits
+
+1. **Stop forcing the fork**: Edit opens the shared song for everyone
+   who may fix it, from every place; the band/community offers no longer
+   clear the editor. The arrangements move to the ⋯ menu, the phone's
+   Song sheet and the editor's note, each with a dialog ("Play it your
+   way… For a fix, edit the shared chart instead" — *Edit the shared
+   chart* / *Make <band>'s arrangement*, no default). `bandEditOffer`
+   checks `MayMakeVersion` (a guest without the band's songbook right is
+   offered nothing) and takes no band from nowhere (one menu item per
+   band instead). The coaching dialog goes. Opened from a band that has
+   its own arrangement, the shared song points to it.
+2. **Wording**: the note says "One chart for everyone who plays this
+   song… keys stay each place's own, and History keeps every edit", the
+   place's own key ("<place> keeps its key: A."), what a save of the
+   viewer's does (never "at once" to someone whose edit waits). A save
+   applied answers its revision: "Saved for everyone who plays it ·
+   Undo · History". The band hint (decision 2).
+3. **Patrol** (migration 0141): `catalogue_edits.patrolled_at/by`,
+   `reverted_at/by`. "Recent edits to check" on the review page (newest
+   first, the diff, the fit before and after, why it's worth a look,
+   Looks good / Revert with a note). Trust counts edits not reverted
+   within 7 days; a History revert marks the edits it undoes reverted.
+4. **Suggestions**: held edits are suggestions shown in place to their
+   author (the sections they change marked "suggested", "See the song as
+   it is") and on the song to reviewers (Approve / Reject there). A mixed
+   save splits. A title or artist fix is a suggestion.
+5. **Merge at save** (migration 0142, `revisions.song_version`).
+6. **Fold back** (migration 0143, `songs.foldback_kept_at/by`): the
+   offer on the arrangement's page and on the home page, and
+   `cmd/foldback`.
+7. **Who plays this chart**, in the editor's note.
+
+### Deviations from the plan
+
+- **Merge granularity is the section** (a header field, a section, the
+  order of the sections), songdiff's existing three-way merge, not the
+  bar: two people changing different bars of one section are asked once
+  ("theirs or yours", the section's text each).
+- **A reference link fixed stays live** (patrolled), not a suggestion:
+  the "fix, or another recording?" question already guards it, and a
+  new link fetches its audio again (#206). Only the title and the artist
+  fixed are suggestions. The reference label stays editable at once
+  (§11), as before.
+- **A worse fit and a structure change without analysis are applied and
+  flagged**, as the table says; the doc's step 3 wording ("chord and
+  lyric edits are applied") was read with the table.
+- **The fold-back offer on the home page** is its own small section
+  under *Changes in your songs* ("Arrangements that are only fixes"),
+  not rows inside that list (its "Mark as seen" would hide them).
+- **Suggestions in place**: the author's song page and editor show the
+  song with their suggestion (merged over what changed since, where it
+  doesn't touch the same place); the changed sections are outlined
+  "suggested", not underlined bar by bar. A suggestion merged at
+  approval takes the title and artist too (`songdiff.MergeAll`).
+- **The legacy pending edits** (a newcomer's held before this) stay
+  pending: they show as their authors' suggestions; the next save by
+  their author takes their place, as before.
+- **Merge at save needs a revision of the version opened**: saves made
+  before migration 0142 have none, so a save over one of those versions
+  is refused as before (409, "copy your changes, reload").
+
+### What each path shows now
+
+Captured on a fresh copy of this review's demo cluster, at 1440 and 390,
+light, `cap/edit-model/after-<the name above>-{desktop,phone}.png` in the
+session scratchpad (the ones already named `after-…` are
+`after-after-…`):
+
+- **Site admin, band core (Lucas)** — set list, My songbook, catalogue,
+  community repertoire, lesson, the band with its own arrangement: the
+  editor on the shared song, the note offering *Make The Paper Lanterns'
+  arrangement instead* (or the place's: *Jam du Canal's*, *Studio
+  Lumen's*); the ⋯ menu lists each band's and his own
+  (`after-c-setlist-admin-lucas`, `after-b-mysongbook-admin-lucas`,
+  `after-a-catalogue-admin-lucas`, `after-d-community-admin-lucas`,
+  `after-f-lesson-admin-lucas`, `after-c-band-with-arrangement-admin-lucas`,
+  `after-x-menu-arrangements-admin-lucas`,
+  `after-x-arrangement-dialog-admin-lucas`).
+- **Band core (Margaux)**: the editor (`after-c-setlist-bandcore-margaux`);
+  a section added asks once (`after-x-structure-hint-bandcore-margaux`); a
+  chord and a lead-in: the chord live, the lead-in suggested
+  (`after-x-mixed-save-bandcore-margaux`), shown in place to her
+  (`after-x-suggestion-in-place-bandcore-margaux`), its page
+  (`after-x-suggestion-edit-page-bandcore-margaux`).
+- **Band guest (Jade)**: the editor; the ⋯ menu offers only *Make my
+  arrangement…* — no dead end (`after-c-setlist-bandguest-jade`,
+  `after-c-setlist-bandguest-jade-after-click`).
+- **Community editor (Grace)**: the editor, the community's arrangement
+  in the menu (`after-d-community-member-grace`).
+- **Coach (Inès), student (Oliver)**: the editor at once, no dialog;
+  *Make Studio Lumen's arrangement…* in the menu
+  (`after-e-coaching-coach-ines`, `after-e-coaching-student-oliver`).
+- **Course staff (Romain)**: the editor (`after-f-lesson-coursestaff-romain`).
+- **Newcomer (Camille)**, the song in her My songbook: the editor, her fix
+  live at once (`after-b-mysongbook-newcomer-camille-editor`, `…-saved`);
+  her held edit from before showed in place, then her fix took its place
+  (`…-pending-banner`, `after-after-pending-edit-page-newcomer-camille`).
+- **Stranger (Hazel)**: the editor, its note saying a passer-by's first
+  edit waits; "a fix, or another recording?" and the refused
+  transposition as before (`after-a-catalogue-stranger-hazel-editor`,
+  `…-fix-or-recording`, `…-transposed-refused`).
+- **Trusted (Oscar)**: live, "Saved for everyone who plays it · Undo ·
+  History" (`after-a-catalogue-trusted-oscar-editor`, `…-saved`); two
+  people editing: merged (`after-x-merged-trusted-oscar`), asked once
+  for the same section (`after-x-merge-conflict-trusted-oscar`); the
+  review page with "Recent edits to check"
+  (`after-after-review-queue-trusted-oscar`); a suggestion on the song
+  (`after-x-suggestion-on-song-reviewer-oscar`).
+- **After**: *Changes in your songs* (`after-after-home-changes-in-your-songs-admin-lucas`),
+  the arrangements that are only fixes (`after-x-home-fold-offers-admin-lucas`),
+  Nord Express's one-chord arrangement: the original's changes and the
+  fold-back offer (`after-after-arrangement-original-changed-admin-lucas`,
+  `after-x-fold-offer-admin-lucas`), History (`after-after-history-admin-lucas`).
+
+### The fold-back dry run (local demo)
+
+    foldback (dry run): 9 arrangements of The Big Songbook's songs
+    band "Nord Express" (16)
+      fix         song 336 "Harbour Lights Waltz" → original 335; 1 change: offered in the app
+    user "Margaux Chevalier" (48)
+      identical   songs 234, 235, 237, 239, 240: would move 1 songbook entry each
+      arrangement songs 236, 238, 241: left alone
+    identical 5, fix 1, arrangement 3; nothing changed
+
+Staging and production (3 identical personal arrangements of 8, and 1
+band arrangement that differs, per the coordinator) haven't been run:
+the user decides before `--apply` there.
+
+## 8. The user's decisions on #209 (2026-11-26)
+
+They overturn part of §7 (its decisions 1 and 3, step 4).
+
+1. **All edits go live at once.** The suggestion mechanism is gone: the
+   key's name, the lead-in, the Guitar Pro sync, a title or artist fixed,
+   the recording removed, a passer-by's first edit, the mixed-save split.
+   Every save by anyone allowed to edit applies, with Undo and History,
+   flagged for the reviewers' "Recent edits to check" (patrol kept: a
+   worse fit, a structure the recording can't check, the lead-in, the
+   Guitar Pro sync, the key's name, the title or artist, the recording
+   removed, a newcomer's edit). Until trusted, 10 edits a day: past it,
+   the save is refused (429) until the next day, nothing held.
+   - **The edits held before** (pending rows of the old rules) stay
+     pending, data-safe: reviewers still approve or reject them in the
+     queue ("edits waiting", shown only while there are any), their
+     author is told on the song that their earlier edit still waits,
+     and their next save takes its place (superseded, its text kept on
+     its page). None is applied blindly: a held edit may be a
+     passer-by's, and its base may be stale.
+   - Kept, as they aren't held edits: a whole-chart transposition
+     refused; the Guitar Pro file and audio staff-only; "a fix, or
+     another recording?" asked on a new reference, title or artist; the
+     band-member hint on a structure change.
+2. **Edit asks first** on a shared (catalogue) song, each time it's
+   opened: "This chart follows its reference recording" (its thumbnail
+   and title; "This is the shared chart" without one) — **Fix it to match
+   the reference** (primary: the editor on the shared chart, for
+   everyone) or **Work on a new version**, then whose: *Mine*, *<band>'s*,
+   *<community>'s* — only the owners the person may make one for, as the
+   ⋯ entries (which stay). "Your key stays your own either way." Not
+   asked by Undo, the arrangement dialogs' "Edit the shared chart", or a
+   reload with `?edit=1`. No "Don't ask again for this song": the user
+   removed it ("counterproductive; situations change"), so nothing is
+   stored for it and no migration was needed.
+
+Screenshots (1440 and 390, light), `cap/edit-model/v2-…`:
+`v2-edit-question-admin-lucas`, `v2-edit-question-whose-admin-lucas`
+(the band's and his own), `v2-edit-question-whose-student-oliver`
+(Studio Lumen's only), `v2-newcomer-save-live-camille` (a newcomer's fix:
+"Saved for everyone who plays it · Undo · History"),
+`v2-title-fix-asked-stranger-hazel` (a fix, or another recording?),
+`v2-title-fix-live-stranger-hazel` and `…-page-…` (the title live).
+

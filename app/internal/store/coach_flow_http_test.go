@@ -208,7 +208,7 @@ func TestCoachWorkflow(t *testing.T) {
 	// repertoire: it takes the link's place in every songbook of the
 	// community, each in its key.
 	path := fmt.Sprintf("/song/%d?songbook=%d", f.catalogue, f.repertoire)
-	if html := f.c.page(path); !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "change it together") {
+	if html := f.c.page(path); strings.Contains(html, "data-edit-offer") || !strings.Contains(html, `data-action="community"`) || !strings.Contains(html, "change together") {
 		t.Fatal("the coach: no coaching \"Make the community's version\" offer")
 	}
 	version := f.c.variantID(f.c.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", f.community, f.catalogue), map[string]int64{"songbookId": f.repertoire}))
@@ -269,17 +269,21 @@ func TestStudentWorkflow(t *testing.T) {
 	if w := f.o.do("GET", fmt.Sprintf("/songbooks/%d/export-songbook.pdf?keys=songbook", f.oliverBook), nil); w.Code != http.StatusOK {
 		t.Errorf("PDF in my keys: %d", w.Code)
 	}
-	// Edit offers the community's version, from his songbook and from
-	// elsewhere; never "my version" (his alone).
+	// Edit opens the shared song; the community's version is offered
+	// beside it, from his songbook and from elsewhere; never "my
+	// version" (his alone).
 	for _, p := range []string{fromBook, fmt.Sprintf("/song/%d", f.catalogue)} {
 		html := f.o.page(p)
-		if !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "change it together") {
+		if strings.Contains(html, "data-edit-offer") || !strings.Contains(html, `data-action="community"`) || !strings.Contains(html, "change together") {
 			t.Errorf("%s: Oliver isn't offered the community's version", p)
+		}
+		if strings.Contains(html, `data-action="copy"`) {
+			t.Errorf("%s: Oliver is offered his own arrangement", p)
 		}
 	}
 	// Not of a song he isn't given (the repertoire's other), nor from
 	// Poppy's songbook (he can't open it: the context is dropped).
-	if html := f.o.page(fmt.Sprintf("/song/%d?songbook=%d", f.other, f.repertoire)); strings.Contains(html, `data-edit-offer="community"`) {
+	if html := f.o.page(fmt.Sprintf("/song/%d?songbook=%d", f.other, f.repertoire)); strings.Contains(html, `data-action="community"`) {
 		t.Error("Oliver is offered the community's version of a song he isn't given")
 	}
 	if w := f.o.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", f.community, f.other), map[string]int64{"songbookId": f.repertoire}); w.Code != http.StatusForbidden {
@@ -369,15 +373,15 @@ func TestStudentWorkflow(t *testing.T) {
 	}
 
 	// A site admin who is a student there: from their songbook, the
-	// community's version too (not the catalogue's song in place); from
+	// catalogue's song in place, the community's version beside it; from
 	// elsewhere, the catalogue's song is theirs to edit in place.
 	if err := st.AddToSongbook(ctx, f.adminBook, f.other, f.coach); err != nil {
 		t.Fatal(err)
 	}
-	if html := f.a.page(fmt.Sprintf("/song/%d?songbook=%d", f.other, f.adminBook)); !strings.Contains(html, `data-edit-offer="community"`) {
-		t.Error("the admin student, from their songbook: no community's version offered")
+	if html := f.a.page(fmt.Sprintf("/song/%d?songbook=%d", f.other, f.adminBook)); !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, "data-edit-offer") || !strings.Contains(html, `data-action="community"`) {
+		t.Error("the admin student, from their songbook: not the editor, or no community's version offered beside it")
 	}
-	if html := f.a.page(fmt.Sprintf("/song/%d", f.other)); !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, `data-edit-offer="community"`) {
+	if html := f.a.page(fmt.Sprintf("/song/%d", f.other)); !strings.Contains(html, `data-can-edit="true"`) || strings.Contains(html, "data-edit-offer") {
 		t.Error("the admin student, from elsewhere: not the catalogue's editor")
 	}
 }

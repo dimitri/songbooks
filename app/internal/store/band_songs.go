@@ -65,6 +65,27 @@ func (st *Store) BandVersionOf(ctx context.Context, personID, variantID int64) (
 	return m[variantID], nil
 }
 
+// BandArrangementOf is bandID's own arrangement of songID (a song of the
+// band's made from it, forked_from_id), when personID is a current member
+// of the band: the shared song's page, opened from the band, points to it.
+// nil when there's none.
+func (st *Store) BandArrangementOf(ctx context.Context, personID, bandID, songID int64) (*BandVersion, error) {
+	v := BandVersion{VariantID: songID, BandID: bandID}
+	err := st.db.QueryRow(ctx, `
+		SELECT b.name, s.id FROM songs s
+		JOIN bands b ON b.id = s.owner_band_id
+		JOIN band_members bm ON bm.band_id = b.id AND bm.person_id = $1 AND upper_inf(bm.validity)
+		WHERE s.owner_band_id = $2 AND s.forked_from_id = $3 AND s.frozen_at IS NULL
+		ORDER BY s.id LIMIT 1`, personID, bandID, songID).Scan(&v.BandName, &v.BandVariantID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
 // BandHold is a band that uses a song it doesn't own: the song is in one
 // of the band's songbooks or set lists. OwnSongID is the band's own copy
 // of it when the band already has one (forked_from_id), else 0.

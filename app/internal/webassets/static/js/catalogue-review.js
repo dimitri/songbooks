@@ -27,6 +27,19 @@
     }));
   });
 
+  // Patrol: an applied edit seen, or reverted (a note for its author).
+  document.querySelectorAll('form.catalogue-edit-patrol').forEach((form) => {
+    form.addEventListener('submit', (e) => e.preventDefault());
+    form.querySelectorAll('[data-patrol]').forEach((btn) => btn.addEventListener('click', () => {
+      const revert = btn.dataset.patrol === 'revert';
+      Forms.run(form, btn, async () => {
+        await post(`/api/big-songbook/edits/${form.dataset.editId}/${revert ? 'revert' : 'patrol'}`, revert ? { note: form.elements.note?.value || '' } : {});
+        const item = form.closest('.catalogue-review-item');
+        if (item) item.remove(); else location.reload();
+      });
+    }));
+  });
+
   document.querySelectorAll('[data-report-handled]').forEach((btn) => btn.addEventListener('click', () => {
     Forms.run(btn.parentElement, btn, async () => {
       await post(`/api/big-songbook/reports/${btn.dataset.reportHandled}/handled`);

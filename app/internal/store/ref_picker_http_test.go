@@ -222,8 +222,8 @@ func TestReferenceFromPicker(t *testing.T) {
 	if v, _ := st.GetVariant(ctx, f.CatalogSong); w.Code != http.StatusOK || v.VersionName != "Acoustic" || strings.Contains(w.Body.String(), "referenceLabel") {
 		t.Errorf("a label kept: %d %s %q", w.Code, w.Body.String(), v.VersionName)
 	}
-	// A newcomer's fix: held for review, as before.
-	if w := me.putRef(f.CatalogSong, live, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusAccepted {
+	// A newcomer's fix: live too (every edit is), checked afterwards.
+	if w := me.putRef(f.CatalogSong, live, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusOK {
 		t.Errorf("a newcomer's fix: %d %s", w.Code, w.Body.String())
 	}
 }
