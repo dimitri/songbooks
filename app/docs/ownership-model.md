@@ -66,8 +66,10 @@ same work.
 - Editing in place: the person; a band's current members (core and
   guest); a community's members with the "edit repertoire" right; for
   the global community's songs (the catalogue), **everyone signed in**,
-  each edit weighed against the song's reference recording and applied
-  at once or held for review, its staff (site admins) at once (§11). In
+  from every place the song is opened from (the edit model, §11 and
+  [catalogue-edit-review.md](catalogue-edit-review.md)): live at once
+  and checked by reviewers afterwards, what identifies the song a
+  suggestion, its staff (site admins) at once. In
   a **coaching** community, the coach (its staff) and, for each of its
   songs, the students it's given to (their student songbook holds it,
   or the songbook of a group of theirs: every member edits the group's
@@ -147,7 +149,26 @@ entry, note).
 - On a linked song, **Edit** offers "Make Mercy's arrangement" (a band),
   "Make my arrangement" (a person), "Make the community's arrangement";
   on an arrangement already the band's, Edit edits it, and "New
-  arrangement from this" makes another.
+  arrangement from this" makes another. **The catalogue's songs
+  (2026-11-26, the edit model)**: Edit always opens the editor on the
+  shared song, from every place; "Make Mercy's arrangement…", "Make the
+  community's arrangement…", "Make my arrangement…" are their own
+  choices, in the ⋯ menu (the phone's Song sheet) and the editor's note,
+  each saying what an arrangement is for (playing it differently) and
+  pointing back to the fix; offered only to who may make it (not a band
+  guest without the band's "edit songbook" right). A member of a band
+  that plays the song, changing its sections, is told once it changes
+  the song for the band too (a hint, not a gate).
+- **Fold back** (2026-11-26): an arrangement of a catalogue song that is
+  the same as the shared chart, or differs from it by a fix (a few
+  changes, the same sections and bars, no name), is offered to its
+  editors — on its page and their home page — "Use the shared chart" /
+  "Send the fix and use the shared chart" / "It's our arrangement — keep
+  it". Folding moves its songbook entries (keys kept), set list items
+  and notes to the original; it goes, its history kept and its old link
+  opening the original (song_merges, reason 'foldback'). Never one with
+  recordings or a Guitar Pro file of its own. `cmd/foldback` lists them
+  by owner (a dry run) and folds back the identical ones (`--apply`).
 - **When the song an arrangement came from changes**: the arrangement's
   page shows what changed, to take the change or keep theirs (the same
   idea as the Guitar Pro drift check); its editors see it in **Changes
@@ -226,7 +247,8 @@ Done by a reviewed command with a dry run first (like `bandsongs`).
 5. "Follows the recording" **flags only**: a badge or a warning; songs
    can be public either way; staff use it to tidy The Big Songbook.
    Since §11 it also weighs the edits of the catalogue's songs: one that
-   makes the fit worse waits for review.
+   makes the fit worse is flagged for the reviewers (it waited for review
+   until the edit model, 2026-11-26).
 6. Keys on the entry; any change to a linked song an arrangement,
    several per band, one row each; the original's changes offered to
    its arrangements;
@@ -237,6 +259,12 @@ Done by a reviewed command with a dry run first (like `bandsongs`).
 
 The catalogue's songs (The Big Songbook's) are everyone's, so anyone
 signed in fixes them — and nothing is lost.
+
+*Amended 2026-11-26 by the edit model* (end of this section, and
+[catalogue-edit-review.md](catalogue-edit-review.md)): edits are live at
+once and patrolled afterwards instead of held; what identifies the song
+is a suggestion; saves merge; fix-only arrangements fold back. Where a
+bullet below says "waits for review", read that section.
 
 - **Who**: everyone signed in edits a catalogue song's chart in place
   (Edit opens the editor; "Make my arrangement instead" is beside it). The
@@ -326,3 +354,51 @@ signed in fixes them — and nothing is lost.
   `catalogue_edits` (every edit by someone not staff: applied, pending,
   approved, rejected, superseded; accepted ones count towards trust),
   `catalogue_reports`.
+
+### The edit model (2026-11-26)
+
+Built from [catalogue-edit-review.md](catalogue-edit-review.md) (the
+user's decision: "implement the full edit review"). One shared, live,
+editable chart per song; a fix never needs a copy.
+
+- **Edit opens the shared song** from every place — the catalogue, a
+  search, home, My songbook, a band's songbook or set list, a
+  repertoire, a coaching songbook, a lesson — for everyone signed in and
+  not kept from editing, a band guest and a student included. The
+  arrangements are explicit choices beside it (§5). The editor's note:
+  "One chart for everyone who plays this song", the place's key kept,
+  what a save of the viewer's does, who plays the chart (songbooks, set
+  lists, arrangements offered the fix; the viewer's own places named
+  with their keys), and after a save "Saved for everyone who plays it ·
+  Undo · History".
+- **Patrol instead of holding** (migration 0141): chords, lyrics and
+  sections go live at once, a newcomer's too; the staff and trusted
+  editors check them afterwards in "Recent edits to check" (Looks good,
+  or Revert with a note its author is told: only that edit's changes
+  taken out when later edits came, History when one touched the same
+  place). Flagged for a look: a worse fit against an analysed recording,
+  a structure change the recording can't check, a newcomer's edit. Wait
+  for a reviewer: a passer-by's very first edit (of a song none of their
+  places holds), and edits past 10 a day until trusted. Trust: 10
+  accepted edits, an applied edit reverted within 7 days not counted; a
+  History revert marks the edits it undoes reverted.
+- **Suggestions**: the key's name, the lead-in, the Guitar Pro sync, a
+  title or artist fixed, removing the recording are suggestions (pending
+  catalogue edits): their author sees them in place on the song (and
+  plays them; the song as it is one click away), reviewers see them on
+  the song and in the queue. A mixed save splits: the chart's changes
+  live, the protected part suggested.
+- **Merge at save** (migration 0142, `revisions.song_version`): a save
+  over a version someone else moved on from is merged by the song's
+  parts (header fields, sections, their order, title and artist);
+  different parts silently, the same part asked once ("theirs or
+  yours"). Every song's chart, not only the catalogue's. No live
+  presence.
+- **Fold back** (migration 0143, §5): fix-only arrangements offered to go
+  back to the shared chart; `cmd/foldback`.
+- Unchanged: keys per place, revisions and History, revert, *Changes in
+  your songs*, the arrangements' "take the original's changes" offer,
+  the Guitar Pro file and recordings staff-only, a whole-chart
+  transposition refused, "a fix, or another recording?" (another
+  recording a new song, never held), a reference change fetching its
+  audio again.

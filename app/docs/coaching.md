@@ -367,12 +367,15 @@ one's (the student's songbook entry, `semitones`): editing the song
 never moves it.
 
 - **A linked song** (the repertoire links a catalogue song, as Chloé
-  Paul's do): the first edit, by the coach, by a student it's given to or
-  by a member of a group it's given to, offers *Make the community's
-  version* — beside *Fix the catalogue's song*, the catalogue's own rules
-  ("A group works on one song" below) — (from any of the community's
-  songbooks, the student's own included, or from no songbook at all: the
-  song opened from search or home). The version replaces the link in
+  Paul's do): Edit fixes the catalogue's song itself, under the
+  catalogue's own rules ("A group works on one song" below; the edit
+  model, [catalogue-edit-review.md](catalogue-edit-review.md)); *Make
+  the community's arrangement…* is its own choice, in the ⋯ menu (the
+  phone's Song sheet) and the editor's note, for the coach, a student it's
+  given to or a member of a group it's given to (from any of the
+  community's songbooks, the student's own included, or from no songbook
+  at all: the song opened from search or home). No separate "teaching
+  version" button: that menu item is it. The version replaces the link in
   **every** songbook of the community — the repertoire, each student's,
   each group's, their keys kept — and the community's requests,
   practice assignments, logs, takes, notes and event programs follow it
@@ -390,9 +393,10 @@ never moves it.
 - **What goes with it**: its Guitar Pro file and recordings are the
   song's, shared with the coach and the students it's given to; a closed
   (paid) songbook's rules don't change.
-- **A site admin who is a student there** (the app's owner): from their
-  student songbook, the same offer; from elsewhere, the catalogue's song
-  is theirs to edit in place (they're The Big Songbook's staff).
+- **A site admin who is a student there** (the app's owner): the
+  catalogue's song is theirs to edit in place from everywhere (they're
+  The Big Songbook's staff); from their student songbook, the
+  community's arrangement is offered beside it.
 
 ## A group works on one song
 
@@ -429,15 +433,16 @@ except for the key."
 - **A linked catalogue song** (The Big Songbook's, linked into the
   community) stays under the catalogue's rules (docs/ownership-model.md
   §5, §11): a group member is no more its editor than anyone signed in.
-  Edit says so and offers two ways, by what the change is:
-  - **Fix the catalogue's song**: a wrong chord, a typo, a section the
-    recording plays — the catalogue's song itself, edited in place as
-    anyone may (*What did you change?*, its key locked), applied at once
-    or held for review (a newcomer's first edits wait); everyone who
-    has it, the community included, gets it once applied. The editor's
-    note offers *Make the community's arrangement instead*, never
-    *Make my arrangement* (a copy of one's own).
-  - **Make the community's arrangement** (the primary button): a change
+  Two ways, by what the change is (the edit model, 2026-11-26: no dialog
+  first any more):
+  - **Edit fixes the catalogue's song**: a wrong chord, a typo, a
+    section the recording plays — the catalogue's song itself, edited in
+    place as anyone may (*What did you fix?*, its key locked), live at
+    once and checked by a reviewer afterwards (a student who has it is a
+    player); everyone who has it, the community included, gets it. The
+    editor's note offers *Make the community's arrangement instead*,
+    never *Make my arrangement* (a copy of one's own).
+  - **Make the community's arrangement…** (the ⋯ menu): a change
     the studio's way — a chord grid to play while singing, a Guitar Pro
     file (the catalogue's are its staff's), a shorter form. The
     community's song, made once (store.MakeVersion), takes the link's
