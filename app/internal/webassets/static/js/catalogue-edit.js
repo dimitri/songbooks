@@ -116,6 +116,61 @@
     });
   }
 
+  // A band member changing the sections (428 structureHint): the song
+  // changes for everyone, the band included. Save for everyone, or the
+  // band's arrangement (its dialog, edit_model.html), or not at all.
+  const structure = document.getElementById('catalogue-structure-dialog');
+  structure?.addEventListener('keydown', (e) => e.stopPropagation());
+  function confirmStructure(data) {
+    if (!structure) return Promise.resolve({ 'X-Structure-Confirmed': '1' });
+    document.getElementById('catalogue-structure-text').textContent = data.message || '';
+    const arrange = document.getElementById('catalogue-structure-arrange');
+    const bandOffer = document.querySelector('.arrangement-dialog [data-arrangement-go][data-action="band"]')?.closest('dialog');
+    arrange.hidden = !bandOffer;
+    return new Promise((resolve) => {
+      let answer = null;
+      let settled = false;
+      const settle = () => { if (!settled) { settled = true; resolve(answer); } };
+      structure.querySelector('button[value=cancel]').onclick = (e) => { e.preventDefault(); structure.close(); settle(); };
+      structure.addEventListener('cancel', settle, { once: true });
+      structure.addEventListener('close', settle, { once: true });
+      document.getElementById('catalogue-structure-go').onclick = () => {
+        answer = { 'X-Structure-Confirmed': '1' };
+        structure.close();
+        settle();
+      };
+      arrange.onclick = () => {
+        structure.close();
+        settle();
+        if (bandOffer && !bandOffer.open) bandOffer.showModal();
+      };
+      structure.showModal();
+    });
+  }
+
+  // Saved (200): for everyone who plays it, at once — Undo (its author
+  // reverts their edit while it's the latest) and History, in the note.
+  const savedLineEl = document.getElementById('catalogue-saved-line');
+  function savedLine(data) {
+    if (!savedLineEl || !data || !data.revisionId) return;
+    savedLineEl.querySelector('[data-saved-text]').textContent = data.saved || t('Saved.');
+    const undo = savedLineEl.querySelector('[data-saved-undo]');
+    undo.hidden = false;
+    undo.onclick = async () => {
+      Forms.busy(undo, true);
+      const res = await nativeFetch(`/api/revisions/${data.revisionId}/revert`, { method: 'POST' }).catch(() => null);
+      Forms.busy(undo, false);
+      if (!res || !res.ok) {
+        savedLineEl.querySelector('[data-saved-text]').textContent = t('Couldn’t undo it: someone edited the song since. Open History.');
+        undo.hidden = true;
+        return;
+      }
+      window.songbooksEditorClean?.();
+      location.reload();
+    };
+    savedLineEl.hidden = false;
+  }
+
   window.fetch = async function (input, init) {
     const url = typeof input === 'string' ? input : input?.url;
     const method = String(init?.method || 'GET').toUpperCase();
@@ -126,14 +181,21 @@
     const summary = summaryInput?.value.trim();
     if (summary) headers.set('X-Edit-Summary', encodeURIComponent(summary));
     let res = await nativeFetch(input, { ...init, headers });
-    if (res.status === 428) {
-      const answer = await choose(await res.clone().json().catch(() => ({})));
+    // Asked first (428), each question once: a new reference, title or
+    // artist (a fix, or another recording?); a band member changing the
+    // sections (for everyone, or the band's arrangement?).
+    for (let asked = 0; res.status === 428 && asked < 3; asked++) {
+      const data = await res.clone().json().catch(() => ({}));
+      const answer = data.structureHint ? await confirmStructure(data) : await choose(data);
       if (!answer) return new Response(JSON.stringify({ error: t('Not saved.') }), { status: 400, headers: { 'Content-Type': 'application/json' } });
       Object.entries(answer).forEach(([k, v]) => headers.set(k, v));
       res = await nativeFetch(input, { ...init, headers });
     }
     if (res.status !== 201 && res.status !== 202 && res.status !== 422) {
-      if (res.ok && summaryInput) summaryInput.value = '';
+      if (res.ok) {
+        if (summaryInput) summaryInput.value = '';
+        res.clone().json().then(savedLine).catch(() => {});
+      }
       return res;
     }
     const data = await res.clone().json().catch(() => ({}));

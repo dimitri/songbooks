@@ -3325,7 +3325,43 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	data["SongTunings"] = songTunings(gp.Facts, s.langOf(w))
 	data["SongTitle"] = data["Title"]
 	data["SongCapo"] = songCapo(sg.Get("capo"))
+	data["EditPlaceKey"] = editPlaceKeyOf(data, songKeyName(sg), s.langOf(w))
 	s.render(w, "song", data)
+}
+
+// editPlaceKey is the place a catalogue song was opened from, when it
+// keeps the song in a key of its own: the editor's note says the fix
+// leaves that key as it is.
+type editPlaceKey struct {
+	Place, Key string
+}
+
+// editPlaceKeyOf is that, from the page's data (a songbook's, a
+// student's or a group's, an event's key), or nil.
+func editPlaceKeyOf(data map[string]any, songKey, lang string) *editPlaceKey {
+	if data["Catalogue"] != true {
+		return nil
+	}
+	n, _ := data["StudentKey"].(int)
+	if set, _ := data["StudentKeySet"].(bool); !set || n == 0 {
+		return nil
+	}
+	k := &editPlaceKey{Key: chordsym.KeyIn(songKey, n)}
+	if sk, ok := data["SongbookKey"].(*songbookKeyLine); ok && sk != nil {
+		k.Place = sk.Songbook
+		if sk.Mine || k.Place == "" {
+			k.Place = i18n.T(lang, "your songbook")
+		}
+		if k.Key == "" {
+			k.Key = sk.Label
+		}
+	} else if c, _ := data["KeyContext"].(string); c != "" {
+		k.Place = c
+	}
+	if k.Place == "" || k.Key == "" {
+		return nil
+	}
+	return k
 }
 
 // songCoachingContext is the coaching community a song page was opened in,

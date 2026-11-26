@@ -5,18 +5,23 @@
 
 {{define "icon-flag"}}<svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17.5V3.5"/><path d="M5 4h9.5l-2 3.5 2 3.5H5"/></svg>{{end}}
 
-{{/* In the editor, on The Big Songbook's song: whose it is, how an edit
-     goes in, the summary asked at save (catalogue-edit.js sends it), its
-     key locked, and one's own version instead. */}}
+{{/* In the editor, on The Big Songbook's song (the edit model,
+     docs/catalogue-edit-review.md): one chart for everyone who plays
+     it, each place keeping its key; what a save of theirs does
+     (CatalogueSaveMode); the summary asked at save (catalogue-edit.js
+     sends it), and after a save, Undo and History; an arrangement
+     instead, for playing it differently. */}}
 {{define "catalogue-edit-note"}}
-<div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}>
-  <p class="hint">{{if .CatalogueGated}}{{t "The Big Songbook’s song: your edit changes it for everyone. An edit that keeps it following its recording is applied at once; one that changes its structure or makes it follow the recording less well waits for review."}}{{else}}{{t "The Big Songbook’s song: your edit changes it for everyone, at once."}}{{end}}
+<div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}{{with .CatalogueSaveMode}} data-save-mode="{{.}}"{{end}} data-variant-id="{{.VariantID}}">
+  <p class="catalogue-note-lead"><strong>{{t "One chart for everyone who plays this song."}}</strong> {{t "Your fix reaches every songbook and set list that has it; keys stay each place’s own, and History keeps every edit."}}{{with .EditPlaceKey}} {{t "%s keeps its key: %s." .Place .Key}}{{end}}</p>
+  <p class="hint">{{if eq .CatalogueSaveMode "newcomer"}}{{t "Your first edits wait for a reviewer: the song stays as it is for everyone until then, and you find yours on its page."}}{{else if eq .CatalogueSaveMode "open"}}{{t "Your edit goes live at once when it keeps the chart following its recording; a change of the sections the recording can’t check, of the key’s name, the lead-in or the Guitar Pro sync waits for a reviewer."}}{{else}}{{t "Your edit goes live at once."}}{{end}}
     {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
     {{template "arrangement-note-link" .}}</p>
   <label class="catalogue-summary-field">
-    <span>{{t "What did you change?"}} <span class="field-optional">{{t "(optional)"}}</span></span>
+    <span>{{t "What did you fix?"}} <span class="field-optional">{{t "(optional)"}}</span></span>
     <input type="text" id="catalogue-edit-summary" maxlength="200" autocomplete="off" placeholder="{{t "e.g. fixed the chorus chords"}}" enterkeyhint="done">
   </label>
+  <p class="catalogue-saved-line" id="catalogue-saved-line" role="status" hidden><span data-saved-text></span> · <button type="button" class="link-like" data-saved-undo>{{t "Undo"}}</button> · <a href="/variants/{{.VariantID}}/history">{{t "History"}}</a></p>
 </div>
 {{end}}
 
@@ -84,6 +89,20 @@
     <div class="form-actions">
       <button type="submit" value="cancel" formnovalidate>{{t "Cancel"}}</button>
       <button type="button" class="primary" id="catalogue-choice-go">{{t "Save"}}</button>
+    </div>
+  </form>
+</dialog>
+{{/* A band member changing the sections: for everyone, or the band's
+     arrangement (a hint, never a gate). */}}
+<dialog class="edit-offer-dialog" id="catalogue-structure-dialog" aria-labelledby="catalogue-structure-title" aria-describedby="catalogue-structure-text">
+  <form method="dialog">
+    <h2 id="catalogue-structure-title">{{t "This changes the song for everyone"}}</h2>
+    <p id="catalogue-structure-text"></p>
+    <p class="hint">{{t "A section the recording plays and the chart missed is a fix: save it for everyone. Your band’s own way of playing it is an arrangement."}}</p>
+    <div class="form-actions">
+      <button type="submit" value="cancel" formnovalidate>{{t "Cancel"}}</button>
+      <button type="button" id="catalogue-structure-arrange" hidden>{{t "Make the band’s arrangement…"}}</button>
+      <button type="button" id="catalogue-structure-go">{{t "Save for everyone"}}</button>
     </div>
   </form>
 </dialog>

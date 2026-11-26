@@ -10444,3 +10444,9 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
   .lesson-stage[data-has-video][data-tab="score"]:has(.lesson-panel) > .yt-audio { grid-column: 1; grid-row: 2; }
   .lesson-stage[data-has-video][data-tab="score"]:has(.lesson-panel):has(> .yt-audio) > .lesson-panel { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+/* ---- The edit model (docs/catalogue-edit-review.md): the editor's note
+   on The Big Songbook's song, its saved line (Undo, History). ---- */
+.catalogue-note-lead { margin: 0; font-size: 0.92rem; }
+.catalogue-saved-line { margin: 0; font-size: 0.88rem; color: var(--fg-muted); }
+.catalogue-saved-line [data-saved-text] { color: var(--fg); font-weight: 600; }

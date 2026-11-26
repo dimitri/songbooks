@@ -559,19 +559,26 @@ type SongSave struct {
 
 // SaveSongEdit is SaveVariantByID with the edit's summary.
 func (st *Store) SaveSongEdit(ctx context.Context, e SongSave) (string, error) {
+	version, _, err := st.SaveSongEditRevision(ctx, e)
+	return version, err
+}
+
+// SaveSongEditRevision is SaveSongEdit, with the revision it kept (the
+// song before it: reverting it undoes the save).
+func (st *Store) SaveSongEditRevision(ctx context.Context, e SongSave) (string, int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer tx.Rollback(ctx)
 	saved, err := saveSongTx(ctx, tx, e)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return strconv.Itoa(saved.version), nil
+	return strconv.Itoa(saved.version), saved.revisionID, nil
 }
 
 // songSaveResult is what saveSongTx did: the song's new version, its

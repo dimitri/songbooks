@@ -55,11 +55,15 @@ const editSummaryHeader = "X-Edit-Summary"
 // the edit kept the reference, the new recording's link
 // (X-New-Reference). URL-encoded.
 const (
-	editKindHeader       = "X-Edit-Kind"
-	editKindFix          = "fix"
-	editKindRecording    = "recording"
-	referenceLabelHeader = "X-Reference-Label"
-	newReferenceHeader   = "X-New-Reference"
+	// structureConfirmedHeader: the author saw the band hint (a change of
+	// the sections by a member of a band that plays the song) and saves
+	// for everyone all the same.
+	structureConfirmedHeader = "X-Structure-Confirmed"
+	editKindHeader           = "X-Edit-Kind"
+	editKindFix              = "fix"
+	editKindRecording        = "recording"
+	referenceLabelHeader     = "X-Reference-Label"
+	newReferenceHeader       = "X-New-Reference"
 )
 
 // headerText is a URL-encoded header's text on one line, at most max
@@ -395,9 +399,26 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	// A new reference (a fix: the link put right, or one added): the
 	// song's empty reference label from its title, once saved.
 	newReference := newRef != "" && !sameReference(oldRef, newRef)
+	// A band member changing the sections or their bars: the song
+	// changes for everyone, the band included; to play it differently,
+	// the band's arrangement. Said once before saving (428), never a
+	// gate (X-Structure-Confirmed).
+	if r.Header.Get(structureConfirmedHeader) == "" && anchorsOf(curBody).Sections != anchorsOf(body).Sections {
+		if holds, err := s.store.BandsHolding(ctx, person.ID, id); err == nil && len(holds) > 0 {
+			names := make([]string, 0, len(holds))
+			for _, h := range holds {
+				names = append(names, h.BandName)
+			}
+			writeJSON(w, http.StatusPreconditionRequired, map[string]any{
+				"structureHint": true, "bands": names,
+				"message": i18n.T(lang, "This changes the song’s sections for everyone who plays it, %s included. To play it differently, make the band’s arrangement instead.", strings.Join(names, ", ")),
+			})
+			return true
+		}
+	}
 	// Its staff: at once.
 	if rights.Edit {
-		version, err := s.store.SaveSongEdit(ctx, store.SongSave{
+		version, revID, err := s.store.SaveSongEditRevision(ctx, store.SongSave{
 			SongID: id, Title: title, Artist: artist, ReferenceURL: ref, Body: body,
 			ExpectVersion: curVersion, ActorID: person.ID, Summary: summary,
 		})
@@ -405,7 +426,7 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 			writeSaveErr(w, err)
 			return true
 		}
-		out := map[string]any{"version": version}
+		out := map[string]any{"version": version, "revisionId": revID, "saved": i18n.T(lang, "Saved for everyone who plays it.")}
 		if newReference {
 			s.newReferenceNames(ctx, id, newRef, out)
 		}
@@ -433,12 +454,12 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		in.FitAfter, in.FitAfterDetail = j.FitAfter.Fit, j.FitAfter.Reasons
 	}
 	if len(j.Reasons) == 0 {
-		version, err := s.store.ApplyCatalogueEdit(ctx, in)
+		version, revID, err := s.store.ApplyCatalogueEditRevision(ctx, in)
 		if err != nil {
 			writeSaveErr(w, err)
 			return true
 		}
-		out := map[string]any{"version": version}
+		out := map[string]any{"version": version, "revisionId": revID, "saved": i18n.T(lang, "Saved for everyone who plays it.")}
 		if newReference {
 			s.newReferenceNames(ctx, id, newRef, out)
 		}
@@ -744,6 +765,19 @@ func (s *Server) addCatalogueEditing(r *http.Request, person *store.Person, song
 	data["Catalogue"] = true
 	data["CanReport"] = rights.See
 	data["CatalogueGated"] = rights.Contribute && !rights.Edit
+	// What a save of theirs does, for the editor's note: its staff's
+	// are live at once; a newcomer's wait for a reviewer; anyone else's
+	// go live unless the recording, the key name, the lead-in or the
+	// Guitar Pro sync is at stake.
+	switch {
+	case rights.Edit:
+		data["CatalogueSaveMode"] = "staff"
+	case rights.Contribute:
+		data["CatalogueSaveMode"] = "open"
+		if standing, err := s.store.CatalogueStandingOf(r.Context(), person.ID); err == nil && standing.Newcomer() {
+			data["CatalogueSaveMode"] = "newcomer"
+		}
+	}
 	if e, err := s.store.PendingCatalogueEditOf(r.Context(), person.ID, songID); err == nil && e != nil {
 		data["CataloguePending"] = e
 	}

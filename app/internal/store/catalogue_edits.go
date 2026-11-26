@@ -254,9 +254,16 @@ func insertCatalogueEdit(ctx context.Context, tx pgx.Tx, in CatalogueEditInput, 
 // waited for review, if any, is superseded. ErrConflict when the song
 // isn't at in.BaseVersion any more.
 func (st *Store) ApplyCatalogueEdit(ctx context.Context, in CatalogueEditInput) (string, error) {
+	version, _, err := st.ApplyCatalogueEditRevision(ctx, in)
+	return version, err
+}
+
+// ApplyCatalogueEditRevision is ApplyCatalogueEdit, with the revision it
+// kept (the song before it: its author's Undo reverts it).
+func (st *Store) ApplyCatalogueEditRevision(ctx context.Context, in CatalogueEditInput) (string, int64, error) {
 	tx, err := st.db.Begin(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer tx.Rollback(ctx)
 	saved, err := saveSongTx(ctx, tx, SongSave{
@@ -264,20 +271,20 @@ func (st *Store) ApplyCatalogueEdit(ctx context.Context, in CatalogueEditInput) 
 		ExpectVersion: strconv.Itoa(in.BaseVersion), ActorID: in.AuthorID, Summary: in.Summary,
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE catalogue_edits SET status = 'superseded' WHERE song_id = $1 AND author_id = $2 AND status = 'pending'`,
 		in.SongID, in.AuthorID); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if _, err := insertCatalogueEdit(ctx, tx, in, EditApplied, &saved.revisionID); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return strconv.Itoa(saved.version), nil
+	return strconv.Itoa(saved.version), saved.revisionID, nil
 }
 
 // HoldCatalogueEdit keeps in for review: the song stays as it is; the

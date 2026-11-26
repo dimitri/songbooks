@@ -6,5 +6,18 @@
   "Play it your way: another form, your own intro, a groove the record doesn’t have. The arrangement stops following this chart: its changes are offered to it, never applied.": "Pour le jouer à votre façon : une autre forme, votre intro, un groove que l’enregistrement n’a pas. L’arrangement ne suit plus cette grille : ses modifications lui sont proposées, jamais appliquées.",
   "For a fix, edit the shared chart instead: everyone gets it, and your key stays.": "Pour une correction, modifiez plutôt la grille partagée : tout le monde en profite, et votre tonalité reste la vôtre.",
   "For a fix, edit the shared chart instead: everyone gets it, %s included, and its key stays.": "Pour une correction, modifiez plutôt la grille partagée : tout le monde en profite, %s compris, et sa tonalité reste la sienne.",
-  "Edit the shared chart": "Modifier la grille partagée"
+  "Edit the shared chart": "Modifier la grille partagée",
+  "Saved for everyone who plays it.": "Enregistré pour tous ceux qui le jouent.",
+  "This changes the song’s sections for everyone who plays it, %s included. To play it differently, make the band’s arrangement instead.": "Cela change les sections du morceau pour tous ceux qui le jouent, %s compris. Pour le jouer autrement, faites plutôt l’arrangement du groupe.",
+  "%s keeps its key: %s.": "%s garde sa tonalité : %s.",
+  "A section the recording plays and the chart missed is a fix: save it for everyone. Your band’s own way of playing it is an arrangement.": "Une section que l’enregistrement joue et que la grille avait oubliée, c’est une correction : enregistrez-la pour tous. La façon de jouer de votre groupe, c’est un arrangement.",
+  "Make the band’s arrangement…": "Faire l’arrangement du groupe…",
+  "One chart for everyone who plays this song.": "Une seule grille pour tous ceux qui jouent ce morceau.",
+  "Save for everyone": "Enregistrer pour tous",
+  "This changes the song for everyone": "Cela change le morceau pour tout le monde",
+  "What did you fix?": "Qu’avez-vous corrigé ?",
+  "Your edit goes live at once when it keeps the chart following its recording; a change of the sections the recording can’t check, of the key’s name, the lead-in or the Guitar Pro sync waits for a reviewer.": "Votre modification s’applique tout de suite si la grille suit toujours son enregistrement ; un changement des sections que l’enregistrement ne peut pas vérifier, du nom de la tonalité, de l’amorce ou de la synchro Guitar Pro attend un relecteur.",
+  "Your edit goes live at once.": "Votre modification s’applique tout de suite.",
+  "Your first edits wait for a reviewer: the song stays as it is for everyone until then, and you find yours on its page.": "Vos premières modifications attendent un relecteur : d’ici là le morceau reste tel quel pour tout le monde, et vous retrouvez la vôtre sur sa page.",
+  "Your fix reaches every songbook and set list that has it; keys stay each place’s own, and History keeps every edit.": "Votre correction arrive dans chaque songbook et chaque set list qui l’ont ; chacun garde sa tonalité, et l’Historique garde chaque modification."
 }

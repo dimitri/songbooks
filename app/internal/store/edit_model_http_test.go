@@ -2,8 +2,10 @@ package store_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -191,7 +193,7 @@ func TestEditOpensTheSharedSongFromEveryPlace(t *testing.T) {
 	// the set list: no copy made.
 	n := songCount(t, st)
 	text := body(t, st, song)
-	if w := as(t, st, f.Admin).saveRaw(song, text+"\n[Outro]\nla la\n"); w.Code != http.StatusOK {
+	if w := as(t, st, f.Admin).saveRawAs(song, text+"\n[Outro]\nla la\n", map[string]string{"X-Structure-Confirmed": "1"}); w.Code != http.StatusOK {
 		t.Fatalf("the admin's fix: %d %s", w.Code, w.Body.String())
 	}
 	if songCount(t, st) != n || !strings.Contains(body(t, st, song), "[Outro]") {
@@ -232,5 +234,88 @@ func TestSharedSongPointsToThePlacesArrangement(t *testing.T) {
 	}
 	if html := core.page(fmt.Sprintf("/song/%d", f.CatalogSong)); strings.Contains(html, "Other Lies has its own arrangement of this song") {
 		t.Error("the pointer shows outside the band")
+	}
+}
+
+// TestEditNoteSaysWhatASaveDoes: the editor's note says one chart is for
+// everyone who plays it, the place keeps its key, and what a save of the
+// viewer's does — never "at once" to someone whose edit will wait. A save
+// applied answers its revision, which its author undoes.
+func TestEditNoteSaysWhatASaveDoes(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := newEditModelFixture(t, st)
+	setChart(t, st, f.CatalogSong, "title: Le Vent\nartist: Someone\nkey: C\n\n[Verse]\ngrid: C | G | Am | F\n")
+	if err := st.SetEntrySemitones(ctx, f.BandBook, f.CatalogSong, 2); err != nil {
+		t.Fatal(err)
+	}
+	page := func(who int64, q string) string {
+		return as(t, st, who).page(fmt.Sprintf("/song/%d%s", f.CatalogSong, q))
+	}
+	if html := page(f.Admin, ""); !strings.Contains(html, "One chart for everyone who plays this song.") || !strings.Contains(html, "Your edit goes live at once.") {
+		t.Error("the admin's note")
+	}
+	if html := page(f.Trusted, ""); !strings.Contains(html, "Your edit goes live at once when it keeps the chart following its recording") {
+		t.Error("an editor's note")
+	}
+	if html := page(f.Stranger, ""); !strings.Contains(html, "Your first edits wait for a reviewer") || strings.Contains(html, "Your edit goes live at once") {
+		t.Error("a newcomer's note promises what won't happen")
+	}
+	if html := page(f.Core, fmt.Sprintf("?songbook=%d", f.BandBook)); !strings.Contains(html, "keeps its key: D.") {
+		t.Error("the band's songbook: the note doesn't say the band keeps its key")
+	}
+
+	// Applied: its revision, which its author undoes.
+	tr := as(t, st, f.Trusted)
+	before := body(t, st, f.CatalogSong)
+	w := tr.saveRaw(f.CatalogSong, strings.Replace(before, "Am | F", "Am7 | F", 1))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"revisionId":`) || !strings.Contains(w.Body.String(), "Saved for everyone who plays it.") {
+		t.Fatalf("an applied fix: %d %s", w.Code, w.Body.String())
+	}
+	var out struct {
+		RevisionID int64 `json:"revisionId"`
+	}
+	decode(t, w, &out)
+	if w := tr.do("POST", fmt.Sprintf("/api/revisions/%d/revert", out.RevisionID), nil); w.Code != http.StatusOK || body(t, st, f.CatalogSong) != before {
+		t.Errorf("Undo: %d", w.Code)
+	}
+}
+
+// TestBandMemberStructureHint: a member of a band that plays the song,
+// changing its sections, is told once that it changes the song for
+// everyone, the band included (428): a hint, never a gate. Someone in no
+// such band isn't asked.
+func TestBandMemberStructureHint(t *testing.T) {
+	st := store.NewTestStore(t)
+	f := newEditModelFixture(t, st)
+	start := "title: Le Vent\nartist: Someone\n\n[Verse]\ngrid: C | G | Am | F\n"
+	setChart(t, st, f.CatalogSong, start)
+	more := start + "\n[Verse]\ngrid: C | G | Am | F\n"
+	a := as(t, st, f.Admin)
+	w := a.saveRaw(f.CatalogSong, more)
+	if w.Code != http.StatusPreconditionRequired || !strings.Contains(w.Body.String(), `"structureHint":true`) || !strings.Contains(w.Body.String(), "Other Lies") {
+		t.Fatalf("a band member's structure change: %d %s", w.Code, w.Body.String())
+	}
+	if body(t, st, f.CatalogSong) != start {
+		t.Fatal("saved before the hint was answered")
+	}
+	if w := a.saveRawAs(f.CatalogSong, more, map[string]string{"X-Structure-Confirmed": "1"}); w.Code != http.StatusOK || body(t, st, f.CatalogSong) != more {
+		t.Errorf("saved for everyone after the hint: %d", w.Code)
+	}
+	// A chord isn't a structure change: no hint.
+	if w := a.saveRaw(f.CatalogSong, strings.Replace(more, "Am | F", "Am7 | F", 1)); w.Code != http.StatusOK {
+		t.Errorf("a band member's chord fix: %d", w.Code)
+	}
+	// Not a band's: not asked.
+	if w := as(t, st, f.Trusted).saveRaw(f.CatalogSong, start); w.Code == http.StatusPreconditionRequired {
+		t.Error("someone in no band that plays it gets the band hint")
+	}
+}
+
+// decode is a JSON answer's body into v.
+func decode(t *testing.T, w *httptest.ResponseRecorder, v any) {
+	t.Helper()
+	if err := json.Unmarshal(w.Body.Bytes(), v); err != nil {
+		t.Fatalf("%d %s: %v", w.Code, w.Body.String(), err)
 	}
 }
