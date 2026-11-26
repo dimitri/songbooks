@@ -337,7 +337,10 @@ func main() {
 	rows.Close()
 
 	works := map[int64]work{}
-	rows, err = pool.Query(ctx, `SELECT id, title, artist, coalesce(genre,''), coalesce(album,'') FROM works`)
+	rows, err = pool.Query(ctx, `SELECT w.id, w.title, w.artist, coalesce(w.genre,''),
+		coalesce((SELECT a.title FROM album_tracks t JOIN albums a ON a.id = t.album_id JOIN songs s ON s.id = t.song_id
+		          WHERE s.work_id = w.id ORDER BY a.kind = 'single', a.released_on NULLS LAST, a.id LIMIT 1), '')
+		FROM works w`)
 	must(err, "query works")
 	for rows.Next() {
 		var id int64

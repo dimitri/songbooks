@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -379,9 +380,10 @@ type bandSong struct {
 func (st *Store) bandSongs(ctx context.Context, bandID int64) ([]bandSong, error) {
 	rows, err := st.db.Query(ctx, `
 		SELECT DISTINCT s.id, s.title FROM songs s
-		WHERE s.owner_band_id = $1
+		WHERE (s.owner_band_id = $1
 		   OR s.id IN (SELECT se.variant_id FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
-		               WHERE sb.owner_kind = 'band' AND sb.owner_band_id = $1)`, bandID)
+		               WHERE sb.owner_kind = 'band' AND sb.owner_band_id = $1))
+		  AND NOT s.live -- a live version is matched through its album song (liveRecordingKinds)`, bandID)
 	if err != nil {
 		return nil, err
 	}
@@ -531,7 +533,13 @@ func (st *Store) ResolveBandRecordings(ctx context.Context, bandID int64) error 
 	if err != nil {
 		return err
 	}
-	rows, err := st.db.Query(ctx, `SELECT id, file_id, name, folder_date, file_date, title, raw, session_date, variant_id FROM band_recordings WHERE band_id = $1`, bandID)
+	// A concert's or the set list's recording of a song with a live
+	// version is the live version's (albums.go).
+	lives, err := st.bandLiveVersions(ctx, bandID)
+	if err != nil {
+		return err
+	}
+	rows, err := st.db.Query(ctx, `SELECT id, file_id, name, folder_date, file_date, title, raw, session_date, variant_id, kind FROM band_recordings WHERE band_id = $1`, bandID)
 	if err != nil {
 		return err
 	}
@@ -543,11 +551,11 @@ func (st *Store) ResolveBandRecordings(ctx context.Context, bandID int64) error 
 	var updates []upd
 	for rows.Next() {
 		var id, fileID int64
-		var name, folderDate, fileDate, title string
+		var name, folderDate, fileDate, title, kind string
 		var raw bool
 		var curDate *time.Time
 		var curVariant *int64
-		if err := rows.Scan(&id, &fileID, &name, &folderDate, &fileDate, &title, &raw, &curDate, &curVariant); err != nil {
+		if err := rows.Scan(&id, &fileID, &name, &folderDate, &fileDate, &title, &raw, &curDate, &curVariant, &kind); err != nil {
 			rows.Close()
 			return err
 		}
@@ -565,6 +573,11 @@ func (st *Store) ResolveBandRecordings(ctx context.Context, bandID int64) error 
 			}
 		} else if !raw {
 			variant = matchRecording(title, name, songs)
+			if variant != nil && slices.Contains(liveRecordingKinds, kind) {
+				if l, ok := lives[*variant]; ok {
+					variant = &l
+				}
+			}
 		}
 		if !sameDate(date, curDate) || !sameID(variant, curVariant) {
 			updates = append(updates, upd{id, date, variant})
