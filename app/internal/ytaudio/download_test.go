@@ -73,7 +73,7 @@ func TestClassify(t *testing.T) {
 		{"ERROR: unable to download video data: HTTP Error 429: Too Many Requests", KindBlocked, true},
 		{"ERROR: unable to download video data: HTTP Error 403: Forbidden", KindBlocked, true},
 		{"ERROR: [youtube] AAAAAAAAAAA: Video unavailable. The uploader has not made this video available in your country", KindBlocked, false},
-		{"[download] Some Song does not pass filter (!duration | duration <= 1800), skipping ..", KindTooLong, false},
+		{"[download] Some Song does not pass filter (duration <=? 1800), skipping ..", KindTooLong, false},
 		{"ERROR: [Errno -3] Temporary failure in name resolution", KindOther, true},
 		{"", KindOther, true},
 	}
@@ -153,7 +153,7 @@ exit 1
 		t.Errorf("%+v", e)
 	}
 	// Exit 0 and no file: the length filter skipped it.
-	fakeYTDLP(t, fakeArgs+`echo "[download] Long one does not pass filter (!duration | duration <= 1800), skipping .."`)
+	fakeYTDLP(t, fakeArgs+`echo "[download] Long one does not pass filter (duration <=? 1800), skipping .."`)
 	if _, err := Fetch(context.Background(), "https://youtu.be/AAAAAAAAAAA", nil); AsError(err).Kind != KindTooLong {
 		t.Errorf("too long: %v", err)
 	}
