@@ -10450,3 +10450,8 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
 .catalogue-note-lead { margin: 0; font-size: 0.92rem; }
 .catalogue-saved-line { margin: 0; font-size: 0.88rem; color: var(--fg-muted); }
 .catalogue-saved-line [data-saved-text] { color: var(--fg); font-weight: 600; }
+.catalogue-suggestion, .catalogue-song-suggestions { margin: 0.4rem 0 0.8rem; padding: 0.6rem 0.8rem; border: 1px dashed var(--accent-ink); border-radius: 8px; font-size: 0.92rem; }
+.catalogue-suggestion p { margin: 0.2rem 0; }
+.catalogue-song-suggestions h2 { font-size: 1rem; margin: 0 0 0.4rem; }
+.sheet-section.is-suggested { outline: 2px dashed var(--accent-ink); outline-offset: 3px; border-radius: 4px; position: relative; }
+.sheet-section.is-suggested::after { content: attr(data-suggested-label); position: absolute; top: -0.7rem; right: 0.3rem; padding: 0 0.35rem; font-size: 0.72rem; background: var(--bg); color: var(--accent-ink); border-radius: 4px; }

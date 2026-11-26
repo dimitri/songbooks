@@ -204,6 +204,12 @@ func (st *Store) PendingCatalogueEdits(ctx context.Context) ([]CatalogueEdit, er
 	return st.catalogueEdits(ctx, `e.status = 'pending' ORDER BY e.created_at, e.id`)
 }
 
+// PendingCatalogueEditsOfSong is songID's edits waiting for a reviewer
+// (its suggestions), oldest first.
+func (st *Store) PendingCatalogueEditsOfSong(ctx context.Context, songID int64) ([]CatalogueEdit, error) {
+	return st.catalogueEdits(ctx, `e.status = 'pending' AND e.song_id = $1 ORDER BY e.created_at, e.id`, songID)
+}
+
 // PendingCatalogueEditOf is personID's edit of songID waiting for
 // review, nil when none.
 func (st *Store) PendingCatalogueEditOf(ctx context.Context, personID, songID int64) (*CatalogueEdit, error) {
@@ -403,7 +409,7 @@ func (st *Store) ApproveCatalogueEdit(ctx context.Context, id, reviewerID int64,
 				return ErrConflict
 			}
 		}
-		body = songdiff.Merge(e.BaseBody, current, e.Body, func(string) bool { return true })
+		body = songdiff.MergeAll(e.BaseBody, current, e.Body)
 	}
 	parsed := song.Parse(body)
 	saved, err := saveSongTx(ctx, tx, SongSave{

@@ -207,13 +207,24 @@
     window.songbooksEditorClean?.();
     if (summaryInput) summaryInput.value = '';
     if (res.status === 202) {
-      say(t('Sent for review'), data.message, data.reasons, data.url ? { href: data.url, label: t('See your edit') } : null, showSong);
+      say(data.suggested ? t('Suggested') : t('Sent for review'), data.message, data.reasons, data.url ? { href: data.url, label: t('See your edit') } : null, showSong);
     } else {
       say(t('A new song for this recording'), data.message, null, null, () => { location.href = data.url; });
     }
     // The caller waits: the page moves on once the dialog is closed.
     return new Promise(() => {});
   };
+
+  // The viewer's suggestion, shown in place (catalogue_suggestions.go):
+  // the sections it changes are marked "suggested".
+  const sugg = document.getElementById('catalogue-suggestion');
+  const marked = (sugg?.dataset.suggestedSections || '').split(',').filter(Boolean);
+  marked.forEach((i) => {
+    const sec = document.getElementById(`section-${i}`);
+    if (!sec) return;
+    sec.classList.add('is-suggested');
+    sec.dataset.suggestedLabel = t('suggested');
+  });
 
   // The reference label (the Reference view): shown after the artist.
   const labelForm = document.getElementById('catalogue-label-form');

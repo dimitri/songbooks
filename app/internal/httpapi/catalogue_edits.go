@@ -264,6 +264,15 @@ func sameReference(a, b string) bool {
 	return false
 }
 
+// suggestionMessage says what a held edit is, once saved: a suggestion
+// its author sees at once, or a whole edit waiting.
+func suggestionMessage(lang string, held []string) string {
+	if suggestionPart(held) {
+		return i18n.T(lang, "Suggested: you see it now on the song; everyone else does once a reviewer accepts it.")
+	}
+	return i18n.T(lang, "Your edit waits for review: the song stays as it is for everyone until it’s approved; you see it now on the song.")
+}
+
 // heldReasons are the reasons an edit waits for a reviewer: what
 // identifies the song or lines it up with its recording (the key's name,
 // the lead-in, the Guitar Pro sync, removing the recording), a
@@ -467,6 +476,11 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	if oldRef != "" && newRef == "" {
 		j.Reasons = append(j.Reasons, "reference")
 	}
+	// A fix of the song's name (its title, its artist): what identifies
+	// it, and finds its duplicates — a suggestion.
+	if identityChanged {
+		j.Reasons = append(j.Reasons, "title")
+	}
 	// Patrol instead of holding (docs/catalogue-edit-review.md §4.5): what
 	// identifies the song or lines it up with its recording waits for a
 	// reviewer; the rest is applied, and what's worth a look flagged.
@@ -509,6 +523,38 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 		writeJSON(w, http.StatusOK, out)
 		return true
 	}
+	// A mixed save: the chart's changes go live at once, only the
+	// protected part is suggested (catalogue_suggestions.go).
+	if suggestionPart(held) {
+		if live := withoutProtected(curBody, body, held); live != curBody {
+			liveIn := in
+			liveIn.Body, liveIn.Title, liveIn.Artist = live, cur.Title, cur.Artist
+			if newRef == "" && oldRef != "" {
+				liveIn.ReferenceURL = cur.ReferenceURL
+			}
+			liveIn.Reasons = flags
+			liveIn.Patrolled = standing.Trusted && len(flags) == 0
+			version, revID, err := s.store.ApplyCatalogueEditRevision(ctx, liveIn)
+			if err != nil {
+				writeSaveErr(w, err)
+				return true
+			}
+			v, _ := strconv.Atoi(version)
+			sugg := in
+			sugg.BaseVersion, sugg.BaseBody, sugg.Reasons = v, live, held
+			sugg.FitBefore, sugg.FitBeforeDetail = in.FitAfter, in.FitAfterDetail
+			editID, err := s.store.HoldCatalogueEdit(ctx, sugg)
+			if err != nil {
+				writeSaveErr(w, err)
+				return true
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"version": version, "revisionId": revID, "suggested": true, "editId": editID,
+				"url": store.CatalogueEditLink(editID), "saved": suggestedMessage(lang, held),
+			})
+			return true
+		}
+	}
 	in.Reasons = held
 	editID, err := s.store.HoldCatalogueEdit(ctx, in)
 	if err != nil {
@@ -518,7 +564,8 @@ func (s *Server) catalogueSave(w http.ResponseWriter, r *http.Request, id int64,
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"version": curVersion, "pending": true, "editId": editID, "url": store.CatalogueEditLink(editID),
 		"reasons": catalogueReasonsText(lang, held),
-		"message": i18n.T(lang, "Your edit waits for review: the song stays as it is for everyone until it’s approved."),
+		"suggested": suggestionPart(held),
+		"message": suggestionMessage(lang, held),
 	})
 	return true
 }

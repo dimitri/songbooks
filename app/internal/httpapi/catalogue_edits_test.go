@@ -104,3 +104,28 @@ func TestSetHeaderLine(t *testing.T) {
 		}
 	}
 }
+
+// The protected part of an edit put back (catalogue_suggestions.go): what
+// goes live of a mixed save.
+func TestWithoutProtected(t *testing.T) {
+	cur := "title: Le Vent\nartist: Someone\nkey: C\n\n[Verse]\ngp[Lead]: 1-4\ngrid: C | G |\n\n[Verse]\ngrid: C | G |\n"
+	mine := "title: Le Vent se lève\nartist: Someone\nkey: Am\nlead: 2\n\n[Verse]\ngp[Lead]: 2-5\ngrid: C | G7 |\n\n[Verse]\ngp[Lead]: 6-7\ngrid: C | G |\n"
+	got := withoutProtected(cur, mine, []string{"key", "lead", "gp", "title"})
+	want := "title: Le Vent\nartist: Someone\nkey: C\n\n[Verse]\ngp[Lead]: 1-4\ngrid: C | G7 |\n\n[Verse]\ngrid: C | G |\n"
+	if got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+	if !suggestionPart([]string{"key", "title"}) || suggestionPart([]string{"key", "passerby"}) || suggestionPart(nil) {
+		t.Error("suggestionPart")
+	}
+}
+
+// A recording removed and put back: the header as it was, so nothing goes
+// live.
+func TestWithoutProtectedPutsBack(t *testing.T) {
+	cur := "title: Le Vent\nartist: Someone\nreference: https://youtu.be/x\n\n[Verse]\nla\n"
+	mine := "title: Le Vent\nartist: Someone\n\n[Verse]\nla\n"
+	if got := withoutProtected(cur, mine, []string{"reference"}); got != cur {
+		t.Errorf("got %q", got)
+	}
+}

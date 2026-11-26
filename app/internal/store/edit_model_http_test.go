@@ -424,3 +424,62 @@ func TestPatrolInsteadOfHolding(t *testing.T) {
 		t.Errorf("past the daily limit, waits for: %+v", e)
 	}
 }
+
+// TestSuggestions: what identifies the song or lines it up with its
+// recording is a suggestion. In a mixed save the chords go live and the
+// key's name is suggested; its author sees it in place on the song (the
+// song as it is one click away), others don't; a reviewer sees it on the
+// song and accepts it there. A title fixed is a suggestion too.
+func TestSuggestions(t *testing.T) {
+	st := store.NewTestStore(t)
+	f := newEditModelFixture(t, st)
+	start := "title: Le Vent\nartist: Someone\nkey: C\n\n[Verse]\ngrid: C | G | Am | F\n"
+	setChart(t, st, f.CatalogSong, start)
+	core := as(t, st, f.Core)
+	mixed := strings.Replace(strings.Replace(start, "key: C", "key: Am", 1), "Am | F", "Am7 | F", 1)
+	w := core.saveRaw(f.CatalogSong, mixed)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"suggested":true`) {
+		t.Fatalf("a mixed save: %d %s", w.Code, w.Body.String())
+	}
+	live := strings.Replace(start, "Am | F", "Am7 | F", 1)
+	if got := body(t, st, f.CatalogSong); got != live {
+		t.Fatalf("the chords didn't go live alone: %q", got)
+	}
+	e := pendingOf(t, st, f.Core, f.CatalogSong)
+	if e == nil || e.Body != mixed || e.BaseBody != live || !hasReason(e, "key") {
+		t.Fatalf("the suggestion: %+v", e)
+	}
+	page := fmt.Sprintf("/song/%d", f.CatalogSong)
+	if html := core.page(page); !strings.Contains(html, `id="catalogue-suggestion"`) || !strings.Contains(html, `data-key="Am"`) || !strings.Contains(html, "?suggestion=off") {
+		t.Error("its author doesn't see the suggestion in place")
+	}
+	if html := core.page(page + "?suggestion=off"); !strings.Contains(html, `data-key="C"`) {
+		t.Error("its author can't see the song as it is")
+	}
+	if html := as(t, st, f.Guest).page(page); strings.Contains(html, "catalogue-suggestion") || !strings.Contains(html, `data-key="C"`) {
+		t.Error("someone else sees another's suggestion")
+	}
+	tr := as(t, st, f.Trusted)
+	html := tr.page(page)
+	if !strings.Contains(html, "1 suggestion waits for this song") || !strings.Contains(html, fmt.Sprintf(`class="catalogue-edit-decide form-stack" data-edit-id="%d"`, e.ID)) {
+		t.Fatal("a reviewer doesn't see the suggestion on the song")
+	}
+	if w := tr.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", e.ID), nil); w.Code != http.StatusOK {
+		t.Fatalf("accept: %d %s", w.Code, w.Body.String())
+	}
+	if got := body(t, st, f.CatalogSong); got != mixed {
+		t.Errorf("accepted: %q", got)
+	}
+
+	// A title fixed: suggested, the song's title kept meanwhile.
+	renamed := strings.Replace(mixed, "title: Le Vent", "title: Le Vent se lève", 1)
+	if w := core.saveRawAs(f.CatalogSong, renamed, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusAccepted || !strings.Contains(w.Body.String(), `"suggested":true`) {
+		t.Fatalf("a title fixed: %d %s", w.Code, w.Body.String())
+	}
+	if v, _ := st.GetVariant(context.Background(), f.CatalogSong); v.Title != "Le Vent" {
+		t.Errorf("the title changed before review: %q", v.Title)
+	}
+	if html := core.page(page); !strings.Contains(html, "Le Vent se lève") {
+		t.Error("its author doesn't see the suggested title")
+	}
+}

@@ -2856,6 +2856,16 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// The viewer's suggestion for The Big Songbook's song: they see it in
+	// place, and play it (catalogue_suggestions.go), unless they asked
+	// for the song as it is (?suggestion=off).
+	var suggestion *catalogueSuggestion
+	if p := personFromContext(r); p != nil {
+		if suggestion = s.suggestionFor(r, p.ID, variantID, text); suggestion != nil && suggestion.Shown != "" && !suggestion.Off {
+			text = suggestion.Shown
+			sg = song.Parse(text)
+		}
+	}
 	gp := s.loadSongGP(r.Context(), variantID)
 	sections := buildSections(withGPOnlyBars(sg, gp.Facts))
 	jazz := buildJazzChart(withGPOnlyBars(sg, gp.Facts), sections)
@@ -3057,8 +3067,14 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	refHead := songRefHeadFor(sg.Get("reference"), hasBand, canEditChart)
-	// The Big Songbook's song: open edits (catalogue_edits.go).
+	// The Big Songbook's song: open edits (catalogue_edits.go), the
+	// viewer's suggestion, and for a reviewer the ones waiting for it
+	// (catalogue_suggestions.go).
 	s.addCatalogueEditing(r, person, variantID, data)
+	if suggestion != nil {
+		data["Suggestion"] = suggestion
+	}
+	s.addSongSuggestions(r, person, variantID, data)
 	// A student's song, proposed to their coach (coach_proposals.go).
 	s.addProposeTargets(r, person, variantID, data)
 	// Its title, when fetched for this link; else fetched in the

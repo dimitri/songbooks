@@ -575,16 +575,25 @@ func TestCatalogueFixOrAnotherRecording(t *testing.T) {
 	} else if e := pendingOf(t, st, f.Outsider, f.CatalogSong); len(e.Reasons) != 1 || e.Reasons[0] != "passerby" {
 		t.Errorf("a passer-by's fixed link waits for: %v", e.Reasons)
 	}
-	// A title fixed: in place too.
+	// A title fixed: a suggestion (the edit model: what identifies the
+	// song), the title kept until a reviewer accepts it.
 	typo := strings.Replace(newLink, "title: Le Vent", "title: Le Vent se lève", 1)
 	if w := ed.saveRaw(f.CatalogSong, typo); w.Code != http.StatusPreconditionRequired {
 		t.Errorf("a new title, unasked: %d", w.Code)
 	}
-	if w := ed.saveRawAs(f.CatalogSong, typo, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusOK {
+	if w := ed.saveRawAs(f.CatalogSong, typo, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusAccepted {
 		t.Errorf("a fixed title: %d %s", w.Code, w.Body.String())
 	}
+	if v, _ := st.GetVariant(ctx, f.CatalogSong); v.Title != "Le Vent" {
+		t.Errorf("the title before review: %q", v.Title)
+	}
+	if e := pendingOf(t, st, f.Editor, f.CatalogSong); e == nil || !hasReason(e, "title") {
+		t.Fatalf("the title's suggestion: %+v", e)
+	} else if w := as(t, st, f.Admin).do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", e.ID), nil); w.Code != http.StatusOK {
+		t.Fatalf("accept the title: %d %s", w.Code, w.Body.String())
+	}
 	if v, _ := st.GetVariant(ctx, f.CatalogSong); v.Title != "Le Vent se lève" {
-		t.Errorf("the title: %q", v.Title)
+		t.Errorf("the title accepted: %q", v.Title)
 	}
 
 	// Another recording, by a newcomer: a new song at once, labelled.
