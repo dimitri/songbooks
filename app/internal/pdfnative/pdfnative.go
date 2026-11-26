@@ -173,6 +173,9 @@ func renderFrontMatter(doc *gopdf.GoPdf, title string, front FrontMatter) {
 	if coverTitle == "" {
 		coverTitle = title
 	}
+	if len(front.Image) > 0 && renderImageCover(doc, coverTitle, front) {
+		return
+	}
 	renderCover(doc, coverTitle, front.BandName, front.Date, front.Venue)
 }
 

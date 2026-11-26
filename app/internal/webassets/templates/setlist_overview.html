@@ -54,11 +54,13 @@
   {{template "pdf-export-dialog" (dict "ID" "setlist-songbook-pdf" "Href" (printf "/setlists/%d/export.pdf" .SetlistID) "Title" "Songbook PDF" "Hint" "A cover, the set list, then every song in its order.")}}
   {{if .Choice}}
   <div class="pl-prefer setlist-prefer" role="group" aria-label="{{t "Play first"}}">
-    <button type="button" data-prefer="rec" aria-pressed="true">{{t "Our recordings"}}</button>
-    <button type="button" data-prefer="ref" aria-pressed="false">{{t "Reference"}}</button>
+    {{if and .Live .Live.On}}<button type="button" data-prefer="rec" aria-pressed="true">{{t "Live"}}</button>
+    <button type="button" data-prefer="ref" aria-pressed="false">{{t "Album"}}</button>{{else}}<button type="button" data-prefer="rec" aria-pressed="true">{{t "Our recordings"}}</button>
+    <button type="button" data-prefer="ref" aria-pressed="false">{{t "Reference"}}</button>{{end}}
   </div>
   {{end}}
 
+  {{template "setlist-live-head" .}}
   {{if .CanEdit}}<p class="form-status" id="setlist-version-status" role="status"></p>{{end}}
   {{if .IsEmpty}}
   <p class="attention-empty">{{t "No songs yet."}}{{if .CanEdit}} {{t "Add the ones to play below."}}{{end}}</p>
@@ -77,6 +79,7 @@
           <a class="gig-title" href="/song/{{$row.VariantID}}?setlist={{$.SetlistID}}">
             <span>{{$row.Title}}{{with $row.VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}</span>{{if $row.Note}}<small class="gig-note">{{$row.Note}}</small>{{end}}
           </a>
+          {{template "setlist-live-chip" $row}}
           {{if and $.CanEdit $row.Versions}}
           <select class="setlist-version" data-item="{{$row.ItemID}}" aria-label="{{t "Arrangement of %s for this set list" $row.Title}}" title="{{t "Which arrangement this set list plays"}}">
             {{range $row.Versions}}<option value="{{.VariantID}}"{{if .Current}} selected{{end}}>{{.Label}}</option>{{end}}

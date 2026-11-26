@@ -342,5 +342,7 @@ func (s *Server) handleBandSettingsPage(w http.ResponseWriter, r *http.Request) 
 	s.render(w, "band_settings", map[string]any{
 		"Me": person, "Band": band, "Settings": p,
 		"Shell": bandSettingsShell(lang, band, p),
+		// Set lists use the live versions (albums.go).
+		"SetlistVersions": s.setlistVersionsSettingFor(r.Context(), bandID, p.Access.Plays),
 	})
 }

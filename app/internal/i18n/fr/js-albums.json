@@ -1,0 +1,23 @@
+{
+  "Artwork saved.": "Pochette enregistrée.",
+  "Couldn’t change it. Try again.": "Impossible de le changer. Réessayez.",
+  "Couldn’t change the set list. Try again.": "Impossible de changer la set list. Réessayez.",
+  "Couldn’t create the album. Try again.": "Impossible de créer l’album. Réessayez.",
+  "Couldn’t delete the album. Try again.": "Impossible de supprimer l’album. Réessayez.",
+  "Couldn’t make the live version. Try again.": "Impossible de faire la version live. Réessayez.",
+  "Couldn’t save it. Try again.": "Impossible de l’enregistrer. Réessayez.",
+  "Couldn’t save the album. Try again.": "Impossible d’enregistrer l’album. Réessayez.",
+  "Couldn’t save the artwork. Try a PNG or JPEG under 12 MB.": "Impossible d’enregistrer la pochette. Essayez un PNG ou un JPEG de moins de 12 Mo.",
+  "Delete “%s”? Its songs stay in the songbook.": "Supprimer « %s » ? Ses morceaux restent dans le répertoire.",
+  "Duration": "Durée",
+  "Its master, in the band’s folder": "Son master, dans le dossier du groupe",
+  "Make its songs public too? Their live versions stay the band’s.": "Rendre aussi ses morceaux publics ? Leurs versions live restent au groupe.",
+  "Make the live version of this song? It starts as a copy of the song as it is now: its chart, tempo and sync.": "Faire la version live de ce morceau ? Elle part d’une copie du morceau tel qu’il est : sa grille, son tempo et sa synchro.",
+  "No master": "Pas de master",
+  "No song (an interlude, a hidden track)": "Pas de morceau (un interlude, un titre caché)",
+  "Remove the track": "Retirer le titre",
+  "Sending the artwork…": "Envoi de la pochette…",
+  "The band has a release of that name already.": "Le groupe a déjà une sortie de ce nom.",
+  "The band’s song": "Le morceau du groupe",
+  "Title as printed": "Titre imprimé"
+}

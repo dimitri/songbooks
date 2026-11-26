@@ -292,6 +292,8 @@ var spacePages = map[string]string{
 	"band_influences": "catalog/influences",
 	"band_members":    "members",
 	"band_settings":   "settings",
+	"band_albums":     "catalog/albums",
+	"band_album":      "catalog/albums",
 
 	"community":                  "overview",
 	"community_songbooks":        "songbooks",
@@ -400,6 +402,7 @@ func (s *Server) addSpaceNav(w http.ResponseWriter, name string, data any) {
 		if nav.ViewsInPage {
 			s.countSongbookViews(lw.r, band.ID, nav)
 		}
+		s.albumsChip(ctx, band, section, nav)
 		nav.Switcher = pageNavState(m)
 		m["Space"] = nav
 		return
