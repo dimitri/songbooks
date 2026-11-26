@@ -285,7 +285,8 @@ func (a *anonymizer) bands(ctx context.Context, tx pgx.Tx) error {
 		// the band's own cloud folder, named after their songs.
 		{"band_recording_sources", `DELETE FROM band_recording_sources`},
 		{"band_recording_fixes", `DELETE FROM band_recording_fixes`},
-		{"band_albums", `DELETE FROM band_albums`},
+		// Its albums: real titles, artwork and links.
+		{"albums", `DELETE FROM albums`},
 		{"proposal_votes", `DELETE FROM proposal_votes`},
 		{"band_proposals", `DELETE FROM band_proposals`},
 	} {
@@ -481,7 +482,7 @@ func (a *anonymizer) songs(ctx context.Context, tx pgx.Tx) error {
 	}
 	for i, w := range works {
 		workTitle[w.id], workArtist[w.id] = SongTitle(i), am.get(w.artist)
-		if err := exec(ctx, tx, a.c, "works", `UPDATE works SET title = $2, artist = $3, album = NULL WHERE id = $1`,
+		if err := exec(ctx, tx, a.c, "works", `UPDATE works SET title = $2, artist = $3 WHERE id = $1`,
 			w.id, workTitle[w.id], workArtist[w.id]); err != nil {
 			return err
 		}

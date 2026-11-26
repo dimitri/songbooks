@@ -1,0 +1,325 @@
+{
+ "band": 15,
+ "expectBand": "Other Lies",
+ "liveVersions": [
+  111,
+  118,
+  117,
+  112,
+  114,
+  119,
+  127,
+  113,
+  133,
+  138,
+  129,
+  135,
+  120,
+  134,
+  137,
+  139,
+  121
+ ],
+ "setlistVersions": "live",
+ "skipMasters": [
+  "Skins"
+ ],
+ "albums": [
+  {
+   "title": "Beyond Fur",
+   "kind": "album",
+   "releasedOn": "2020-04-09",
+   "licence": "All rights reserved",
+   "links": [
+    "https://otherlies.bandcamp.com/album/beyond-fur"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a1891351164_10.jpg",
+   "folder": "Albums/1 - Beyond Fur",
+   "tracks": [
+    {
+     "song": 132,
+     "songTitle": "The Incense of Valletta",
+     "duration": "4:58"
+    },
+    {
+     "song": 115,
+     "songTitle": "Hallucinogenic",
+     "duration": "4:18"
+    },
+    {
+     "song": 120,
+     "songTitle": "My Favourite Scarlett",
+     "title": "My Favorite Scarlet",
+     "rename": true,
+     "duration": "4:44"
+    },
+    {
+     "song": 134,
+     "songTitle": "The Obsession with Control",
+     "duration": "4:18"
+    },
+    {
+     "song": 114,
+     "songTitle": "Gin Lane",
+     "duration": "4:07"
+    },
+    {
+     "song": 136,
+     "songTitle": "Vague Idols",
+     "duration": "2:53"
+    },
+    {
+     "song": 125,
+     "songTitle": "Sandman Sabotage",
+     "duration": "4:24"
+    },
+    {
+     "song": 123,
+     "songTitle": "Real Red Nail Polish",
+     "duration": "5:34"
+    },
+    {
+     "song": 128,
+     "songTitle": "Tatooed Indian Robber",
+     "title": "Tattooed Indian Robber",
+     "rename": true,
+     "duration": "5:45"
+    },
+    {
+     "song": 121,
+     "songTitle": "Of Human Bondage",
+     "duration": "3:38"
+    }
+   ]
+  },
+  {
+   "title": "Surfacing",
+   "kind": "album",
+   "releasedOn": "2022-04-09",
+   "licence": "All rights reserved",
+   "credits": "A concept album (Actaeon). Mixed by Adrien Garbar, mastered by Raphael Jonin.",
+   "links": [
+    "https://otherlies.bandcamp.com/album/surfacing"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a0258436060_10.jpg",
+   "folder": "Albums/2 - Surfacing",
+   "tracks": [
+    {
+     "song": 111,
+     "songTitle": "Belle of the Ball",
+     "duration": "3:35"
+    },
+    {
+     "song": 130,
+     "songTitle": "The Bath",
+     "duration": "3:55"
+    },
+    {
+     "song": 113,
+     "songTitle": "Dead End For Delhia",
+     "title": "Dead End for Delia",
+     "rename": true,
+     "duration": "4:56"
+    },
+    {
+     "song": 127,
+     "songTitle": "Stars on Black",
+     "duration": "3:23"
+    },
+    {
+     "song": 138,
+     "songTitle": "Vibrator",
+     "duration": "2:31"
+    },
+    {
+     "song": 118,
+     "songTitle": "Kawasaki",
+     "duration": "2:20"
+    },
+    {
+     "song": 110,
+     "songTitle": "Ayurveda",
+     "duration": "3:47"
+    },
+    {
+     "song": 124,
+     "songTitle": "Ruin Porn",
+     "duration": "3:55"
+    },
+    {
+     "song": 117,
+     "songTitle": "In Candesenza",
+     "duration": "3:33"
+    },
+    {
+     "song": 126,
+     "songTitle": "Sequoia",
+     "duration": "5:09"
+    }
+   ]
+  },
+  {
+   "title": "Ultrablanc",
+   "kind": "album",
+   "releasedOn": "2026-04-10",
+   "label": "Eyelash Records",
+   "licence": "CC BY-ND 4.0",
+   "credits": "Mixed by Thomas Baudon, mastered by Raphael Jonin. Sleeve by Sik Daren.",
+   "links": [
+    "https://otherlies.bandcamp.com/album/ultrablanc"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a3454742128_10.jpg",
+   "folder": "Albums/3 - Ultrablanc/Final Mix Thomas Baudon Octobre 2025",
+   "tracks": [
+    {
+     "song": 131,
+     "songTitle": "The Color of Thunder",
+     "title": "Colors of Thunder",
+     "rename": true,
+     "duration": "3:50",
+     "tempo": 115,
+     "isrc": "FR-9W1-25-60193"
+    },
+    {
+     "song": 135,
+     "songTitle": "The Whirlwind of Lovers",
+     "duration": "3:25",
+     "tempo": 108,
+     "isrc": "FR-9W1-25-60194"
+    },
+    {
+     "song": 112,
+     "songTitle": "Bones",
+     "duration": "2:23",
+     "tempo": 90,
+     "isrc": "FR-9W1-25-34056"
+    },
+    {
+     "song": 122,
+     "songTitle": "Paramount",
+     "duration": "4:09",
+     "tempo": 105,
+     "isrc": "FR-9W1-25-60195"
+    },
+    {
+     "song": 116,
+     "songTitle": "Holy Burn",
+     "duration": "3:55",
+     "tempo": 80,
+     "isrc": "FR-9W1-25-60196"
+    },
+    {
+     "song": 139,
+     "songTitle": "Voiles",
+     "duration": "3:50",
+     "tempo": 95,
+     "isrc": "FR-9W1-25-33368"
+    },
+    {
+     "song": 119,
+     "songTitle": "Mottainai",
+     "duration": "4:05",
+     "tempo": 105,
+     "isrc": "FR-9W1-25-60197"
+    },
+    {
+     "song": 137,
+     "songTitle": "Vanity Rewinds",
+     "duration": "4:34",
+     "tempo": 80,
+     "isrc": "FR-9W1-25-60198"
+    },
+    {
+     "song": 129,
+     "songTitle": "Teens 4 Today",
+     "duration": "2:44",
+     "tempo": 127,
+     "isrc": "FR-9W1-25-20861"
+    },
+    {
+     "song": 133,
+     "songTitle": "The Last Embrace",
+     "duration": "7:44",
+     "tempo": 80,
+     "isrc": "FR-9W1-25-60199"
+    }
+   ]
+  },
+  {
+   "title": "Teens 4 Today",
+   "kind": "single",
+   "releasedOn": "2025-04-25",
+   "links": [
+    "https://otherlies.bandcamp.com/track/teens-4-today"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a0612297811_10.jpg",
+   "tracks": [
+    {
+     "song": 129,
+     "songTitle": "Teens 4 Today",
+     "duration": "2:44",
+     "tempo": 127,
+     "isrc": "FR-9W1-25-20861",
+     "link": "https://otherlies.bandcamp.com/track/teens-4-today"
+    }
+   ]
+  },
+  {
+   "title": "Voiles",
+   "kind": "single",
+   "releasedOn": "2025-07-04",
+   "links": [
+    "https://otherlies.bandcamp.com/track/voiles"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a3648692036_10.jpg",
+   "tracks": [
+    {
+     "song": 139,
+     "songTitle": "Voiles",
+     "duration": "3:50",
+     "tempo": 95,
+     "isrc": "FR-9W1-25-33368",
+     "link": "https://otherlies.bandcamp.com/track/voiles"
+    }
+   ]
+  },
+  {
+   "title": "Bones",
+   "kind": "single",
+   "releasedOn": "2025-11-21",
+   "links": [
+    "https://otherlies.bandcamp.com/track/bones"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a1199860227_10.jpg",
+   "tracks": [
+    {
+     "song": 112,
+     "songTitle": "Bones",
+     "duration": "2:23",
+     "tempo": 90,
+     "isrc": "FR-9W1-25-34056",
+     "link": "https://otherlies.bandcamp.com/track/bones"
+    }
+   ]
+  },
+  {
+   "title": "Vanity Rewinds",
+   "kind": "single",
+   "releasedOn": "2026-01-23",
+   "links": [
+    "https://otherlies.bandcamp.com/track/vanity-rewinds"
+   ],
+   "artwork": "https://f4.bcbits.com/img/a2348710439_10.jpg",
+   "tracks": [
+    {
+     "song": 137,
+     "songTitle": "Vanity Rewinds",
+     "duration": "4:34",
+     "tempo": 80,
+     "isrc": "FR-9W1-25-60198",
+     "link": "https://otherlies.bandcamp.com/track/vanity-rewinds"
+    }
+   ]
+  }
+ ]
+}

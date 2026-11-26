@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1257,22 +1256,18 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 		rows[i].Voice = ranges.voice(s.langOfRequest(r), rows[i].VariantID, rows[i].Key, 0)
 	}
 
-	// An "original" act's repertoire reads naturally grouped by the
-	// record a song is from; a covers band (or a band that hasn't said
-	// which it is) keeps the flat list. No per-song track-order or
-	// release-year signal is stored, so songs within an album and
-	// albums themselves fall back to alphabetical — an honest
-	// simplification, not a claim of real track/release order.
-	var albumGroups []albumGroup
-	if band.MusicType == "original" {
-		covers, err := s.store.GetAlbumCovers(r.Context(), bandID)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		albumGroups = groupByAlbum(rows, covers)
+	// A band with albums reads its songbook by album, in track order
+	// (albums.go); its live versions fold into their album songs' rows.
+	// ?view=az lists it A–Z.
+	rows, albumGroups, albums, err := s.songbookByAlbum(r.Context(), bandID, rows)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-
+	view := "albums"
+	if r.URL.Query().Get("view") == "az" || len(albumGroups) == 0 {
+		view, albumGroups = "az", nil
+	}
 	ids := make([]int64, len(rows))
 	for i, row := range rows {
 		ids[i] = row.VariantID
@@ -1285,7 +1280,7 @@ func (s *Server) handleBandCatalogPage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, "band_catalog", map[string]any{
 		"Me": person, "Band": band, "Entries": rows, "Badges": s.songBadgesFor(r.Context(), ids),
-		"AlbumGroups": albumGroups, "SongbookID": sbID,
+		"AlbumGroups": albumGroups, "SongbookID": sbID, "View": view, "HasAlbums": len(albums) > 0,
 		"Export":      bandCatalogExport(r.Context(), s, bandID),
 	})
 }
@@ -1309,46 +1304,11 @@ type bandCatalogRow struct {
 	Key, Tempo string
 	// Voice: the song's melody range (row_voice.go).
 	Voice rowVoice
-}
-
-// albumGroup is one album's songs on a band's Repertoire tab (or the
-// Overview preview), for an "original"-type band — cover art fields are
-// zero-valued when no project_albums row exists yet for that album
-// (migration 0034), which the template treats as "no cover, just show
-// the name".
-type albumGroup struct {
-	Album       string
-	CoverURL    string
-	ReleaseYear int
-	Credit      string
-	Entries     []bandCatalogRow
-}
-
-func groupByAlbum(entries []bandCatalogRow, covers map[string]store.AlbumCover) []albumGroup {
-	byAlbum := map[string][]bandCatalogRow{}
-	for _, e := range entries {
-		album := e.Album
-		if album == "" {
-			album = "(no album set)"
-		}
-		byAlbum[album] = append(byAlbum[album], e)
-	}
-	names := make([]string, 0, len(byAlbum))
-	for name := range byAlbum {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	groups := make([]albumGroup, 0, len(names))
-	for _, name := range names {
-		songs := byAlbum[name]
-		sort.Slice(songs, func(i, j int) bool { return songs[i].Title < songs[j].Title })
-		g := albumGroup{Album: name, Entries: songs}
-		if c, ok := covers[name]; ok {
-			g.CoverURL, g.ReleaseYear, g.Credit = c.CoverURL, c.ReleaseYear, c.Credit
-		}
-		groups = append(groups, g)
-	}
-	return groups
+	// By album (albums.go): its track number, its title as printed when
+	// it differs, its live version (0: none).
+	Track        int
+	PrintedTitle string
+	LiveID       int64
 }
 
 // handleCreateBandVariant creates a brand-new, from-scratch variant

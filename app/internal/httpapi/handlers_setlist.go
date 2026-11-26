@@ -129,6 +129,9 @@ type gigRow struct {
 	ItemID      int64
 	VersionName string
 	Versions    []versionChoice
+	// Live: the line's live version state, on a band with albums or live
+	// versions (albums.go); nil otherwise.
+	Live *setlistLiveRow
 }
 
 // versionChoice is one version a set list row may play, labelled so the
@@ -315,6 +318,19 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		}
 		sets = append(sets, gigSet{Label: set.Label, Rows: rows})
 	}
+	// Live versions (albums.go): each line's Live chip; Live | Album in
+	// the player when the band's set lists use them.
+	live, liveChoice := s.addSetlistLive(r, bandID, sets)
+	if live != nil && live.On {
+		choice, playable = liveChoice, 0
+		for _, set := range sets {
+			for _, row := range set.Rows {
+				if row.Sound != nil {
+					playable++
+				}
+			}
+		}
+	}
 	// The songs that can be added: a band's set list picks from the
 	// band's repertoire, listed here; any other one searches the catalog.
 	var repertoire []map[string]any
@@ -348,6 +364,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 			}
 			repertoire = append(repertoire, map[string]any{"variantId": e.VariantID, "title": title, "artist": artist})
 		}
+		repertoire = s.foldLiveRepertoire(r.Context(), repertoire)
 	}
 	// The set list's owner's songbook (§4: a set list lists songs of it):
 	// the Add / Create dialog links a song there before it joins the list.
@@ -366,7 +383,7 @@ func (s *Server) handleSetlistOverview(w http.ResponseWriter, r *http.Request) {
 		"Sets": sets, "BrandKind": brandKind, "BrandID": brandID,
 		// Its exports are in the page's own toolbar (Export ▾), not the
 		// sidebar: actions on the set list, not places to go.
-		"Band": band, "Playable": playable, "Choice": choice,
+		"Band": band, "Playable": playable, "Choice": choice, "Live": live,
 	})
 }
 
@@ -552,6 +569,23 @@ func (s *Server) handlePutSetlistByID(w http.ResponseWriter, r *http.Request) {
 			if err := s.store.LinkCheckFor(r.Context(), person.ID, v, store.BandOwner(*meta.OwnerBandID)); err != nil && !errors.Is(err, store.ErrNotFound) {
 				s.writeLinkErr(w, r, err)
 				return
+			}
+		}
+	}
+	// A band whose set lists use live versions: a line added plays the
+	// song's live version (albums.go).
+	if meta.Scope == "band" && meta.OwnerBandID != nil {
+		had := map[int64]bool{}
+		for _, v := range store.SetlistVariantIDs(before) {
+			had[v] = true
+		}
+		if swap := s.liveSwapNewLines(r.Context(), *meta.OwnerBandID, had, store.SetlistVariantIDs(l)); swap != nil {
+			for si := range l.Sets {
+				for ei := range l.Sets[si].Entries {
+					if to, ok := swap[l.Sets[si].Entries[ei].VariantID]; ok {
+						l.Sets[si].Entries[ei].VariantID = to
+					}
+				}
 			}
 		}
 	}

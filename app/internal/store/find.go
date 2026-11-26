@@ -125,7 +125,7 @@ func (st *Store) FindSongs(ctx context.Context, personID int64, filter FindFilte
 		       coalesce(p.display_name, b.name, c.name, ''),
 		       s.owner_person_id IS NOT DISTINCT FROM $1, coalesce(c.kind = 'global', false),
 		       coalesce(b.music_type = 'original', false) AND s.forked_from_id IS NULL,
-		       s.public, song_closed(s.id), s.forked_from_id, coalesce(w.genre, ''), coalesce(w.album, ''),
+		       s.public, song_closed(s.id), s.forked_from_id, coalesce(w.genre, ''), `+songAlbumSQL("s")+`,
 		       $9 > 0 AND EXISTS (SELECT 1 FROM songbook_entries se WHERE se.songbook_id = $9 AND se.variant_id = s.id),
 		       CASE WHEN $2 = '' THEN 0
 		            WHEN `+title+` LIKE $2 || '%' THEN 3
