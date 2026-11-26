@@ -1,0 +1,17 @@
+{
+  "a few seconds left": "encore quelques secondes",
+  "about %d s left": "encore environ %d s",
+  "about %d min left": "encore environ %d min",
+  "trying again in a moment": "nouvel essai dans un instant",
+  "trying again in %d min": "nouvel essai dans %d min",
+  "waiting its turn": "en attente de son tour",
+  "YouTube shows this video to signed-in adults only, so its audio can’t be taken from here.": "YouTube ne montre cette vidéo qu’aux adultes connectés : son audio ne peut pas être récupéré d’ici.",
+  "This video is private, removed or unavailable, so its audio can’t be taken.": "Cette vidéo est privée, supprimée ou indisponible : son audio ne peut pas être récupéré.",
+  "YouTube refused the video to this server (blocked, or too many requests).": "YouTube a refusé la vidéo à ce serveur (blocage, ou trop de demandes).",
+  "This video is longer than 30 minutes: too long to keep its audio here.": "Cette vidéo dure plus de 30 minutes : trop long pour en garder l’audio ici.",
+  "Couldn’t get the audio from this video.": "Impossible de récupérer l’audio de cette vidéo.",
+  "Couldn’t ask for the audio. Try again.": "Impossible de demander l’audio. Réessayez.",
+  "Couldn’t remove the audio. Try again.": "Impossible de retirer l’audio. Réessayez.",
+  "Remove the audio taken from this video? The video stays, but the click, sync, parts and melody need the audio. This can’t be undone.": "Retirer l’audio tiré de cette vidéo ? La vidéo reste, mais le clic, la synchro, les pistes séparées et la mélodie ont besoin de l’audio. C’est définitif.",
+  "Downloading the sound… %d%": "Téléchargement du son… %d %"
+}

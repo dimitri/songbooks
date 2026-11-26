@@ -42,6 +42,51 @@ on this non-production host, at the user's explicit instruction). It is
 **not** acceptable reasoning for a commercially operated or publicly
 reachable instance — see "Revisit at scale."
 
+### Automatic (2026-11-26)
+
+The song's MP3 is what the click, the sync, the parts (the stems split)
+and the melody start from, so it's no longer a button: it's fetched by
+itself, in the background (`httpapi/yt_audio_jobs.go`,
+`store/youtube_audio_jobs.go`, migration 0140).
+
+- **One job per song** (`song_youtube_audio_jobs`, keyed by the song, for
+  one link): `queued` → `running` (progress and ETA read from yt-dlp's
+  `--newline` progress lines, a heartbeat every 10 s) → `done` (stored as
+  an upload is: `song_audio`, category `youtube`, whose triggers queue the
+  split, then the analysis, then the melody) or `failed` with a reason:
+  `age_restricted`, `unavailable` (private, removed, members only),
+  `blocked` (a bot check, 429/403, a country), `too_long` (over 30 min),
+  `other`. Rate limits and network errors are tried again after 1, 5,
+  then 20 min (4 tries in all); the others fail at once. `removed`: an
+  editor removed the audio, it isn't fetched again for that link until
+  someone asks.
+- **When it starts:** the songs trigger queues it whenever a reference is
+  set or changed to a YouTube video, whatever wrote it (the editor, the
+  YouTube picker, quick add, The Big Songbook's fixes and new recordings,
+  proposals, imports); a link put back to one whose audio is there, or
+  taken away, drops the other job. The song page queues it when the song
+  is opened without its audio, by anyone who may open it, unless it
+  failed in the last 24 h or an editor removed it. An editor's ↻ Try
+  again / Again (`POST /api/songs/{id}/audio/youtube`) queues it whatever
+  came before; the import wizard's Recording step posts the video it
+  picked and follows the job.
+- **Workers:** in the app process, `SONGBOOKS_YTAUDIO_WORKERS` at a time
+  (1 by default, at most 2, 0 for none), woken by `NOTIFY
+  song_youtube_audio`, looking every 30 s anyway. At start-up the jobs a
+  worker was on are queued again; a job whose worker went quiet for 3 min
+  too. `SONGBOOKS_YTDLP` points at another yt-dlp (a local stand-in).
+- **Under the video** (the Reference view; the lesson view's video when
+  it's the song's): "Getting the audio…", a progress bar, the % and the
+  time left, "You can leave this page"; "✓ Audio ready · 3:42" (Again ·
+  Remove for an editor); the reason in one line (↻ Try again and ⬆ Upload
+  an MP3 for an editor, the reason alone for anyone else). `GET
+  /api/songs/{id}/audio/youtube/status` is asked again while it's queued
+  or running (paused while the page is hidden); once ready, the player
+  takes the audio without a reload.
+- **The songs there already:** `backfillaudio` counts (a dry run by
+  default); `--apply` queues them one at a time, waiting for each, with a
+  pause between.
+
 ## 2. Storage: Postgres, as `bytea`
 
 **Decision: store the MP3 bytes directly in Postgres**, in a new table,

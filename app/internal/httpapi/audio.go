@@ -14,7 +14,6 @@ import (
 	"app/internal/audiotranscode"
 	"app/internal/songimport"
 	"app/internal/store"
-	"app/internal/ytaudio"
 )
 
 // maxAudioUpload is a sane size ceiling for what's actually STORED — a
@@ -269,34 +268,6 @@ func (s *Server) handlePutSongAudio(w http.ResponseWriter, r *http.Request) {
 	s.storeAudioBytes(w, r, variantID, category, data, "audio/mpeg", "")
 }
 
-// handlePostSongAudioYouTube is POST /api/songs/{book}/{stem}/audio/youtube
-// — the yt-dlp convenience (app/docs/mp3-reference-audio.md §1): runs
-// yt-dlp server-side against the given URL, extracts+transcodes to MP3,
-// and stores the result under the "youtube" category — the download
-// convenience only ever fills that one category, never "band", since the
-// two exist specifically to distinguish a YouTube source from the band's
-// own recording.
-func (s *Server) handlePostSongAudioYouTube(w http.ResponseWriter, r *http.Request) {
-	variantID, err := pathID(r, "id")
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	var req struct {
-		URL string `json:"url"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
-		httpError(w, http.StatusBadRequest, "missing url")
-		return
-	}
-	data, err := ytaudio.Download(r.Context(), req.URL)
-	if err != nil {
-		httpError(w, http.StatusBadGateway, "download failed: "+err.Error())
-		return
-	}
-	s.storeAudioBytes(w, r, variantID, store.AudioYouTube, data, "audio/mpeg", req.URL)
-}
-
 // storeAudioBytes is the shared tail of both upload paths: hash, store,
 // respond with the same meta shape handleGetSongAudioMeta returns.
 func (s *Server) storeAudioBytes(w http.ResponseWriter, r *http.Request, variantID int64, category store.AudioCategory, data []byte, contentType, sourceURL string) {
@@ -323,6 +294,14 @@ func (s *Server) handleDeleteSongAudio(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteSongAudio(r.Context(), variantID, category); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// The video's audio removed by an editor: not fetched again by
+	// itself for this link (yt_audio_jobs.go), until they ask.
+	if category == store.AudioYouTube {
+		if err := s.store.MarkYouTubeAudioRemoved(r.Context(), variantID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -27,6 +27,7 @@ import (
 //	none         no recording a melody can come from
 //	unavailable  not split, and no stems worker at work on this server
 //	queued       its split is waiting (position: splits before it)
+//	audio        no recording yet: its video's audio is being fetched (progress)
 //	running      its split is being made (progress, from the worker)
 //	failed       its split failed for good (canRetry: an editor may queue it again)
 //	notes        the melody's notes are being found in the voice
@@ -160,6 +161,11 @@ func melodyMessage(lang string, r melodyStatusResponse) string {
 	switch r.State {
 	case "none":
 		return T("Melody: this song has no reference recording to find it in. Add one (YouTube or the band’s).")
+	case "audio":
+		if r.Progress != nil {
+			return T("Melody: getting the audio from the reference video first, %d%%.", int(math.Round(*r.Progress*100)))
+		}
+		return T("Melody: getting the audio from the reference video first.")
 	case "unavailable":
 		return T("Melody: voice separation isn’t available on this server, so the melody can’t be found here.")
 	case "queued":
@@ -216,6 +222,18 @@ func (s *Server) melodyStatus(ctx context.Context, variantID int64, full bool) (
 		return melodyStatusResponse{}, err
 	}
 	out := melodyProgress(m)
+	// No recording yet, its video's audio on its way (yt_audio_jobs.go):
+	// the melody comes after it.
+	if out.State == "none" {
+		if ys, err := s.store.GetYouTubeAudioState(ctx, variantID); err == nil && ys.Job != nil &&
+			(ys.Job.Status == store.YTAudioQueued || ys.Job.Status == store.YTAudioRunning) {
+			out.State, out.Poll = "audio", 10
+			if ys.Job.Status == store.YTAudioRunning && ys.Job.Progress != nil {
+				p := math.Round(*ys.Job.Progress*1000) / 1000
+				out.Progress = &p
+			}
+		}
+	}
 	if out.State != "ready" || !full {
 		return out, nil
 	}

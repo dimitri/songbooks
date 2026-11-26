@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	// The image has no zoneinfo: TZ (the deploy files set Europe/Paris)
@@ -238,6 +239,22 @@ func main() {
 		log.Printf("live lessons on %s", httpapi.Galene.URL)
 	}
 
+	// The YouTube reference's audio, fetched in the background
+	// (docs/mp3-reference-audio.md "Automatic"): SONGBOOKS_YTAUDIO_WORKERS
+	// at a time (1 by default, at most 2; 0: none on this process), with
+	// SONGBOOKS_YTDLP as yt-dlp when set (a stand-in, locally).
+	if bin := os.Getenv("SONGBOOKS_YTDLP"); bin != "" {
+		ytaudio.Binary = bin
+	}
+	ytWorkers := 1
+	if v := os.Getenv("SONGBOOKS_YTAUDIO_WORKERS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			log.Fatalf("SONGBOOKS_YTAUDIO_WORKERS: %q isn't a number of workers", v)
+		}
+		ytWorkers = n
+	}
+	go httpapi.RunYouTubeAudio(context.Background(), st, ytWorkers)
 	// Each recording's melody range, from its vocals part, in the
 	// background (docs/coaching.md).
 	go httpapi.RunMelodyRanges(context.Background(), st)

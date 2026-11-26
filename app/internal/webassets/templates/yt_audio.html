@@ -1,0 +1,36 @@
+{{/* The video's audio, under the YouTube video, its full width
+     (httpapi/yt_audio_jobs.go, static/js/yt-audio.js): fetched by itself,
+     the click, the sync, the parts and the melody start from it.
+     Getting it: a progress bar, the % and the time left; ready: its
+     length (Again · Remove for an editor); failed: why in one line (Try
+     again, Upload an MP3 for an editor; the reason alone for anyone
+     else). The script shows the part for the state and asks the server
+     again while it can change.
+     dict: VariantID, Status (the first answer, JSON), CanEdit. */}}
+{{define "yt-audio"}}
+<div class="yt-audio" data-yt-audio data-variant-id="{{.VariantID}}" data-status="{{.Status}}"{{if .CanEdit}} data-can-edit="1"{{end}} hidden>
+  <div class="yt-audio-part yt-audio-run" data-part="running" hidden>
+    <div class="yt-audio-line">
+      <span class="yt-audio-title">{{t "Getting the audio…"}}</span>
+      <span class="yt-audio-num"><span class="yt-audio-pct"></span><span class="yt-audio-eta"></span></span>
+    </div>
+    <div class="yt-audio-bar" role="progressbar" aria-label="{{t "Getting the audio from the video"}}" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+    <p class="yt-audio-note">{{t "Needed for the click, sync, parts and melody. You can leave this page."}}</p>
+  </div>
+  <div class="yt-audio-part yt-audio-ready" data-part="ready" hidden>
+    <span class="yt-audio-ok"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg>{{t "Audio ready"}}<span class="yt-audio-dur"></span></span>
+    {{if .CanEdit}}<span class="yt-audio-actions"><button type="button" class="link-like" data-yt-again title="{{t "Get the audio from the video again"}}">{{t "audio|Again"}}</button><span aria-hidden="true">·</span><button type="button" class="link-like yt-audio-danger" data-yt-remove title="{{t "Remove the audio taken from the video (the video stays)"}}">{{t "Remove"}}</button></span>{{end}}
+  </div>
+  <div class="yt-audio-part yt-audio-failed" data-part="failed" hidden>
+    <p class="yt-audio-reason"></p>
+    {{if .CanEdit}}<span class="yt-audio-actions"><button type="button" class="yt-audio-btn" data-yt-retry>↻ {{t "Try again"}}</button><button type="button" class="yt-audio-btn" data-yt-upload>⬆ {{t "Upload an MP3"}}</button></span>{{end}}
+  </div>
+  {{if .CanEdit}}
+  <div class="yt-audio-part yt-audio-failed" data-part="removed" hidden>
+    <p class="yt-audio-reason">{{t "No audio from this video: the click, sync, parts and melody need one."}}</p>
+    <span class="yt-audio-actions"><button type="button" class="yt-audio-btn" data-yt-retry>↻ {{t "Get the audio"}}</button><button type="button" class="yt-audio-btn" data-yt-upload>⬆ {{t "Upload an MP3"}}</button></span>
+  </div>
+  {{end}}
+  <p class="yt-audio-status form-status" role="status"></p>
+</div>
+{{end}}
