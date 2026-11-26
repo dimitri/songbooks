@@ -805,6 +805,25 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	// address carries its hash and is cached as long.
 	mux.HandleFunc("GET /brand-logos/{kind}/{id}/{file}", s.handleGetBrandLogo)
 
+	// Albums and live versions (albums.go, docs/albums-and-live-versions.md):
+	// a band's releases, their artwork (no login, like a logo), their
+	// playlist and PDF; the live versions and the band's set lists' use
+	// of them.
+	mux.HandleFunc("GET /album-covers/{albumID}/{file}", s.handleGetAlbumCover)
+	mux.HandleFunc("GET /bands/{id}/albums", s.requireBandMember(s.handleBandAlbumsPage))
+	mux.HandleFunc("POST /api/bands/{id}/albums", s.requireBandPrivilege(store.BandPrivEditSongbook, s.handleCreateAlbum))
+	mux.HandleFunc("GET /bands/{id}/albums/{albumID}", s.requireAuth(s.handleAlbumPage))
+	mux.HandleFunc("GET /bands/{id}/albums/{albumID}/play", s.requireAuth(s.handleAlbumPlaylist))
+	mux.HandleFunc("GET /bands/{id}/albums/{albumID}/export.pdf", s.requireAuth(s.handleExportAlbumPDF))
+	mux.HandleFunc("PUT /api/bands/{id}/albums/{albumID}", s.requireAuth(s.handleSaveAlbum))
+	mux.HandleFunc("DELETE /api/bands/{id}/albums/{albumID}", s.requireAuth(s.handleDeleteAlbum))
+	mux.HandleFunc("POST /api/bands/{id}/albums/{albumID}/public", s.requireAuth(s.handleSetAlbumPublic))
+	mux.HandleFunc("PUT /api/bands/{id}/albums/{albumID}/cover", s.requireAuth(s.handlePutAlbumCover))
+	mux.HandleFunc("DELETE /api/bands/{id}/albums/{albumID}/cover", s.requireAuth(s.handleDeleteAlbumCover))
+	mux.HandleFunc("POST /api/songs/{id}/live-version", s.requireAuth(s.handleMakeLiveVersion))
+	mux.HandleFunc("POST /api/bands/{id}/setlist-versions", s.requireBandPrivilege(store.BandPrivEditBand, s.handleSetSetlistVersions))
+	mux.HandleFunc("POST /api/setlists/{id}/use-live-versions", s.requireAuth(s.handleUseLiveVersions))
+
 	mux.Handle("GET /static/", cacheForever(http.StripPrefix("/static/", http.FileServerFS(webassets.StaticFS()))))
 
 	// The soundfont a score plays with, cut down to its presets

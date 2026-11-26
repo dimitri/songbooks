@@ -569,6 +569,8 @@
     </div>
     {{/* Opened in the key a songbook keeps it in (songbook_keys.go): the
          same song, whoever's it is, transposed for this songbook. */}}
+    {{/* Where it comes from, Album | Live (albums.html). */}}
+    {{template "song-album-line" .AlbumLine}}
     {{with .SongbookKey}}<p class="songbook-key-line">{{if .Whose}}{{.Whose}} · {{end}}{{if .Mine}}{{t "in your key: %s" .Label}}{{else}}{{t "in the key of “%s”: %s" .Songbook .Label}}{{end}} · <a href="{{.Original}}">{{t "Original key"}}</a></p>{{end}}
     {{/* mini-metro-play/-fade/-tap stay in the DOM but hidden, not deleted
          — jumpToSection()/setPlaying() (song.js) operate on these exact

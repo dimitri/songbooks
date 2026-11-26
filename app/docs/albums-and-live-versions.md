@@ -1,7 +1,9 @@
-# Albums and live versions — proposal
+# Albums and live versions
 
-Status: **proposed, nothing built** (2026-11-26). The request, for
-Other Lies (band 15, original music):
+Status: **built** (2026-11-26, migrations 0146–0147, `store/albums.go`,
+`httpapi/albums.go`, `cmd/albums`): see §12 for what was built and how
+it differs from the proposal below (the band's answers to §11). The
+request, for Other Lies (band 15, original music):
 
 > The main songbook can use the YouTube references and the album audio
 > (we need album artwork too, so make it 3 songbooks named per album,
@@ -550,3 +552,92 @@ recordings, the band's setting set to live, the three set lists moved.
 12. **Public, logged out**: should a public album be the first page a
     visitor without an account can open (the band's showcase), given
     the public catalog isn't built?
+
+## 12. Built (2026-11-26)
+
+The band's answers to §11, and what they changed:
+
+1. **Album audio is streamed, nothing copied** (§11.1): a track's master
+   stays in the band's recordings folder (pCloud) and plays through the
+   app's recordings proxy (`/recordings/{id}/audio`); no MP3, no stems,
+   no analysis on it. §3's import (`ImportTrackAudio`,
+   `song_audio.from_recording_id`) is **not built**. The click and the
+   sync of an album song use its YouTube reference's audio when it has
+   one (#206), as for any song. Who hears a master: the band's current
+   members, or everyone signed in when its album is public
+   (`canHearSQL`).
+2. **The printed titles**: the songs are renamed (the data tool, a
+   revision each; the work too when only the band has it).
+3. **Skins** is left out (`skipMasters`).
+4. **Live versions for the 17 songs of the set lists, made from the
+   songs as they are now**: the current charts carry the band's live
+   edits, so the live version is a copy of the song as it is — chart,
+   tempo, reference, media and sync (`copySongMedia`) — and the set list
+   lines (their notes, their click-track notes) move to it, the
+   songbook's key with it. The album song keeps its chart and takes the
+   album's tempo from the master's file name (`…_90_Mix…`), or the
+   mapping, when known; **when unknown (Beyond Fur and Surfacing: their
+   masters' names carry no tempo) it keeps the current tempo** — the
+   live one — and the dry run says so, song by song.
+5. **Set lists use live versions** (the band setting `setlist_versions`,
+   on for Other Lies by the data tool; the default for a band is still
+   the song itself); a new line picks the live version (any save of a
+   band's set list: the add box, the Add / Create dialog).
+6. **Artwork is uploaded** (`album_covers`, `brand.PrepareArtwork`:
+   cropped to its centred square, at most 1200 px, JPEG, served at
+   `/album-covers/{id}/{hash}.jpg` like a band's logo, no login, cached
+   for good). `band_albums.cover_url` (hotlinked) is not kept. The data
+   tool fetches the Bandcamp artwork once with `--artwork`.
+
+**Model** (0146): `albums`, `album_covers`, `album_tracks` (with a
+`tempo`), `songs.live` (one live version per song and owner),
+`bands.setlist_versions`; `band_albums` and `works.album` moved in (one
+album per row or per distinct album text, tracks numbered by title) and
+dropped (0147). Search, the catalogue and `songexport` read a song's
+first album from `album_tracks`.
+
+**Pages**: the Songbook's **Albums** chip (`/bands/{id}/albums`: cover
+tiles, singles after, *New album*); the album page (cover over a blur of
+itself, kind, date, label, tracks and length, *Play the album*,
+*Shuffle*, *PDF* with the cover, *PDF with the live versions*, links,
+*Public*, the tracks with the printed title, the song's own under it,
+*also a single*, the Live chip, tempo and duration; credits, licence,
+where the audio comes from, more releases; the editor: facts, artwork,
+links, tracks with song, master, duration, tempo and ISRC, reordered);
+the songbook **By album | A–Z** with filter chips (each album, Live),
+each album a section in track order with *Play* and *Album page*, the
+singles' songs, then *Not on an album*, live versions folded into their
+album song's Live chip; the song page's *From Ultrablanc (2026), track
+3 · also a single, 21 Nov 2025* and **Album | Live** (or *Make the live
+version*); the set list's Live chips, *Album · Make the live version*,
+*Use the live versions here*, and the player's **Live | Album** (Live:
+the line's own recording or reference; Album: the album master, else the
+album song's own); Settings › The band: *Set lists use*. The playlist's
+lock-screen artwork is the album's.
+
+**Rights**: `edit_songbook` edits albums, their artwork and makes live
+versions; `publish` makes an album public (and, if asked, its songs —
+never their live versions); `edit_band` the setting; whoever may edit a
+set list moves it to the live versions.
+
+**Recordings**: the folder's concert and set-list recordings of a song
+with a live version are matched to the live version (rehearsals and the
+masters stay on the album song, §11.8 still open); making a live version
+moves them, and the song's chosen recording when it is one of those.
+
+**`cmd/albums`** (`store/albums_mapping.go`): `albums --db … --mapping
+cmd/albums/otherlies.json [--artwork] [--apply --as PERSON]`. Dry run by
+default, in one transaction rolled back (what it prints is what
+`--apply` does); it checks the band's name and each song's title against
+the mapping (a renamed song passes), attaches each track's master from
+its folder by number (tempo and ISRC read from the name when the mapping
+lacks them), skips `skipMasters`, renames, makes the live versions,
+sets the album tempos, sets the setting, and warns when the set lists
+play a band song the mapping's live list lacks. A second run has nothing
+more to do. `--from-folder` makes an album of each `Albums/N - Title/`
+folder the mapping doesn't name.
+
+**Not built**: copying masters into the app (by the band's answer);
+*Read the folder* in the editor (the data tool does it); *Most played*;
+the cover palette; the intro tape as a cue line (§11.9); public albums
+for logged-out visitors (§11.12).

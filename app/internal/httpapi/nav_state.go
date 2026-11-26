@@ -79,6 +79,8 @@ var pageNavSections = map[string]string{
 	"band_recordings":      webassets.NavBands,
 	"band_song_recordings": webassets.NavBands,
 	"band_recording_fixes": webassets.NavBands,
+	"band_albums":          webassets.NavBands,
+	"band_album":           webassets.NavBands,
 
 	"communities":                webassets.NavCommunities,
 	"community":                  webassets.NavCommunities,

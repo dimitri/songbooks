@@ -84,4 +84,7 @@ type FrontMatter struct {
 	BandName   string
 	Date       string
 	Venue      string
+	// Image is a cover picture (JPEG or PNG) drawn above the title: an
+	// album's artwork (docs/albums-and-live-versions.md); nil for none.
+	Image []byte
 }

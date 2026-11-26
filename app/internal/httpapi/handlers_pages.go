@@ -3064,6 +3064,8 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"HasLyrics":          anySectionHasLyrics(sections),
 		"Text":               text, "Version": version,
 	}
+	// Where it comes from, and its live version (albums.go).
+	data["AlbumLine"] = s.albumLineFor(r, s.langOf(w), variantID)
 	// Tap tempo (play.html #tap-tempo-dialog) compares with the song's own
 	// tempo, not with .Tempo's 120 for a song that has none.
 	data["SongTempo"] = sg.Get("tempo")
