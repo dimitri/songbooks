@@ -113,7 +113,7 @@ func fetch(ctx context.Context, url string, maxDur time.Duration, onProgress fun
 	args := []string{"-x", "--audio-format", "mp3", "--audio-quality", "0",
 		"--no-playlist", "--newline", "--progress", "--print-to-file", "%(duration)s", durFile}
 	if maxDur > 0 {
-		args = append(args, "--match-filter", fmt.Sprintf("!duration | duration <= %d", int(maxDur.Seconds())))
+		args = append(args, "--match-filter", fmt.Sprintf("duration <=? %d", int(maxDur.Seconds())))
 	}
 	args = append(args, "-o", out, "--", url)
 	cmd := exec.CommandContext(ctx, Binary, args...)
