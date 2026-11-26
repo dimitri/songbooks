@@ -38,9 +38,12 @@ type RecordingFile struct {
 
 // canHearSQL is "person $2 may hear the recording r" (s its song, LEFT
 // JOINed): one of the band's current members, or a recording everyone
-// signed in hears.
+// signed in hears — a public song's, or the master of a public album's
+// track (albums.go).
 const canHearSQL = `(NOT r.gone AND (EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = r.band_id AND bm.person_id = $2 AND upper_inf(bm.validity))
-	OR coalesce(` + publicRecordingSQL + `, false)))`
+	OR coalesce(` + publicRecordingSQL + `, false)
+	OR EXISTS (SELECT 1 FROM album_tracks at JOIN albums a ON a.id = at.album_id
+	           WHERE at.recording_id = r.id AND a.public AND a.band_id = r.band_id)))`
 
 // RecordingFileFor is recordingID for personID: ErrNotFound when there is
 // no such recording (or it is gone from the folder), ErrForbidden when

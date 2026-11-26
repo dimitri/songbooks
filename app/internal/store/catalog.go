@@ -31,14 +31,13 @@ type Work struct {
 	Title  string
 	Artist string
 	Genre  string
-	Album  string
 }
 
 // GetWork fetches one work by id, genre and album included.
 func (st *Store) GetWork(ctx context.Context, workID int64) (*Work, error) {
 	var w Work
-	err := st.db.QueryRow(ctx, `SELECT id, title, artist, coalesce(genre, ''), coalesce(album, '') FROM works WHERE id = $1`, workID).
-		Scan(&w.ID, &w.Title, &w.Artist, &w.Genre, &w.Album)
+	err := st.db.QueryRow(ctx, `SELECT id, title, artist, coalesce(genre, '') FROM works WHERE id = $1`, workID).
+		Scan(&w.ID, &w.Title, &w.Artist, &w.Genre)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
 	}
@@ -46,24 +45,6 @@ func (st *Store) GetWork(ctx context.Context, workID int64) (*Work, error) {
 		return nil, err
 	}
 	return &w, nil
-}
-
-// SetWorkAlbum sets (or clears, with "") workID's free-text album — see
-// migration 0033's comment for why this lives on works rather than
-// per-variant.
-func (st *Store) SetWorkAlbum(ctx context.Context, workID int64, album string) error {
-	var arg any
-	if album != "" {
-		arg = album
-	}
-	tag, err := st.db.Exec(ctx, `UPDATE works SET album = $1 WHERE id = $2`, arg, workID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
-	}
-	return nil
 }
 
 // SetWorkGenre sets (or clears, with "") workID's free-text genre —
@@ -82,51 +63,6 @@ func (st *Store) SetWorkGenre(ctx context.Context, workID int64, genre string) e
 		return fmt.Errorf("no such work %d: %w", workID, ErrNotFound)
 	}
 	return nil
-}
-
-// AlbumCover is one album's cover art for a band, keyed by (band_id,
-// album) per migration 0041 (band_albums, renamed from project_albums).
-type AlbumCover struct {
-	Album       string
-	CoverURL    string
-	ReleaseYear int
-	Credit      string
-}
-
-// GetAlbumCovers returns every album cover known for bandID, keyed by
-// album name, for pages that group a repertoire by album (an
-// "original"-type band's Repertoire tab and Overview preview).
-func (st *Store) GetAlbumCovers(ctx context.Context, bandID int64) (map[string]AlbumCover, error) {
-	rows, err := st.db.Query(ctx, `SELECT album, cover_url, coalesce(release_year, 0), credit FROM band_albums WHERE band_id = $1`, bandID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]AlbumCover{}
-	for rows.Next() {
-		var c AlbumCover
-		if err := rows.Scan(&c.Album, &c.CoverURL, &c.ReleaseYear, &c.Credit); err != nil {
-			return nil, err
-		}
-		out[c.Album] = c
-	}
-	return out, rows.Err()
-}
-
-// SetAlbumCover upserts one album's cover art for a band — idempotent,
-// safe to re-run (e.g. a backfill script run more than once).
-func (st *Store) SetAlbumCover(ctx context.Context, bandID int64, album, coverURL string, releaseYear int, credit string) error {
-	var yr any
-	if releaseYear > 0 {
-		yr = releaseYear
-	}
-	_, err := st.db.Exec(ctx, `
-		INSERT INTO band_albums (band_id, album, cover_url, release_year, credit)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (band_id, album) DO UPDATE
-		SET cover_url = EXCLUDED.cover_url, release_year = EXCLUDED.release_year, credit = EXCLUDED.credit
-	`, bandID, album, coverURL, yr, credit)
-	return err
 }
 
 // findOrCreateWork matches title/artist against works by simple
@@ -216,7 +152,7 @@ type CatalogVariant struct {
 	OwnerCommunityID *int64
 	ForkedFromID     *int64
 	Genre            string // from the parent work; "" means unset, not filtered out of an unfiltered listing
-	Album            string // from the parent work; "" means unset (migration 0033)
+	Album            string // the first album it is on (albums, migration 0146); "" when none
 	// BandName is the band's, for a band's version shown in place of the
 	// catalogue's song (PreferBandVersions); "" otherwise.
 	BandName string
@@ -242,7 +178,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 		order = "s.artist, s.title"
 	}
 	rows, err := st.db.Query(ctx, `
-		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), coalesce(w.album, '')
+		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), `+songAlbumSQL("s")+`
 		FROM songs s JOIN works w ON w.id = s.work_id
 		WHERE (s.public OR s.owner_person_id = $1)
 		  AND ($2 = '' OR s.artist = $2)
@@ -261,7 +197,7 @@ func (st *Store) ListCatalog(ctx context.Context, viewerID int64, filter Catalog
 // "this song’s recordings and arrangements" page.
 func (st *Store) ListVariantsForWork(ctx context.Context, workID, viewerID int64) ([]CatalogVariant, error) {
 	rows, err := st.db.Query(ctx, `
-		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), coalesce(w.album, '')
+		SELECT `+catalogVariantCols+`, coalesce(w.genre, ''), `+songAlbumSQL("s")+`
 		FROM songs s JOIN works w ON w.id = s.work_id
 		WHERE s.work_id = $1 AND song_visible(s.id, $2)
 		ORDER BY s.public DESC, s.id`, workID, viewerID)

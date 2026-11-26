@@ -1,0 +1,295 @@
+{{/* Albums and live versions (internal/httpapi/albums.go,
+     docs/albums-and-live-versions.md): the band's releases, one album's
+     page and its editor, the song page's album line and Album | Live
+     switch, the set list's live chips, the band's setting. */}}
+
+{{/* A release's artwork, or its initials on the band's colours. */}}
+{{define "album-art"}}{{if .CoverPath}}<img class="album-art" src="{{.CoverPath}}" alt="" loading="lazy">{{else}}<span class="album-art album-art-none" aria-hidden="true">{{.Title}}</span>{{end}}{{end}}
+
+{{define "band_albums"}}
+{{$brand := brandFor "band" .Band.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{t "Albums"}} — {{.Band.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{template "space-back" .Space}}
+  <h1>{{template "space-section-name" .Space}}</h1>
+</header>
+<main class="index">
+  {{template "space-nav" .Space}}
+  <div class="songbook-head">
+    {{template "space-views" .Space}}
+    {{if .CanEdit}}<div class="setlist-actions songbook-actions">
+      <button type="button" class="setlist-action" id="album-new-open" aria-haspopup="dialog">{{template "icon-plus"}} {{t "New album"}}</button>
+    </div>{{end}}
+  </div>
+  {{if not (or .Albums .Singles)}}
+  <p class="attention-empty">{{t "No albums yet."}}{{if .CanEdit}} {{t "Add the band’s releases: their artwork, their tracks, their masters from the band’s folder."}}{{end}}</p>
+  {{end}}
+  {{with .Albums}}
+  <ul class="album-tiles">
+    {{range .}}<li><a class="album-tile" href="{{.Href}}">
+      {{template "album-art" .Album}}
+      <strong>{{.Title}}</strong>
+      <small>{{t .KindLabel}}{{if .ReleaseYear}} · {{.ReleaseYear}}{{end}} · {{tn (len .Tracks) "%d track" "%d tracks"}}{{with .Length}} · {{.}}{{end}}{{if .Public}} · {{t "public"}}{{end}}</small>
+    </a></li>{{end}}
+  </ul>
+  {{end}}
+  {{with .Singles}}
+  <h2 class="album-tiles-heading">{{t "Singles"}}</h2>
+  <ul class="album-tiles album-tiles-small">
+    {{range .}}<li><a class="album-tile" href="{{.Href}}">
+      {{template "album-art" .Album}}
+      <strong>{{.Title}}</strong>
+      <small>{{t .KindLabel}}{{if .ReleaseYear}} · {{.ReleaseYear}}{{end}}</small>
+    </a></li>{{end}}
+  </ul>
+  {{end}}
+  {{if .CanEdit}}
+  <dialog class="dialog album-new-dialog" id="album-new-dialog" aria-labelledby="album-new-title">
+    <form class="form-stack" id="album-new-form" data-band-id="{{.Band.ID}}">
+      <h2 id="album-new-title">{{t "New album"}}</h2>
+      <div class="field">
+        <label for="album-new-name">{{t "Title"}}</label>
+        <input type="text" id="album-new-name" name="title" required maxlength="200" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="album-new-kind">{{t "Kind"}}</label>
+        <select id="album-new-kind" name="kind">
+          <option value="album">{{t "Album"}}</option><option value="ep">{{t "EP"}}</option>
+          <option value="single">{{t "Single"}}</option><option value="live">{{t "Live album"}}</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" data-close>{{t "Cancel"}}</button>
+        <button type="submit" class="primary">{{t "Create the album"}}</button>
+      </div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </dialog>
+  <script src="/static/js/albums.js?v={{staticVersion}}" defer></script>
+  {{end}}
+</main>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+</body>
+</html>
+{{end}}
+
+{{define "band_album"}}
+{{$brand := brandFor "band" .Band.ID}}
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Album.Title}} — {{.Band.Name}} — Songbooks</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{staticVersion}}">
+{{template "pwa-head"}}
+{{template "brand-head" $brand}}
+</head>
+<body{{template "brand-body" $brand}}>
+{{template "desktop-sidebar" .}}
+<div class="app-content">
+<header class="app-header">
+  {{if .Space}}{{template "space-back" .Space}}{{else}}<span class="back-link">{{.Band.Name}}</span>{{end}}
+  <h1>{{if .Space}}{{template "space-section-name" .Space}}{{else}}{{t "Album"}}{{end}}</h1>
+</header>
+<main class="index album-page">
+  {{if .Space}}{{template "space-nav" .Space}}{{end}}
+  {{$a := .Album}}
+  <section class="album-hero"{{with $a.CoverPath}} style="--album-art: url('{{.}}')"{{end}}>
+    <div class="album-hero-art">{{template "album-art" $a}}</div>
+    <div class="album-hero-text">
+      <p class="album-kind">{{t .Tile.KindLabel}}{{with .Released}} · {{.}}{{end}}{{if $a.Public}} · <span class="album-public-badge">{{t "public"}}</span>{{end}}</p>
+      <h2 class="album-title">{{$a.Title}}</h2>
+      <p class="album-facts">{{$a.BandName}}{{with $a.Label}} · {{.}}{{end}} · {{tn (len $a.Tracks) "%d track" "%d tracks"}}{{with .Tile.Length}} · {{.}}{{end}}</p>
+      <div class="album-actions">
+        {{if $a.Tracks}}<a class="button-link primary album-play" href="{{.Play}}">{{template "icon-play"}} {{t "Play the album"}}</a>
+        <a class="setlist-action" href="{{.Play}}?shuffle=1">{{t "Shuffle"}}</a>
+        <button type="button" class="setlist-action" data-pdf-open="album-pdf-dialog" aria-haspopup="dialog">{{template "icon-download"}} {{t "PDF"}}</button>{{end}}
+        {{if .Rights.Edit}}<button type="button" class="setlist-action" id="album-edit-open" aria-haspopup="dialog">{{template "icon-edit"}} {{t "Edit"}}</button>{{end}}
+      </div>
+      {{with $a.Links}}<ul class="album-links">{{range .}}<li><a href="{{.URL}}" target="_blank" rel="noopener">{{.Label}}</a></li>{{end}}</ul>{{end}}
+      {{if .Rights.Publish}}
+      <label class="album-public-switch"><input type="checkbox" id="album-public"{{if $a.Public}} checked{{end}} data-band-id="{{$a.BandID}}" data-album-id="{{$a.ID}}"> {{t "Public: everyone signed in sees this album and hears its masters"}}</label>
+      <p class="form-status" id="album-public-status" role="status"></p>
+      {{end}}
+    </div>
+  </section>
+  {{if $a.Tracks}}{{template "pdf-export-dialog" (dict "ID" "album-pdf-dialog" "Href" .PDF "Title" "Album PDF" "Hint" "A cover with the artwork, the track list, then every song in track order.")}}{{end}}
+
+  <div class="album-body">
+    <section class="album-tracks" aria-label="{{t "Tracks"}}">
+      {{if not $a.Tracks}}<p class="attention-empty">{{t "No tracks yet."}}{{if .Rights.Edit}} {{t "Edit the album to add them."}}{{end}}</p>{{end}}
+      <ol class="album-track-list">
+      {{range .Tracks}}
+        <li class="album-track">
+          <span class="album-track-num">{{.Num}}</span>
+          <span class="album-track-title">
+            {{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}
+            {{with .SongTitle}}<small class="album-track-song">{{t "the song: %s" .}}</small>{{end}}
+            {{with .Single}}<small class="album-track-single">{{.}}</small>{{end}}
+          </span>
+          {{with .LiveHref}}<a class="live-chip" href="{{.}}" title="{{t "The way the band plays it live"}}">{{t "Live"}}</a>{{end}}
+          <span class="album-track-tempo">{{with .Tempo}}{{.}}{{end}}</span>
+          <span class="album-track-dur">{{.Duration}}</span>
+        </li>
+      {{end}}
+      </ol>
+      {{if and .HasLive $a.Tracks}}<p class="hint"><a href="{{.PDF}}?live=1" download>{{t "PDF with the live versions"}}</a></p>{{end}}
+    </section>
+    <aside class="album-side">
+      {{with $a.Credits}}<section><h3>{{t "Credits"}}</h3><p class="album-credits">{{.}}</p></section>{{end}}
+      {{with $a.Licence}}<section><h3>{{t "Licence"}}</h3><p>{{.}}</p></section>{{end}}
+      {{if and .Member $a.Tracks}}<section><h3>{{t "The audio"}}</h3><p class="hint">{{if .HasMaster}}{{t "The masters play from the band’s recordings folder, as they are: nothing is copied into the app."}}{{else}}{{t "No master picked from the band’s folder yet: each track plays its song’s own recording or reference."}}{{end}}</p></section>{{end}}
+      {{with .More}}<section><h3>{{t "More releases"}}</h3>
+        <ul class="album-more">{{range .}}<li><a href="{{.Href}}">{{template "album-art" .Album}}<span><strong>{{.Title}}</strong><small>{{t .KindLabel}}{{if .ReleaseYear}} · {{.ReleaseYear}}{{end}}</small></span></a></li>{{end}}</ul>
+      </section>{{end}}
+    </aside>
+  </div>
+
+  {{with .Editor}}
+  <dialog class="dialog album-edit-dialog" id="album-edit-dialog" aria-labelledby="album-edit-title">
+    <form class="form-stack" id="album-edit-form">
+      <h2 id="album-edit-title">{{t "Edit the album"}}</h2>
+      <div class="album-edit-cover">
+        <img id="album-edit-cover-img" alt="" hidden>
+        <div class="field">
+          <label for="album-edit-cover-file">{{t "Artwork"}}</label>
+          <input type="file" id="album-edit-cover-file" accept="image/png,image/jpeg,image/webp">
+          <p class="field-hint">{{t "A PNG, JPEG or WebP image: it is cropped square and resized to 1200 px."}}</p>
+          <button type="button" class="link-button danger" id="album-edit-cover-remove" hidden>{{t "Remove the artwork"}}</button>
+        </div>
+      </div>
+      <div class="settings-row2">
+        <div class="field"><label for="album-edit-name">{{t "Title"}}</label><input type="text" id="album-edit-name" required maxlength="200" autocomplete="off"></div>
+        <div class="field"><label for="album-edit-kind">{{t "Kind"}}</label>
+          <select id="album-edit-kind"><option value="album">{{t "Album"}}</option><option value="ep">{{t "EP"}}</option><option value="single">{{t "Single"}}</option><option value="live">{{t "Live album"}}</option></select></div>
+      </div>
+      <div class="settings-row2">
+        <div class="field"><label for="album-edit-date">{{t "Release date"}}</label><input type="date" id="album-edit-date"></div>
+        <div class="field"><label for="album-edit-label">{{t "Label"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="album-edit-label" maxlength="200" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="album-edit-credits">{{t "Credits"}} <span class="field-optional">{{t "(optional)"}}</span></label><textarea id="album-edit-credits" rows="3" maxlength="4000"></textarea></div>
+      <div class="field"><label for="album-edit-licence">{{t "Licence"}} <span class="field-optional">{{t "(optional)"}}</span></label><input type="text" id="album-edit-licence" maxlength="200" autocomplete="off"></div>
+      <div class="field"><label for="album-edit-links">{{t "Links"}} <span class="field-optional">{{t "(optional)"}}</span></label>
+        <textarea id="album-edit-links" rows="3" aria-describedby="album-edit-links-hint" spellcheck="false"></textarea>
+        <p class="field-hint" id="album-edit-links-hint">{{t "One https address a line: Bandcamp, Spotify, Apple Music, Deezer, YouTube."}}</p></div>
+      <fieldset class="field-group">
+        <legend>{{t "Tracks"}}</legend>
+        <ol class="album-edit-tracks" id="album-edit-tracks"></ol>
+        <button type="button" class="setlist-action" id="album-edit-add">{{template "icon-plus"}} {{t "Add a track"}}</button>
+      </fieldset>
+      <div class="form-actions">
+        <button type="button" class="danger" id="album-edit-delete">{{t "Delete the album"}}</button>
+        <button type="button" data-close>{{t "Cancel"}}</button>
+        <button type="submit" class="primary">{{t "Save"}}</button>
+      </div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </dialog>
+  <script>window.albumEditor = {{.}};</script>
+  {{end}}
+  {{if or .Editor .Rights.Publish}}<script src="/static/js/albums.js?v={{staticVersion}}" defer></script>{{end}}
+</main>
+</div>
+{{template "global-tabbar" $}}
+{{template "global-tabbar-script"}}
+<script src="/static/js/pdf-export.js?v={{staticVersion}}"></script>
+</body>
+</html>
+{{end}}
+
+{{/* The song page's album line (play.html): where the song comes from,
+     and the Album | Live switch. Called with a songAlbumLine. */}}
+{{define "song-album-line"}}{{with .}}
+<div class="song-album-line">
+  {{with .Album}}<a class="song-album-cover" href="{{.Href}}" tabindex="-1" aria-hidden="true">{{if .CoverPath}}<img src="{{.CoverPath}}" alt="">{{end}}</a>
+  <p>{{if eq .Kind "single"}}{{t "Single"}}{{else}}{{t "From"}}{{end}} <a href="{{.Href}}">{{.Title}}</a>{{if .Year}} ({{.Year}}){{end}}{{if ne .Kind "single"}}, {{t "track %d" .Position}}{{end}}{{range $.Singles}} · {{t "also a single, %s" .When}}{{end}}</p>{{end}}
+  {{if .LiveID}}
+  <nav class="album-live-switch" aria-label="{{t "Album or live"}}">
+    <a href="/song/{{.AlbumSong}}{{.Query}}"{{if not .IsLive}} aria-current="page" class="active"{{end}}>{{t "Album"}}</a>
+    <a href="/song/{{.LiveID}}{{.Query}}"{{if .IsLive}} aria-current="page" class="active"{{end}}>{{t "Live"}}</a>
+  </nav>
+  {{else if .CanMake}}
+  <button type="button" class="link-button make-live-btn" data-make-live="{{.SongID}}">{{t "Make the live version"}}</button>
+  {{end}}
+</div>
+{{if .CanMake}}<script src="/static/js/albums.js?v={{staticVersion}}" defer></script>{{end}}
+{{end}}{{end}}
+
+{{/* A set list line's live state (setlist_overview.html), called with
+     its gigRow: the Live chip, or the album's with Make the live
+     version. */}}
+{{define "setlist-live-chip"}}{{with .Live}}{{if .Live}}<span class="live-chip" title="{{t "The live version"}}">{{t "Live"}}</span>{{else if .LiveID}}<span class="album-chip" title="{{t "The album song: its live version isn’t used here"}}">{{t "Album"}}</span>{{else if .CanMake}}<span class="album-chip">{{t "Album"}} · <button type="button" class="link-button make-live-btn" data-make-live="{{$.VariantID}}">{{t "Make the live version"}}</button></span>{{end}}{{end}}{{end}}
+
+{{/* The set list's head on a band with live versions (setlist_overview.html). */}}
+{{define "setlist-live-head"}}{{with .Live}}{{if and $.CanEdit .ToMove}}
+<p class="setlist-live-head">{{tn .ToMove "%d line plays the album song, which has a live version." "%d lines play the album song, which has a live version."}} <button type="button" class="setlist-action" id="use-live-versions" data-setlist="{{$.SetlistID}}">{{t "Use the live versions here"}}</button></p>
+{{end}}{{if or .CanMake (and $.CanEdit .ToMove)}}<script src="/static/js/albums.js?v={{staticVersion}}" defer></script>{{end}}{{end}}{{end}}
+
+{{/* Settings › The band: what its set lists use. A setlistVersionsSetting. */}}
+{{define "band-setlist-versions"}}{{with .}}
+<form class="card form-stack settings-form setlist-versions-form" id="setlist-versions-form" data-band-id="{{.BandID}}">
+  <fieldset class="field-group">
+    <legend>{{t "Set lists use"}}</legend>
+    {{if .CanEdit}}
+    <div class="settings-choice">
+      <label><input type="radio" name="setlistVersions" value="live"{{if eq .Value "live"}} checked{{end}}> {{t "The live version, when there is one"}}</label>
+      <label><input type="radio" name="setlistVersions" value="song"{{if eq .Value "song"}} checked{{end}}> {{t "The song itself"}}</label>
+    </div>
+    {{else}}<p>{{if eq .Value "live"}}{{t "The live version, when there is one"}}{{else}}{{t "The song itself"}}{{end}}</p>{{end}}
+    <p class="field-hint">{{t "A new line of a set list picks the song’s live version; the player plays Live or Album."}}</p>
+  </fieldset>
+  <p class="form-status" role="status"></p>
+</form>
+{{if .CanEdit}}<script src="/static/js/albums.js?v={{staticVersion}}" defer></script>{{end}}
+{{end}}{{end}}
+
+{{/* The band songbook's By album | A–Z switch and its filter chips
+     (band_catalog.html): each album, Live, Not on an album. */}}
+{{define "songbook-album-views"}}
+<div class="songbook-album-views">
+  <nav class="album-view-switch" aria-label="{{t "Order"}}">
+    <a href="?"{{if eq .View "albums"}} class="active" aria-current="page"{{end}}>{{t "By album"}}</a>
+    <a href="?view=az"{{if eq .View "az"}} class="active" aria-current="page"{{end}}>{{t "A–Z"}}</a>
+  </nav>
+  <div class="album-filter-chips" role="group" aria-label="{{t "Show"}}">
+    <button type="button" class="album-filter active" data-album-filter="" aria-pressed="true">{{t "All"}}</button>
+    {{if eq .View "albums"}}{{range .AlbumGroups}}<button type="button" class="album-filter" data-album-filter="{{.Key}}" aria-pressed="false">{{with .Tile}}{{.Title}}{{else}}{{t .Heading}}{{end}}</button>{{end}}{{end}}
+    <button type="button" class="album-filter" data-album-filter="live" aria-pressed="false">{{t "Live"}}</button>
+  </div>
+</div>
+<script>
+// The chips show one album (its section), the songs with a live version,
+// or everything; the search box filters within what they show.
+(() => {
+  const chips = document.querySelectorAll('[data-album-filter]');
+  chips.forEach((chip) => chip.addEventListener('click', () => {
+    const f = chip.dataset.albumFilter;
+    chips.forEach((c) => { c.classList.toggle('active', c === chip); c.setAttribute('aria-pressed', c === chip); });
+    document.querySelectorAll('[data-album-group]').forEach((h) => {
+      const list = h.nextElementSibling;
+      const show = !f || f === 'live' || h.dataset.albumGroup === f;
+      h.hidden = !show || (f === 'live' && !list.querySelector('[data-live]'));
+      list.hidden = h.hidden;
+    });
+    document.querySelectorAll('[data-repertoire-list] .gig-row').forEach((row) => {
+      row.classList.toggle('album-filtered-out', f === 'live' && !row.hasAttribute('data-live'));
+    });
+  }));
+})();
+</script>
+{{end}}

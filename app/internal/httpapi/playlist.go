@@ -243,7 +243,17 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	for _, row := range s.flattenSongbookSongs(r.Context(), id) {
+	rows := s.flattenSongbookSongs(r.Context(), id)
+	// A song on an album: the album's artwork (albums.go).
+	var albumCovers map[int64][2]string
+	if !sb.IsCourse() {
+		ids := make([]int64, len(rows))
+		for i, row := range rows {
+			ids[i] = row.VariantID
+		}
+		albumCovers, _ = s.store.AlbumCoversOfSongs(r.Context(), ids)
+	}
+	for _, row := range rows {
 		if sb.IsCourse() {
 			break
 		}
@@ -253,6 +263,9 @@ func (s *Server) handlePlaylistPage(w http.ResponseWriter, r *http.Request) {
 		}
 		if c := coverOf[row.VariantID]; c != nil && c.Source != "youtube" {
 			t.Cover, t.Album = c.Image, c.Album
+		}
+		if ac, ok := albumCovers[row.VariantID]; ok {
+			t.Cover, t.Album = ac[0], ac[1]
 		}
 		// A band's own reference for the song, chosen among its recordings.
 		if sb.OwnerKind == "band" && prefer != "reference" {

@@ -39,23 +39,34 @@
   </div>
   {{end}}
 
+  {{/* By album (albums.go): each album a section in track order, the
+       singles' songs, then the songs on none; a live version folds into
+       its album song's row (its Live chip). */}}
+  {{if .HasAlbums}}{{template "songbook-album-views" .}}{{end}}
   {{if .AlbumGroups}}
   {{range .AlbumGroups}}
-  <div class="album-group-heading-row" data-album-group>
-    {{if .CoverURL}}<img class="album-group-cover" src="{{.CoverURL}}" alt="{{t "%s cover" .Album}}">{{end}}
-    <div>
-      <h2 class="album-group-heading">{{.Album}}{{if .ReleaseYear}} <span class="album-group-year">({{.ReleaseYear}})</span>{{end}}</h2>
-      {{if .Credit}}<p class="album-group-credit hint">{{.Credit}}</p>{{end}}
+  <div class="album-group-heading-row" data-album-group="{{.Key}}">
+    {{with .Tile}}<a href="{{.Href}}" class="album-group-cover-link" tabindex="-1" aria-hidden="true">{{template "album-art" .Album}}</a>{{end}}
+    <div class="album-group-text">
+      {{with .Tile}}<h2 class="album-group-heading"><a href="{{.Href}}">{{.Title}}</a></h2>
+      <p class="album-group-meta hint">{{t .KindLabel}}{{if .ReleaseYear}} · {{.ReleaseYear}}{{end}} · {{tn (len .Tracks) "%d track" "%d tracks"}}{{with .Length}} · {{.}}{{end}}</p>
+      {{else}}<h2 class="album-group-heading">{{t .Heading}}</h2>{{end}}
     </div>
+    {{with .Tile}}<div class="album-group-actions">
+      <a class="setlist-action" href="{{.Href}}/play">{{template "icon-play"}} {{t "Play"}}</a>
+      <a class="setlist-action album-group-page" href="{{.Href}}">{{t "Album page"}}</a>
+    </div>{{end}}
   </div>
   <div class="gig-table" data-repertoire-list>
   {{range .Entries}}
-    <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
+    <div class="gig-row repertoire-row{{if .Track}} has-track{{end}}{{if .LiveID}} has-live{{end}}" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}} {{.PrintedTitle}}"{{if .LiveID}} data-live{{end}}>
+      {{if .Track}}<span class="gig-num">{{.Track}}</span>{{end}}
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
-        {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
+        {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{with .PrintedTitle}}<span class="repertoire-artist">“{{.}}”</span>{{else}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
         {{template "row-voice" .Voice}}
       </a>
+      {{if .LiveID}}<a class="live-chip" href="/song/{{.LiveID}}?band={{$.Band.ID}}" title="{{t "The way the band plays it live"}}">{{t "Live"}}</a>{{end}}
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
@@ -74,12 +85,13 @@
   {{else}}
   <div class="gig-table" data-repertoire-list>
   {{range .Entries}}
-    <div class="gig-row repertoire-row" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}">
+    <div class="gig-row repertoire-row{{if .LiveID}} has-live{{end}}" data-variant-id="{{.VariantID}}" data-search="{{.Title}} {{.Artist}}"{{if .LiveID}} data-live{{end}}>
       <a class="gig-title" href="/song/{{.VariantID}}?band={{$.Band.ID}}">
         {{.Title}}{{with .VersionName}} <span class="song-version-name">— {{.}}</span>{{end}}{{if .Artist}}<span class="repertoire-artist">{{.Artist}}</span>{{end}}
         {{template "song-badges" (index $.Badges .VariantID)}}
         {{template "row-voice" .Voice}}
       </a>
+      {{if .LiveID}}<a class="live-chip" href="/song/{{.LiveID}}?band={{$.Band.ID}}" title="{{t "The way the band plays it live"}}">{{t "Live"}}</a>{{end}}
       <span class="gig-key">{{.Key}}</span>
       <span class="gig-tempo">{{.Tempo}}</span>
       <details class="row-menu">
