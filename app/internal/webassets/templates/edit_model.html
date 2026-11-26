@@ -64,15 +64,15 @@
 </div>
 {{end}}
 {{with .SongSuggestions}}
-<section class="catalogue-song-suggestions" id="catalogue-song-suggestions">
-  <h2>{{tn (len .) "%d suggestion waits for this song" "%d suggestions wait for this song"}}</h2>
+<details class="catalogue-song-suggestions" id="catalogue-song-suggestions">
+  <summary>{{tn (len .) "%d suggestion waits for this song" "%d suggestions wait for this song"}}</summary>
   {{range .}}
   <div class="catalogue-review-item">
     {{template "catalogue-edit-card" .}}
     {{template "catalogue-edit-decide" (dict "Edit" . "IsStaff" $.IsStaff)}}
   </div>
   {{end}}
-</section>
+</details>
 <script src="/static/js/catalogue-review.js?v={{staticVersion}}" defer></script>
 {{end}}
 {{end}}

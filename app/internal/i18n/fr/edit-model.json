@@ -79,6 +79,6 @@
   "This arrangement differs from the shared chart by %d changes:": "Cet arrangement diffère de la grille partagée par %d modifications :",
   "%d arrangement offered your fix": "%d arrangement à qui votre correction est proposée",
   "%d arrangements offered your fix": "%d arrangements à qui votre correction est proposée",
-  "Who plays this chart": "Qui joue cette grille",
+  "Who plays this chart:": "Qui joue cette grille :",
   "Your fix reaches all of them, each in its own key; the arrangements get it offered, to take or keep theirs.": "Votre correction arrive partout, chacun dans sa tonalité ; elle est proposée aux arrangements, qui la prennent ou gardent la leur."
 }

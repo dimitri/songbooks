@@ -77,8 +77,25 @@ func restoreHeaderLine(cur, out, key string) string {
 	if v == "" {
 		return removeHeaderLine(out, key)
 	}
-	if headerValue(out, key) != "" || headerHas(out, key) {
-		return setHeaderLine(out, key, v)
+	if headerHas(out, key) {
+		// One line of it, cur's value, where out has it first.
+		set := setHeaderLine(out, key, v)
+		lines := strings.Split(set, "\n")
+		res := make([]string, 0, len(lines))
+		seen, head := false, true
+		for _, l := range lines {
+			if head && sectionHeadRE.MatchString(strings.TrimSpace(l)) {
+				head = false
+			}
+			if k, _, ok := strings.Cut(l, ":"); head && ok && !strings.HasPrefix(l, " ") && strings.TrimSpace(k) == key {
+				if seen {
+					continue
+				}
+				seen = true
+			}
+			res = append(res, l)
+		}
+		return strings.Join(res, "\n")
 	}
 	// Absent from out: after the field before it in cur.
 	prev := ""
@@ -138,18 +155,21 @@ func headerValue(body, key string) string {
 	return ""
 }
 
-// removeHeaderLine drops a chart's header field.
+// removeHeaderLine drops a chart's header field (every line of it).
 func removeHeaderLine(body, key string) string {
 	lines := strings.Split(body, "\n")
-	for i, l := range lines {
-		if sectionHeadRE.MatchString(strings.TrimSpace(l)) {
-			break
+	out := make([]string, 0, len(lines))
+	head := true
+	for _, l := range lines {
+		if head && sectionHeadRE.MatchString(strings.TrimSpace(l)) {
+			head = false
 		}
-		if k, _, ok := strings.Cut(l, ":"); ok && !strings.HasPrefix(l, " ") && strings.TrimSpace(k) == key {
-			return strings.Join(append(lines[:i:i], lines[i+1:]...), "\n")
+		if k, _, ok := strings.Cut(l, ":"); head && ok && !strings.HasPrefix(l, " ") && strings.TrimSpace(k) == key {
+			continue
 		}
+		out = append(out, l)
 	}
-	return body
+	return strings.Join(out, "\n")
 }
 
 func isGPLine(l string) bool {

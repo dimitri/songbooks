@@ -129,3 +129,17 @@ func TestWithoutProtectedPutsBack(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// A protected field written twice is put back once.
+func TestWithoutProtectedTwice(t *testing.T) {
+	cur := "title: Le Vent\ntempo: 132\n\n[Verse]\nla\n"
+	mine := "title: Le Vent\ntempo: 132\nlead: 1\nlead: 1\n\n[Verse]\nla la\n"
+	if got := withoutProtected(cur, mine, []string{"lead"}); got != "title: Le Vent\ntempo: 132\n\n[Verse]\nla la\n" {
+		t.Errorf("got %q", got)
+	}
+	cur = "title: Le Vent\nkey: C\n\n[Verse]\nla\n"
+	mine = "title: Le Vent\nkey: Am\nkey: Dm\n\n[Verse]\nla\n"
+	if got := withoutProtected(cur, mine, []string{"key"}); got != cur {
+		t.Errorf("got %q", got)
+	}
+}

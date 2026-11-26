@@ -19,7 +19,7 @@
     {{template "arrangement-note-link" .}}</p>
   {{with .ChartReach}}
   <details class="chart-reach">
-    <summary>{{t "Who plays this chart"}}: {{tn .Songbooks "%d songbook" "%d songbooks"}}, {{tn .Setlists "%d set list" "%d set lists"}}{{if .Arrangements}}, {{tn .Arrangements "%d arrangement offered your fix" "%d arrangements offered your fix"}}{{end}}</summary>
+    <summary>{{t "Who plays this chart:"}} {{tn .Songbooks "%d songbook" "%d songbooks"}}, {{tn .Setlists "%d set list" "%d set lists"}}{{if .Arrangements}}, {{tn .Arrangements "%d arrangement offered your fix" "%d arrangements offered your fix"}}{{end}}</summary>
     {{if .Mine}}<ul>{{range .Mine}}<li><a href="{{.Link}}">{{if .Owner}}{{.Owner}} · {{end}}{{.Name}}</a>{{with .Key}} — {{t "in %s" .}}{{end}}</li>{{end}}</ul>{{end}}
     <p class="hint">{{t "Your fix reaches all of them, each in its own key; the arrangements get it offered, to take or keep theirs."}}</p>
   </details>
