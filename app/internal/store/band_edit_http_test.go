@@ -494,15 +494,13 @@ func TestCatalogueSongs(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := "title: Le Vent\nartist: Someone\n\n[Verse]\nC\n"
-	// Its staff edit it in place, at once; anyone else's edit is weighed
-	// (catalogue_edits.go): a band member's, who plays it, is applied and
-	// checked afterwards; a passer-by's first edit (of a song none of
-	// their places holds) waits for review (202).
+	// Its staff edit it in place, at once; anyone else's edit too, checked
+	// by a reviewer afterwards (catalogue_edits.go).
 	for _, c := range []struct {
 		who       int64
 		want      bool
 		wantSaved int
-	}{{f.Outsider, false, http.StatusAccepted}, {f.Core, false, http.StatusOK}, {admin, true, http.StatusOK}} {
+	}{{f.Outsider, false, http.StatusOK}, {f.Core, false, http.StatusOK}, {admin, true, http.StatusOK}} {
 		if ok, err := st.CanEditVariant(ctx, c.who, f.CatalogSong); err != nil || ok != c.want {
 			t.Errorf("person %d: CanEditVariant = %v, %v; want %v", c.who, ok, err, c.want)
 		}

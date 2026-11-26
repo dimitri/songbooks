@@ -14,7 +14,7 @@
 {{define "catalogue-edit-note"}}
 <div class="catalogue-edit-note" id="catalogue-edit-note"{{if .CatalogueGated}} data-gated="1"{{end}}{{with .CatalogueSaveMode}} data-save-mode="{{.}}"{{end}} data-variant-id="{{.VariantID}}">
   <p class="catalogue-note-lead"><strong>{{t "One chart for everyone who plays this song."}}</strong> {{t "Your fix reaches every songbook and set list that has it; keys stay each place’s own, and History keeps every edit."}}{{with .EditPlaceKey}} {{t "%s keeps its key: %s." .Place .Key}}{{end}}</p>
-  <p class="hint">{{if eq .CatalogueSaveMode "passerby"}}{{t "Your first edit of a song none of your songbooks holds waits for a reviewer: the song stays as it is for everyone until then, and you find yours on its page."}}{{else if eq .CatalogueSaveMode "open"}}{{t "Your edit goes live at once, and a reviewer looks at it afterwards; a new key name, lead-in or Guitar Pro sync waits for a reviewer."}}{{else}}{{t "Your edit goes live at once."}}{{end}}
+  <p class="hint">{{if eq .CatalogueSaveMode "open"}}{{t "Your edit goes live at once, and a reviewer looks at it afterwards (10 edits a day until you’re a trusted editor)."}}{{else}}{{t "Your edit goes live at once."}}{{end}}
     {{t "Its key is its recording’s: keys are set per songbook, student or band."}}
     {{template "arrangement-note-link" .}}</p>
   {{with .ChartReach}}
@@ -50,7 +50,7 @@
 
 {{/* Above the chart: the viewer's edit of this song waiting for review. */}}
 {{define "catalogue-pending"}}
-<p class="catalogue-pending" id="catalogue-pending">{{template "icon-lock"}} {{t "Your edit of this song waits for review, sent %s: the song stays as it is for everyone until it’s approved." (date .CreatedAt "2 Jan 15:04")}} <a href="/big-songbook/edits/{{.ID}}">{{t "See your edit"}}</a></p>
+<p class="catalogue-pending" id="catalogue-pending">{{template "icon-lock"}} {{t "Your earlier edit of this song, sent %s, still waits for a reviewer: your next save takes its place." (date .CreatedAt "2 Jan 15:04")}} <a href="/big-songbook/edits/{{.ID}}">{{t "See your edit"}}</a></p>
 {{end}}
 
 {{/* The song page's dialogs on The Big Songbook's songs: Report, and what

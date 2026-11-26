@@ -47,36 +47,6 @@
 {{end}}
 {{end}}
 
-{{/* Suggestions (catalogue_suggestions.go): above the chart, the
-     viewer's own, shown in place (the sections it changes marked,
-     song.js), and for a reviewer the ones waiting for this song, with
-     Accept and Reject (catalogue-review.js). */}}
-{{define "catalogue-suggestions"}}
-{{with .Suggestion}}
-<div class="catalogue-suggestion" id="catalogue-suggestion"{{if and .Shown (not .Off)}} data-suggested-sections="{{.Sections}}"{{end}}>
-  <p><strong>{{t "Your suggestion"}}</strong> ·
-    {{if .Off}}{{t "You see the song as it is for everyone."}} <a href="{{.OnURL}}">{{t "See it with your suggestion"}}</a>
-    {{else if .Shown}}{{t "You see it here, marked; everyone else sees the song as it is until a reviewer accepts it."}} <a href="{{.OffURL}}">{{t "See the song as it is"}}</a>
-    {{else}}{{t "The song changed since in the same place: edit it again, or open your suggestion."}}{{end}}
-  </p>
-  {{with .Changes}}<ul class="original-change-list">{{range .}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>{{end}}
-  <p class="hint">{{tn .Reviewers "%d reviewer may accept it." "%d reviewers may accept it."}} <a href="/big-songbook/edits/{{.Edit.ID}}">{{t "See your edit"}}</a></p>
-</div>
-{{end}}
-{{with .SongSuggestions}}
-<details class="catalogue-song-suggestions" id="catalogue-song-suggestions">
-  <summary>{{tn (len .) "%d suggestion waits for this song" "%d suggestions wait for this song"}}</summary>
-  {{range .}}
-  <div class="catalogue-review-item">
-    {{template "catalogue-edit-card" .}}
-    {{template "catalogue-edit-decide" (dict "Edit" . "IsStaff" $.IsStaff)}}
-  </div>
-  {{end}}
-</details>
-<script src="/static/js/catalogue-review.js?v={{staticVersion}}" defer></script>
-{{end}}
-{{end}}
-
 {{/* Merge at save (merge-save.js, httpapi/merge_at_save.go): the same
      part edited by two people, asked once; a save merged, said. */}}
 {{define "merge-save"}}

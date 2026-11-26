@@ -263,8 +263,8 @@ func TestEditNoteSaysWhatASaveDoes(t *testing.T) {
 	if html := page(f.Core, ""); !strings.Contains(html, "Your edit goes live at once, and a reviewer looks at it afterwards") {
 		t.Error("a band member's note")
 	}
-	if html := page(f.Stranger, ""); !strings.Contains(html, "Your first edit of a song none of your songbooks holds waits for a reviewer") || strings.Contains(html, "Your edit goes live at once") {
-		t.Error("a passer-by's note promises what won't happen")
+	if html := page(f.Stranger, ""); !strings.Contains(html, "Your edit goes live at once, and a reviewer looks at it afterwards (10 edits a day") {
+		t.Error("a newcomer's note")
 	}
 	html := page(f.Core, fmt.Sprintf("?songbook=%d", f.BandBook))
 	if !strings.Contains(html, "keeps its key: D.") {
@@ -334,9 +334,9 @@ func decode(t *testing.T, w *httptest.ResponseRecorder, v any) {
 }
 
 // TestPatrolInsteadOfHolding: a newcomer who plays the song (a band
-// member) has their fix applied at once, flagged for the reviewers; a
-// passer-by's very first edit waits; past the daily limit, edits wait
-// until trusted; a trusted editor's fix is seen as made. A reviewer's
+// member) has their fix applied at once, flagged for the reviewers; past
+// the daily limit, edits are refused until trusted (nothing held); a
+// trusted editor's fix is seen as made. A reviewer's
 // Revert of an edit later edits came after takes only its changes out, or
 // says to use History when a later edit changed the same place.
 func TestPatrolInsteadOfHolding(t *testing.T) {
@@ -362,12 +362,6 @@ func TestPatrolInsteadOfHolding(t *testing.T) {
 	}
 	if es := toCheck(); len(es) != 1 || es[0].AuthorID != f.Core || !hasReason(&es[0], "newcomer") {
 		t.Fatalf("to check: %+v", es)
-	}
-	// A passer-by's first edit: waits.
-	if w := as(t, st, f.Stranger).saveRaw(f.CatalogSong, strings.Replace(verse, "G | C | C", "G | C | C7", 1)); w.Code != http.StatusAccepted {
-		t.Errorf("a passer-by's first edit: %d", w.Code)
-	} else if e := pendingOf(t, st, f.Stranger, f.CatalogSong); e == nil || !hasReason(e, "passerby") {
-		t.Errorf("a passer-by's first edit waits for: %+v", e)
 	}
 	// A trusted editor's: applied, seen.
 	tr := as(t, st, f.Trusted)
@@ -428,69 +422,76 @@ func TestPatrolInsteadOfHolding(t *testing.T) {
 			INSERT INTO catalogue_edits (song_id, author_id, status, base_version, base_body, title, artist, body, patrolled_at, reverted_at)
 			VALUES ($1, $2, 'applied', 1, '', 'x', 'x', '', now(), now())`, f.CatalogSong, f.Core)
 	}
-	if w := core.saveRaw(f.CatalogSong, strings.Replace(body(t, st, f.CatalogSong), "G | Am", "G7 | Am", 1)); w.Code != http.StatusAccepted {
+	before := body(t, st, f.CatalogSong)
+	if w := core.saveRaw(f.CatalogSong, strings.Replace(before, "G | Am", "G7 | Am", 1)); w.Code != http.StatusTooManyRequests {
 		t.Errorf("past the daily limit: %d", w.Code)
-	} else if e := pendingOf(t, st, f.Core, f.CatalogSong); e == nil || !hasReason(e, "rate") {
-		t.Errorf("past the daily limit, waits for: %+v", e)
+	}
+	if body(t, st, f.CatalogSong) != before || pendingOf(t, st, f.Core, f.CatalogSong) != nil {
+		t.Error("past the daily limit, the edit was saved or held")
 	}
 }
 
-// TestSuggestions: what identifies the song or lines it up with its
-// recording is a suggestion. In a mixed save the chords go live and the
-// key's name is suggested; its author sees it in place on the song (the
-// song as it is one click away), others don't; a reviewer sees it on the
-// song and accepts it there. A title fixed is a suggestion too.
-func TestSuggestions(t *testing.T) {
+// TestEveryEditGoesLive: every save by anyone allowed to edit The Big
+// Songbook's song applies at once — a newcomer's first edit of a song
+// none of their places holds, a key name, a lead-in, a Guitar Pro sync, a
+// title fixed, the recording removed — each flagged for the reviewers'
+// look; no edit is held. The protections that aren't held edits stay: a
+// whole-chart transposition refused, "a fix, or another recording?"
+// asked.
+func TestEveryEditGoesLive(t *testing.T) {
 	st := store.NewTestStore(t)
+	ctx := context.Background()
 	f := newEditModelFixture(t, st)
-	start := "title: Le Vent\nartist: Someone\nkey: C\n\n[Verse]\ngrid: C | G | Am | F\n"
+	start := "title: Le Vent\nartist: Someone\nkey: C\nreference: https://www.youtube.com/watch?v=AAAAAAAAAAA\n\n[Verse]\ngrid: C | G | Am | F\n"
 	setChart(t, st, f.CatalogSong, start)
+	store.ExecForTest(t, st, `UPDATE songs SET reference_url = 'https://www.youtube.com/watch?v=AAAAAAAAAAA' WHERE id = $1`, f.CatalogSong)
+	hz := as(t, st, f.Stranger)
+	text := start
+	for _, c := range []struct {
+		what, from, to string
+		headers        map[string]string
+	}{
+		{"newcomer", "Am | F", "Am7 | F", nil},
+		{"key", "key: C", "key: Am", nil},
+		{"lead", "key: Am\n", "key: Am\nlead: 1\n", nil},
+		{"gp", "[Verse]\n", "[Verse]\ngp[Lead]: 1-4\n", nil},
+		{"title", "title: Le Vent", "title: Le Vent se lève", map[string]string{"X-Edit-Kind": "fix"}},
+		{"reference", "reference: https://www.youtube.com/watch?v=AAAAAAAAAAA\n", "", nil},
+	} {
+		next := strings.Replace(text, c.from, c.to, 1)
+		w := hz.saveRawAs(f.CatalogSong, next, c.headers)
+		if w.Code != http.StatusOK || body(t, st, f.CatalogSong) != next {
+			t.Errorf("%s: %d %s, want it live", c.what, w.Code, w.Body.String())
+			continue
+		}
+		text = next
+		if es, _ := st.CatalogueEditsToCheck(ctx); len(es) == 0 || es[0].AuthorID != f.Stranger || !hasReason(&es[0], c.what) {
+			t.Errorf("%s: not flagged for a look", c.what)
+		}
+	}
+	if v, _ := st.GetVariant(ctx, f.CatalogSong); v.Title != "Le Vent se lève" {
+		t.Errorf("the title fixed: %q", v.Title)
+	}
+	if n := store.CountForTest(t, st, `SELECT count(*) FROM catalogue_edits WHERE status = 'pending'`); n != 0 {
+		t.Errorf("%d edits held", n)
+	}
+	// Still refused: the whole chart transposed.
+	up := strings.Replace(strings.Replace(text, "grid: C | G | Am7 | F", "grid: D | A | Bm7 | G", 1), "key: Am", "key: Bm", 1)
+	if w := hz.saveRaw(f.CatalogSong, up); w.Code != http.StatusUnprocessableEntity {
+		t.Errorf("a transposition: %d", w.Code)
+	}
+	// An edit held from before: its author is told it still waits, and
+	// their next save takes its place.
+	legacy := legacyPending(t, st, f.Core, f.CatalogSong, strings.Replace(text, "C | G", "C | G7", 1), "")
 	core := as(t, st, f.Core)
-	mixed := strings.Replace(strings.Replace(start, "key: C", "key: Am", 1), "Am | F", "Am7 | F", 1)
-	w := core.saveRaw(f.CatalogSong, mixed)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"suggested":true`) {
-		t.Fatalf("a mixed save: %d %s", w.Code, w.Body.String())
+	if html := core.page(fmt.Sprintf("/song/%d", f.CatalogSong)); !strings.Contains(html, "still waits for a reviewer") {
+		t.Error("its author isn't told their earlier edit waits")
 	}
-	live := strings.Replace(start, "Am | F", "Am7 | F", 1)
-	if got := body(t, st, f.CatalogSong); got != live {
-		t.Fatalf("the chords didn't go live alone: %q", got)
+	if w := core.saveRaw(f.CatalogSong, strings.Replace(text, "C | G", "C | Gsus4", 1)); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
 	}
-	e := pendingOf(t, st, f.Core, f.CatalogSong)
-	if e == nil || e.Body != mixed || e.BaseBody != live || !hasReason(e, "key") {
-		t.Fatalf("the suggestion: %+v", e)
-	}
-	page := fmt.Sprintf("/song/%d", f.CatalogSong)
-	if html := core.page(page); !strings.Contains(html, `id="catalogue-suggestion"`) || !strings.Contains(html, `data-key="Am"`) || !strings.Contains(html, "?suggestion=off") {
-		t.Error("its author doesn't see the suggestion in place")
-	}
-	if html := core.page(page + "?suggestion=off"); !strings.Contains(html, `data-key="C"`) {
-		t.Error("its author can't see the song as it is")
-	}
-	if html := as(t, st, f.Guest).page(page); strings.Contains(html, "catalogue-suggestion") || !strings.Contains(html, `data-key="C"`) {
-		t.Error("someone else sees another's suggestion")
-	}
-	tr := as(t, st, f.Trusted)
-	html := tr.page(page)
-	if !strings.Contains(html, "1 suggestion waits for this song") || !strings.Contains(html, fmt.Sprintf(`class="catalogue-edit-decide form-stack" data-edit-id="%d"`, e.ID)) {
-		t.Fatal("a reviewer doesn't see the suggestion on the song")
-	}
-	if w := tr.do("POST", fmt.Sprintf("/api/big-songbook/edits/%d/approve", e.ID), nil); w.Code != http.StatusOK {
-		t.Fatalf("accept: %d %s", w.Code, w.Body.String())
-	}
-	if got := body(t, st, f.CatalogSong); got != mixed {
-		t.Errorf("accepted: %q", got)
-	}
-
-	// A title fixed: suggested, the song's title kept meanwhile.
-	renamed := strings.Replace(mixed, "title: Le Vent", "title: Le Vent se lève", 1)
-	if w := core.saveRawAs(f.CatalogSong, renamed, map[string]string{"X-Edit-Kind": "fix"}); w.Code != http.StatusAccepted || !strings.Contains(w.Body.String(), `"suggested":true`) {
-		t.Fatalf("a title fixed: %d %s", w.Code, w.Body.String())
-	}
-	if v, _ := st.GetVariant(context.Background(), f.CatalogSong); v.Title != "Le Vent" {
-		t.Errorf("the title changed before review: %q", v.Title)
-	}
-	if html := core.page(page); !strings.Contains(html, "Le Vent se lève") {
-		t.Error("its author doesn't see the suggested title")
+	if got, _ := st.CatalogueEditByID(ctx, legacy.ID); got.Status != store.EditSuperseded {
+		t.Errorf("the earlier edit after its author's save: %s", got.Status)
 	}
 }
 

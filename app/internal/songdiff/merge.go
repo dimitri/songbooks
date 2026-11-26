@@ -499,20 +499,6 @@ func trimBlank(s string) string {
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
-// ChangedSections lists the sections of after (their indexes, in order)
-// that before doesn't have as they are: new or changed, a section matched
-// by its label and its rank among the sections of that label.
-func ChangedSections(before, after string) []int {
-	b, a := splitSong(before), splitSong(after)
-	var out []int
-	for i, k := range a.secKeys {
-		if bv, ok := b.secs[k]; !ok || bv.text != a.secs[k].text {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
 // MergeAll is ours with every part theirs changed since base that doesn't
 // conflict, the song's metadata included (title, artist, reference,
 // cover: Merge leaves them, a version keeping its own; a merge of two

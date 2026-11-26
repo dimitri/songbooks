@@ -25,14 +25,16 @@ import (
 // reference recording is the anchor: the HTTP layer weighs each edit
 // against it (httpapi/catalogue_edits.go: the "follows the recording"
 // check before and after, the structure, the lead-in, the Guitar Pro
-// sync, the key) and either applies it at once (ApplyCatalogueEdit) or
-// holds it for review (HoldCatalogueEdit): the song stays as it was for
-// everyone until a reviewer approves it (ApproveCatalogueEdit) or
-// rejects it with a note (RejectCatalogueEdit). Reviewers are the staff
-// (the site's admins) and trusted editors: CatalogueTrustedEdits
-// accepted edits or more. A newcomer's first CatalogueNewcomerEdits edits
-// wait for review whatever they change. Changing a song's recording
-// makes a new catalogue song for it (CreateRecordingVersion).
+// sync, the key) and applies it at once (ApplyCatalogueEdit), flagging
+// what's worth a look; reviewers check the applied edits afterwards
+// (patrol: PatrolCatalogueEdit, RevertCatalogueEdit). Since 2026-11-26
+// no edit is held: the pending ones left from before are still approved
+// (ApproveCatalogueEdit) or rejected (RejectCatalogueEdit), or replaced
+// by their author's next save. Reviewers are the staff (the site's
+// admins) and trusted editors: CatalogueTrustedEdits accepted edits or
+// more. Until trusted, CatalogueDailyLimit edits a day. Changing a
+// song's recording makes a new catalogue song for it
+// (CreateRecordingVersion).
 
 // The thresholds.
 const (
@@ -320,7 +322,8 @@ func (st *Store) ApplyCatalogueEditRevision(ctx context.Context, in CatalogueEdi
 	return strconv.Itoa(saved.version), saved.revisionID, nil
 }
 
-// HoldCatalogueEdit keeps in for review: the song stays as it is; the
+// HoldCatalogueEdit keeps in for review (no save holds one since every
+// edit goes live, 2026-11-26: the rows left from before, and tests): the song stays as it is; the
 // author's earlier edit of it that waited is superseded; the reviewers
 // are told (once while the queue has items). Returns the edit's id.
 func (st *Store) HoldCatalogueEdit(ctx context.Context, in CatalogueEditInput) (int64, error) {
@@ -591,30 +594,6 @@ func (st *Store) CatalogueAppliedSince(ctx context.Context, personID int64, sinc
 		SELECT count(*) FROM catalogue_edits WHERE author_id = $1 AND status = 'applied' AND created_at >= $2`,
 		personID, since).Scan(&n)
 	return n, err
-}
-
-// PersonHoldsSong reports whether songID is in one of personID's places:
-// their own songbooks or set lists, their student songbook, a songbook or
-// set list of a band they're a current member of, a songbook of a
-// community they belong to (its repertoire, a course, a group's). Who
-// holds a song plays it: their fix of it is a player's.
-func (st *Store) PersonHoldsSong(ctx context.Context, personID, songID int64) (bool, error) {
-	var ok bool
-	err := st.db.QueryRow(ctx, `
-		SELECT EXISTS (
-		  SELECT 1 FROM songbook_entries se JOIN songbooks sb ON sb.id = se.songbook_id
-		  WHERE se.variant_id = $2 AND (
-		    sb.owner_person_id = $1
-		    OR (sb.kind = 'student' AND sb.student_person_id = $1)
-		    OR EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = sb.owner_band_id AND bm.person_id = $1 AND upper_inf(bm.validity))
-		    OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = sb.owner_community_id AND cm.person_id = $1 AND upper_inf(cm.validity))))
-		OR EXISTS (
-		  SELECT 1 FROM setlist_items i JOIN setlists sl ON sl.id = i.setlist_id
-		  WHERE i.variant_id = $2 AND (
-		    sl.owner_person_id = $1
-		    OR EXISTS (SELECT 1 FROM band_members bm WHERE bm.band_id = sl.owner_band_id AND bm.person_id = $1 AND upper_inf(bm.validity))))`,
-		personID, songID).Scan(&ok)
-	return ok, err
 }
 
 // PatrolCatalogueEdit marks applied edit id seen by reviewerID ("Looks
