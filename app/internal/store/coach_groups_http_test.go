@@ -188,11 +188,11 @@ func TestGroupLinkedCatalogueSong(t *testing.T) {
 		t.Errorf("Oliver on the linked catalogue song: %+v (the catalogue's rules: contribute, not edit)", r)
 	}
 
-	// Edit, from the group's songbook and from elsewhere: the fix or the
-	// community's arrangement, never his own.
+	// Edit, from the group's songbook and from elsewhere: the fix, the
+	// community's arrangement beside it, never his own.
 	for _, p := range []string{fmt.Sprintf("/song/%d?songbook=%d", f.catalogue, groupBook), fmt.Sprintf("/song/%d", f.catalogue)} {
 		html := f.o.page(p)
-		if !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "data-edit-offer-fix") || !strings.Contains(html, `data-can-edit="true"`) {
+		if strings.Contains(html, "data-edit-offer") || !strings.Contains(html, `data-action="community"`) || !strings.Contains(html, "data-arrangement-fix") || !strings.Contains(html, `data-can-edit="true"`) {
 			t.Errorf("%s: Oliver isn't offered the fix and the community's arrangement", p)
 		}
 		if strings.Contains(html, `data-action="copy"`) {
@@ -201,7 +201,7 @@ func TestGroupLinkedCatalogueSong(t *testing.T) {
 	}
 	// George, in no group of it and not given it: no community's
 	// arrangement; the catalogue's song is open to him as to anyone.
-	if html := f.g.page(fmt.Sprintf("/song/%d?songbook=%d", f.catalogue, f.repertoire)); strings.Contains(html, `data-edit-offer="community"`) {
+	if html := f.g.page(fmt.Sprintf("/song/%d?songbook=%d", f.catalogue, f.repertoire)); strings.Contains(html, `data-action="community"`) {
 		t.Error("George is offered the community's arrangement")
 	}
 	if w := f.g.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", f.community, f.catalogue), map[string]int64{"songbookId": f.repertoire}); w.Code != http.StatusForbidden {

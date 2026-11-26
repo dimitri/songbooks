@@ -1,0 +1,48 @@
+{{/* The edit model (docs/catalogue-edit-review.md): Edit on The Big
+     Songbook's song always opens the editor on the shared song; an
+     arrangement is a separate, explicit choice for playing it
+     differently, made from the ⋯ menu, the phone's Song sheet or the
+     editor's note (handleSong's Arrangements). Each opens its dialog,
+     which says what an arrangement is for and points back to the fix.
+     song.js runs them (data-arrangement-open, data-arrangement-go,
+     data-arrangement-fix). */}}
+
+{{define "arrangement-label"}}{{if eq .Action "copy"}}{{t "Make my arrangement…"}}{{else}}{{t "Make %s’s arrangement…" .Name}}{{end}}{{end}}
+
+{{define "arrangement-menu-items"}}
+{{range $i, $o := .Arrangements}}<button type="button" role="menuitem" data-arrangement-open="arrangement-dialog-{{$i}}" aria-haspopup="dialog" title="{{t "play it your way: another form, your own intro, a groove the record doesn’t have"}}">{{template "icon-duplicate"}} {{template "arrangement-label" $o}}</button>{{end}}
+{{end}}
+
+{{define "arrangement-sheet-rows"}}
+{{range $i, $o := .Arrangements}}<button type="button" class="stack-sheet-row" data-arrangement-open="arrangement-dialog-{{$i}}" aria-haspopup="dialog">{{template "icon-duplicate"}} {{template "arrangement-label" $o}}</button>{{end}}
+{{end}}
+
+{{/* The editor note's link: the first arrangement offered (the page's
+     place's), opening its dialog. */}}
+{{define "arrangement-note-link"}}
+{{with .Arrangements}}{{with index . 0}}<button type="button" class="link-like" data-arrangement-open="arrangement-dialog-0">{{if eq .Action "copy"}}{{t "Make my arrangement instead"}}{{else}}{{t "Make %s’s arrangement instead" .Name}}{{end}}</button>{{end}}{{end}}
+{{end}}
+
+{{define "arrangement-dialogs"}}
+{{range $i, $o := .Arrangements}}
+<dialog class="edit-offer-dialog arrangement-dialog" id="arrangement-dialog-{{$i}}" aria-labelledby="arrangement-title-{{$i}}" aria-describedby="arrangement-text-{{$i}}">
+  <form method="dialog">
+    <h2 id="arrangement-title-{{$i}}">{{if eq .Action "copy"}}{{t "Make my arrangement"}}{{else}}{{t "Make %s’s arrangement" .Name}}{{end}}</h2>
+    {{if .OwnSongID}}
+    <p id="arrangement-text-{{$i}}">{{t "%s has its own arrangement of this song; this page opened another one." .Name}}</p>
+    <p class="hint">{{t "Its songbook and set lists will open the band’s arrangement from now on."}}</p>
+    {{else}}
+    <p id="arrangement-text-{{$i}}">{{t "Play it your way: another form, your own intro, a groove the record doesn’t have. The arrangement stops following this chart: its changes are offered to it, never applied."}}</p>
+    <p class="hint">{{if eq .Action "band"}}{{t "%s gets its own arrangement, which every member can change. It takes this song’s place in the band’s songbook and set lists, in the same key; the original stays as it is." .Name}}{{else if eq .Action "community"}}{{if .Coaching}}{{t "%s gets its own arrangement, which the coach and the students it’s given to change together, each keeping their own key. It takes this song’s place in the repertoire and in the students’ and groups’ songbooks; the original stays as it is." .Name}}{{else}}{{t "%s gets its own arrangement, which whoever edits its repertoire can change. It takes this song’s place in the songbook, in the same key; the original stays as it is." .Name}}{{end}}{{else}}{{t "Your arrangement goes into My songbook, in this song’s place if it’s there. The catalogue’s song stays as it is."}}{{end}}</p>
+    <p class="hint arrangement-fix-hint">{{if eq .Action "copy"}}{{t "For a fix, edit the shared chart instead: everyone gets it, and your key stays."}}{{else}}{{t "For a fix, edit the shared chart instead: everyone gets it, %s included, and its key stays." .Name}}{{end}}</p>
+    {{end}}
+    <div class="form-actions">
+      <button type="submit" value="cancel">{{t "Cancel"}}</button>
+      {{if $.CanEditChart}}<button type="button" data-arrangement-fix>{{t "Edit the shared chart"}}</button>{{end}}
+      <button type="button" data-arrangement-go data-action="{{.Action}}"{{if .BandID}} data-band-id="{{.BandID}}"{{end}}{{if .CommunityID}} data-community-id="{{.CommunityID}}"{{end}}{{if .SongbookID}} data-songbook-id="{{.SongbookID}}"{{end}}>{{if eq .Action "copy"}}{{t "Make my arrangement"}}{{else}}{{t "Make %s’s arrangement" .Name}}{{end}}</button>
+    </div>
+    <p class="form-status" data-arrangement-status role="status"></p>
+  </form>
+</dialog>
+{{end}}
+{{end}}

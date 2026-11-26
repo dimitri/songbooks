@@ -33,7 +33,7 @@ func TestMakeTheBandsVersionFromItsSongbook(t *testing.T) {
 	}
 	g := as(t, st, f.Guest)
 	html := g.page(fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, book))
-	if !strings.Contains(html, `data-edit-offer="band"`) || !strings.Contains(html, "Make Other Lies’s arrangement") || !strings.Contains(html, fmt.Sprintf(`data-songbook-id="%d"`, book)) {
+	if strings.Contains(html, "data-edit-offer") || !strings.Contains(html, "Make Other Lies’s arrangement…") || !strings.Contains(html, fmt.Sprintf(`data-band-id="%d" data-songbook-id="%d"`, f.Band, book)) {
 		t.Fatal("no \"Make Other Lies's version\" offer from the band's songbook")
 	}
 	if strings.Contains(html, "new-version-open") || strings.Contains(html, "song-publish-toggle") {
@@ -97,10 +97,10 @@ func TestMakeTheCommunitysVersion(t *testing.T) {
 		t.Fatalf("linking the catalogue's song: %d %s", w.Code, w.Body.String())
 	}
 	path := fmt.Sprintf("/song/%d?songbook=%d", f.CatalogSong, book)
-	if html := c.page(path); !strings.Contains(html, `data-edit-offer="community"`) || !strings.Contains(html, "Make the community’s arrangement") {
+	if html := c.page(path); strings.Contains(html, "data-edit-offer") || !strings.Contains(html, `data-action="community"`) || !strings.Contains(html, "Make Jam Club’s arrangement…") {
 		t.Fatal("no \"Make the community's version\" offer")
 	}
-	if html := as(t, st, f.Outsider).page(path); strings.Contains(html, `data-edit-offer="community"`) {
+	if html := as(t, st, f.Outsider).page(path); strings.Contains(html, `data-action="community"`) {
 		t.Error("a guest is offered the community's version")
 	}
 	id := c.variantID(c.do("POST", fmt.Sprintf("/api/communities/%d/catalog/fork/%d", community, f.CatalogSong), map[string]int64{"songbookId": book}))
