@@ -3370,57 +3370,8 @@ window.songbooksDecodable = function (buf) {
     else say(bandStatus, t("Couldn't remove the recording. Try again."), 'error');
   });
 
-  // YouTube: downloads audio from the video URL already saved as this
-  // song's reference (see #reference-block's data-url, kept current by
-  // song.js's own initReference, the YouTube picker's) — no second URL
-  // field to fill in.
-  const ytDownloadBtn = document.getElementById('audio-youtube-download-btn');
-  const ytReplaceBtn = document.getElementById('audio-youtube-replace-btn');
-  const ytDeleteBtn = document.getElementById('audio-youtube-delete-btn');
-  const ytStatus = document.getElementById('audio-youtube-status');
-  const referenceBlock = document.getElementById('reference-block');
-
-  async function downloadFromReference() {
-    const url = referenceBlock && referenceBlock.dataset.url;
-    if (!url) {
-      // No video yet: the Reference view's picker (song.js).
-      say(ytStatus, t('Add the YouTube link first, then download its audio.'), 'error');
-      document.dispatchEvent(new CustomEvent('songbooks:reference-pick'));
-      return;
-    }
-    ytDownloadBtn && (ytDownloadBtn.disabled = true);
-    ytReplaceBtn && (ytReplaceBtn.disabled = true);
-    // A spinner on whichever button was clicked: the download can take a
-    // real minute (yt-dlp fetch + transcode), and the status line alone
-    // is easy to miss below the fold on a long page.
-    const activeBtn = (ytReplaceBtn && !ytReplaceBtn.hidden) ? ytReplaceBtn : ytDownloadBtn;
-    Forms.busy(activeBtn, true);
-    say(ytStatus, t('Downloading… this can take a minute.'));
-    try {
-      const res = await fetch(`/api/songs/${variantId}/audio/youtube`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      if (res.status === 413) { say(ytStatus, t('That video is too long to keep as audio here.'), 'error'); return; }
-      if (!res.ok) { say(ytStatus, t("Couldn't get the audio from that video. Check the link opens on YouTube, then try again."), 'error'); return; }
-      say(ytStatus, t('Audio downloaded.'), 'ok');
-      loadMeta();
-    } catch (e) {
-      say(ytStatus, t("Couldn't reach the server. Check your connection and try again."), 'error');
-    } finally {
-      ytDownloadBtn && (ytDownloadBtn.disabled = false);
-      ytReplaceBtn && (ytReplaceBtn.disabled = false);
-      Forms.busy(activeBtn, false);
-    }
-  }
-  ytDownloadBtn?.addEventListener('click', downloadFromReference);
-  ytReplaceBtn?.addEventListener('click', downloadFromReference);
-  ytDeleteBtn?.addEventListener('click', async () => {
-    if (!confirm(t("Remove the audio downloaded from the YouTube video for %s? The video link stays. This can't be undone.", songName))) return;
-    const res = await fetch(`/api/songs/${variantId}/audio/youtube`, { method: 'DELETE' });
-    if (res.ok) { say(ytStatus, t('Downloaded audio removed.'), 'ok'); loadMeta(); }
-    else say(ytStatus, t("Couldn't remove the audio. Try again."), 'error');
-  });
+  // YouTube: the video's audio is fetched by itself, its state and an
+  // editor's Again / Remove / Try again under the video (yt-audio.js).
 
   // Reflect which categories already exist in the drawer's own
   // upload/replace/remove button visibility (upload hidden once present,
@@ -3461,11 +3412,7 @@ window.songbooksDecodable = function (buf) {
   loadMeta = async function () {
     await origLoadMeta();
     renderKinds();
-    const hasYouTube = !!categories.youtube;
     const hasBand = !!categories.band;
-    if (ytDownloadBtn) ytDownloadBtn.hidden = hasYouTube;
-    if (ytReplaceBtn) ytReplaceBtn.hidden = !hasYouTube;
-    if (ytDeleteBtn) ytDeleteBtn.hidden = !hasYouTube;
     if (bandUploadBtn) bandUploadBtn.hidden = hasBand;
     if (bandReplaceBtn) bandReplaceBtn.hidden = !hasBand;
     if (bandDeleteBtn) bandDeleteBtn.hidden = !hasBand;

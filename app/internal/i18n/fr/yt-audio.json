@@ -1,0 +1,14 @@
+{
+  "Getting the audio…": "Récupération de l’audio…",
+  "Getting the audio from the video": "Récupération de l’audio de la vidéo",
+  "Needed for the click, sync, parts and melody. You can leave this page.": "Nécessaire pour le clic, la synchro, les pistes séparées et la mélodie. Vous pouvez quitter cette page.",
+  "Audio ready": "Audio prêt",
+  "Get the audio from the video again": "Récupérer à nouveau l’audio de la vidéo",
+  "audio|Again": "À nouveau",
+  "Remove the audio taken from the video (the video stays)": "Retirer l’audio tiré de la vidéo (la vidéo reste)",
+  "Upload an MP3": "Téléverser un MP3",
+  "No audio from this video: the click, sync, parts and melody need one.": "Pas d’audio pour cette vidéo : le clic, la synchro, les pistes séparées et la mélodie en ont besoin.",
+  "Get the audio": "Récupérer l’audio",
+  "Melody: getting the audio from the reference video first.": "Mélodie : récupération de l’audio de la vidéo de référence d’abord.",
+  "Melody: getting the audio from the reference video first, %d%%.": "Mélodie : récupération de l’audio de la vidéo de référence d’abord, %d %%."
+}

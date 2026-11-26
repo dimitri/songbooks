@@ -1347,6 +1347,9 @@ const ICONS = {
       }
       showPicker(false);
       if (url) changeBtn?.focus({ preventScroll: true });
+      // Its audio was queued with it (the server's): under the video,
+      // where it is (yt-audio.js).
+      document.dispatchEvent(new CustomEvent('songbooks:reference-saved', { detail: { url } }));
     }
     removeBtn?.addEventListener('click', async () => {
       if (!confirm(t('Remove the reference video from this song?'))) return;
@@ -2852,7 +2855,17 @@ const ICONS = {
       if (btn) Forms.busy(btn, true);
       busy(true, t('Downloading the sound… (up to a minute)'));
       try {
-        await postJSON(`/api/songs/${pageVariantId}/audio/youtube`, { url: c.url });
+        // Fetched in the background (yt_audio_jobs.go): asked for, then
+        // followed until it's there.
+        let st = await postJSON(`/api/songs/${pageVariantId}/audio/youtube`, { url: c.url });
+        while (st.state === 'queued' || st.state === 'running') {
+          if (st.state === 'running' && typeof st.progress === 'number') busy(true, t('Downloading the sound… %d%', Math.round(st.progress * 100)));
+          await new Promise((r) => setTimeout(r, 2000));
+          const res = await fetch(`/api/songs/${pageVariantId}/audio/youtube/status`);
+          if (!res.ok) throw new Error(res.statusText);
+          st = await res.json();
+        }
+        if (st.state !== 'ready') throw new Error((window.YTAudio && YTAudio.reasonText(st.reason)) || st.reason || st.state);
         // The chart names its reference too (its "reference:" line).
         const m = rawTextarea.value.match(/^reference:.*$/m);
         setText(rawTextarea, m ? rawTextarea.value.replace(/^reference:.*$/m, `reference: ${c.url}`) : rawTextarea.value.replace(/^(title:.*\n(?:[a-z][\w-]*:.*\n)*)/, `$1reference: ${c.url}\n`));

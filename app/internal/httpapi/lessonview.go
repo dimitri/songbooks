@@ -75,6 +75,8 @@ func lessonViewData(data map[string]any, sg *song.Song, course *songLesson) {
 	if video != "" {
 		data["LessonVideoID"] = video
 		data["LessonVideoTitle"] = title
+		// The song's own video: its audio's state under it (yt_audio.html).
+		data["LessonVideoIsRef"] = video == youtubeID(sg.Get("reference"))
 	}
 	// Played in its file's key: no student's, songbook's or coach's key.
 	for _, k := range []string{"StudentKey", "StudentKeySet", "StudentKeyName", "KeyContext", "KeyMine", "SongbookKey", "CoachStudentKeys"} {

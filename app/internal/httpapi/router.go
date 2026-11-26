@@ -226,6 +226,8 @@ func NewServer(st *store.Store, m mailer.Mailer, devAutoLogin *store.Person, web
 	mux.HandleFunc("GET /song/{id}/audio.mp3", s.requireVariantRole("viewer", s.handleGetSongAudioData))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handlePutSongAudio))
 	mux.HandleFunc("POST /api/songs/{id}/audio/youtube", s.requireVariantRole("editor", s.handlePostSongAudioYouTube))
+	// The video's audio, fetched in the background (yt_audio_jobs.go).
+	mux.HandleFunc("GET /api/songs/{id}/audio/youtube/status", s.requireVariantRole("viewer", s.handleGetYouTubeAudioStatus))
 	mux.HandleFunc("DELETE /api/songs/{id}/audio/{category}", s.requireVariantRole("editor", s.handleDeleteSongAudio))
 	mux.HandleFunc("PUT /api/songs/{id}/audio/{category}/kind", s.requireVariantRole("editor", s.handlePutSongAudioKind))
 	mux.HandleFunc("POST /api/songs/{id}/audio/{category}/stems", s.requireVariantRole("editor", s.handlePostSongAudioStems))

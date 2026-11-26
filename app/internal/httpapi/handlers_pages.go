@@ -3059,6 +3059,9 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data["RefHead"] = refHead
+	// The video's audio, under it (yt_audio_jobs.go): opening the song
+	// fetches it when it has none; where it is, for the page's script.
+	data["YTAudio"] = s.ytAudioForPage(r.Context(), variantID, canEdit)
 	// The Melody view (melody_sheet.go, melody_status.go): always there;
 	// until the melody can be drawn, disabled, saying why and how far
 	// along it is (its script asks again while it can change).

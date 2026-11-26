@@ -1580,6 +1580,7 @@
         <button type="button" class="lesson-stage-close icon-btn" aria-label="{{t "Close the video"}}" title="{{t "Close the video"}}">{{template "icon-close"}}</button>
       </div>
     </figure>
+    {{if $.LessonVideoIsRef}}{{template "yt-audio" (dict "VariantID" $.VariantID "Status" $.YTAudio "CanEdit" $.CanEdit)}}{{end}}
     {{end}}
     {{end}}
     {{with .LessonPanel}}
@@ -2307,6 +2308,8 @@
         <p class="reference-why hint" id="reference-why"{{if .Reference}} hidden{{end}}>{{if .Catalogue}}{{t "The recording this song follows: its chart, its key and the sync."}}{{else if $band}}{{t "The recording the whole band listens to, so everyone learns the same version."}}{{else}}{{t "The recording you learn the song from: the player and the sync follow it."}}{{end}}</p>
         <div class="reference-current" id="reference-current"{{if not .Reference}} hidden{{end}}>
           <div class="reference-embed" id="reference-embed"></div>
+          {{/* The video's audio, under it (yt_audio.html). */}}
+          {{template "yt-audio" (dict "VariantID" .VariantID "Status" .YTAudio "CanEdit" .CanEdit)}}
           <div class="reference-row">
             <a id="reference-link" class="reference-link" href="{{.Reference}}" target="_blank" rel="noopener" data-default-label="{{t "reference"}}">{{if .RefTitle}}{{.RefTitle}}{{else}}{{t "reference"}}{{end}} &#8599;</a>
             {{if .CanEditChart}}<button type="button" id="reference-change-btn" aria-expanded="false" aria-controls="reference-picker-box">{{t "Change the video"}}</button>{{end}}
@@ -2322,16 +2325,8 @@
         <p class="hint">{{t "No reference yet."}}</p>
         {{end}}
         {{if and .Catalogue .CanEditChart}}{{template "catalogue-reference-label" .}}{{end}}
-        {{if or .CanEdit .CanEditChart}}
+        {{if .CanEditChart}}
         <div class="reference-more" id="reference-more"{{if not .Reference}} hidden{{end}}>
-          {{if .CanEdit}}
-          <div class="audio-category-upload" id="audio-youtube-controls">
-            <button type="button" id="audio-youtube-download-btn" class="audio-pill-btn">{{t "Download audio from this video (MP3)"}}</button>
-            <button type="button" id="audio-youtube-replace-btn" class="audio-pill-btn" hidden>{{t "Download the audio again"}}</button>
-            <button type="button" id="audio-youtube-delete-btn" class="audio-pill-btn danger" hidden>{{t "Remove audio"}}</button>
-            <span id="audio-youtube-status" class="hint form-status" role="status"></span>
-          </div>
-          {{end}}
           {{if .CanEditChart}}<button type="button" class="link-like reference-remove" id="reference-remove-btn">{{t "Remove the reference"}}</button>
           <p class="form-status" id="reference-status" role="status"></p>{{end}}
         </div>
@@ -2616,6 +2611,7 @@
 <script src="/static/js/bar-rows.js?v={{staticVersion}}"></script>
 <script src="/static/js/yt-picker.js?v={{staticVersion}}"></script>
 <script src="/static/js/song.js?v={{staticVersion}}"></script>
+<script src="/static/js/yt-audio.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-shell.js?v={{staticVersion}}"></script>
 <script src="/static/js/player-mix.js?v={{staticVersion}}"></script>
 <script src="/static/js/lead-time.js?v={{staticVersion}}"></script>

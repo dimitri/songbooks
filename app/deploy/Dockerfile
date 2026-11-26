@@ -9,10 +9,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/songbooks ./cmd/songbooks
-# One-off admin script, not served — downloads reference audio for every
-# song that already has a YouTube reference: link. Built alongside the
-# main binary so it ships in the same image with no extra build step;
-# run via `docker compose exec app backfillaudio --db "$DATABASE_URL"`.
+# One-off admin script, not served — queues the YouTube audio of every
+# song whose reference is a YouTube video and that has none yet (a dry
+# run, counts only, unless --apply; the app's workers fetch it). Built
+# alongside the main binary so it ships in the same image with no extra
+# build step; run via `docker compose exec app backfillaudio [--apply]`.
 RUN CGO_ENABLED=0 go build -o /out/backfillaudio ./cmd/backfillaudio
 # One-off admin script, same shape as backfillaudio — batch-imports
 # Bands Camp's song catalog from the hand-curated legacy .song files
