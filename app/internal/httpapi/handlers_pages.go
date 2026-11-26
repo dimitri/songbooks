@@ -580,6 +580,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		"Me": person, "Greeting": homeGreeting(), "Today": todayCards,
 		"Week": week, "MySongbook": mySongbook, "Bands": bandGroups, "Communities": communityGroups,
 		"Attention": attention, "SongNews": songNews,
+		// Arrangements that are only fixes, offered to go back to the
+		// shared chart (foldback.go).
+		"FoldOffers": s.homeFoldOffers(r, person.ID),
 		// An invite or join link they followed no longer works
 		// (dead_link.go): they're signed in, so it says so here.
 		"DeadLink": r.URL.Query().Get("link") == "dead",
@@ -2942,6 +2945,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 	// the page's band already has of it (opened on the shared song).
 	var arrangements []arrangementOffer
 	var placeBand *store.BandVersion
+	var foldOffer *store.FoldCandidate
 	var editOwner *store.VariantOwner
 	var bandVersion *store.BandVersion
 	var basedOn *songBasedOn
@@ -3004,6 +3008,13 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// An arrangement of The Big Songbook's song that is only a fix:
+		// offered to go back to the shared chart (foldback.go).
+		if variant != nil && variant.ForkedFromID != nil && canEdit {
+			if offer := s.foldOfferFor(r, person.ID, variantID); offer != nil {
+				foldOffer = offer
+			}
+		}
 		// Home's "Continue" list; a failure here mustn't cost the page. A
 		// playlist showing the song beside its player isn't a visit.
 		if r.URL.Query().Get("embed") != "playlist" {
@@ -3020,7 +3031,7 @@ func (s *Server) handleSong(w http.ResponseWriter, r *http.Request) {
 		"Me":        person,
 		"VariantID": variantID, "WorkID": workID, "CanEdit": canEdit, "CanEditChart": canEditChart, "CanCopy": canCopy, "Genre": genre,
 		"BandOffer": bandOffer, "CommunityOffer": communityOffer, "EditOwner": editOwner,
-		"Arrangements": arrangements, "PlaceBandArrangement": placeBand, "EditOffer": editOfferKind(canEdit, canEditChart, canCopy, bandOffer, communityOffer), "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
+		"Arrangements": arrangements, "PlaceBandArrangement": placeBand, "FoldOffer": foldOffer, "EditOffer": editOfferKind(canEdit, canEditChart, canCopy, bandOffer, communityOffer), "BandVersion": bandVersion, "BasedOn": basedOn, "SongVisibility": variantVisibility(variant),
 		"CanNewVersion": canNewVersion, "CanPublish": canPublish, "SongPublic": variant != nil && variant.Public, "VersionName": variantVersionName(variant),
 		"CanDelete": canDelete,
 		"Embed": r.URL.Query().Get("embed") == "playlist",

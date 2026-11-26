@@ -103,3 +103,41 @@
 <script src="/static/js/merge-save.js?v={{staticVersion}}" defer></script>
 {{end}}
 {{end}}
+
+{{/* Fold back (foldback.go): an arrangement of The Big Songbook's song
+     that is the same as the shared chart, or differs from it by a fix.
+     Its data: a store.FoldCandidate. fold-back.js sends the choice. */}}
+{{define "fold-offer"}}
+<div class="fold-offer" data-fold-id="{{.ForkID}}">
+  {{if eq .Kind "identical"}}
+  <p><strong>{{t "This arrangement is the same as the shared chart."}}</strong> {{t "Going back to it loses nothing: every songbook and set list of the arrangement opens the shared chart, in its key, and gets everyone’s fixes."}}</p>
+  {{else}}
+  <p><strong>{{tn (len .Changes) "This arrangement differs from the shared chart by one change:" "This arrangement differs from the shared chart by %d changes:"}}</strong></p>
+  <ul class="original-change-list">{{range .Changes}}<li><strong>{{.Where}}</strong> {{.What}}</li>{{end}}</ul>
+  <p class="hint">{{t "If it’s a fix, send it: the shared chart gets it, for everyone who plays it, and this arrangement goes back to it, keys kept."}}</p>
+  {{end}}
+  <div class="form-actions">
+    <button type="button" class="primary" data-fold-go{{if eq .Kind "fix"}} data-fold-send{{end}}>{{if eq .Kind "fix"}}{{t "Send the fix and use the shared chart"}}{{else}}{{t "Use the shared chart"}}{{end}}</button>
+    <button type="button" data-fold-keep>{{t "It’s our arrangement — keep it"}}</button>
+  </div>
+  <p class="form-status" role="status"></p>
+</div>
+{{end}}
+
+{{define "fold-offer-song"}}
+{{with .FoldOffer}}{{template "fold-offer" .}}<script src="/static/js/fold-back.js?v={{staticVersion}}" defer></script>{{end}}
+{{end}}
+
+{{/* On the home page: the person's arrangements that are only fixes. */}}
+{{define "home-fold-offers"}}
+<section class="home-section fold-offers" aria-labelledby="fold-offers-title">
+  <div class="home-section-head"><h3 id="fold-offers-title">{{t "Arrangements that are only fixes"}}</h3></div>
+  {{range .}}
+  <div class="fold-offer-row">
+    <p class="song-news-song"><a href="/song/{{.ForkID}}">{{.Title}}</a>{{with .Artist}}<span class="song-news-artist"> — {{.}}</span>{{end}} <span class="song-news-via">{{.OwnerName}}</span></p>
+    {{template "fold-offer" .}}
+  </div>
+  {{end}}
+</section>
+<script src="/static/js/fold-back.js?v={{staticVersion}}" defer></script>
+{{end}}

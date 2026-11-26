@@ -2260,6 +2260,7 @@
     {{with .Frozen}}<p class="based-on frozen-note">{{template "icon-lock"}} {{if .OriginalID}}{{t "Frozen from"}} <a href="/song/{{.OriginalID}}">{{.From}}</a>{{else}}{{t "Frozen from %s" .From}}{{end}}, {{date .At "2 Jan 2006"}}{{t ": a copy kept as it was when it went private or was deleted."}}</p>{{end}}
     {{with .PlayedBy}}<p class="played-by">{{t "played by:"}} {{range $i, $b := .}}{{if $i}}, {{end}}<a href="/song/{{$.VariantID}}/recordings#band-{{$b.BandID}}">{{$b.BandName}}</a> ({{tn $b.Recordings "%d recording" "%d recordings"}}){{end}}</p>{{end}}
     {{with .OriginalChange}}{{template "original-change" .}}{{end}}
+    {{template "fold-offer-song" .}}
     {{template "catalogue-suggestions" .}}
     {{with .PlaceBandArrangement}}<p class="band-version-notice">{{t "%s has its own arrangement of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s arrangement"}}</a></p>{{end}}
     {{with .BandVersion}}<p class="band-version-notice">{{t "%s has its own arrangement of this song" .BandName}} — <a href="/song/{{.BandVariantID}}?band={{.BandID}}">{{t "Open the band’s arrangement"}}</a></p>{{end}}

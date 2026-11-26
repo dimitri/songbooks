@@ -573,3 +573,98 @@ func TestMergeAtSave(t *testing.T) {
 		t.Errorf("no revision to merge against: %d %s", w.Code, w.Body.String())
 	}
 }
+
+// TestFoldBack: an arrangement of the catalogue's song identical to it is
+// offered, to its editors only, to go back to the shared chart: its
+// songbook entries (key kept) and set list items move to the original,
+// it goes (its old link opens the original). One that differs by a chord
+// sends the fix first (an edit of the shared song, weighed like any), then
+// goes back. A named arrangement, one kept by its owner, one with a
+// recording of its own aren't offered.
+func TestFoldBack(t *testing.T) {
+	st := store.NewTestStore(t)
+	ctx := context.Background()
+	f := newEditModelFixture(t, st)
+	start := "title: Le Vent\nartist: Someone\n\n[Verse]\ngrid: C | G | Am | F\n"
+	setChart(t, st, f.CatalogSong, start)
+	if err := st.SetEntrySemitones(ctx, f.BandBook, f.CatalogSong, -2); err != nil {
+		t.Fatal(err)
+	}
+	core := as(t, st, f.Core)
+	arr := core.variantID(core.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, f.CatalogSong), nil))
+	page := fmt.Sprintf("/song/%d", arr)
+	if html := core.page(page); !strings.Contains(html, "This arrangement is the same as the shared chart.") || !strings.Contains(html, fmt.Sprintf(`data-fold-id="%d"`, arr)) {
+		t.Fatal("an identical arrangement isn't offered to go back")
+	}
+	if html := core.page("/home"); !strings.Contains(html, "Arrangements that are only fixes") {
+		t.Error("the home page doesn't offer it")
+	}
+	if html := as(t, st, f.Guest).page(page); strings.Contains(html, "data-fold-id") {
+		t.Error("a guest who can't change the band's song is offered to fold it")
+	}
+	if w := as(t, st, f.Guest).do("POST", fmt.Sprintf("/api/variants/%d/fold", arr), nil); w.Code != http.StatusForbidden {
+		t.Errorf("a guest folds it: %d", w.Code)
+	}
+	if w := core.do("POST", fmt.Sprintf("/api/variants/%d/fold", arr), nil); w.Code != http.StatusOK {
+		t.Fatalf("fold: %d %s", w.Code, w.Body.String())
+	}
+	if n, in, _ := st.SongbookEntryKey(ctx, f.BandBook, f.CatalogSong); !in || n != -2 {
+		t.Errorf("the band's songbook: the shared song %v, key %d (want -2)", in, n)
+	}
+	if got := setlistSongs(t, st, f.SetlistID); len(got) != 2 || got[1] != f.CatalogSong {
+		t.Errorf("the set list: %v", got)
+	}
+	if v, _ := st.GetVariant(ctx, arr); v != nil {
+		t.Error("the arrangement is still there")
+	}
+	if w := core.do("GET", page, nil); w.Code != http.StatusMovedPermanently || !strings.Contains(w.Header().Get("Location"), fmt.Sprintf("/song/%d", f.CatalogSong)) {
+		t.Errorf("the arrangement's old link: %d %s", w.Code, w.Header().Get("Location"))
+	}
+
+	// A fix: sent, then back.
+	arr = core.variantID(core.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, f.CatalogSong), nil))
+	fixed := strings.Replace(body(t, st, arr), "Am | F", "Am7 | F", 1)
+	if w := core.saveRaw(arr, fixed); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	if html := core.page(fmt.Sprintf("/song/%d", arr)); !strings.Contains(html, "This arrangement differs from the shared chart by one change:") || !strings.Contains(html, "data-fold-send") {
+		t.Fatal("a fix-only arrangement isn't offered to send its fix")
+	}
+	if w := core.do("POST", fmt.Sprintf("/api/variants/%d/fold", arr), nil); w.Code != http.StatusBadRequest {
+		t.Errorf("folding a fix without sending it: %d", w.Code)
+	}
+	if w := core.do("POST", fmt.Sprintf("/api/variants/%d/fold", arr), map[string]bool{"send": true}); w.Code != http.StatusOK {
+		t.Fatalf("send the fix: %d %s", w.Code, w.Body.String())
+	}
+	if got := body(t, st, f.CatalogSong); !strings.Contains(got, "Am7 | F") {
+		t.Errorf("the shared song didn't get the fix: %q", got)
+	}
+	if v, _ := st.GetVariant(ctx, arr); v != nil {
+		t.Error("the fix's arrangement is still there")
+	}
+
+	// Kept, named, with a recording of its own: not offered.
+	arr = core.variantID(core.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, f.CatalogSong), nil))
+	if w := core.do("POST", fmt.Sprintf("/api/variants/%d/fold-keep", arr), nil); w.Code != http.StatusOK {
+		t.Fatal(w.Code)
+	}
+	if html := core.page(fmt.Sprintf("/song/%d", arr)); strings.Contains(html, "data-fold-id") {
+		t.Error("a kept arrangement is offered again")
+	}
+	named := core.variantID(core.do("POST", fmt.Sprintf("/api/variants/%d/versions", arr), map[string]any{"name": "psychedelic"}))
+	store.ExecForTest(t, st, `UPDATE songs SET forked_from_id = $2 WHERE id = $1`, named, f.CatalogSong)
+	media := core.variantID(core.do("POST", fmt.Sprintf("/api/variants/%d/fork", f.CatalogSong), nil))
+	store.ExecForTest(t, st, `INSERT INTO song_audio (variant_id, byte_size, sha256, data, category) VALUES ($1, 1, 'own', '\x00', 'band')`, media)
+	cs, err := st.FoldCandidates(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cs {
+		if c.Foldable() {
+			t.Errorf("offered: %+v", c)
+		}
+	}
+	if _, err := st.FoldBack(ctx, 0, media, false, store.FoldIdentical); err == nil {
+		t.Error("an arrangement with a recording of its own folded")
+	}
+}

@@ -61,5 +61,20 @@
   "the order of the sections": "l’ordre des sections",
   "Everything else of both edits is kept. For each part, keep theirs or yours:": "Tout le reste des deux modifications est gardé. Pour chaque partie, gardez la leur ou la vôtre :",
   "Saved, merged": "Enregistré, fusionné",
-  "Two edits in the same place": "Deux modifications au même endroit"
+  "Two edits in the same place": "Deux modifications au même endroit",
+  "Back to the shared chart: every songbook and set list of the arrangement opens it, in its key.": "Retour à la grille partagée : chaque songbook et chaque set list de l’arrangement l’ouvre, dans sa tonalité.",
+  "Fix from %s’s arrangement": "Correction venue de l’arrangement de %s",
+  "The shared chart changed in the same place since: compare them and fix it there by hand.": "La grille partagée a changé au même endroit depuis : comparez-les et corrigez-la à la main.",
+  "This arrangement differs from the shared chart: send its fix first.": "Cet arrangement diffère de la grille partagée : envoyez d’abord sa correction.",
+  "This arrangement isn’t one to fold back.": "Cet arrangement n’est pas à ramener à la grille partagée.",
+  "Your fix waits for a reviewer: the arrangement stays until it’s accepted, then use the shared chart.": "Votre correction attend un relecteur : l’arrangement reste jusqu’à son acceptation ; utilisez ensuite la grille partagée.",
+  "Arrangements that are only fixes": "Des arrangements qui ne sont que des corrections",
+  "Going back to it loses nothing: every songbook and set list of the arrangement opens the shared chart, in its key, and gets everyone’s fixes.": "Y revenir ne fait rien perdre : chaque songbook et chaque set list de l’arrangement ouvre la grille partagée, dans sa tonalité, et profite des corrections de tous.",
+  "If it’s a fix, send it: the shared chart gets it, for everyone who plays it, and this arrangement goes back to it, keys kept.": "Si c’est une correction, envoyez-la : la grille partagée la reçoit, pour tous ceux qui la jouent, et cet arrangement y revient, tonalités gardées.",
+  "It’s our arrangement — keep it": "C’est notre arrangement — le garder",
+  "Send the fix and use the shared chart": "Envoyer la correction et utiliser la grille partagée",
+  "This arrangement is the same as the shared chart.": "Cet arrangement est identique à la grille partagée.",
+  "Use the shared chart": "Utiliser la grille partagée",
+  "This arrangement differs from the shared chart by one change:": "Cet arrangement diffère de la grille partagée par une modification :",
+  "This arrangement differs from the shared chart by %d changes:": "Cet arrangement diffère de la grille partagée par %d modifications :"
 }

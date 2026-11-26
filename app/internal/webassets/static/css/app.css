@@ -10458,3 +10458,7 @@ button.reference-remove { font-size: 0.82rem; color: var(--fg-muted); }
 .merge-conflict { border: 1px solid var(--border, #d8ccb8); border-radius: 6px; margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; }
 .merge-conflict label { display: block; margin: 0.2rem 0; }
 .merge-conflict pre { margin: 0.2rem 0 0 1.6rem; white-space: pre-wrap; font-size: 0.85rem; max-height: 8rem; overflow: auto; }
+.fold-offer { margin: 0.4rem 0 0.8rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-left: 3px solid var(--accent-ink); border-radius: 8px; font-size: 0.92rem; }
+.fold-offer p { margin: 0.2rem 0; }
+.fold-offer .form-actions { flex-wrap: wrap; }
+.fold-offer-row + .fold-offer-row { margin-top: 0.6rem; }
