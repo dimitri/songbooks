@@ -23,7 +23,38 @@
 {{with .Arrangements}}{{with index . 0}}<button type="button" class="link-like" data-arrangement-open="arrangement-dialog-0">{{if eq .Action "copy"}}{{t "Make my arrangement instead"}}{{else}}{{t "Make %s’s arrangement instead" .Name}}{{end}}</button>{{end}}{{end}}
 {{end}}
 
+{{/* Edit's question on The Big Songbook's song (the user's decision on
+     #209): fix the shared chart to match its reference, or work on a new
+     version — whose: one's own, a band's, a community's, only those the
+     person may make (handleSong's Arrangements). Asked each time Edit is
+     opened on the song (no "don't ask again": situations change).
+     song.js runs it. */}}
+{{define "edit-question"}}
+<dialog class="edit-offer-dialog edit-question" id="edit-question" aria-labelledby="edit-question-title" data-variant-id="{{.VariantID}}">
+  <form method="dialog">
+    <h2 id="edit-question-title">{{if .RefHead.Kind}}{{t "This chart follows its reference recording"}}{{else}}{{t "This is the shared chart"}}{{end}}</h2>
+    {{with .RefHead}}{{if .Kind}}<p class="edit-question-ref">{{if .YouTubeID}}<img src="https://i.ytimg.com/vi/{{.YouTubeID}}/mqdefault.jpg" alt="" width="96" height="54" loading="lazy" referrerpolicy="no-referrer" decoding="async">{{end}}<span>{{if .Title}}{{.Title}}{{else if .Name}}{{.Name}}{{else}}{{t "Band recording"}}{{end}}</span></p>{{end}}{{end}}
+    <div class="edit-question-choices">
+      <button type="button" class="primary" data-edit-question-fix><strong>{{t "Fix it to match the reference"}}</strong><small>{{t "the shared chart, for everyone who plays it"}}</small></button>
+      {{if .Arrangements}}<button type="button" data-edit-question-version aria-expanded="false" aria-controls="edit-question-whose"><strong>{{t "Work on a new version"}}</strong><small>{{t "your own copy, to play it your way"}}</small></button>{{end}}
+    </div>
+    {{if .Arrangements}}
+    <div class="edit-question-whose" id="edit-question-whose" hidden>
+      <p>{{t "Whose version?"}}</p>
+      <div class="edit-question-whose-list">
+      {{range .Arrangements}}<button type="button" data-edit-question-go data-action="{{.Action}}"{{if .BandID}} data-band-id="{{.BandID}}"{{end}}{{if .CommunityID}} data-community-id="{{.CommunityID}}"{{end}}{{if .SongbookID}} data-songbook-id="{{.SongbookID}}"{{end}}>{{if eq .Action "copy"}}{{t "Mine"}}{{else}}{{t "%s’s" .Name}}{{end}}</button>{{end}}
+      </div>
+    </div>
+    {{end}}
+    <p class="hint">{{t "Your key stays your own either way."}}</p>
+    <p class="form-status" id="edit-question-status" role="status"></p>
+    <div class="form-actions"><button type="submit" value="cancel">{{t "Cancel"}}</button></div>
+  </form>
+</dialog>
+{{end}}
+
 {{define "arrangement-dialogs"}}
+{{if .AskBeforeEdit}}{{template "edit-question" .}}{{end}}
 {{range $i, $o := .Arrangements}}
 <dialog class="edit-offer-dialog arrangement-dialog" id="arrangement-dialog-{{$i}}" aria-labelledby="arrangement-title-{{$i}}" aria-describedby="arrangement-text-{{$i}}">
   <form method="dialog">

@@ -495,6 +495,73 @@ func TestEveryEditGoesLive(t *testing.T) {
 	}
 }
 
+// TestEditQuestion: Edit on The Big Songbook's song asks first, each time
+// (no "don't ask again"): fix it to match the reference, or work on a new
+// version, whose: only the owners the person may make one for.
+func TestEditQuestion(t *testing.T) {
+	st := store.NewTestStore(t)
+	f := newEditModelFixture(t, st)
+	song := f.CatalogSong
+	band := fmt.Sprintf(`data-edit-question-go data-action="band" data-band-id="%d"`, f.Band)
+	coaching := fmt.Sprintf(`data-edit-question-go data-action="community" data-community-id="%d"`, f.Coaching)
+	own := `data-edit-question-go data-action="copy"`
+	for _, c := range []struct {
+		who     string
+		person  int64
+		q       string
+		offers  []string
+		not     []string
+		version bool
+	}{
+		{"site admin, band core", f.Admin, fmt.Sprintf("?setlist=%d", f.SetlistID), []string{band, own}, nil, true},
+		{"band core", f.Core, "", []string{band, own}, nil, true},
+		{"band guest", f.Guest, fmt.Sprintf("?band=%d", f.Band), []string{own}, []string{band}, true},
+		{"coach", f.Coach, fmt.Sprintf("?songbook=%d", f.Repertoire), []string{coaching}, []string{own, band}, true},
+		{"student", f.Student, fmt.Sprintf("?songbook=%d", f.StudentBook), []string{coaching}, []string{own, band}, true},
+		{"newcomer", f.Stranger, "", []string{own}, []string{band, coaching}, true},
+	} {
+		html := as(t, st, c.person).page(fmt.Sprintf("/song/%d%s", song, c.q))
+		if !strings.Contains(html, `id="edit-question"`) || !strings.Contains(html, "data-edit-question-fix") || !strings.Contains(html, "Your key stays your own either way.") {
+			t.Errorf("%s: no question before editing", c.who)
+			continue
+		}
+		if strings.Contains(html, "Don’t ask again") {
+			t.Errorf("%s: a \"don't ask again\"", c.who)
+		}
+		if c.version != strings.Contains(html, "data-edit-question-version") {
+			t.Errorf("%s: work on a new version offered: %v", c.who, !c.version)
+		}
+		for _, o := range c.offers {
+			if !strings.Contains(html, o) {
+				t.Errorf("%s: not offered %s", c.who, o)
+			}
+		}
+		for _, o := range c.not {
+			if strings.Contains(html, o) {
+				t.Errorf("%s: offered %s", c.who, o)
+			}
+		}
+	}
+	// The question's two paths: the fix saves on the shared song; a new
+	// version (the band's) takes the link's place.
+	core := as(t, st, f.Core)
+	if w := core.saveRaw(song, strings.Replace(body(t, st, song), "Le Vent", "Le Vent", 1)+"\n"); w.Code != http.StatusOK {
+		t.Errorf("the fix: %d", w.Code)
+	}
+	arr := core.variantID(core.do("POST", fmt.Sprintf("/api/bands/%d/catalog/fork/%d", f.Band, song), map[string]int64{"songbookId": f.BandBook}))
+	if _, in, _ := st.SongbookEntryKey(context.Background(), f.BandBook, arr); !in {
+		t.Error("the band's new version isn't in its songbook")
+	}
+	// Not on a song that isn't the catalogue's, nor for someone banned.
+	if html := core.page(fmt.Sprintf("/song/%d", arr)); strings.Contains(html, `id="edit-question"`) {
+		t.Error("asked on the band's own song")
+	}
+	store.ExecForTest(t, st, `UPDATE people SET catalogue_banned_at = now() WHERE id = $1`, f.Stranger)
+	if html := as(t, st, f.Stranger).page(fmt.Sprintf("/song/%d", song)); strings.Contains(html, `id="edit-question"`) {
+		t.Error("a banned person is asked")
+	}
+}
+
 // saveRawAt is PUT /api/songs/{id}/raw at version, with headers
 // (URL-encoded).
 func (c client) saveRawAt(id int64, text string, version int, headers map[string]string) *httptest.ResponseRecorder {

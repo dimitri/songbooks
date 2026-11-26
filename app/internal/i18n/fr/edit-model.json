@@ -60,8 +60,18 @@
   "Who plays this chart:": "Qui joue cette grille :",
   "Your fix reaches all of them, each in its own key; the arrangements get it offered, to take or keep theirs.": "Votre correction arrive partout, chacun dans sa tonalité ; elle est proposée aux arrangements, qui la prennent ou gardent la leur.",
   "You made %d edits of The Big Songbook’s songs today: the next ones tomorrow, or once you’re a trusted editor.": "Vous avez fait %d modifications des morceaux du Grand Songbook aujourd’hui : les suivantes demain, ou dès que vous serez contributeur de confiance.",
+  "%s’s": "Celle de %s",
+  "Fix it to match the reference": "La corriger pour suivre la référence",
+  "Mine": "La mienne",
+  "This chart follows its reference recording": "Cette grille suit son enregistrement de référence",
+  "This is the shared chart": "C’est la grille partagée",
+  "Whose version?": "La version de qui ?",
+  "Work on a new version": "Travailler sur une nouvelle version",
   "Your earlier edit of this song, sent %s, still waits for a reviewer: your next save takes its place.": "Votre modification précédente de ce morceau, envoyée %s, attend encore un relecteur : votre prochain enregistrement la remplace.",
   "Your edit goes live at once, and a reviewer looks at it afterwards (10 edits a day until you’re a trusted editor).": "Votre modification s’applique tout de suite, et un relecteur la regarde ensuite (10 modifications par jour tant que vous n’êtes pas contributeur de confiance).",
+  "Your key stays your own either way.": "Votre tonalité reste la vôtre dans les deux cas.",
+  "the shared chart, for everyone who plays it": "la grille partagée, pour tous ceux qui le jouent",
+  "your own copy, to play it your way": "votre propre copie, pour le jouer à votre façon",
   "Anyone signed in edits The Big Songbook’s songs, and every edit goes live at once. Reviewers check them afterwards: Looks good, or Revert with a note for its author. Until they’re trusted, people make %d edits a day. Another recording is another song.": "Toute personne connectée modifie les morceaux du Grand Songbook, et chaque modification s’applique tout de suite. Les relecteurs les vérifient après coup : C’est bon, ou Annuler avec une note pour son auteur. Tant qu’on n’est pas de confiance, on fait %d modifications par jour. Un autre enregistrement est un autre morceau.",
   "Held under the rules before every edit went live: approve or reject them; their author’s next save takes their place.": "Retenues selon les règles d’avant, quand toutes les modifications ne s’appliquaient pas tout de suite : acceptez-les ou refusez-les ; le prochain enregistrement de leur auteur les remplace."
 }

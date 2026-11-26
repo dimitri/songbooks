@@ -841,6 +841,11 @@ func (s *Server) addCatalogueEditing(r *http.Request, person *store.Person, song
 			data["CatalogueSaveMode"] = "staff"
 		}
 	}
+	// Edit asks first, every time: fix the shared chart or work on a new
+	// version (edit_model.html).
+	if rights.Contribute || rights.Edit {
+		data["AskBeforeEdit"] = true
+	}
 	if e, err := s.store.PendingCatalogueEditOf(r.Context(), person.ID, songID); err == nil && e != nil {
 		data["CataloguePending"] = e
 	}

@@ -1844,8 +1844,36 @@ const ICONS = {
     const back = document.querySelector('a.song-back[href]');
     location.href = back ? back.getAttribute('href') : '/';
   }));
+  // Edit on The Big Songbook's song asks first (edit_model.html's
+  // #edit-question): fix the shared chart to match its reference, or work
+  // on a new version — whose, then. Asked each time Edit is opened.
+  const askDlg = document.getElementById('edit-question');
+  if (askDlg) {
+    askDlg.addEventListener('keydown', (e) => e.stopPropagation());
+    askDlg.querySelector('[data-edit-question-fix]')?.addEventListener('click', () => {
+      askDlg.close();
+      setDrawerOpen(true);
+    });
+    askDlg.querySelector('[data-edit-question-version]')?.addEventListener('click', (e) => {
+      const whose = document.getElementById('edit-question-whose');
+      whose.hidden = !whose.hidden;
+      e.currentTarget.setAttribute('aria-expanded', String(!whose.hidden));
+      if (!whose.hidden) whose.querySelector('button')?.focus();
+    });
+    askDlg.querySelectorAll('[data-edit-question-go]').forEach((btn) => btn.addEventListener('click', () => {
+      makeArrangement(btn, document.getElementById('edit-question-status'));
+    }));
+  }
   editToggle.addEventListener('click', () => {
     if (drawer.hidden && editOffer && pageVariantId) { openEditOffer(); return; }
+    if (drawer.hidden && askDlg) {
+      if (askDlg.open) return;
+      const whose = document.getElementById('edit-question-whose');
+      if (whose) whose.hidden = true;
+      Forms.status(document.getElementById('edit-question-status'), '');
+      askDlg.showModal();
+      return;
+    }
     setDrawerOpen(drawer.hidden);
   });
   closeEditBtn.addEventListener('click', () => setDrawerOpen(false));
